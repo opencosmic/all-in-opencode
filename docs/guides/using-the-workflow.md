@@ -37,7 +37,7 @@ approved OpenSpec proposal + behavioral specs
 
 `/execute` is controlled implementation. Executor requests a new Plan Reviewer review every time, establishes the actual workspace and baseline, delegates code changes to OMO workers, and owns custom task-checkbox transitions. It finishes with a whole-change review and hands off to `/verify`; it does not self-verify or ship.
 
-`/verify` independently binds evidence to the current workspace, artifacts, diff, and fresh checks. Its only outcomes are `VERIFIED`, `VERIFIED_WITH_CONCERNS`, or `BLOCKED`. Evidence becomes stale after a relevant code, artifact, base, branch, or worktree change.
+`/verify` independently binds evidence to the current workspace, artifacts, diff, and fresh checks. Its only outcomes are `VERIFIED`, `VERIFIED_WITH_CONCERNS`, or `BLOCKED`. Only `VERIFIED` leads directly to `/ship`; `VERIFIED_WITH_CONCERNS` requires an explicit user risk decision before archive or integration, and `BLOCKED` requires repair or evidence. Evidence becomes stale after a relevant code, artifact, base, branch, or worktree change.
 
 `/ship` is deliberately user-owned. It reruns verification before offering exactly: merge locally, push + PR, or keep branch. Archiving or syncing OpenSpec mutates artifacts, so it requires another fresh verification before merge or push.
 

@@ -47,7 +47,7 @@ For experiment setup, require an exact-root, complete, zero-pending index and a 
 
 ### OMO doctor warns about `agents.*.models` schema shape
 
-**Known warning unless it prevents the configured runtime from resolving.** The authored OMO configuration uses model lists for fallback behavior. Treat a doctor/schema warning as actionable only when agent resolution or actual invocation fails; otherwise record it as environment feedback and do not rewrite configuration solely to silence it.
+**Context-dependent warning.** The authored OMO configuration contains `models` lists. Treat a doctor/schema warning as actionable when agent resolution or actual invocation fails; otherwise record it as environment feedback and do not rewrite configuration solely to silence it.
 
 ### `runtime-skills` reports a port-0 warning
 

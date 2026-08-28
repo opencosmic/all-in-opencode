@@ -1,6 +1,6 @@
 # Workflow invariants
 
-These are current hard boundaries extracted from the canonical source and deterministic tests. The source/tests remain executable truth; links below identify the owning implementation.
+These are current hard boundaries extracted from the canonical source and deterministic tests. The source/tests remain executable truth; some boundaries are prompt/policy or test enforced rather than separate runtime mechanisms. Links below identify the owning implementation and enforcement evidence.
 
 | Invariant | Current enforcement / source |
 |---|---|

@@ -37,7 +37,7 @@ The custom tool surface is deliberately limited to `codegraph_codegraph_explore`
 - `opencode/package.json` and `opencode/package-lock.json`: pinned plugin API dependency metadata.
 - `omo/omo.jsonc`: public-safe authored OMO configuration only.
 - `scripts/`: explicit, conservative link installation and verification.
-- `docs/`: architecture and durable engineering decisions.
+- `docs/`: documentation index, user guides, architecture, reference, research, troubleshooting, and engineering decisions.
 
 The global OpenSpec file at `~/.config/openspec/config.json` is not included: the current file contains local telemetry identity/state, not authored workflow policy. Project-specific OpenSpec artifacts continue to live in each target project. OpenCode's live package manifest, lockfile, and installed `node_modules` also remain local package-manager state; the repository's dependency metadata supports validation from a clone but is not linked over those live files.
 
