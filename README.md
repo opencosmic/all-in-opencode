@@ -93,3 +93,14 @@ The deterministic suite covers command discovery, workflow state ownership, plan
 After installation, edit files in this repository. The approved live OpenCode and OMO paths resolve directly to these files, so there is no second copy to synchronize. Run the verification script and deterministic tests, inspect the Git diff, and commit the coherent change here.
 
 Do not copy local benchmarks, raw sessions, telemetry, provisioned runtimes, indexes, credentials, or the external `ego-lite` and `codegraph` benchmark repositories into this repository.
+
+## Documentation
+
+- [Documentation index](docs/README.md) is the navigation hub for users and future agents.
+- [Using the workflow](docs/guides/using-the-workflow.md) is the daily operating guide.
+- [Architecture](docs/architecture.md) explains ownership and lifecycle boundaries.
+- [Project reference](docs/reference/project-map.md) maps source, agents, commands, and invariants.
+- [Research](docs/research/README.md) preserves validated, rejected, and unproven R&D knowledge.
+- [Maintaining the repository](MAINTAINING.md) covers safe development and research hygiene.
+- [Troubleshooting](docs/troubleshooting.md) separates repairable failures from known warnings.
+- [Decisions](docs/decisions/planner-optimization.md) records final engineering decisions.
