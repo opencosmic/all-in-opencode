@@ -1,0 +1,8 @@
+# repository source|live path relative to $HOME|kind
+opencode/agents|.config/opencode/agents|directory
+opencode/commands|.config/opencode/commands|directory
+opencode/plugins|.config/opencode/plugins|directory
+opencode/tests|.config/opencode/tests|directory
+opencode/opencode.jsonc|.config/opencode/opencode.jsonc|file
+opencode/tui.json|.config/opencode/tui.json|file
+omo/omo.jsonc|.omo/omo.jsonc|file
