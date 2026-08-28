@@ -5,6 +5,7 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 MANIFEST="$SCRIPT_DIR/links.tsv"
+DATA_ROOT=${OPENCODE_WORKFLOW_DATA_ROOT:-"$HOME/Workspace/data/opencode-workflow"}
 DRY_RUN=0
 BACKUP_DIR=""
 MIGRATING=0
@@ -113,7 +114,7 @@ fi
 
 if [ -z "$BACKUP_DIR" ]; then
   timestamp=$(date -u +%Y%m%dT%H%M%SZ)
-  BACKUP_DIR="$HOME/Workspace/backups/opencode-workflow-install/$timestamp"
+  BACKUP_DIR="$DATA_ROOT/backups/migrations/$timestamp"
 fi
 [ ! -e "$BACKUP_DIR" ] || fail "backup path already exists: $BACKUP_DIR"
 mkdir -p "$BACKUP_DIR/files"
@@ -157,4 +158,3 @@ done < "$MANIFEST"
 MIGRATING=0
 trap - HUP INT TERM EXIT
 printf 'Migration complete. Backup retained at: %s\n' "$BACKUP_DIR"
-
