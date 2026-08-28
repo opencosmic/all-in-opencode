@@ -41,6 +41,17 @@ The custom tool surface is deliberately limited to `codegraph_codegraph_explore`
 
 The global OpenSpec file at `~/.config/openspec/config.json` is not included: the current file contains local telemetry identity/state, not authored workflow policy. Project-specific OpenSpec artifacts continue to live in each target project. OpenCode's live package manifest, lockfile, and installed `node_modules` also remain local package-manager state; the repository's dependency metadata supports validation from a clone but is not linked over those live files.
 
+## Local data ownership
+
+Authored source belongs in this Git repository. Project-owned data that must remain local belongs under `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}`:
+
+- benchmark evidence: `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}/benchmarks/<experiment-id>`;
+- configuration and migration backups: `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}/backups/`.
+
+The environment variable is optional; without it, the default is `~/Workspace/data/opencode-workflow`. Future benchmark and backup work must use this data root directly and must not recreate `~/.config/opencode/benchmarks` or `~/.config/opencode/backups`.
+
+The live application roots remain `~/.config/opencode`, `~/.config/openspec`, and `~/.omo`. They contain only canonical source entrypoints and application-owned local state. OMO runtime and CodeGraph indexes remain under `~/.omo`; OpenSpec's private telemetry configuration remains under `~/.config/openspec`; runtime dependencies remain where OpenCode requires them. The external `ego-lite` and `codegraph` repositories remain independent benchmark targets under `~/Workspace/repo`.
+
 ## Prerequisites
 
 The migrated configuration was validated with OpenCode 1.18.23, Oh My OpenAgent 4.19.4, OMO-owned CodeGraph 1.5.0, OpenSpec CLI, and Node.js 24. Install the JavaScript dependency without vendoring it:
@@ -57,7 +68,7 @@ Review the manifest at `scripts/links.tsv`, then preview the operation:
 ./scripts/install.sh --dry-run
 ```
 
-Install creates only the approved links. Existing real files are moved into a timestamped backup; unexpected symlinks or content drift stop the operation before replacement.
+Install creates only the approved links. Existing real files are moved into a timestamped backup under the project data root; unexpected symlinks or content drift stop the operation before replacement.
 
 ```sh
 ./scripts/install.sh

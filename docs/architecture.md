@@ -6,6 +6,8 @@ This repository owns authored OpenCode agents, commands, plugins, tests, and pub
 
 OpenCode owns its installed packages and local UI/runtime material. OMO owns its runtime, daemon data, downloaded tools, native state, and CodeGraph provisioning. OpenSpec owns project contracts and changes inside each target project. The global OpenSpec telemetry file remains local. Git repositories used as benchmark targets remain independent.
 
+Project-owned local evidence and backups live under `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}`. The default layout separates `benchmarks/<experiment-id>` from `backups/` for OpenCode, OpenSpec, OMO, and migration snapshots. These data trees are neither Git source nor application runtime and must not be recreated inside application configuration roots.
+
 ## Custom lifecycle
 
 ```text
@@ -54,5 +56,6 @@ CodeGraph 1.5.0 was the validated OMO-owned runtime version. It supplies derived
 
 `scripts/links.tsv` is the auditable source-to-live manifest. The installer validates all sources and live content before changing anything, backs up every replaced path before creating a link, rejects unexpected symlinks, and retains a checksum inventory. `scripts/verify.sh` proves link targets and frozen production hashes.
 
-OpenSpec's global telemetry configuration remains local and independently owned. This is intentional partial canonicalization: public safety takes precedence over forcing every live file into Git.
+Installer backups default to `$OPENCODE_WORKFLOW_DATA_ROOT/backups/migrations`, falling back to `~/Workspace/data/opencode-workflow/backups/migrations`. Benchmarks and backups are never live link targets.
 
+OpenSpec's global telemetry configuration remains local and independently owned. This is intentional partial canonicalization: public safety takes precedence over forcing every live file into Git.
