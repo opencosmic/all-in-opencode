@@ -28,6 +28,37 @@ This source evidence is decisive for the requested normal custom Executor/catego
 | Parent/change worktree unaffected by workers | `UNPROVEN` | No worker ran; absence of mutation is not worker-isolation proof. |
 | Nested child CWD preservation | `UNPROVEN` | Normal delegation inherits its parent directory, but no safely bound outer child existed to exercise nested behavior. |
 
+## Patched 4.19.4 lab result
+
+An isolated 4.19.4 source checkout was patched to add one optional `directory`
+argument and propagate it through synchronous and background task/category
+session creation. The precedence is explicit caller directory, then parent
+session directory, then the existing plugin default. The installed package and
+production configuration were not changed.
+
+The static probe classifies that checkout as `UNPROVEN`, rather than promoting
+the new API surface to runtime proof. A separately isolated OpenAI-only runtime
+probe produced `PARTIAL_ISOLATION` evidence:
+
+- a normal background category child created with `directory=worktree-a` ran a
+  `bash` tool without `cd` or a workdir override, reported `pwd` and Git
+  top-level as `worktree-a`, reported the expected branch and shared Git common
+  directory, and wrote the exact provenance sentinel only in that worktree;
+- the synchronous CLI path created its child at the selected directory, but an
+  existing completion race aborted the model's shell call before execution;
+- a concurrent A/B attempt created both child sessions at their respective
+  sibling worktrees, but their shell executions were interrupted, so temporal
+  overlap remains `UNPROVEN`;
+- the tested category worker denies its own `task` tool, so nested runtime
+  delegation was not exercisable; deterministic tests cover immediate-parent
+  session inheritance;
+- OMO created untracked `.omo/run-continuation` bookkeeping in the fixture, so
+  literal parent Git cleanliness is `FAILED` even though the worker sentinel was
+  confined to its selected sibling.
+
+This evidence proves the new primitive for the background child that actually
+ran, but it does not justify production lane worktrees.
+
 ## Team Mode is a separate path
 
 OMO 4.19.4 Team Mode accepts member `worktreePath` metadata. In the installed implementation it creates that directory, records it in team runtime state, and includes it in the member prompt. Member sessions are still launched through the same background manager, whose child session directory is inherited from the parent.
@@ -41,6 +72,11 @@ Run from the canonical repository:
 ```sh
 node scripts/probes/worktree-isolation.mjs
 ```
+
+Pass `--omo-package-root PATH` to inspect an isolated OMO build. `PATH` may be
+a published-package root, where `@opencode-ai/sdk` is a sibling dependency, or
+an upstream source checkout with dependencies under its own `node_modules`.
+This does not change OpenCode's live configuration or installed OMO package.
 
 The probe:
 
@@ -60,4 +96,4 @@ The deterministic tests cover source classification, path/provenance validation,
 
 A prompt such as `WORKSPACE: /path` is not proof. Prompt compliance allows one forgotten `cd` to operate in the parent tree; runtime-enforced isolation must make the selected directory intrinsic to the child session/tool context.
 
-`LANE_WORKTREES` and worker-driven `EPHEMERAL_SANDBOX` remain disabled for the custom Executor route. A follow-up implementation task is not justified until OMO exposes the OpenCode child-session directory primitive (or an equivalent host-enforced mechanism) to normal category delegation. If that changes, rerun the probe and require complete child/tool/Git/sentinel/sibling/parent/concurrent/nested evidence before considering production enablement.
+`LANE_WORKTREES` and worker-driven `EPHEMERAL_SANDBOX` remain disabled for the custom Executor route. The isolated OMO patch exposes the missing primitive, but production integration is not justified while sync, concurrency, parent cleanliness, and nested runtime evidence remain incomplete. After upstreaming or otherwise adopting the primitive in a supported OMO release, rerun the full probe and require complete child/tool/Git/sentinel/sibling/parent/concurrent/nested evidence before considering production enablement.

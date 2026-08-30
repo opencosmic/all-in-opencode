@@ -60,6 +60,17 @@ async function exists(path) {
   }
 }
 
+export async function resolveOpenCodeSdkTypesPath(omoPackageRoot) {
+  const candidates = [
+    join(omoPackageRoot, "node_modules", "@opencode-ai", "sdk", "dist", "v2", "gen", "types.gen.d.ts"),
+    join(omoPackageRoot, "..", "@opencode-ai", "sdk", "dist", "v2", "gen", "types.gen.d.ts"),
+  ]
+  for (const candidate of candidates) {
+    if (await exists(candidate)) return candidate
+  }
+  throw new Error(`OpenCode SDK types not found for OMO package root: ${omoPackageRoot}`)
+}
+
 async function canonical(path) {
   return realpath(path)
 }
@@ -447,12 +458,13 @@ async function installedRuntime(options = {}) {
     options.omoPackageRoot ??
       join(homedir(), ".cache", "opencode", "packages", "oh-my-openagent@latest", "node_modules", "oh-my-openagent"),
   )
+  const sdkTypesPath = await resolveOpenCodeSdkTypesPath(omoPackageRoot)
   const [packageJson, delegateTypes, backgroundTypes, bundleSource, sdkTypes, opencodeVersion] = await Promise.all([
     readFile(join(omoPackageRoot, "package.json"), "utf8").then(JSON.parse),
     readFile(join(omoPackageRoot, "dist", "tools", "delegate-task", "types.d.ts"), "utf8"),
     readFile(join(omoPackageRoot, "dist", "features", "background-agent", "types.d.ts"), "utf8"),
     readFile(join(omoPackageRoot, "dist", "index.js"), "utf8"),
-    readFile(join(omoPackageRoot, "..", "@opencode-ai", "sdk", "dist", "v2", "gen", "types.gen.d.ts"), "utf8"),
+    readFile(sdkTypesPath, "utf8"),
     command("opencode", ["--version"]).then((result) => result.stdout),
   ])
   return {
@@ -505,6 +517,7 @@ export async function runProbe(options = {}) {
       teamMode: runtime.source.teamMode,
     }
     const capabilities = classifyProbeEvidence({ runtimeInspection })
+    const callerDirectoryUnavailable = runtime.source.normalTask.status === STATUS.FAILED
     const result = {
       schemaVersion: 1,
       verdict: chooseVerdict(capabilities),
@@ -522,12 +535,16 @@ export async function runProbe(options = {}) {
         facts,
         initialSentinelState,
         workersInvoked: false,
-        note: "Topology was validated mechanically; no child was invoked because caller-selected normal-task CWD is unavailable.",
+        note: callerDirectoryUnavailable
+          ? "Topology was validated mechanically; no child was invoked because caller-selected normal-task CWD is unavailable."
+          : "Topology was validated mechanically; this static probe does not invoke child workers, so runtime isolation remains UNPROVEN.",
       },
       modelProviderCompliance: {
         llmRuntimeProbeInvoked: false,
         modelsUsed: [],
-        reason: "Installed source was decisive; configured fallback chains are not OpenAI-only.",
+        reason: callerDirectoryUnavailable
+          ? "Installed source was decisive; configured fallback chains are not OpenAI-only."
+          : "Static inspection does not invoke an LLM; a separate constrained runtime probe is required for mechanical proof.",
       },
       cleanup,
     }

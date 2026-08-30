@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { mkdtemp, realpath, rm, unlink, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, realpath, rm, unlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -17,6 +17,7 @@ import {
   inspectSentinelIsolation,
   inspectNormalTaskSource,
   inspectOpenCodeSessionApiSource,
+  resolveOpenCodeSdkTypesPath,
   sentinelPayload,
 } from "../../scripts/probes/worktree-isolation.mjs"
 
@@ -122,6 +123,24 @@ export type SessionCreateErrors = {
   assert.equal(present.acceptsDirectoryQuery, true)
   assert.equal(present.status, STATUS.PROVEN)
   assert.equal(inspectOpenCodeSessionApiSource("export type SessionCreateData = {}").status, STATUS.UNPROVEN)
+})
+
+test("resolves OpenCode SDK types for installed packages and source monorepos", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cwd-probe-sdk-resolution-"))
+  const installedOmo = join(root, "node_modules", "oh-my-openagent")
+  const installedSdk = join(root, "node_modules", "@opencode-ai", "sdk", "dist", "v2", "gen", "types.gen.d.ts")
+  const sourceOmo = join(root, "source")
+  const sourceSdk = join(sourceOmo, "node_modules", "@opencode-ai", "sdk", "dist", "v2", "gen", "types.gen.d.ts")
+  await mkdir(installedOmo, { recursive: true })
+  await mkdir(join(installedSdk, ".."), { recursive: true })
+  await mkdir(join(sourceSdk, ".."), { recursive: true })
+  await writeFile(installedSdk, "installed")
+  await writeFile(sourceSdk, "source")
+
+  assert.equal(await resolveOpenCodeSdkTypesPath(installedOmo), installedSdk)
+  assert.equal(await resolveOpenCodeSdkTypesPath(sourceOmo), sourceSdk)
+
+  await rm(root, { recursive: true })
 })
 
 test("missing runtime evidence never becomes PROVEN", () => {
