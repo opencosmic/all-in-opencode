@@ -19,6 +19,7 @@ Use this page to choose the smallest document that answers the question at hand.
 ## Research
 
 - [Research index](research/README.md) — start here for the status of completed, rejected, and unproven R&D.
+- [Child-worker worktree isolation](research/worktree-isolation-capability.md) — read this before considering lane worktrees or worker sandboxes.
 - [CodeGraph integration](research/codegraph-integration.md) — read this for validated structural-evidence findings and limitations.
 - [Planner benchmark history](research/planner-benchmarks.md) — read this before considering Planner retrieval/prompt changes.
 

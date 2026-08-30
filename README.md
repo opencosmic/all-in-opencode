@@ -82,11 +82,12 @@ The installer links individual public-safe files and source-only directories. It
 ```sh
 ./scripts/verify.sh
 node --test ~/.config/opencode/tests/*.test.js
+node scripts/probes/worktree-isolation.mjs
 opencode debug info
 opencode agent list
 ```
 
-The deterministic suite covers command discovery, workflow state ownership, planning and execution gates, CodeGraph permissions, plugin behavior, and worktree safety.
+The deterministic suite covers command discovery, workflow state ownership, planning and execution gates, CodeGraph permissions, plugin behavior, and worktree safety. The standalone child-CWD probe emits environment-specific machine-readable evidence and makes no LLM call when installed runtime inspection is decisive.
 
 ## Make changes safely
 
