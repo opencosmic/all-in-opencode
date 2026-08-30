@@ -219,6 +219,31 @@ test("nested escape produces PARTIAL_ISOLATION only after all outer critical fac
   assert.equal(chooseVerdict(capabilities), VERDICTS.PARTIAL)
 })
 
+test("measured single-background-child evidence remains UNPROVEN instead of PARTIAL", () => {
+  const worker = completeWorker("A", "/tmp/probe/worktree-a", "probe-a")
+  delete worker.observed.nested
+
+  const capabilities = classifyProbeEvidence({
+    workers: [worker],
+    filesystem: {
+      parentUnaffected: false,
+    },
+    concurrent: {
+      attempted: true,
+    },
+  })
+
+  assert.equal(capabilities.caller_selected_child_cwd, STATUS.PROVEN)
+  assert.equal(capabilities.tool_execution_cwd, STATUS.PROVEN)
+  assert.equal(capabilities.git_top_level, STATUS.PROVEN)
+  assert.equal(capabilities.mutation_confinement, STATUS.PROVEN)
+  assert.equal(capabilities.sibling_worktree_isolation, STATUS.UNPROVEN)
+  assert.equal(capabilities.concurrent_sibling_isolation, STATUS.UNPROVEN)
+  assert.equal(capabilities.parent_worktree_cleanliness, STATUS.FAILED)
+  assert.equal(capabilities.nested_child_cwd_preservation, STATUS.UNPROVEN)
+  assert.equal(chooseVerdict(capabilities), VERDICTS.UNPROVEN)
+})
+
 test("creates the required disposable Git topology and removes only its clean owned fixture", async () => {
   const dataRoot = await mkdtemp(join(tmpdir(), "cwd-probe-test-root-"))
   const fixture = await createProbeFixture({ dataRoot })

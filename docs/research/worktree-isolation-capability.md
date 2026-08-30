@@ -38,17 +38,19 @@ production configuration were not changed.
 
 The static probe classifies that checkout as `UNPROVEN`, rather than promoting
 the new API surface to runtime proof. A separately isolated OpenAI-only runtime
-probe produced `PARTIAL_ISOLATION` evidence:
+probe also produced an overall `UNPROVEN` verdict:
 
 - a normal background category child created with `directory=worktree-a` ran a
   `bash` tool without `cd` or a workdir override, reported `pwd` and Git
   top-level as `worktree-a`, reported the expected branch and shared Git common
   directory, and wrote the exact provenance sentinel only in that worktree;
-- the synchronous CLI path created its child at the selected directory, but an
-  existing completion race aborted the model's shell call before execution;
+- the synchronous CLI path assigned the selected directory to its child
+  session, but an existing completion race aborted the shell call before
+  execution, leaving actual sync tool CWD `UNPROVEN`;
 - a concurrent A/B attempt created both child sessions at their respective
-  sibling worktrees, but their shell executions were interrupted, so temporal
-  overlap remains `UNPROVEN`;
+  sibling worktrees, proving directory assignment/routing only; their shell
+  executions were interrupted, so concurrent tool isolation and temporal
+  overlap remain `UNPROVEN`;
 - the tested category worker denies its own `task` tool, so nested runtime
   delegation was not exercisable; deterministic tests cover immediate-parent
   session inheritance;
@@ -56,8 +58,31 @@ probe produced `PARTIAL_ISOLATION` evidence:
   literal parent Git cleanliness is `FAILED` even though the worker sentinel was
   confined to its selected sibling.
 
-This evidence proves the new primitive for the background child that actually
-ran, but it does not justify production lane worktrees.
+| Patched-lab capability | Status | Measured evidence |
+|---|---|---|
+| Optional `directory` API | `PROVEN` | Built patched schema/types expose the field. |
+| Background session directory assignment | `PROVEN` | Child session record stored caller-selected worktree A. |
+| Background actual default tool CWD | `PROVEN` | No-`cd` child shell reported worktree A. |
+| Background Git identity | `PROVEN` | Top-level, branch, and common-dir matched fixture A. |
+| Single-child mutation confinement | `PROVEN` | A's exact sentinel existed only in worktree A; this does not claim a completed worker B. |
+| Sync session directory assignment | `PROVEN` | Sync child session record stored worktree A. |
+| Sync actual tool CWD | `UNPROVEN` | Shell execution was aborted before it could report CWD. |
+| Concurrent directory assignment/routing | `PROVEN` | A and B session records stored their respective requested worktrees. |
+| Concurrent sibling tool isolation | `UNPROVEN` | Both tool executions did not complete. |
+| Temporal overlap | `UNPROVEN` | No two completed execution intervals were available. |
+| Nested runtime preservation | `UNPROVEN` | Tested child type could not invoke `task`. |
+| Parent runtime bookkeeping cleanliness | `FAILED` | OMO wrote `.omo/run-continuation` under the base fixture. |
+| Overall worktree isolation | `UNPROVEN` | Required sync, concurrency, cleanliness, and nested evidence is incomplete or failed. |
+
+The `.omo/run-continuation` files are OMO runtime bookkeeping, not worker
+sentinel escape. They independently fail literal parent Git cleanliness while
+the completed worker's mutation remains confined. The machine-readable
+`mutation_confinement` capability represents this single-worker mutation fact;
+`sibling_worktree_isolation` remains reserved for completed A and B evidence.
+
+This historical runtime evidence used `openai/gpt-5.4` under the earlier model
+constraint. It is retained as measured capability evidence, not presented as a
+new runtime call or as compliance evidence for later model restrictions.
 
 ## Team Mode is a separate path
 

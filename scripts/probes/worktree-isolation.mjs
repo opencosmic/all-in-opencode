@@ -221,6 +221,12 @@ function combineStatuses(statuses) {
   return STATUS.UNPROVEN
 }
 
+function statusFromBooleanEvidence(value) {
+  if (value === true) return STATUS.PROVEN
+  if (value === false) return STATUS.FAILED
+  return STATUS.UNPROVEN
+}
+
 export function classifyProbeEvidence({ runtimeInspection, workers, filesystem, concurrent }) {
   const workerStatuses = workers?.map(({ expected, observed }) => classifyWorkerEvidence(expected, observed)) ?? []
   const workerField = (field) =>
@@ -232,23 +238,18 @@ export function classifyProbeEvidence({ runtimeInspection, workers, filesystem, 
   }
 
   const filesystemWasExercised = workers?.length > 0 && workers.every((worker) => worker.observed)
-  const siblingIsolation = !filesystemWasExercised
+  const siblingIsolation = filesystemWasExercised
+    ? statusFromBooleanEvidence(filesystem?.siblingIsolated)
+    : STATUS.UNPROVEN
+  const parentCleanliness = filesystemWasExercised
+    ? statusFromBooleanEvidence(filesystem?.parentUnaffected)
+    : STATUS.UNPROVEN
+  const overlap = concurrent?.mechanicallyOverlapped
+  const concurrentIsolation = !filesystemWasExercised || overlap === undefined
     ? STATUS.UNPROVEN
-    : filesystem?.siblingIsolated === true
-      ? STATUS.PROVEN
-      : STATUS.FAILED
-  const parentCleanliness = !filesystemWasExercised
-    ? STATUS.UNPROVEN
-    : filesystem?.parentUnaffected === true
-      ? STATUS.PROVEN
-      : STATUS.FAILED
-  const concurrentIsolation = !filesystemWasExercised
-    ? STATUS.UNPROVEN
-    : concurrent?.mechanicallyOverlapped === true && siblingIsolation === STATUS.PROVEN
-      ? STATUS.PROVEN
-      : concurrent?.attempted === true
-        ? STATUS.FAILED
-        : STATUS.UNPROVEN
+    : overlap === false
+      ? STATUS.FAILED
+      : siblingIsolation
 
   return {
     caller_selected_child_cwd: callerSelected,
