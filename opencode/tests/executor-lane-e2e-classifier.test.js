@@ -1,0 +1,171 @@
+import test from "node:test"
+import assert from "node:assert/strict"
+
+import { classifyExecutorLaneE2E } from "../../scripts/lib/executor-lane-e2e.mjs"
+import { STATUS } from "../../scripts/probes/worktree-isolation.mjs"
+
+function completeEvidence() {
+  const commonDir = "/fixture/.git"
+  const lane = (id) => ({
+    linked: true,
+    owned: true,
+    path: `/fixture/lanes/${id}`,
+    branch: `change--lane-${id}`,
+    baseSha: "a".repeat(40),
+    commonDir,
+  })
+  const worker = (id, start, end) => ({
+    sessionID: `ses_${id}`,
+    parentSessionID: "ses_executor",
+    requestedDirectory: `/fixture/lanes/${id}`,
+    storedDirectory: `/fixture/lanes/${id}`,
+    tool: {
+      status: "completed",
+      command: `node scripts/lane-worker.mjs ${id}`,
+      start: String(start),
+      end: String(end),
+      evidence: {
+        pwd: `/fixture/lanes/${id}`,
+        gitTopLevel: `/fixture/lanes/${id}`,
+        branch: `change--lane-${id}`,
+        gitCommonDir: commonDir,
+      },
+    },
+  })
+  return {
+    route: { command: "/execute", agent: "Executor", planReview: "[APPROVED]" },
+    capabilityGate: { status: STATUS.PROVEN },
+    lanes: { T1: lane("T1"), T2: lane("T2") },
+    workers: { T1: worker("T1", 100, 300), T2: worker("T2", 200, 400) },
+    mutationConfinement: {
+      canonical: { T1: false, T2: false },
+      T1: { T1: true, T2: false },
+      T2: { T1: false, T2: true },
+    },
+    bookkeeping: { policyStatus: STATUS.PROVEN, unknown: [] },
+    laneValidation: {
+      T1: { focusedChecksPassed: true, reviewerVerdict: "[APPROVED]", integrationReady: true },
+      T2: { focusedChecksPassed: true, reviewerVerdict: "[APPROVED]", integrationReady: true },
+    },
+    commits: {
+      T1: { sha: "b".repeat(40), branch: "change--lane-T1" },
+      T2: { sha: "c".repeat(40), branch: "change--lane-T2" },
+    },
+    integration: {
+      strategy: "MERGE_NO_FF",
+      order: ["T1", "T2"],
+      results: [{ integrated: true, mergeSha: "d".repeat(40) }, { integrated: true, mergeSha: "e".repeat(40) }],
+    },
+    combinedChecks: { passed: true, completedAt: 1000 },
+    taskSnapshots: {
+      before: { T1: false, T2: false, T3: false },
+      afterWorkers: { T1: false, T2: false, T3: false },
+      afterIntegration: { T1: false, T2: false, T3: false },
+      afterCombined: { T1: true, T2: true, T3: false },
+    },
+    T3: { sessionID: "ses_T3", workspaceMode: "CHANGE_WORKTREE", start: 1001, observedT1: true, observedT2: true, completed: true },
+    cleanup: {
+      T1: { owned: true, worktreeRemoved: true, branchDeleted: true },
+      T2: { owned: true, worktreeRemoved: true, branchDeleted: true },
+    },
+    modelRequests: [
+      { provider: "openai", model: "gpt-5.6-luna", reasoning: "high" },
+    ],
+  }
+}
+
+test("complete mechanical Executor E2E evidence is proven", () => {
+  assert.equal(classifyExecutorLaneE2E(completeEvidence()).status, STATUS.PROVEN)
+})
+
+test("missing actual Executor route remains unproven", () => {
+  const evidence = completeEvidence()
+  delete evidence.route
+  assert.equal(classifyExecutorLaneE2E(evidence).status, STATUS.UNPROVEN)
+})
+
+test("sequential worker tools fail the concurrency capability", () => {
+  const evidence = completeEvidence()
+  evidence.workers.T2.tool.start = "301"
+  const result = classifyExecutorLaneE2E(evidence)
+  assert.equal(result.capabilities.temporalToolOverlap, STATUS.FAILED)
+  assert.equal(result.status, STATUS.FAILED)
+})
+
+test("wrong intrinsic worker CWD fails", () => {
+  const evidence = completeEvidence()
+  evidence.workers.T1.tool.evidence.pwd = "/fixture"
+  assert.equal(classifyExecutorLaneE2E(evidence).capabilities.workerT1ActualCwd, STATUS.FAILED)
+})
+
+test("cross-lane mutation fails", () => {
+  const evidence = completeEvidence()
+  evidence.mutationConfinement.T2.T1 = true
+  evidence.mutationConfinement.contradiction = true
+  assert.equal(classifyExecutorLaneE2E(evidence).capabilities.mutationConfinement, STATUS.FAILED)
+})
+
+test("unknown OMO state blocks proof", () => {
+  const evidence = completeEvidence()
+  evidence.bookkeeping.unknown = [".omo/unexpected.json"]
+  assert.equal(classifyExecutorLaneE2E(evidence).status, STATUS.UNPROVEN)
+})
+
+test("missing reviewer approval blocks proof", () => {
+  const evidence = completeEvidence()
+  evidence.laneValidation.T2.reviewerVerdict = "[CHANGES_REQUIRED]"
+  assert.equal(classifyExecutorLaneE2E(evidence).status, STATUS.UNPROVEN)
+})
+
+test("failed combined checks fail the E2E", () => {
+  const evidence = completeEvidence()
+  evidence.combinedChecks.passed = false
+  assert.equal(classifyExecutorLaneE2E(evidence).capabilities.combinedChecks, STATUS.FAILED)
+})
+
+test("tasks marked before combined checks fail", () => {
+  const evidence = completeEvidence()
+  evidence.taskSnapshots.afterWorkers.T1 = true
+  assert.equal(classifyExecutorLaneE2E(evidence).capabilities.taskTransitionTiming, STATUS.FAILED)
+})
+
+test("T3 starting before the post-wave gate fails", () => {
+  const evidence = completeEvidence()
+  evidence.T3.start = 999
+  assert.equal(classifyExecutorLaneE2E(evidence).capabilities.dependentT3Gate, STATUS.FAILED)
+})
+
+test("forbidden model request keeps the E2E unproven", () => {
+  const evidence = completeEvidence()
+  evidence.modelRequests.push({ provider: "anthropic", model: "claude", reasoning: "high" })
+  assert.equal(classifyExecutorLaneE2E(evidence).capabilities.modelProviderCompliance, STATUS.UNPROVEN)
+})
+
+test("cleanup refusal preserves earlier capabilities but overall proof is unproven", () => {
+  const evidence = completeEvidence()
+  evidence.cleanup.T2.worktreeRemoved = false
+  const result = classifyExecutorLaneE2E(evidence)
+  assert.equal(result.capabilities.deterministicIntegration, STATUS.PROVEN)
+  assert.equal(result.capabilities.safeCleanup, STATUS.UNPROVEN)
+  assert.equal(result.status, STATUS.UNPROVEN)
+})
+
+test("agent prose without runtime evidence cannot prove the E2E", () => {
+  const result = classifyExecutorLaneE2E({ narrative: "all lanes completed successfully" })
+  assert.equal(result.status, STATUS.UNPROVEN)
+})
+
+test("provider exhaustion before lane creation leaves missing lifecycle evidence unproven", () => {
+  const result = classifyExecutorLaneE2E({
+    route: { command: "/execute", agent: "Executor", planReview: "[APPROVED]" },
+    capabilityGate: { status: STATUS.PROVEN },
+    integration: { strategy: "MERGE_NO_FF", order: [], results: [], conflict: false },
+    execution: { exitCode: 2, usageLimitReached: true },
+    modelRequests: [{ provider: "openai", model: "gpt-5.6-luna", reasoning: "high" }],
+  })
+  const classified = result
+  assert.equal(classified.capabilities.actualExecutorRoute, STATUS.PROVEN)
+  assert.equal(classified.capabilities.capabilityGate, STATUS.PROVEN)
+  assert.equal(classified.capabilities.deterministicIntegration, STATUS.UNPROVEN)
+  assert.equal(classified.status, STATUS.UNPROVEN)
+})
