@@ -35,7 +35,7 @@ approved OpenSpec proposal + behavioral specs
 
 `/plan` is engineering-planning work. Planner reads the current contract and repository, writes only `design.md` and `tasks.md`, and requests an independent Plan Reviewer verdict. `[APPROVED]` is the normal handoff to `/execute`; `[REJECTED]` means planning must be corrected or product intent clarified.
 
-`/execute` is controlled implementation. Executor requests a new Plan Reviewer review every time, establishes the actual workspace and baseline, delegates code changes to OMO workers, and owns custom task-checkbox transitions. It finishes with a whole-change review and hands off to `/verify`; it does not self-verify or ship.
+`/execute` is controlled implementation. Executor requests a new Plan Reviewer review every time, establishes the actual workspace and baseline, delegates code changes to OMO workers, and owns custom task-checkbox transitions. When both runtime capability and task independence are proven, it may use sibling lane worktrees for a ready wave; otherwise it retains the existing in-place/change-worktree path. It finishes with a whole-change review and hands off to `/verify`; it does not self-verify or ship.
 
 `/verify` independently binds evidence to the current workspace, artifacts, diff, and fresh checks. Its only outcomes are `VERIFIED`, `VERIFIED_WITH_CONCERNS`, or `BLOCKED`. `VERIFIED` directly authorizes shipping. `VERIFIED_WITH_CONCERNS` can authorize shipping only when the user explicitly accepts its exact current named concerns; that does not change the verdict or erase concerns. `BLOCKED` requires repair or evidence and cannot be bypassed. Verification and concern acceptance both become stale after a relevant code, artifact, base, branch/worktree, comparison-basis, or diff change.
 
@@ -107,6 +107,14 @@ BLOCKED → provide the requested missing context, authority, or observation; do
 ```
 
 Treat `BLOCKED` as a useful statement of what cannot currently be proven or safely decided. Supply the smallest missing input—for example, the canonical change, a target workspace, a user delivery choice, or access to an external observation—rather than asking the role to guess.
+
+### Lane-worktree execution
+
+`LANE_WORKTREES` is an Executor-owned execution mode, not a Planner guarantee. Executor may select it only when the exact active OpenCode/OMO runtime has adopted mechanical proof for child directory binding and the full measured isolation/completion contract, and the current ready wave has at least two tasks with no dependency, write-scope, shared-contract/schema/migration/generated-output/state/resource, or verification collision. A version number or `WORKSPACE:` prompt is not that proof. The installed production OMO 4.19.4 currently leaves the capability gate unavailable, so production lane execution remains disabled.
+
+For an eligible wave, Executor creates one uniquely named linked worktree/branch per lane from the same canonical HEAD. Normal OMO workers receive the lane through the task API's `directory` field; OMO/OpenCode owns provider-slot queuing. Executor inspects each lane diff, obtains lane-local review and applicable QA, commits accepted task-attributable changes, and integrates them in approved task order with non-fast-forward merges. It then runs combined checks in the canonical change worktree. Only integrated tasks whose combined checks pass become checked in `tasks.md`; a correct but unintegrated lane is still incomplete.
+
+Conflicts, cancellations, unknown mutations, and interruptions preserve the lane. Known provenance-matched OMO continuation markers are runtime bookkeeping rather than worker escape, but no other `.omo` state is ignored. Cleanup is optional: only an exact Executor-owned, integrated, clean lane with no needed unique commits may be normally removed, followed by safe branch deletion. Refused removal, dirty state, or unclear ownership is preserved. Resume uses `tasks.md` plus current Git/worktree facts rather than a custom lane ledger.
 
 ## Use evidence efficiently
 

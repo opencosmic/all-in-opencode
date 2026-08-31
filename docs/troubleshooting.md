@@ -63,6 +63,10 @@ For experiment setup, require an exact-root, complete, zero-pending index and a 
 
 **Preserve and classify it; do not hide it with `.gitignore` or delete `.omo/**`.** OMO writes this project-local continuation state through the session's plugin directory. It is known runtime bookkeeping only when the exact marker path, a known current session ID, that session's expected directory/context, and the measured marker shape all agree. Such a marker can make literal Git cleanliness fail without proving that a worker mutated outside its assigned worktree. Any other `.omo` path, unknown session marker, mismatched context, or malformed JSON remains untrusted evidence: preserve it, stop automatic cleanup, and investigate ownership before deciding worker isolation or lifecycle status.
 
+### `/execute` preserves a lane after a conflict, interruption, or refused removal
+
+**Expected conservative behavior.** Do not force-remove the worktree, force-delete its branch, reset it, or clean it. Re-run `/execute` against the canonical change so Executor can inspect unchecked `tasks.md` entries, canonical Git history/status, linked-worktree identity, lane branch/base relationship, uncommitted data, and classified OMO bookkeeping. A matching name alone is not ownership. An integrated lane with an unchecked task requires fresh combined canonical checks before the checkbox may change; an unintegrated attributable lane may be reused only after its contents and assumptions are revalidated. Unknown or user-created worktrees remain external.
+
 ### GitHub CLI is unauthenticated
 
 **Actionable only for an operation that needs GitHub.** Local validation and local commits do not require GitHub CLI authentication. Authenticate through the user-approved GitHub CLI flow before a requested push/PR operation; do not put tokens in this repository or documentation.

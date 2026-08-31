@@ -37,6 +37,8 @@ approved product direction
 
 Every execution and shipping gate re-evaluates current artifacts and evidence. Prior conversational approval is advisory, not durable authority. `tasks.md` is the only durable custom execution checklist and progress state.
 
+Executor supports `IN_PLACE`, `CHANGE_WORKTREE`, and a capability-gated `LANE_WORKTREES` lifecycle; `EPHEMERAL_SANDBOX` remains disabled and unimplemented. Lane mode requires exact adopted runtime evidence plus at least two independently safe dependency-ready tasks. Executor creates current-wave linked worktrees from one canonical HEAD, dispatches workers through the runtime `directory` field, inspects and reviews lane diffs, integrates accepted commits in task order with non-fast-forward merges, runs combined checks, then updates `tasks.md`. Interruption and ambiguous state preserve lanes. Recovery derives from `tasks.md` and Git/worktree provenance rather than a second ledger. The installed production OMO does not currently satisfy the adoption gate, so lane execution remains disabled in production.
+
 ## Agent responsibilities
 
 - Strategist: product strategy and OpenSpec product-contract authoring.

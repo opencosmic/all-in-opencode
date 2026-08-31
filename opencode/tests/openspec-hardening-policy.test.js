@@ -116,19 +116,23 @@ test("executor owns adaptive topology, baseline, worker workspace, and lifecycle
   assert.match(command, /Never silently commit, copy, delete, stash, or migrate/)
 })
 
-test("lane and worker sandbox worktrees require proven runtime cwd binding", async () => {
+test("lane worktrees require exact runtime and topology gates while sandboxes stay disabled", async () => {
   const command = await text("commands/execute.md")
   const agent = await text("agents/executor.md")
-  assert.match(agent, /`LANE_WORKTREES` is capability-gated/)
-  assert.match(agent, /actual cwd or provides equivalent host-enforced workspace binding/)
-  assert.match(agent, /absolute `WORKSPACE:` path in a prompt is not cwd binding/)
-  assert.match(agent, /do not create sibling lane worktrees or claim lane isolation/)
-  assert.match(agent, /structurally safe parallel workers operate inside the same canonical `CHANGE_WORKTREE`/)
+  assert.match(agent, /`LANE_WORKTREES` is implemented but has two mandatory gates/)
+  assert.match(agent, /Exact runtime capability/)
+  assert.match(agent, /Current task independence/)
+  assert.match(agent, /currently installed production OMO 4\.19\.4 has no adopted evidence/)
+  assert.match(agent, /task API's `directory` field/)
+  assert.match(agent, /`git merge --no-ff --no-edit <lane-branch>`/)
+  assert.match(agent, /Do not persist a lane ledger/)
+  assert.match(agent, /If normal removal refuses, stop/)
   assert.match(agent, /Worker-driven use is capability-gated by the same proof/)
   assert.match(agent, /never send a normal category worker to a sibling sandbox based only on a prompt path/)
   assert.match(command, /prompt path alone is not actual cwd binding/)
-  assert.match(command, /`LANE_WORKTREES` and worker-driven `EPHEMERAL_SANDBOX` are capability-gated/)
-  assert.match(command, /structurally safe parallel workers remain inside the same canonical `CHANGE_WORKTREE`/)
+  assert.match(command, /`LANE_WORKTREES` is implemented but remains behind both gates/)
+  assert.match(command, /directory=<absolute lane worktree>/)
+  assert.match(command, /`EPHEMERAL_SANDBOX` remains disabled and unimplemented/)
 })
 
 test("ship keeps its exact menu and applies provenance-aware conservative cleanup", async () => {

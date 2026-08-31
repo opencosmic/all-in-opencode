@@ -13,7 +13,7 @@ This reference maps canonical source to the behavior it controls. The [link mani
 | [`opencode/opencode.jsonc`](../../opencode/opencode.jsonc), [`opencode/tui.json`](../../opencode/tui.json) | Public-safe OpenCode plugin configuration. | `package.json`, OMO integration | Linked individual files; installed packages remain local. |
 | [`opencode/package.json`](../../opencode/package.json), `package-lock.json` | Pinned validation dependency metadata for the workspace-inspector plugin API. | `npm ci --prefix opencode` | Not linked over OpenCode's live package state. |
 | [`omo/omo.jsonc`](../../omo/omo.jsonc) | Public-safe authored OMO configuration and custom role display names. | [architecture](../architecture.md) | Linked to `~/.omo/omo.jsonc`; OMO runtime remains local. |
-| [`scripts/`](../../scripts/) | Conservative install, verification, and link manifest. | [MAINTAINING.md](../../MAINTAINING.md) | Installs/verifies individual live symlinks. |
+| [`scripts/`](../../scripts/) | Conservative install/verification plus pure lifecycle/probe helpers; no daemon or durable task state. | [MAINTAINING.md](../../MAINTAINING.md), [invariants](invariants.md) | Installs/verifies individual live symlinks and supplies deterministic policy decisions. |
 | [`docs/`](../) | Human/agent-readable operation, architecture, reference, research, decisions, and recovery knowledge. | This documentation index | No runtime effect. |
 
 ## Agents
@@ -40,6 +40,7 @@ This reference maps canonical source to the behavior it controls. The [link mani
 | [`commands/omo.md`](../../opencode/commands/omo.md) | Separate native OMO planning route. | Prometheus/Momus native state only. | Discovery tests |
 | [`plugins/planner-delegation-guard.js`](../../opencode/plugins/planner-delegation-guard.js) | Enforces Planner's bounded consultations. | Blocks category workers and continuations. | `planner-delegation-guard.test.js` |
 | [`plugins/workspace-inspector.js`](../../opencode/plugins/workspace-inspector.js) | Read-only repository/worktree preflight. | Workspace facts and strategy-base availability. | `workspace-inspector.test.js` |
+| [`scripts/lib/lane-worktrees.mjs`](../../scripts/lib/lane-worktrees.mjs) | Pure Executor lane-policy decisions. | Exact capability gate, ready-wave independence, lane provenance/dispatch, integration, completion, cleanup, and resume classification. | `lane-worktrees-policy.test.js`, `lane-worktrees-git-lifecycle.test.js` |
 
 ## Installation and data boundaries
 
