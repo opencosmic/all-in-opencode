@@ -96,18 +96,41 @@ probes against the patched 5.0.0-beta.30 source also produced an overall
 | Parent worker mutation confinement | `PROVEN` | Neither worker sentinel existed in base. Coordination state was deliberately outside all Git worktrees. |
 | Nested runtime preservation | `PROVEN` | A normal outer `plan` task explicitly bound to A delegated a normal nested category task with no directory field. The nested session inherited A from its immediate parent, its no-`cd` tool ran in A with the expected Git identity, and its exact sentinel existed only in A. |
 | Parent runtime bookkeeping cleanliness | `FAILED` | OMO wrote `.omo/run-continuation` under the base fixture. |
-| Overall worktree isolation | `UNPROVEN` | Literal parent bookkeeping cleanliness remains failed and the production policy for that runtime state is unresolved. |
+| Worker-isolation capability | `PROVEN_ON_MEASURED_PATH` | Worker CWD, Git identity, sentinel confinement, concurrent sibling execution, temporal overlap, and nested inheritance are mechanically proven on the measured patched OMO path. |
+| Literal parent bookkeeping cleanliness | `FAILED` | OMO-owned project-local runtime state makes the fixture literally dirty. This fact is retained separately from worker isolation. |
+| Runtime-bookkeeping policy | `RESOLVED` | Exact, session-proven OMO continuation markers do not invalidate worker-isolation evidence; unknown `.omo` mutations remain blocking. |
 
 The `.omo/run-continuation` files are OMO runtime bookkeeping, not worker
 sentinel escape. On every `session.idle`, the background manager's parent-wake
 flush persists an idle marker through its plugin context. The parent context is
 rooted at the base fixture and the child context at worktree A, so both receive
 their own marker. This is intentional project-local cross-process state under
-the current OMO contract and is not configurable. It independently fails
+the measured OMO contract and is not configurable. It independently fails
 literal parent Git cleanliness while the completed worker's mutation remains
-confined. The machine-readable `mutation_confinement` capability represents
-this single-worker mutation fact; `sibling_worktree_isolation` remains reserved
-for completed A and B evidence.
+confined.
+
+### Runtime-bookkeeping policy
+
+The probe and future Executor lifecycle classify raw changed paths before making
+an isolation decision:
+
+- `WORKER_MUTATION` is a source/test/config mutation attributable to a worker.
+  A mutation outside that worker's assigned worktree, including a sibling or
+  base worktree, is a hard isolation failure.
+- `KNOWN_OMO_RUNTIME_BOOKKEEPING` is only an exact
+  `.omo/run-continuation/<session-id>.json` marker whose path, known current
+  session ID, session directory, plugin context, and measured marker shape all
+  agree. It preserves a `FAILED` literal-cleanliness fact but does not negate
+  worker mutation confinement.
+- `UNKNOWN_MUTATION` includes every other `.omo` path, an unknown session ID,
+  a mismatched worktree, or malformed continuation JSON. It is preserved and
+  blocks an isolation/lifecycle conclusion until investigated; `.omo/**` is
+  never broadly ignored.
+
+Worker mutation cleanliness, runtime bookkeeping cleanliness, and literal Git
+cleanliness are therefore separate facts. The existing machine-readable
+confinement fields continue to represent worker mutation evidence; literal
+bookkeeping cleanliness remains `FAILED` for the historical probes.
 
 This historical runtime evidence used `openai/gpt-5.4` under the earlier model
 constraint. It is retained as measured capability evidence, not presented as a
@@ -212,4 +235,4 @@ without `--run`, the script only prints usage.
 
 A prompt such as `WORKSPACE: /path` is not proof. Prompt compliance allows one forgotten `cd` to operate in the parent tree; runtime-enforced isolation must make the selected directory intrinsic to the child session/tool context.
 
-`LANE_WORKTREES` and worker-driven `EPHEMERAL_SANDBOX` remain disabled for the custom Executor route. The isolated OMO patch exposes the missing primitive, concurrent sibling execution and immediate-parent nested preservation are mechanically proven on the measured path, but production integration is not justified while literal parent bookkeeping cleanliness remains failed and its policy is unresolved. After upstreaming or otherwise adopting the primitive in a supported OMO release, rerun the full probe and require complete child/tool/Git/sentinel/sibling/parent/concurrent/nested evidence before considering production enablement.
+`LANE_WORKTREES` and worker-driven `EPHEMERAL_SANDBOX` remain disabled for the custom Executor route. The isolated OMO patch exposes the missing primitive, and concurrent sibling execution plus immediate-parent nested preservation are mechanically proven on the measured path. The bookkeeping policy is resolved, but this is not production OMO compatibility and the Executor lane lifecycle is not yet implemented. A future production implementation must classify raw changed paths with this policy, complete its own end-to-end gate, and re-establish the complete child/tool/Git/sentinel/sibling/parent/concurrent/nested evidence against the adopted runtime.

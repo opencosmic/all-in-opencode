@@ -4,13 +4,16 @@ import { spawn } from "node:child_process"
 import { copyFile, mkdir, readFile, readdir, rm, unlink, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
-import { dirname, join, resolve } from "node:path"
+import { dirname, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { DatabaseSync } from "node:sqlite"
 
 import {
   STATUS,
+  approvedOmoRuntimeBookkeepingPaths,
+  assessWorkerIsolationPolicy,
   assertOwnedProbeRoot,
+  classifyOmoRuntimeBookkeeping,
   cleanupProbeFixture,
   createProbeFixture,
   inspectSentinelIsolation,
@@ -114,6 +117,7 @@ export function classifyConcurrentRuntime(input) {
     B: input.workers.B?.record,
   })
   const mutation = classifySiblingMutation({ workers: input.workers, sentinels: input.sentinels })
+  const bookkeeping = classifyOmoRuntimeBookkeeping(input.bookkeepingEvidence)
   const modelCompliant = input.modelRequests.length > 0 && input.modelRequests.every((request) =>
     request.provider === "openai" &&
     ALLOWED_MODELS.has(`${request.provider}/${request.model}`) &&
@@ -133,7 +137,17 @@ export function classifyConcurrentRuntime(input) {
     siblingMutationConfinement: modelCompliant ? mutation.siblingMutationConfinement : STATUS.UNPROVEN,
     parentWorkerMutationConfinement: modelCompliant ? mutation.parentWorkerMutationConfinement : STATUS.UNPROVEN,
     parentRuntimeBookkeepingCleanliness:
-      input.bookkeeping?.base?.length > 0 ? STATUS.FAILED : input.bookkeeping ? STATUS.PROVEN : STATUS.UNPROVEN,
+      input.bookkeepingEvidence
+        ? bookkeeping.literalCleanliness
+        : input.bookkeeping?.base?.length > 0 ? STATUS.FAILED : input.bookkeeping ? STATUS.PROVEN : STATUS.UNPROVEN,
+    runtimeBookkeepingPolicy: bookkeeping.policyStatus,
+    workerIsolationPolicy:
+      modelCompliant
+        ? assessWorkerIsolationPolicy({
+          workerMutationConfinement: mutation.parentWorkerMutationConfinement,
+          bookkeeping,
+        })
+        : STATUS.UNPROVEN,
     modelProviderCompliance: modelCompliant ? STATUS.PROVEN : STATUS.FAILED,
     overlap: temporal,
   }
@@ -442,6 +456,31 @@ export async function markerFiles(directory) {
   }
 }
 
+export async function markerEvidence(directory) {
+  const omoRoot = join(directory, ".omo")
+  const evidence = []
+  const visit = async (path) => {
+    let entries
+    try {
+      entries = await readdir(path, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      const entryPath = join(path, entry.name)
+      if (entry.isDirectory()) {
+        await visit(entryPath)
+        continue
+      }
+      const markerPath = relative(omoRoot, entryPath)
+      const isContinuationMarker = /^run-continuation\/[^/]+\.json$/.test(markerPath)
+      evidence.push({ path: entryPath, marker: isContinuationMarker ? await readJson(entryPath) : null })
+    }
+  }
+  await visit(omoRoot)
+  return evidence
+}
+
 export async function readJson(path) {
   return parseJson(await readFile(path, "utf8"))
 }
@@ -480,6 +519,14 @@ async function collectEvidence({ fixture, topologyBefore, coordination, commands
       worktreeA: await markerFiles(fixture.worktreeA),
       worktreeB: await markerFiles(fixture.worktreeB),
     }
+    const bookkeepingEvidence = {
+      markers: [
+        ...(await markerEvidence(fixture.base)),
+        ...(await markerEvidence(fixture.worktreeA)),
+        ...(await markerEvidence(fixture.worktreeB)),
+      ],
+      sessions: [parent, childA, childB],
+    }
     const workers = {
       A: {
         session: childA,
@@ -498,7 +545,14 @@ async function collectEvidence({ fixture, topologyBefore, coordination, commands
       A: { directory: fixture.worktreeA, branch: fixture.branchA, commonDir: fixture.commonDir, command: commands.A },
       B: { directory: fixture.worktreeB, branch: fixture.branchB, commonDir: fixture.commonDir, command: commands.B },
     }
-    const classifications = classifyConcurrentRuntime({ expected, workers, sentinels, bookkeeping, modelRequests })
+    const classifications = classifyConcurrentRuntime({
+      expected,
+      workers,
+      sentinels,
+      bookkeeping,
+      bookkeepingEvidence,
+      modelRequests,
+    })
     const liveAfter = liveSessionCount()
     return {
       schemaVersion: 1,
@@ -522,6 +576,7 @@ async function collectEvidence({ fixture, topologyBefore, coordination, commands
       workers,
       sentinels,
       bookkeeping,
+      bookkeepingEvidence,
       modelRequests,
       runtimeLog: logText
         .split("\n")
@@ -553,15 +608,8 @@ async function removeKnownProbeArtifacts(evidence) {
   for (const path of removals) {
     if (existsSync(path)) await unlink(path)
   }
-  const sessionsByDirectory = [
-    [evidence.fixture.base, evidence.sessions.parent?.id],
-    [evidence.fixture.worktreeA, evidence.sessions.childA?.id],
-    [evidence.fixture.worktreeB, evidence.sessions.childB?.id],
-  ]
-  for (const [directory, sessionID] of sessionsByDirectory) {
-    if (!sessionID) continue
-    const marker = join(directory, ".omo", "run-continuation", `${sessionID}.json`)
-    if (existsSync(marker)) await unlink(marker)
+  for (const markerPath of approvedOmoRuntimeBookkeepingPaths(evidence.bookkeepingEvidence)) {
+    if (existsSync(markerPath)) await unlink(markerPath)
   }
   return cleanupProbeFixture(evidence.fixture.root)
 }

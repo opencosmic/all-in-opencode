@@ -115,6 +115,7 @@ Treat `BLOCKED` as a useful statement of what cannot currently be proven or safe
 - Prefer exact source, LSP, Git diff, tests, and runtime checks when the question is semantic, behavioral, or about the actual mutation. CodeGraph falls back immediately when its index is unavailable, stale, pending, ambiguous, or insufficient.
 - Keep review and verification independent. Reviewer examines a focused implementation package; Verifier proves the current change against its full contract. Neither repairs its own findings.
 - Do not treat an old approval as permanent. `/execute`, `/verify`, and `/ship` each inspect current state, and archive/sync or integration-related mutations invalidate earlier evidence.
+- Treat OMO runtime state by provenance, not by filename exclusion. A mechanically matched `.omo/run-continuation/<known-session-id>.json` marker is runtime bookkeeping rather than a worker mutation escape; any other `.omo` mutation remains untrusted and must be preserved for investigation.
 - Do not benchmark routine edits. Benchmark only when a change may alter retrieval, context economics, model/tool policy, role boundaries, CodeGraph usage, orchestration, or correctness/coverage trade-offs. See [MAINTAINING.md](../../MAINTAINING.md#when-benchmarking-is-justified).
 
 ## Before `/ship`

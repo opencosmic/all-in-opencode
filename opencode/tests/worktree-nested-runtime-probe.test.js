@@ -81,6 +81,24 @@ function completeInput() {
   }
 }
 
+function knownBookkeepingEvidence() {
+  return {
+    sessions: [
+      { id: "ses_parent", directory: paths.base },
+      { id: "ses_outer", directory: paths.a },
+      { id: "ses_nested", directory: paths.a },
+    ],
+    markers: [{
+      path: `${paths.base}/.omo/run-continuation/ses_parent.json`,
+      marker: {
+        sessionID: "ses_parent",
+        updatedAt: "2026-09-01T00:00:00.000Z",
+        sources: { todo: { state: "idle", updatedAt: "2026-09-01T00:00:00.000Z" } },
+      },
+    }],
+  }
+}
+
 test("complete two-level inherited chain is PROVEN", () => {
   const result = classifyNestedRuntime(completeInput())
   assert.equal(result.nestedRuntimePreservation, STATUS.PROVEN)
@@ -167,11 +185,14 @@ test("tool-level workdir override invalidates intrinsic CWD proof", () => {
 test("OMO bookkeeping remains independent from nested confinement", () => {
   const input = completeInput()
   input.bookkeeping.base = ["ses_parent.json"]
+  input.bookkeepingEvidence = knownBookkeepingEvidence()
   const result = classifyNestedRuntime(input)
   assert.equal(result.nestedRuntimePreservation, STATUS.PROVEN)
   assert.equal(result.nestedMutationConfinement, STATUS.PROVEN)
   assert.equal(result.parentWorkerMutationConfinement, STATUS.PROVEN)
   assert.equal(result.parentRuntimeBookkeepingCleanliness, STATUS.FAILED)
+  assert.equal(result.runtimeBookkeepingPolicy, STATUS.PROVEN)
+  assert.equal(result.workerIsolationPolicy, STATUS.PROVEN)
 })
 
 test("unexpected runtime model invalidates otherwise complete evidence", () => {

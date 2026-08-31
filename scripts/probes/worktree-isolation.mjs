@@ -33,6 +33,16 @@ export const VERDICTS = Object.freeze({
   UNPROVEN: "UNPROVEN",
 })
 
+export const MUTATION_PROVENANCE = Object.freeze({
+  WORKER_MUTATION: "WORKER_MUTATION",
+  KNOWN_OMO_RUNTIME_BOOKKEEPING: "KNOWN_OMO_RUNTIME_BOOKKEEPING",
+  UNKNOWN_MUTATION: "UNKNOWN_MUTATION",
+})
+
+const CONTINUATION_MARKER_DIRECTORY = ".omo/run-continuation"
+const CONTINUATION_MARKER_SOURCES = new Set(["todo", "stop", "background-task"])
+const CONTINUATION_MARKER_STATES = new Set(["idle", "active", "stopped"])
+
 export const PROBE_PREFIX = "opencode-workflow-cwd-probe-"
 export const PROVENANCE_FILE = ".opencode-workflow-probe-owner.json"
 const PROVENANCE_KIND = "opencode-workflow-child-cwd-probe"
@@ -225,6 +235,97 @@ function statusFromBooleanEvidence(value) {
   if (value === true) return STATUS.PROVEN
   if (value === false) return STATUS.FAILED
   return STATUS.UNPROVEN
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+function isKnownContinuationMarkerShape(marker, sessionID) {
+  if (!isPlainObject(marker) || marker.sessionID !== sessionID || typeof marker.updatedAt !== "string") return false
+  if (!isPlainObject(marker.sources)) return false
+  const entries = Object.entries(marker.sources)
+  return entries.length > 0 && entries.every(([source, entry]) =>
+    CONTINUATION_MARKER_SOURCES.has(source) &&
+    isPlainObject(entry) &&
+    CONTINUATION_MARKER_STATES.has(entry.state) &&
+    typeof entry.updatedAt === "string" &&
+    (entry.reason === undefined || typeof entry.reason === "string"),
+  )
+}
+
+/**
+ * Classify observed OMO continuation state without treating the `.omo` tree as
+ * generally trusted. A known marker is accepted only when its exact path,
+ * session identity, session directory, and writer shape agree.
+ */
+export function classifyOmoRuntimeBookkeeping({ markers, sessions } = {}) {
+  if (!Array.isArray(markers) || !Array.isArray(sessions)) {
+    return {
+      literalCleanliness: STATUS.UNPROVEN,
+      policyStatus: STATUS.UNPROVEN,
+      classifications: [],
+    }
+  }
+
+  const knownSessions = new Map(
+    sessions
+      .filter((session) => typeof session?.id === "string" && typeof session?.directory === "string")
+      .map((session) => [session.id, resolve(session.directory)]),
+  )
+  const classifications = markers.map((marker) => {
+    const path = typeof marker?.path === "string" ? resolve(marker.path) : null
+    const sessionID = typeof marker?.marker?.sessionID === "string" ? marker.marker.sessionID : null
+    const directory = sessionID ? knownSessions.get(sessionID) : null
+    const expectedPath = directory && sessionID
+      ? join(directory, CONTINUATION_MARKER_DIRECTORY, `${sessionID}.json`)
+      : null
+
+    if (!path || !sessionID || !directory || path !== expectedPath) {
+      return {
+        kind: MUTATION_PROVENANCE.UNKNOWN_MUTATION,
+        path,
+        reason: "marker path or session ownership is not known to this execution",
+      }
+    }
+    if (!isKnownContinuationMarkerShape(marker.marker, sessionID)) {
+      return {
+        kind: MUTATION_PROVENANCE.UNKNOWN_MUTATION,
+        path,
+        sessionID,
+        reason: "marker does not match the measured OMO continuation-state shape",
+      }
+    }
+    return {
+      kind: MUTATION_PROVENANCE.KNOWN_OMO_RUNTIME_BOOKKEEPING,
+      path,
+      sessionID,
+      directory,
+    }
+  })
+  const hasUnknown = classifications.some((entry) => entry.kind === MUTATION_PROVENANCE.UNKNOWN_MUTATION)
+
+  return {
+    // This reports the literal Git/worktree fact. Known bookkeeping remains dirty.
+    literalCleanliness: markers.length === 0 ? STATUS.PROVEN : STATUS.FAILED,
+    // Unknown runtime mutations block a worker-isolation claim pending investigation.
+    policyStatus: hasUnknown ? STATUS.UNPROVEN : STATUS.PROVEN,
+    classifications,
+  }
+}
+
+export function assessWorkerIsolationPolicy({ workerMutationConfinement, bookkeeping } = {}) {
+  if (workerMutationConfinement === STATUS.FAILED) return STATUS.FAILED
+  if (workerMutationConfinement !== STATUS.PROVEN) return STATUS.UNPROVEN
+  return bookkeeping?.policyStatus === STATUS.PROVEN ? STATUS.PROVEN : STATUS.UNPROVEN
+}
+
+export function approvedOmoRuntimeBookkeepingPaths(input) {
+  const bookkeeping = classifyOmoRuntimeBookkeeping(input)
+  if (bookkeeping.policyStatus !== STATUS.PROVEN) {
+    throw new Error("cleanup refused: unrecognized OMO runtime bookkeeping; evidence preserved")
+  }
+  return bookkeeping.classifications.map((entry) => entry.path).filter(Boolean)
 }
 
 export function classifyProbeEvidence({ runtimeInspection, workers, filesystem, concurrent }) {

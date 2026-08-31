@@ -17,6 +17,7 @@ import {
   collectTool,
   fixtureFacts,
   liveSessionCount,
+  markerEvidence,
   markerFiles,
   parseJson,
   runCommand,
@@ -24,7 +25,10 @@ import {
 } from "./worktree-concurrent-runtime.mjs"
 import {
   STATUS,
+  approvedOmoRuntimeBookkeepingPaths,
+  assessWorkerIsolationPolicy,
   assertOwnedProbeRoot,
+  classifyOmoRuntimeBookkeeping,
   cleanupProbeFixture,
   createProbeFixture,
 } from "./worktree-isolation.mjs"
@@ -72,6 +76,7 @@ export function nestedDirectoryWasOmitted(delegation) {
 
 export function classifyNestedRuntime(input) {
   const modelCompliant = modelRequestsComply(input.modelRequests ?? [])
+  const bookkeeping = classifyOmoRuntimeBookkeeping(input.bookkeepingEvidence)
   const outerRuntime = classifyWorkerRuntime(input.expected.outer, input.outer)
   const nestedRuntime = classifyWorkerRuntime(input.expected.nested, input.nested)
   const outerExplicitDirectory =
@@ -141,7 +146,14 @@ export function classifyNestedRuntime(input) {
     nestedMutationConfinement: modelCompliant ? nestedMutationConfinement : STATUS.UNPROVEN,
     parentWorkerMutationConfinement: modelCompliant ? parentWorkerMutationConfinement : STATUS.UNPROVEN,
     parentRuntimeBookkeepingCleanliness:
-      input.bookkeeping?.base?.length > 0 ? STATUS.FAILED : input.bookkeeping ? STATUS.PROVEN : STATUS.UNPROVEN,
+      input.bookkeepingEvidence
+        ? bookkeeping.literalCleanliness
+        : input.bookkeeping?.base?.length > 0 ? STATUS.FAILED : input.bookkeeping ? STATUS.PROVEN : STATUS.UNPROVEN,
+    runtimeBookkeepingPolicy: bookkeeping.policyStatus,
+    workerIsolationPolicy:
+      modelCompliant
+        ? assessWorkerIsolationPolicy({ workerMutationConfinement: parentWorkerMutationConfinement, bookkeeping })
+        : STATUS.UNPROVEN,
     modelProviderCompliance: modelCompliant ? STATUS.PROVEN : STATUS.FAILED,
     proof: {
       outerExplicitDirectory,
@@ -472,6 +484,14 @@ async function collectEvidence({ fixture, topologyBefore, coordination, commands
       record: nestedRecord,
       messages: nestedMessages,
     }
+    const bookkeepingEvidence = {
+      markers: [
+        ...(await markerEvidence(fixture.base)),
+        ...(await markerEvidence(fixture.worktreeA)),
+        ...(await markerEvidence(fixture.worktreeB)),
+      ],
+      sessions: [parent, outerSession, nestedSession],
+    }
     const expected = {
       outer: { directory: fixture.worktreeA, branch: fixture.branchA, commonDir: fixture.commonDir, command: commands.outer },
       nested: { directory: fixture.worktreeA, branch: fixture.branchA, commonDir: fixture.commonDir, command: commands.nested },
@@ -488,6 +508,7 @@ async function collectEvidence({ fixture, topologyBefore, coordination, commands
       permissions,
       sentinels,
       bookkeeping,
+      bookkeepingEvidence,
       modelRequests,
     })
     const integrationHead = await runCommand("git", ["rev-parse", "HEAD"], { cwd: omoPackageRoot })
@@ -523,6 +544,7 @@ async function collectEvidence({ fixture, topologyBefore, coordination, commands
       nested,
       sentinels,
       bookkeeping,
+      bookkeepingEvidence,
       modelRequests,
       runtimeLog: logText
         .split("\n")
@@ -553,15 +575,8 @@ async function removeKnownProbeArtifacts(evidence) {
       if (existsSync(path)) await unlink(path)
     }
   }
-  const sessionsByDirectory = [
-    [evidence.fixture.base, evidence.sessions.parent?.id],
-    [evidence.fixture.worktreeA, evidence.sessions.outer?.id],
-    [evidence.fixture.worktreeA, evidence.sessions.nested?.id],
-  ]
-  for (const [directory, sessionID] of sessionsByDirectory) {
-    if (!sessionID) continue
-    const marker = join(directory, ".omo", "run-continuation", `${sessionID}.json`)
-    if (existsSync(marker)) await unlink(marker)
+  for (const markerPath of approvedOmoRuntimeBookkeepingPaths(evidence.bookkeepingEvidence)) {
+    if (existsSync(markerPath)) await unlink(markerPath)
   }
   return cleanupProbeFixture(evidence.fixture.root)
 }

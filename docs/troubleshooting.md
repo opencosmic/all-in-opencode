@@ -59,6 +59,10 @@ For experiment setup, require an exact-root, complete, zero-pending index and a 
 
 ## External tools and recovery
 
+### A worktree probe leaves `.omo/run-continuation/<session-id>.json`
+
+**Preserve and classify it; do not hide it with `.gitignore` or delete `.omo/**`.** OMO writes this project-local continuation state through the session's plugin directory. It is known runtime bookkeeping only when the exact marker path, a known current session ID, that session's expected directory/context, and the measured marker shape all agree. Such a marker can make literal Git cleanliness fail without proving that a worker mutated outside its assigned worktree. Any other `.omo` path, unknown session marker, mismatched context, or malformed JSON remains untrusted evidence: preserve it, stop automatic cleanup, and investigate ownership before deciding worker isolation or lifecycle status.
+
 ### GitHub CLI is unauthenticated
 
 **Actionable only for an operation that needs GitHub.** Local validation and local commits do not require GitHub CLI authentication. Authenticate through the user-approved GitHub CLI flow before a requested push/PR operation; do not put tokens in this repository or documentation.

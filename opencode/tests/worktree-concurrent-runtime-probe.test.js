@@ -47,6 +47,25 @@ function measuredWorker(label, expected, interval) {
   }
 }
 
+function bookkeepingEvidence() {
+  const base = "/tmp/probe/base"
+  return {
+    sessions: [
+      { id: "ses_parent", directory: base },
+      { id: "ses_a", directory: "/tmp/probe/a" },
+      { id: "ses_b", directory: "/tmp/probe/b" },
+    ],
+    markers: [{
+      path: `${base}/.omo/run-continuation/ses_parent.json`,
+      marker: {
+        sessionID: "ses_parent",
+        updatedAt: "2026-09-01T00:00:00.000Z",
+        sources: { todo: { state: "idle", updatedAt: "2026-09-01T00:00:00.000Z" } },
+      },
+    }],
+  }
+}
+
 test("incomplete overlap evidence remains UNPROVEN", () => {
   assert.equal(classifyTemporalOverlap({ A: record("A", "B", 100, 300) }).status, STATUS.UNPROVEN)
 })
@@ -127,6 +146,7 @@ test("OMO bookkeeping failure remains independent from proven worker mutation co
     },
     sentinels: sentinels(),
     bookkeeping: { base: ["ses_parent.json"], worktreeA: ["ses_a.json"], worktreeB: ["ses_b.json"] },
+    bookkeepingEvidence: bookkeepingEvidence(),
     modelRequests: [
       { provider: "openai", model: "gpt-5.6-luna", reasoning: "high" },
     ],
@@ -136,6 +156,8 @@ test("OMO bookkeeping failure remains independent from proven worker mutation co
   assert.equal(result.siblingMutationConfinement, STATUS.PROVEN)
   assert.equal(result.parentWorkerMutationConfinement, STATUS.PROVEN)
   assert.equal(result.parentRuntimeBookkeepingCleanliness, STATUS.FAILED)
+  assert.equal(result.runtimeBookkeepingPolicy, STATUS.PROVEN)
+  assert.equal(result.workerIsolationPolicy, STATUS.PROVEN)
 })
 
 test("an unexpected runtime model invalidates otherwise complete evidence", () => {
