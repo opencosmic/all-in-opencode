@@ -15,6 +15,7 @@ Use this page to choose the smallest document that answers the question at hand.
 - [Project map](reference/project-map.md) — use this to navigate source and find the file that owns a behavior.
 - [Agents and commands](reference/agents-and-commands.md) — use this to understand role authority, handoffs, and command gates.
 - [Invariants](reference/invariants.md) — read this before changing workflow policy, state ownership, permissions, or topology handling.
+- [Private OMO directory patch](reference/private-omo-directory-patch.md) — use this to refresh, validate, adopt, or roll back the isolated caller-selected-directory patch without depending on upstream acceptance.
 
 ## Research
 
