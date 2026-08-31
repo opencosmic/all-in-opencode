@@ -69,4 +69,4 @@ For experiment setup, require an exact-root, complete, zero-pending index and a 
 
 ## Workflow verdicts
 
-`[REJECTED]`, `[CHANGES_REQUIRED]`, `QA_FAIL`, `VERIFIED_WITH_CONCERNS`, and `BLOCKED` are not tool crashes. They report an evidence or authority boundary. Return the issue to the owning role, provide the missing decision/evidence, or explicitly accept the named shipping risk where the command permits it. Do not force a handoff by editing task state, creating alternate ledgers, or treating past approval as current authority.
+`[REJECTED]`, `[CHANGES_REQUIRED]`, `QA_FAIL`, `VERIFIED_WITH_CONCERNS`, and `BLOCKED` are not tool crashes. They report an evidence or authority boundary. Return the issue to the owning role, provide the missing decision/evidence, or, only for `VERIFIED_WITH_CONCERNS`, explicitly accept the exact current named shipping concerns where `/ship` asks for that decision. Acceptance authorizes shipping despite those concerns; it does not change the verdict, bypass `BLOCKED`, or survive a relevant mutation. Do not force a handoff by editing task state, creating alternate ledgers, or treating past approval as current authority.

@@ -1,5 +1,5 @@
 ---
-description: Safely integrate, sync, and archive a VERIFIED OpenSpec change
+description: Safely integrate, sync, and archive a shipping-authorized OpenSpec change
 agent: Executor
 subtask: false
 ---
@@ -12,11 +12,11 @@ Every invocation is an independent shipping gate. Resolve exactly one current ch
 
 Handle the fresh result exactly:
 
-- `VERIFIED`: rerun the relevant final checks against the same current tree, inspect their output, then present the integration menu.
-- `VERIFIED_WITH_CONCERNS`: stop and ask for explicit acceptance of the named risks before any archive or integration action.
-- `BLOCKED`: stop. Do not archive, integrate, or offer a bypass.
+- `VERIFIED`: the fresh verdict is shipping authorization. Rerun the relevant final checks against the same current tree, inspect their output, then present the integration menu.
+- `VERIFIED_WITH_CONCERNS`: stop before archive or integration. Present the exact named concerns and ask whether the user explicitly accepts those concerns and wants to continue. Do not infer acceptance from ambiguous language such as “okay”, “continue”, “looks good”, or “ship it”. A decline stops shipping. If the user explicitly accepts the exact named concerns, bind that acceptance in the current response/session only to this change, HEAD, branch/worktree, comparison basis, current artifacts, current diff, and named concern set. That acceptance is shipping authorization for this unchanged state; it does not change the verdict to `VERIFIED`, erase concerns, or authorize unrelated risks. Then rerun the relevant final checks against the same current tree and present the integration menu.
+- `BLOCKED`: stop. Do not archive, integrate, offer a bypass, or ask for risk acceptance.
 
-Only after the fresh `VERIFIED` gate and final checks, confirm the exact worktree/branch and base branch, then present exactly these integration choices and stop for the user's selection:
+Only after a fresh shipping authorization gate and final checks, confirm the exact worktree/branch and base branch, then present exactly these integration choices and stop for the user's selection. A shipping authorization gate is either a fresh `VERIFIED`, or a fresh `VERIFIED_WITH_CONCERNS` plus explicit acceptance of its exact named concerns for the unchanged verified state:
 
 1. merge locally
 2. push + PR
@@ -26,7 +26,7 @@ Do not infer merge, push, PR, deploy, cleanup, sync, or archive intent. Never fo
 
 For merge or PR delivery, recommend syncing/archiving the verified change on the feature branch before integration so updated main specs and the archived audit trail are included in the merge/PR. Perform `openspec archive <change> --yes` only after explicit approval, then validate archived state and rerun the relevant checks on the resulting tree.
 
-Any archive or sync mutation of an OpenSpec artifact invalidates the pre-archive Verifier verdict. After such a mutation, ALWAYS dispatch a NEW fresh `Verifier` against the post-archive current artifacts/tree/diff before any merge or push. Handle that post-archive verdict exactly: `VERIFIED` permits the selected integration to continue; `VERIFIED_WITH_CONCERNS` stops and requires explicit acceptance under the existing concern policy; `BLOCKED` stops with no integration or bypass. For keep-as-is, ask whether to archive now or defer it; any later merge/push still requires this post-mutation Verifier gate.
+Any archive or sync mutation of an OpenSpec artifact invalidates the pre-archive Verifier verdict and any pre-archive concern acceptance. After such a mutation, ALWAYS dispatch a NEW fresh `Verifier` against the post-archive current artifacts/tree/diff before any merge or push. Handle that post-archive verdict exactly: `VERIFIED` permits the selected integration to continue; `VERIFIED_WITH_CONCERNS` stops, presents the NEW/current named concerns, and requires NEW explicit acceptance before the integration menu; `BLOCKED` stops with no integration, acceptance, or bypass. Never reuse a pre-mutation acceptance. For keep-as-is, ask whether to archive now or defer it; any later merge/push still requires this post-mutation Verifier gate.
 
 Execute only the selected and approved actions.
 

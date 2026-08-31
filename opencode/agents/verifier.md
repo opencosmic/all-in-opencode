@@ -68,7 +68,7 @@ Independently inspect the diff even when another reviewer approved it. If a comm
 Return exactly one status:
 
 - `VERIFIED`: all required obligations are supported by fresh evidence and no archive-blocking concern remains.
-- `VERIFIED_WITH_CONCERNS`: core implementation is supported, but bounded concerns or unverified non-core obligations remain. This does not flow directly to archive.
+- `VERIFIED_WITH_CONCERNS`: core implementation is supported, but bounded concerns or unverified non-core obligations remain. This does not flow directly to archive; it may become a shipping authorization only when `/ship` obtains explicit user acceptance of the exact named concerns for this unchanged verified state. Acceptance does not alter this verdict or erase its concerns.
 - `BLOCKED`: required evidence fails, the implementation contradicts the contract, or essential context/state is unavailable.
 
 Then provide:
@@ -81,4 +81,4 @@ Then provide:
 6. Concerns/blockers
 7. Ship/archive disposition
 
-Recommend `/ship <change>` only for `VERIFIED`. For `VERIFIED_WITH_CONCERNS`, integration/archive requires an explicit user decision accepting the named concerns. `BLOCKED` requires repair or evidence. Never archive, sync, merge, push, or ship automatically.
+`VERIFIED` may proceed directly to `/ship <change>`. For `VERIFIED_WITH_CONCERNS`, `/ship` must obtain an explicit user decision accepting the exact named concerns before integration/archive; that acceptance authorizes Executor to proceed with the concern-bearing verdict for the same current state, not to reclassify it as `VERIFIED`. `BLOCKED` requires repair or evidence and never permits a shipping bypass. Never archive, sync, merge, push, or ship automatically.

@@ -37,7 +37,7 @@ approved OpenSpec proposal + behavioral specs
 
 `/execute` is controlled implementation. Executor requests a new Plan Reviewer review every time, establishes the actual workspace and baseline, delegates code changes to OMO workers, and owns custom task-checkbox transitions. It finishes with a whole-change review and hands off to `/verify`; it does not self-verify or ship.
 
-`/verify` independently binds evidence to the current workspace, artifacts, diff, and fresh checks. Its only outcomes are `VERIFIED`, `VERIFIED_WITH_CONCERNS`, or `BLOCKED`. Only `VERIFIED` leads directly to `/ship`; `VERIFIED_WITH_CONCERNS` requires an explicit user risk decision before archive or integration, and `BLOCKED` requires repair or evidence. Evidence becomes stale after a relevant code, artifact, base, branch, or worktree change.
+`/verify` independently binds evidence to the current workspace, artifacts, diff, and fresh checks. Its only outcomes are `VERIFIED`, `VERIFIED_WITH_CONCERNS`, or `BLOCKED`. `VERIFIED` directly authorizes shipping. `VERIFIED_WITH_CONCERNS` can authorize shipping only when the user explicitly accepts its exact current named concerns; that does not change the verdict or erase concerns. `BLOCKED` requires repair or evidence and cannot be bypassed. Verification and concern acceptance both become stale after a relevant code, artifact, base, branch/worktree, comparison-basis, or diff change.
 
 `/ship` is deliberately user-owned. It reruns verification before offering exactly: merge locally, push + PR, or keep branch. Archiving or syncing OpenSpec mutates artifacts, so it requires another fresh verification before merge or push.
 
@@ -125,4 +125,4 @@ Know which outcome you want, but wait for the command's explicit choice:
 2. **push + PR** — pushes/creates a PR only after selection and preserves the worktree for CI or review fixes;
 3. **keep branch** — preserves branch and worktree.
 
-The workflow never infers push, PR, deploy, archive, merge, or cleanup intent.
+The workflow never infers push, PR, deploy, archive, merge, cleanup, or concern acceptance intent. Archive/sync mutates OpenSpec artifacts, so it makes both prior verification and any concern acceptance stale; `/ship` obtains a new Verifier verdict and, if needed, new explicit acceptance of the new named concerns.

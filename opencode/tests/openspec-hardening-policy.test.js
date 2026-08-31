@@ -23,8 +23,26 @@ test("ship policy always obtains a new verifier verdict from the current tree", 
   assert.match(command, /ALWAYS dispatch a new `Verifier`/)
   assert.match(command, /previous .*`VERIFIED` message is advisory only/is)
   assert.match(command, /code, artifact, base, or worktree change.*stale/is)
-  assert.match(command, /`VERIFIED_WITH_CONCERNS`: stop and ask/)
-  assert.match(command, /`BLOCKED`: stop/)
+  assert.match(command, /`VERIFIED`: the fresh verdict is shipping authorization/)
+  assert.match(command, /`VERIFIED_WITH_CONCERNS`: stop before archive or integration/)
+  assert.match(command, /explicitly accepts the exact named concerns/)
+  assert.match(command, /That acceptance is shipping authorization for this unchanged state/)
+  assert.match(command, /does not change the verdict to `VERIFIED`/)
+  assert.match(command, /this change, HEAD, branch\/worktree, comparison basis, current artifacts, current diff, and named concern set/)
+  assert.match(command, /A decline stops shipping/)
+  assert.match(command, /Do not infer acceptance from ambiguous language/)
+  assert.match(command, /`BLOCKED`: stop.*Do not archive, integrate, offer a bypass, or ask for risk acceptance/is)
+})
+
+test("verifier preserves concern-bearing verdicts and leaves risk acceptance to ship", async () => {
+  const command = await text("commands/verify.md")
+  const agent = await text("agents/verifier.md")
+  assert.match(command, /`VERIFIED` may proceed directly to shipping authorization/)
+  assert.match(command, /`VERIFIED_WITH_CONCERNS` requires `\/ship` to obtain explicit acceptance of the exact current named concerns/)
+  assert.match(command, /`BLOCKED` cannot proceed/)
+  assert.match(agent, /Acceptance does not alter this verdict or erase its concerns/)
+  assert.match(agent, /not to reclassify it as `VERIFIED`/)
+  assert.match(agent, /never permits a shipping bypass/)
 })
 
 test("executor owns checkbox changes and rejects forbidden worker state diffs", async () => {
@@ -127,12 +145,13 @@ test("ship keeps its exact menu and applies provenance-aware conservative cleanu
 
 test("ship invalidates pre-archive verification and re-verifies before integration", async () => {
   const command = await text("commands/ship.md")
-  assert.match(command, /archive or sync mutation of an OpenSpec artifact invalidates the pre-archive Verifier verdict/)
+  assert.match(command, /archive or sync mutation of an OpenSpec artifact invalidates the pre-archive Verifier verdict and any pre-archive concern acceptance/)
   assert.match(command, /ALWAYS dispatch a NEW fresh `Verifier`/)
   assert.match(command, /post-archive current artifacts\/tree\/diff before any merge or push/)
   assert.match(command, /`VERIFIED` permits the selected integration to continue/)
-  assert.match(command, /`VERIFIED_WITH_CONCERNS` stops and requires explicit acceptance/)
-  assert.match(command, /`BLOCKED` stops with no integration or bypass/)
+  assert.match(command, /`VERIFIED_WITH_CONCERNS` stops, presents the NEW\/current named concerns, and requires NEW explicit acceptance before the integration menu/)
+  assert.match(command, /Never reuse a pre-mutation acceptance/)
+  assert.match(command, /`BLOCKED` stops with no integration, acceptance, or bypass/)
   assert.deepEqual(command.match(/^\d\. .+$/gm), ["1. merge locally", "2. push + PR", "3. keep branch"])
 })
 
