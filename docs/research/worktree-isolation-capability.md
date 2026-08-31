@@ -54,10 +54,17 @@ probes against the patched 5.0.0-beta.30 source also produced an overall
   reported `pwd` and Git top-level as `worktree-a`, reported the expected branch
   and shared Git common directory, and wrote the exact provenance sentinel only
   in that worktree;
-- a concurrent A/B attempt created both child sessions at their respective
-  sibling worktrees, proving directory assignment/routing only; their shell
-  executions were interrupted, so concurrent tool isolation and temporal
-  overlap remain `UNPROVEN`;
+- the first concurrent A/B attempts exposed a separate background-completion
+  race: an idle status plus a still-running tool part was accepted as completed,
+  and completion cleanup aborted both barrier processes;
+- after a focused research-branch fix made active `pending`/`running` tool parts
+  block background completion, two normal background category children ran the
+  causal barrier from caller-selected worktrees A and B. Both no-`cd`,
+  no-workdir shell processes completed, each observed the peer's start marker,
+  and their monotonic intervals overlapped;
+- the parent harness independently verified each child's `pwd`, Git top-level,
+  branch, shared Git common directory, exact sentinel content/hash, absence of
+  cross-sentinels, and absence of worker sentinels in base;
 - the tested category worker denies its own `task` tool, so nested runtime
   delegation was not exercisable; deterministic tests cover immediate-parent
   session inheritance;
@@ -75,11 +82,15 @@ probes against the patched 5.0.0-beta.30 source also produced an overall
 | Sync session directory assignment | `PROVEN` | Sync child session record stored worktree A. |
 | Sync actual tool CWD | `PROVEN` | A Luna/high no-`cd`, no-workdir child shell reported worktree A; Git identity and sentinel confinement independently matched. |
 | Concurrent directory assignment/routing | `PROVEN` | A and B session records stored their respective requested worktrees. |
-| Concurrent sibling tool isolation | `UNPROVEN` | Both tool executions did not complete. |
-| Temporal overlap | `UNPROVEN` | No two completed execution intervals were available. |
+| Worker A actual tool CWD | `PROVEN` | Luna/high child shell ran intrinsically from worktree A and reported the expected Git identity. |
+| Worker B actual tool CWD | `PROVEN` | Luna/high child shell ran intrinsically from worktree B and reported the expected Git identity. |
+| Concurrent sibling tool isolation | `PROVEN` | Both normal delegated child tools completed in distinct caller-selected sibling worktrees under a causal barrier. |
+| Temporal overlap | `PROVEN` | `max(A.start,B.start) < min(A.end,B.end)` and both workers recorded `peerObserved=true`. |
+| Sibling mutation confinement | `PROVEN` | Each exact provenance sentinel existed only in its own worktree; neither cross-sentinel existed. |
+| Parent worker mutation confinement | `PROVEN` | Neither worker sentinel existed in base. Coordination state was deliberately outside all Git worktrees. |
 | Nested runtime preservation | `UNPROVEN` | Tested child type could not invoke `task`. |
 | Parent runtime bookkeeping cleanliness | `FAILED` | OMO wrote `.omo/run-continuation` under the base fixture. |
-| Overall worktree isolation | `UNPROVEN` | Required sync, concurrency, cleanliness, and nested evidence is incomplete or failed. |
+| Overall worktree isolation | `UNPROVEN` | Nested preservation remains unproven and literal parent bookkeeping cleanliness remains failed. |
 
 The `.omo/run-continuation` files are OMO runtime bookkeeping, not worker
 sentinel escape. On every `session.idle`, the background manager's parent-wake
@@ -102,6 +113,16 @@ disabled or constrained to Luna, and session exports independently confirmed
 the child directory and completed tool result. The pre-existing poller fix is
 kept on a separate research branch and does not alter the caller-selected
 directory PR.
+
+The concurrent probe also used only `openai/gpt-5.6-luna`. Its isolated
+OpenCode parent and OMO category configuration pinned Luna with `high`
+reasoning, disabled model/runtime fallback, and set an exact test-only model
+concurrency of two. Runtime logs recorded only OpenAI Luna streams. Child
+assistant records did not expose a per-request variant field, so `high` for
+those turns is supported by the mechanically retained effective category
+configuration rather than inferred from prose. The live OpenCode database
+session count was unchanged (111 before and after), because all probe state was
+rooted under isolated XDG directories.
 
 ## Team Mode is a separate path
 
@@ -134,10 +155,26 @@ Use `--keep` only when the clean fixture is needed for adapter development. Clea
 
 The deterministic tests cover source classification, path/provenance validation, sentinel evidence requirements, conservative cleanup, missing-capability handling, nested failure classification, and the rule that incomplete evidence cannot become `PROVEN`.
 
+The LLM-consuming companion probe is opt-in only:
+
+```sh
+node scripts/probes/worktree-concurrent-runtime.mjs --run \
+  --omo-package-root /path/to/built/omo \
+  --evidence-dir /path/to/evidence \
+  --model openai/gpt-5.6-luna
+```
+
+It preflights the isolated routing before any LLM request, creates the same
+provenance-owned topology plus an external `coordination/` directory, launches
+two normal background `task` calls in one batch, requires both child shell
+processes to cross a bounded causal barrier, classifies machine evidence, and
+removes only recognized sentinels/bookkeeping before invoking conservative
+fixture cleanup. Without `--run`, it makes no runtime LLM call.
+
 ## Interpretation
 
 `PROVEN` requires complete mechanical evidence for the specific capability. `FAILED` means decisive evidence contradicts the capability. `UNPROVEN` means required evidence was absent, incomplete, unsafe to collect, or blocked by an earlier prerequisite.
 
 A prompt such as `WORKSPACE: /path` is not proof. Prompt compliance allows one forgotten `cd` to operate in the parent tree; runtime-enforced isolation must make the selected directory intrinsic to the child session/tool context.
 
-`LANE_WORKTREES` and worker-driven `EPHEMERAL_SANDBOX` remain disabled for the custom Executor route. The isolated OMO patch exposes the missing primitive, but production integration is not justified while concurrency, parent cleanliness, and nested runtime evidence remain incomplete. After upstreaming or otherwise adopting the primitive in a supported OMO release, rerun the full probe and require complete child/tool/Git/sentinel/sibling/parent/concurrent/nested evidence before considering production enablement.
+`LANE_WORKTREES` and worker-driven `EPHEMERAL_SANDBOX` remain disabled for the custom Executor route. The isolated OMO patch exposes the missing primitive and concurrent sibling execution is now mechanically proven on the measured path, but production integration is not justified while nested preservation remains unproven and literal parent bookkeeping cleanliness remains failed. After upstreaming or otherwise adopting the primitive in a supported OMO release, rerun the full probe and require complete child/tool/Git/sentinel/sibling/parent/concurrent/nested evidence before considering production enablement.
