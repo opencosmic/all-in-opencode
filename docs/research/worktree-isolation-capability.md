@@ -65,9 +65,15 @@ probes against the patched 5.0.0-beta.30 source also produced an overall
 - the parent harness independently verified each child's `pwd`, Git top-level,
   branch, shared Git common directory, exact sentinel content/hash, absence of
   cross-sentinels, and absence of worker sentinels in base;
-- the tested category worker denies its own `task` tool, so nested runtime
-  delegation was not exercisable; deterministic tests cover immediate-parent
-  session inheritance;
+- a probe-local native `plan` outer worker was allowed exactly one normal sync
+  `task` delegation while the nested category denied its own `task` and
+  `call_omo_agent` tools. The outer task was explicitly bound to worktree A;
+  the nested task input contained no `directory`, `cwd`, or `workdir` field;
+- the nested session's parent was the outer session, both stored worktree A as
+  their directory, and both no-`cd`, no-workdir shell tools reported worktree A,
+  the expected A branch, and the shared Git common directory. Exact outer and
+  nested provenance sentinels existed only in A, with neither sentinel in base
+  or worktree B;
 - OMO created untracked `.omo/run-continuation` bookkeeping in the fixture, so
   literal parent Git cleanliness is `FAILED` even though the worker sentinel was
   confined to its selected sibling.
@@ -88,9 +94,9 @@ probes against the patched 5.0.0-beta.30 source also produced an overall
 | Temporal overlap | `PROVEN` | `max(A.start,B.start) < min(A.end,B.end)` and both workers recorded `peerObserved=true`. |
 | Sibling mutation confinement | `PROVEN` | Each exact provenance sentinel existed only in its own worktree; neither cross-sentinel existed. |
 | Parent worker mutation confinement | `PROVEN` | Neither worker sentinel existed in base. Coordination state was deliberately outside all Git worktrees. |
-| Nested runtime preservation | `UNPROVEN` | Tested child type could not invoke `task`. |
+| Nested runtime preservation | `PROVEN` | A normal outer `plan` task explicitly bound to A delegated a normal nested category task with no directory field. The nested session inherited A from its immediate parent, its no-`cd` tool ran in A with the expected Git identity, and its exact sentinel existed only in A. |
 | Parent runtime bookkeeping cleanliness | `FAILED` | OMO wrote `.omo/run-continuation` under the base fixture. |
-| Overall worktree isolation | `UNPROVEN` | Nested preservation remains unproven and literal parent bookkeeping cleanliness remains failed. |
+| Overall worktree isolation | `UNPROVEN` | Literal parent bookkeeping cleanliness remains failed and the production policy for that runtime state is unresolved. |
 
 The `.omo/run-continuation` files are OMO runtime bookkeeping, not worker
 sentinel escape. On every `session.idle`, the background manager's parent-wake
@@ -123,6 +129,19 @@ those turns is supported by the mechanically retained effective category
 configuration rather than inferred from prose. The live OpenCode database
 session count was unchanged (111 before and after), because all probe state was
 rooted under isolated XDG directories.
+
+The nested probe's accepted run also used only `openai/gpt-5.6-luna` at
+`high`. A no-inference preflight recorded the parent and native `plan` outer
+agent as Luna/high, constrained the nested category to Luna/high, disabled
+model/runtime fallback, and disabled OMO plan replacement only inside the
+disposable fixture. Runtime logs and assistant records then recorded every
+parent, outer, and nested request as OpenAI Luna/high. The live database session
+count remained 111 before and after because the probe used isolated XDG state.
+Machine evidence for probe `40d7f56b-80a2-45e9-aa2d-82de390d19d8` recorded
+outer session `ses_fa74777cbffenQCPao2FrfP5n7`, nested session
+`ses_fa7474550ffeJAuXPVFdzplLHI`, and the required immediate-parent directory
+inheritance. The disposable fixture was removed by provenance-aware cleanup;
+the raw isolated session dump remains local and is not committed.
 
 ## Team Mode is a separate path
 
@@ -171,10 +190,26 @@ processes to cross a bounded causal barrier, classifies machine evidence, and
 removes only recognized sentinels/bookkeeping before invoking conservative
 fixture cleanup. Without `--run`, it makes no runtime LLM call.
 
+The two-level nested companion is likewise opt-in:
+
+```sh
+node scripts/probes/worktree-nested-runtime.mjs --run \
+  --omo-package-root /path/to/built/omo \
+  --evidence-dir /path/to/evidence \
+  --model openai/gpt-5.6-luna
+```
+
+It explicitly binds one normal sync outer task to worktree A, requires that
+outer to make exactly one normal nested category call with no directory field,
+and independently classifies the session hierarchy, task inputs, tool records,
+Git identity, sentinels, routing, and OMO bookkeeping. `--preflight-only`
+validates routing and cleans the disposable fixture without invoking an LLM;
+without `--run`, the script only prints usage.
+
 ## Interpretation
 
 `PROVEN` requires complete mechanical evidence for the specific capability. `FAILED` means decisive evidence contradicts the capability. `UNPROVEN` means required evidence was absent, incomplete, unsafe to collect, or blocked by an earlier prerequisite.
 
 A prompt such as `WORKSPACE: /path` is not proof. Prompt compliance allows one forgotten `cd` to operate in the parent tree; runtime-enforced isolation must make the selected directory intrinsic to the child session/tool context.
 
-`LANE_WORKTREES` and worker-driven `EPHEMERAL_SANDBOX` remain disabled for the custom Executor route. The isolated OMO patch exposes the missing primitive and concurrent sibling execution is now mechanically proven on the measured path, but production integration is not justified while nested preservation remains unproven and literal parent bookkeeping cleanliness remains failed. After upstreaming or otherwise adopting the primitive in a supported OMO release, rerun the full probe and require complete child/tool/Git/sentinel/sibling/parent/concurrent/nested evidence before considering production enablement.
+`LANE_WORKTREES` and worker-driven `EPHEMERAL_SANDBOX` remain disabled for the custom Executor route. The isolated OMO patch exposes the missing primitive, concurrent sibling execution and immediate-parent nested preservation are mechanically proven on the measured path, but production integration is not justified while literal parent bookkeeping cleanliness remains failed and its policy is unresolved. After upstreaming or otherwise adopting the primitive in a supported OMO release, rerun the full probe and require complete child/tool/Git/sentinel/sibling/parent/concurrent/nested evidence before considering production enablement.

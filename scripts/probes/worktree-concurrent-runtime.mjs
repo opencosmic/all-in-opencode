@@ -17,8 +17,8 @@ import {
   sentinelPayload,
 } from "./worktree-isolation.mjs"
 
-const ALLOWED_MODELS = new Set(["openai/gpt-5.6-luna", "openai/gpt-5.6-terra"])
-const DEFAULT_MODEL = "openai/gpt-5.6-luna"
+export const ALLOWED_MODELS = new Set(["openai/gpt-5.6-luna", "openai/gpt-5.6-terra"])
+export const DEFAULT_MODEL = "openai/gpt-5.6-luna"
 const BARRIER_TIMEOUT_MS = 20_000
 const PREFLIGHT_TIMEOUT_MS = 90_000
 const RUNTIME_TIMEOUT_MS = 240_000
@@ -139,7 +139,7 @@ export function classifyConcurrentRuntime(input) {
   }
 }
 
-async function runCommand(command, args, { cwd, env, timeout = 30_000 } = {}) {
+export async function runCommand(command, args, { cwd, env, timeout = 30_000 } = {}) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] })
     let stdout = ""
@@ -165,7 +165,7 @@ function queryAll(db, sql, ...params) {
   return db.prepare(sql).all(...params)
 }
 
-function parseJson(value) {
+export function parseJson(value) {
   try {
     return JSON.parse(value)
   } catch {
@@ -173,7 +173,7 @@ function parseJson(value) {
   }
 }
 
-function liveSessionCount() {
+export function liveSessionCount() {
   const dbPath = join(homedir(), ".local", "share", "opencode", "opencode.db")
   if (!existsSync(dbPath)) return null
   const db = new DatabaseSync(dbPath, { readOnly: true })
@@ -232,7 +232,7 @@ console.log(JSON.stringify({ ...identity, end: end.toString(), peerObserved: tru
 `
 }
 
-function shellQuote(value) {
+export function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'"'"'`)}'`
 }
 
@@ -361,7 +361,7 @@ async function preflight(runtime, model) {
   return { agent: agentConfig, model, fallback: "disabled/constrained by isolated OMO config" }
 }
 
-function collectTool(db, sessionID) {
+export function collectTool(db, sessionID) {
   const rows = queryAll(db, "SELECT data FROM part WHERE session_id = ? ORDER BY time_created, id", sessionID)
   const toolParts = rows.map((row) => parseJson(row.data)).filter((part) => part?.type === "tool" && part?.tool === "bash")
   if (toolParts.length !== 1) return { count: toolParts.length }
@@ -380,7 +380,7 @@ function collectTool(db, sessionID) {
   }
 }
 
-function collectSessionMessages(db, sessionID) {
+export function collectSessionMessages(db, sessionID) {
   return queryAll(db, "SELECT id, data FROM message WHERE session_id = ? ORDER BY time_created, id", sessionID)
     .map((row) => ({ rowID: row.id, message: parseJson(row.data) }))
     .filter(({ message }) => Boolean(message))
@@ -391,6 +391,7 @@ function collectSessionMessages(db, sessionID) {
       model: message.modelID,
       reasoning: message.variant,
       agent: message.agent,
+      tools: message.tools,
       finish: message.finish,
       error: message.error,
       time: message.time,
@@ -407,7 +408,8 @@ function collectSessionMessages(db, sessionID) {
     }))
 }
 
-function collectModelRequests(db, logText) {
+export function collectModelRequests(db, logText, purposeForAgent = (agent) =>
+  agent === "Sisyphus-Junior" ? "delegated child turn" : "parent orchestration turn") {
   const requests = []
   const stream = /message=stream providerID=(\S+) modelID=(\S+) session\.id=(\S+).*?agent=(\S+)/g
   for (const match of logText.matchAll(stream)) {
@@ -420,7 +422,7 @@ function collectModelRequests(db, logText) {
         && typeof message?.variant === "string",
       )
     requests.push({
-      purpose: match[4] === "Sisyphus-Junior" ? "delegated child turn" : "parent orchestration turn",
+      purpose: purposeForAgent(match[4]),
       session: sessionID,
       provider: match[1],
       model: match[2],
@@ -431,7 +433,7 @@ function collectModelRequests(db, logText) {
   return requests
 }
 
-async function markerFiles(directory) {
+export async function markerFiles(directory) {
   const markerDir = join(directory, ".omo", "run-continuation")
   try {
     return (await readdir(markerDir)).sort()
@@ -440,11 +442,11 @@ async function markerFiles(directory) {
   }
 }
 
-async function readJson(path) {
+export async function readJson(path) {
   return parseJson(await readFile(path, "utf8"))
 }
 
-async function fixtureFacts(directory) {
+export async function fixtureFacts(directory) {
   const gitValue = async (...args) => {
     const result = await runCommand("git", args, { cwd: directory })
     if (result.code !== 0) throw new Error(result.stderr || `git ${args.join(" ")} failed`)
