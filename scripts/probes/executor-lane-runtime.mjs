@@ -87,6 +87,20 @@ function runtimeCapabilityEvidence(openCodeVersion, omoHead) {
   }
 }
 
+// OpenCode evaluates an external directory permission against the requested
+// directory's contents (for example, `<lane>/*`), not just the worktree root.
+// Keep this limited to the two provenance-owned probe lanes; the semantic
+// permission adapter remains the authority for every operation.
+export function ownedLaneExternalDirectoryPermission(lanes) {
+  return {
+    "*": "deny",
+    [lanes.T1]: "allow",
+    [`${lanes.T1}/*`]: "allow",
+    [lanes.T2]: "allow",
+    [`${lanes.T2}/*`]: "allow",
+  }
+}
+
 function workerScript() {
   return `import { execFileSync } from "node:child_process"
 import { connect } from "node:net"
@@ -314,7 +328,7 @@ async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
     // tool.execute.before adapter below denies every operation outside the
     // provenance-owned fixture lifecycle and records every decision.
     bash: "allow",
-    external_directory: { "*": "deny", [fixture.lanes.T1]: "allow", [fixture.lanes.T2]: "allow" },
+    external_directory: ownedLaneExternalDirectoryPermission(fixture.lanes),
   }
   roleOverride.Executor.permission = executorPermission
   roleOverride.executor = {
