@@ -207,6 +207,18 @@ async function createFixture(root, port, token) {
   await mkdir(join(fixture, "src"), { recursive: true })
   await mkdir(join(root, "lanes"), { recursive: true })
   await write(join(fixture, "README.md"), "Executor lane E2E fixture\n")
+  await write(join(fixture, "HARNESS.md"), `# Executor lane E2E harness contract
+
+This fixture is created, invoked, and evaluated by the canonical repository's \`scripts/probes/executor-lane-runtime.mjs\` probe. The owner is that probe, not an implementation worker. Invoke the complete disposable run as:
+
+\`node scripts/probes/executor-lane-runtime.mjs --run --omo-package-root <measured-OMO-root> --evidence-dir <evidence-root>\`
+
+The probe creates this fixture, its isolated OpenCode HOME/XDG runtime, an OS-assigned loopback barrier, the two lane paths, and an evidence bundle. Its preflight proves the exact Luna/high route and disabled fallback before any LLM request. The fixture deliberately contains no second orchestrator: the external probe is the authoritative owner of SQLite session/part extraction, model-request accounting, task snapshots, barrier telemetry, provenance checks, and final cleanup evidence.
+
+For this fixture the exact lane branch templates are \`fixture-change--lane-T1-e2e\` and \`fixture-change--lane-T2-e2e\`. Executor creates each with \`git worktree add -b <branch> <lane-path> <captured-baseline>\`, integrates T1 then T2 using \`git merge --no-ff --no-edit <branch>\`, and only removes an owned lane using normal \`git worktree remove <lane-path>\` followed by \`git branch -d <branch>\`. It never force-removes. A continuation marker is removable only at its exact \`.omo/run-continuation/<known-session>.json\` path after the probe proves that session and lane ownership; unknown state is preserved.
+
+The plan-review scope is the fixture workflow contract: task topology, commands, validation, integration, cleanup, and its boundary with this supplied harness. It must not require this disposable fixture to reimplement the external probe or its SQLite/accounting machinery.
+`)
   await write(join(fixture, "package.json"), JSON.stringify({ private: true, type: "module" }, null, 2) + "\n")
   await write(join(fixture, "scripts", "lane-worker.mjs"), workerScript())
   await write(join(fixture, "scripts", "t3-worker.mjs"), t3Script())
@@ -571,7 +583,7 @@ function executePrompt(fixture, preflightResult) {
 
 This is an authorized disposable runtime E2E. Follow the production Executor lifecycle exactly. The harness already applied the canonical capability helper to the isolated measured runtime and obtained this result: ${JSON.stringify(preflightResult.capability)}.
 
-Use the current canonical fixture as the change worktree. Freshly dispatch Plan Reviewer. Then execute tasks.md exactly as written.
+Use the current canonical fixture as the change worktree. Freshly dispatch Plan Reviewer and require it to read HARNESS.md together with the current OpenSpec change. Its review scope is the fixture workflow contract; the supplied external probe, including its SQLite/session evidence and model accounting, is not a fixture deliverable. Then execute tasks.md exactly as written.
 
 The fixture directory is the canonical CWD only for canonical operations. The disposable root merely contains the fixture and lanes; never run canonical Git/Node checks with the disposable root as tool workdir. Lane-local validation is an exception: it MUST use its owned lane as the native Bash tool workdir. Do not remove parent or Plan Reviewer continuation markers during implementation; lane-marker cleanup belongs only to the final owned-lane cleanup step.
 
