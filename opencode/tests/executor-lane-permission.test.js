@@ -38,10 +38,11 @@ test("disposable-root inspection is authorized but unrelated container mutation 
   assert.equal(decide("mkdir unrelated").allowed, false)
 })
 
-test("the fixed read-only fixture syntax-check loop is authorized without general shell expansion", () => {
+test("the bounded read-only fixture syntax-check loop is authorized without general shell expansion", () => {
   const result = decide('for file in scripts/*.mjs; do node --check "$file"; done')
   assert.equal(result.allowed, true)
   assert.equal(result.classification, PERMISSION_CLASSES.FIXTURE_CHECK)
+  assert.equal(decide('for f in scripts/*.mjs; do node --check "$f"; done').allowed, true)
   assert.equal(decide('for file in ../*.mjs; do node --check "$file"; done').allowed, false)
   assert.equal(decide('for file in scripts/*.mjs; do rm "$file"; done').allowed, false)
 })
@@ -50,6 +51,11 @@ test("safe chained Git inspection is allowed", () => {
   const result = decide("pwd; git status --short --branch; git log --oneline -10; git submodule status; git worktree list --porcelain")
   assert.equal(result.allowed, true)
   assert.equal(result.operations.length, 5)
+})
+
+test("read-only Git tree inspection is authorized without mutation privileges", () => {
+  assert.equal(decide("git ls-tree -r --name-only HEAD").classification, PERMISSION_CLASSES.READ_ONLY_INSPECTION)
+  assert.equal(decide("git ls-tree -r --name-only ../outside").allowed, false)
 })
 
 test("read-only stderr suppression is normalized without allowing general redirection", () => {

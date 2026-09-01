@@ -16,7 +16,7 @@ export const PERMISSION_CLASSES = Object.freeze({
 })
 
 const READ_ONLY_GIT = new Set([
-  "status", "diff", "log", "show", "rev-parse", "rev-list", "merge-base", "ls-files",
+  "status", "diff", "log", "show", "rev-parse", "rev-list", "merge-base", "ls-files", "ls-tree",
 ])
 const FIXTURE_NODE_CHECKS = new Set([
   "scripts/lane-worker.mjs",
@@ -26,7 +26,7 @@ const FIXTURE_NODE_CHECKS = new Set([
   "scripts/check-final.mjs",
 ])
 const BOOTSTRAP_EXPRESSION = 'const p=require("./package.json"); console.log("BOOTSTRAP_OK", p.private === true, p.type)'
-const FIXTURE_SYNTAX_CHECK_LOOP = 'for file in scripts/*.mjs; do node --check "$file"; done'
+const FIXTURE_SYNTAX_CHECK_LOOP = /^for (file|f) in scripts\/\*\.mjs; do node --check "\$(file|f)"; done$/
 export const OMO_NON_INTERACTIVE_ENV_PREAMBLE = "export CI=true DEBIAN_FRONTEND=noninteractive GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never HOMEBREW_NO_AUTO_UPDATE=1 GIT_EDITOR=: EDITOR=: VISUAL='' GIT_SEQUENCE_EDITOR=: GIT_MERGE_AUTOEDIT=no GIT_PAGER=cat PAGER=cat npm_config_yes=true PIP_NO_INPUT=1 YARN_ENABLE_IMMUTABLE_INSTALLS=false"
 const OMO_NON_INTERACTIVE_ENV_WORDS = shellWords(OMO_NON_INTERACTIVE_ENV_PREAMBLE)
 
@@ -364,7 +364,7 @@ export function evaluateExecutorLaneCommand({ command, cwd, context }) {
   if (typeof command !== "string" || typeof cwd !== "string" || !context) {
     return { allowed: false, classification: PERMISSION_CLASSES.DENIED, reason: "command, cwd, and context are required", operations: [] }
   }
-  if (command.trim() === FIXTURE_SYNTAX_CHECK_LOOP && resolve(cwd) === resolve(context.fixture)) {
+  if (FIXTURE_SYNTAX_CHECK_LOOP.test(command.trim()) && resolve(cwd) === resolve(context.fixture)) {
     return {
       allowed: true,
       classification: PERMISSION_CLASSES.FIXTURE_CHECK,
