@@ -128,7 +128,11 @@ test("destructive reset, clean, force deletion, and recursive removal are denied
 
 test("fixture checks and worker commands are bound to their expected workspace", () => {
   assert.equal(decide("node scripts/check-task.mjs T1", context.lanes.T1).allowed, true)
+  assert.equal(decide("node scripts/check-task.mjs T2", context.lanes.T2).allowed, true)
   assert.equal(decide("node scripts/check-task.mjs T1", context.fixture).allowed, false)
+  assert.equal(decide("node scripts/check-task.mjs T2", context.fixture).allowed, false)
+  assert.equal(decide("node scripts/check-task.mjs T1", context.lanes.T2).allowed, false)
+  assert.equal(decide("node scripts/check-task.mjs T2", context.lanes.T1).allowed, false)
   assert.equal(decide("node scripts/lane-worker.mjs T2", context.lanes.T2).allowed, true)
   assert.equal(decide("node scripts/t3-worker.mjs", context.fixture).allowed, true)
 })

@@ -11,7 +11,7 @@ import { pathToFileURL } from "node:url"
 import { DatabaseSync } from "node:sqlite"
 
 import { assessLaneRuntimeCapability, REQUIRED_RUNTIME_CAPABILITIES } from "../lib/lane-worktrees.mjs"
-import { classifyExecutorLaneE2E } from "../lib/executor-lane-e2e.mjs"
+import { assessLaneFocusedCheck, classifyExecutorLaneE2E } from "../lib/executor-lane-e2e.mjs"
 import { evaluateExecutorLaneCommand } from "../lib/executor-lane-permission.mjs"
 import { assessMeasuredOmoCategoryRoute } from "../lib/executor-lane-category-route.mjs"
 import {
@@ -418,7 +418,8 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
   const capabilityEvidence = runtimeCapabilityEvidence(openCode.stdout.trim(), omoHead)
   const capability = assessLaneRuntimeCapability(capabilityEvidence)
   if (!capability.available || capability.status !== STATUS.PROVEN) throw new Error(`canonical capability gate failed: ${capability.reason}`)
-  const omoConfig = parseJson(await readFile(runtime.omoConfigPath, "utf8"))["[opencode]"]
+  const omoConfigText = await readFile(runtime.omoConfigPath, "utf8")
+  const omoConfig = parseJson(omoConfigText)["[opencode]"]
   if (omoConfig.model_fallback !== false || omoConfig.runtime_fallback !== false) throw new Error("OMO fallbacks are not disabled")
   const categoryProjectionSource = await readFile(join(omoPackageRoot, "packages", "omo-opencode", "src", "plugin-config", "omo-config-chain.ts"), "utf8")
   const categoryRoute = assessMeasuredOmoCategoryRoute({
@@ -479,12 +480,27 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
       context: runtime.permissionContext,
     }),
     evaluateExecutorLaneCommand({
+      command: "node scripts/check-task.mjs T1",
+      cwd: fixture.lanes.T1,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
+      command: "node scripts/check-task.mjs T2",
+      cwd: fixture.lanes.T2,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
+      command: "node scripts/check-task.mjs T1",
+      cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
       command: "git reset --hard",
       cwd: fixture.fixture,
       context: runtime.permissionContext,
     }),
   ]
-  if (!permissionSamples.slice(0, 5).every((sample) => sample.allowed) || permissionSamples[5].allowed) {
+  if (!permissionSamples.slice(0, 7).every((sample) => sample.allowed) || permissionSamples[7].allowed || permissionSamples[8].allowed) {
     throw new Error("probe-local semantic permission adapter failed its preflight samples")
   }
   return {
@@ -498,6 +514,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
     omoHead,
     openCodeVersion: openCode.stdout.trim(),
     model,
+    omoConfigSha256: createHash("sha256").update(omoConfigText).digest("hex"),
     categoryRoute,
     agents,
     executorCliAlias: { name: "executor", promptSha256: aliasPromptSha256, canonicalPromptSha256: runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256, matchesCanonical: true },
@@ -524,7 +541,7 @@ This is an authorized disposable runtime E2E. Follow the production Executor lif
 
 Use the current canonical fixture as the change worktree. Freshly dispatch Plan Reviewer. Then execute tasks.md exactly as written.
 
-The fixture directory is the only canonical Git/Node inspection CWD. The disposable root merely contains the fixture and lanes; never run fixture Git/Node checks with the disposable root as tool workdir. Do not remove parent or Plan Reviewer continuation markers during implementation; lane-marker cleanup belongs only to the final owned-lane cleanup step.
+The fixture directory is the canonical CWD only for canonical operations. The disposable root merely contains the fixture and lanes; never run canonical Git/Node checks with the disposable root as tool workdir. Lane-local validation is an exception: it MUST use its owned lane as the native Bash tool workdir. Do not remove parent or Plan Reviewer continuation markers during implementation; lane-marker cleanup belongs only to the final owned-lane cleanup step.
 
 For wave 1 create these exact lanes from baseline ${fixture.head} using the exact unquoted git worktree commands allowed by the probe-local ask-by-default policy:
 ${lane("T1")}
@@ -532,7 +549,7 @@ ${lane("T2")}
 
 Launch T1 and T2 in the SAME assistant tool-call batch through normal OMO task(category="lane-e2e", load_skills=[], run_in_background=true, directory=<exact lane path>). Each worker must execute exactly its tasks.md Worker command in one bash call, with no cd and no workdir override, and no other tool.
 
-After both workers complete, do not change tasks.md yet. Inspect each lane, run its focused check, and dispatch a fresh Reviewer with directory set to that lane and its actual base/diff/test evidence. QA is not applicable because these are mechanical internal text fixtures. After [APPROVED], commit only the lane source file: use exactly git add src/a.txt then git commit -m 'T1: add A' in T1, and exactly git add src/b.txt then git commit -m 'T2: add B' in T2.
+After both workers complete, do not change tasks.md yet. For T1, inspect T1 and run exactly node scripts/check-task.mjs T1 with the native Bash tool workdir set to ${fixture.lanes.T1}. For T2, inspect T2 and run exactly node scripts/check-task.mjs T2 with the native Bash tool workdir set to ${fixture.lanes.T2}. Never run either focused check from the canonical fixture and do not use cd. Then dispatch a fresh Reviewer with directory set to that same lane and its actual base/diff/test evidence. QA is not applicable because these are mechanical internal text fixtures. After [APPROVED], commit only the lane source file: use exactly git add src/a.txt then git commit -m 'T1: add A' in T1, and exactly git add src/b.txt then git commit -m 'T2: add B' in T2.
 
 Integrate in canonical task order T1 then T2 with exact git merge --no-ff --no-edit commands. Run node scripts/check-wave.mjs. Only after it passes, edit T1 and T2 checkboxes. Recompute readiness. Dispatch T3 through normal task(category="lane-e2e", load_skills=[], run_in_background=false, directory=${JSON.stringify(fixture.fixture)}). Its only tool call must be node scripts/t3-worker.mjs with no cd/workdir override. Review its actual diff, run node scripts/check-final.mjs, then mark T3 complete.
 
@@ -684,11 +701,50 @@ async function collectEvidence(fixture, runtime, preflightResult, monitored) {
       : []
     const deniedPermissionDecisions = permissionDecisions.filter((decision) => decision.allowed !== true)
     const sessionAgents = new Map(sessions.map((session) => [session.id, session.agent]))
-    const modelRequests = collectModelRequests(db, logText, (agent) => agent).map((request) => ({
+    const finalOmoConfigText = await readFile(runtime.omoConfigPath, "utf8")
+    const isolatedOmoConfigUnchanged = createHash("sha256").update(finalOmoConfigText).digest("hex") === preflightResult.omoConfigSha256
+    const t3Call = taskCalls.find((input) => input.directory === fixture.fixture && input.category === "lane-e2e")
+    const workerRouteEntries = Object.entries(workers)
+      .filter(([, worker]) => worker?.sessionID)
+      .map(([task, worker]) => [task, worker, taskCalls.find((input) => input.directory === worker.requestedDirectory && input.category === "lane-e2e")])
+    if (t3Session && t3Call) {
+      workerRouteEntries.push(["T3", {
+        sessionID: t3Session.id,
+        parentSessionID: t3Session.parent_id,
+        requestedDirectory: t3Call.directory,
+        storedDirectory: t3Session.directory,
+      }, t3Call])
+    }
+    const workerRouteBySession = new Map(workerRouteEntries
+      .map(([task, worker, call]) => [worker.sessionID, { task, worker, call }]))
+    const modelRequests = collectModelRequests(db, logText, (agent) => agent).map((request) => {
+      const routedWorker = workerRouteBySession.get(request.session)
+      const taskCall = routedWorker?.call
+      const noOverride = taskCall && !["model", "reasoning", "variant", "reasoningEffort"].some((field) => Object.hasOwn(taskCall, field))
+      const routeMatches = preflightResult.categoryRoute?.valid === true &&
+        request.provider === preflightResult.categoryRoute.provider &&
+        request.model === preflightResult.categoryRoute.model
+      return {
       ...request,
       agent: request.agent === "title" ? "title" : (sessionAgents.get(request.session) ?? request.agent),
       purpose: request.agent === "title" ? "title/helper" : (sessionAgents.get(request.session) ?? request.agent),
-    }))
+      ...(routedWorker && request.reasoning === undefined ? {
+        reasoningEvidence: {
+          value: preflightResult.categoryRoute?.reasoning,
+          source: "effective-category-preflight",
+          category: "lane-e2e",
+          task: routedWorker.task,
+          taskCallCategory: taskCall?.category,
+          taskCallHasNoModelOrReasoningOverride: noOverride === true,
+          childSessionMatchesTaskCall: routedWorker.worker.parentSessionID === executor?.id && routedWorker.worker.storedDirectory === taskCall?.directory,
+          isolatedOmoConfigUnchanged,
+          modelFallbackDisabled: preflightResult.fallback?.model === false,
+          runtimeFallbackDisabled: preflightResult.fallback?.runtime === false,
+          providerModelMatchesCategoryRoute: routeMatches,
+        },
+      } : {}),
+    }
+    })
     const markers = [
       ...(await markerEvidence(fixture.fixture)),
       ...(existsSync(fixture.lanes.T1) ? await markerEvidence(fixture.lanes.T1) : []),
@@ -712,9 +768,13 @@ async function collectEvidence(fixture, runtime, preflightResult, monitored) {
     const laneValidation = {}
     for (const id of ["T1", "T2"]) {
       const reviewer = reviewers.find((session) => session.directory === fixture.lanes[id])
+      const focusedPart = executor ? toolParts(db, executor.id, "bash").find((part) => part.state?.input?.command === `node scripts/check-task.mjs ${id}`) : undefined
+      const focusedCheck = assessLaneFocusedCheck({ part: focusedPart, task: id, lane: fixture.lanes[id] })
       laneValidation[id] = {
-        focusedChecksPassed: executor ? toolParts(db, executor.id, "bash").some((part) => part.state?.input?.command === `node scripts/check-task.mjs ${id}` && part.state?.status === "completed") : false,
+        focusedChecksPassed: focusedCheck.status === STATUS.PROVEN,
+        focusedCheck,
         reviewerSession: reviewer?.id,
+        reviewerDirectory: reviewer?.directory,
         reviewerVerdict: reviewer ? finalVerdict(reviewer.text, "[APPROVED]", "[CHANGES_REQUIRED]") : undefined,
         integrationReady: Boolean(commits[id]),
         qa: "NOT_APPLICABLE_MECHANICAL_INTERNAL_FIXTURE",
@@ -727,6 +787,11 @@ async function collectEvidence(fixture, runtime, preflightResult, monitored) {
       preflight: preflightResult,
       route: { command: "/execute", agent: executor?.agent, executorPromptMatchesCanonical: preflightResult.executorCliAlias?.matchesCanonical === true, executorSession: executor?.id, planReviewSession: planReviewer?.id, planReview: planReviewer ? finalVerdict(planReviewer.text, "[APPROVED]", "[REJECTED]") : undefined },
       capabilityGate: preflightResult.capability,
+      modelRouting: {
+        isolatedOmoConfigUnchanged,
+        modelFallbackDisabled: preflightResult.fallback?.model === false,
+        runtimeFallbackDisabled: preflightResult.fallback?.runtime === false,
+      },
       permissionApproval: {
         status: permissionDecisions.length === 0
           ? STATUS.UNPROVEN

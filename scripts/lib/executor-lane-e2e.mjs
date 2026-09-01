@@ -19,13 +19,50 @@ function interval(value) {
   }
 }
 
-function classifyModels(requests) {
+export function assessLaneFocusedCheck({ part, task, lane }) {
+  const state = part?.state
+  const input = state?.input
+  const expectedCommand = `node scripts/check-task.mjs ${task}`
+  const workdir = input?.workdir ?? input?.cwd
+  const proven = state?.status === "completed" && input?.command === expectedCommand && workdir === lane
+  return {
+    status: proven ? STATUS.PROVEN : STATUS.UNPROVEN,
+    command: input?.command,
+    workdir,
+    expectedCommand,
+    expectedWorkdir: lane,
+  }
+}
+
+function inheritedReasoningComplies(request) {
+  const evidence = request?.reasoningEvidence
+  return evidence?.source === "effective-category-preflight" &&
+    evidence.value === "high" &&
+    evidence.category === "lane-e2e" &&
+    evidence.taskCallCategory === "lane-e2e" &&
+    evidence.taskCallHasNoModelOrReasoningOverride === true &&
+    evidence.childSessionMatchesTaskCall === true &&
+    evidence.isolatedOmoConfigUnchanged === true &&
+    evidence.modelFallbackDisabled === true &&
+    evidence.runtimeFallbackDisabled === true &&
+    evidence.providerModelMatchesCategoryRoute === true
+}
+
+function reasoningComplies(request) {
+  return typeof request.reasoning === "string" && ALLOWED_REASONING.has(request.reasoning)
+    ? true
+    : inheritedReasoningComplies(request)
+}
+
+function classifyModels(requests, routing) {
   if (!Array.isArray(requests) || requests.length === 0) return STATUS.UNPROVEN
+  if (routing?.isolatedOmoConfigUnchanged !== true ||
+    routing?.modelFallbackDisabled !== true ||
+    routing?.runtimeFallbackDisabled !== true) return STATUS.UNPROVEN
   return requests.every((request) =>
     request.provider === "openai" &&
     ALLOWED_MODELS.has(`${request.provider}/${request.model}`) &&
-    typeof request.reasoning === "string" &&
-    ALLOWED_REASONING.has(request.reasoning)
+    reasoningComplies(request)
   ) ? STATUS.PROVEN : STATUS.UNPROVEN
 }
 
@@ -128,6 +165,8 @@ export function classifyExecutorLaneE2E(evidence = {}) {
   const laneAcceptance = status(
     ["T1", "T2"].every((id) =>
       evidence.laneValidation?.[id]?.focusedChecksPassed === true &&
+      evidence.laneValidation?.[id]?.focusedCheck?.status === STATUS.PROVEN &&
+      evidence.laneValidation?.[id]?.reviewerDirectory === lanes[id]?.path &&
       evidence.laneValidation?.[id]?.reviewerVerdict === "[APPROVED]" &&
       evidence.laneValidation?.[id]?.integrationReady === true,
     ),
@@ -158,7 +197,7 @@ export function classifyExecutorLaneE2E(evidence = {}) {
       evidence.cleanup?.[id]?.branchDeleted === true,
     ),
   )
-  const modelProviderCompliance = classifyModels(evidence.modelRequests)
+  const modelProviderCompliance = classifyModels(evidence.modelRequests, evidence.modelRouting)
 
   const capabilities = {
     actualExecutorRoute: route,

@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { DatabaseSync } from "node:sqlite"
 
-import { classifyExecutorLaneE2E } from "../../scripts/lib/executor-lane-e2e.mjs"
+import { assessLaneFocusedCheck, classifyExecutorLaneE2E } from "../../scripts/lib/executor-lane-e2e.mjs"
 import { finalVerdict, sessionText } from "../../scripts/probes/executor-lane-runtime.mjs"
 import { STATUS } from "../../scripts/probes/worktree-isolation.mjs"
 
@@ -54,8 +54,8 @@ function completeEvidence() {
     },
     bookkeeping: { policyStatus: STATUS.PROVEN, unknown: [] },
     laneValidation: {
-      T1: { focusedChecksPassed: true, reviewerVerdict: "[APPROVED]", integrationReady: true },
-      T2: { focusedChecksPassed: true, reviewerVerdict: "[APPROVED]", integrationReady: true },
+      T1: { focusedChecksPassed: true, focusedCheck: { status: STATUS.PROVEN }, reviewerDirectory: "/fixture/lanes/T1", reviewerVerdict: "[APPROVED]", integrationReady: true },
+      T2: { focusedChecksPassed: true, focusedCheck: { status: STATUS.PROVEN }, reviewerDirectory: "/fixture/lanes/T2", reviewerVerdict: "[APPROVED]", integrationReady: true },
     },
     commits: {
       T1: { sha: "b".repeat(40), branch: "change--lane-T1" },
@@ -77,6 +77,11 @@ function completeEvidence() {
     cleanup: {
       T1: { owned: true, worktreeRemoved: true, branchDeleted: true },
       T2: { owned: true, worktreeRemoved: true, branchDeleted: true },
+    },
+    modelRouting: {
+      isolatedOmoConfigUnchanged: true,
+      modelFallbackDisabled: true,
+      runtimeFallbackDisabled: true,
     },
     modelRequests: [
       { provider: "openai", model: "gpt-5.6-luna", reasoning: "high" },
@@ -138,6 +143,57 @@ test("missing reviewer approval blocks proof", () => {
   const evidence = completeEvidence()
   evidence.laneValidation.T2.reviewerVerdict = "[CHANGES_REQUIRED]"
   assert.equal(classifyExecutorLaneE2E(evidence).status, STATUS.UNPROVEN)
+})
+
+test("a Reviewer outside its owned lane cannot accept an unintegrated lane", () => {
+  const evidence = completeEvidence()
+  evidence.laneValidation.T1.reviewerDirectory = "/fixture"
+  assert.equal(classifyExecutorLaneE2E(evidence).status, STATUS.UNPROVEN)
+})
+
+test("lane-local focused checks require exact command, completed status, and native lane workdir", () => {
+  const part = (task, workdir = `/fixture/lanes/${task}`) => ({ state: { status: "completed", input: { command: `node scripts/check-task.mjs ${task}`, workdir } } })
+  assert.equal(assessLaneFocusedCheck({ part: part("T1"), task: "T1", lane: "/fixture/lanes/T1" }).status, STATUS.PROVEN)
+  assert.equal(assessLaneFocusedCheck({ part: part("T2"), task: "T2", lane: "/fixture/lanes/T2" }).status, STATUS.PROVEN)
+  assert.equal(assessLaneFocusedCheck({ part: part("T1", "/fixture"), task: "T1", lane: "/fixture/lanes/T1" }).status, STATUS.UNPROVEN)
+  assert.equal(assessLaneFocusedCheck({ part: part("T1", "/fixture/lanes/T2"), task: "T1", lane: "/fixture/lanes/T1" }).status, STATUS.UNPROVEN)
+  assert.equal(assessLaneFocusedCheck({ part: { state: { status: "completed", input: { command: "node scripts/check-task.mjs T1" } } }, task: "T1", lane: "/fixture/lanes/T1" }).status, STATUS.UNPROVEN)
+  assert.equal(assessLaneFocusedCheck({ part: { state: { status: "completed", input: { command: "cd /fixture/lanes/T1 && node scripts/check-task.mjs T1", workdir: "/fixture/lanes/T1" } } }, task: "T1", lane: "/fixture/lanes/T1" }).status, STATUS.UNPROVEN)
+})
+
+test("category-derived reasoning proves an otherwise unrecorded matching worker request", () => {
+  const evidence = completeEvidence()
+  evidence.modelRequests = [{
+    provider: "openai", model: "gpt-5.6-luna", reasoningEvidence: {
+      value: "high", source: "effective-category-preflight", category: "lane-e2e", taskCallCategory: "lane-e2e",
+      taskCallHasNoModelOrReasoningOverride: true, childSessionMatchesTaskCall: true,
+      isolatedOmoConfigUnchanged: true, modelFallbackDisabled: true, runtimeFallbackDisabled: true,
+      providerModelMatchesCategoryRoute: true,
+    },
+  }]
+  assert.equal(classifyExecutorLaneE2E(evidence).capabilities.modelProviderCompliance, STATUS.PROVEN)
+})
+
+test("unrecorded reasoning without the exact category route, overrides, or a wrong model remains unproven", () => {
+  for (const request of [
+    { provider: "openai", model: "gpt-5.6-luna" },
+    { provider: "openai", model: "gpt-5.6-luna", reasoningEvidence: { value: "high", source: "effective-category-preflight", category: "lane-e2e", taskCallCategory: "lane-e2e", taskCallHasNoModelOrReasoningOverride: false, childSessionMatchesTaskCall: true, isolatedOmoConfigUnchanged: true, modelFallbackDisabled: true, runtimeFallbackDisabled: true, providerModelMatchesCategoryRoute: true } },
+    { provider: "openai", model: "gpt-5.6-terra", reasoningEvidence: { value: "high", source: "effective-category-preflight", category: "lane-e2e", taskCallCategory: "lane-e2e", taskCallHasNoModelOrReasoningOverride: true, childSessionMatchesTaskCall: true, isolatedOmoConfigUnchanged: true, modelFallbackDisabled: true, runtimeFallbackDisabled: true, providerModelMatchesCategoryRoute: false } },
+  ]) {
+    const evidence = completeEvidence(); evidence.modelRequests = [request]
+    assert.equal(classifyExecutorLaneE2E(evidence).capabilities.modelProviderCompliance, STATUS.UNPROVEN)
+  }
+})
+
+test("a changed isolated OMO configuration or enabled fallback blocks every model route", () => {
+  for (const routing of [
+    { isolatedOmoConfigUnchanged: false, modelFallbackDisabled: true, runtimeFallbackDisabled: true },
+    { isolatedOmoConfigUnchanged: true, modelFallbackDisabled: false, runtimeFallbackDisabled: true },
+    { isolatedOmoConfigUnchanged: true, modelFallbackDisabled: true, runtimeFallbackDisabled: false },
+  ]) {
+    const evidence = completeEvidence(); evidence.modelRouting = routing
+    assert.equal(classifyExecutorLaneE2E(evidence).capabilities.modelProviderCompliance, STATUS.UNPROVEN)
+  }
 })
 
 test("failed combined checks fail the E2E", () => {
