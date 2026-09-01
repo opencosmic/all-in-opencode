@@ -127,6 +127,29 @@ test("fixture checks and worker commands are bound to their expected workspace",
   assert.equal(decide("node scripts/t3-worker.mjs", context.fixture).allowed, true)
 })
 
+test("the finite baseline inspection contract is authorized without general shell permission", () => {
+  assert.equal(decide("node --version").classification, PERMISSION_CLASSES.READ_ONLY_INSPECTION)
+  assert.equal(decide("test ! -e src/a.txt").allowed, true)
+  assert.equal(decide("test ! -e src/b.txt").allowed, true)
+  assert.equal(decide("test ! -e src/combined.txt").allowed, true)
+  assert.equal(decide("test ! -e ../outside").allowed, false)
+  assert.equal(decide("test -e src/a.txt").allowed, false)
+  assert.equal(decide("printf 'BASELINE_PASS\\n'").allowed, true)
+  assert.equal(decide("printf arbitrary").allowed, false)
+  assert.equal(decide("printf 'PORT=%s TOKEN_SET=%s\\n' \"${EXECUTOR_LANE_E2E_PORT:-}\" \"${EXECUTOR_LANE_E2E_TOKEN:+yes}\"").allowed, true)
+  assert.equal(decide("printf '%s\\n' \"${EXECUTOR_LANE_E2E_TOKEN}\"").allowed, false)
+  assert.equal(decide("printf '%s\\n' \"${HOME}\"").allowed, false)
+  assert.equal(decide("mkdir lanes", context.root).classification, PERMISSION_CLASSES.OWNED_PROBE_LAYOUT_PREPARE)
+  assert.equal(decide("mkdir unrelated", context.root).allowed, false)
+  assert.equal(decide("mkdir lanes", context.fixture).allowed, false)
+})
+
+test("complete baseline compound is authorized only because every atom is safe", () => {
+  const command = "node --version && node --check scripts/lane-worker.mjs && node --check scripts/check-task.mjs && node --check scripts/check-wave.mjs && node --check scripts/t3-worker.mjs && node --check scripts/check-final.mjs && test ! -e src/a.txt && test ! -e src/b.txt && test ! -e src/combined.txt && printf 'BASELINE_PASS\\n'"
+  assert.equal(decide(command).allowed, true)
+  assert.equal(decide(`${command} && mkdir unrelated`).allowed, false)
+})
+
 test("shell expansion, substitution, redirection, and unknown network commands are denied", () => {
   for (const command of [
     "ls $HOME",

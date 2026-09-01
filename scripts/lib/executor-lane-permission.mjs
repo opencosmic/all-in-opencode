@@ -10,6 +10,7 @@ export const PERMISSION_CLASSES = Object.freeze({
   KNOWN_BOOKKEEPING_REMOVE: "KNOWN_BOOKKEEPING_REMOVE",
   OWNED_WORKTREE_REMOVE: "OWNED_WORKTREE_REMOVE",
   OWNED_BRANCH_DELETE: "OWNED_BRANCH_DELETE",
+  OWNED_PROBE_LAYOUT_PREPARE: "OWNED_PROBE_LAYOUT_PREPARE",
   FIXTURE_CHECK: "FIXTURE_CHECK",
   DENIED: "DENIED",
 })
@@ -248,6 +249,9 @@ function inspectInvocation(words, cwd, context) {
 
 function nodeInvocation(words, cwd, context) {
   if (!isOwnedCwd(context, cwd)) return denied(words, "node cwd is outside disposable ownership")
+  if (words[1] === "--version" && words.length === 2) {
+    return allowed(PERMISSION_CLASSES.READ_ONLY_INSPECTION, words, { cwd })
+  }
   if (words[1] === "--check" && words.length === 3 && FIXTURE_NODE_CHECKS.has(words[2])) {
     return allowed(PERMISSION_CLASSES.FIXTURE_CHECK, words, { cwd })
   }
@@ -273,6 +277,30 @@ function nodeInvocation(words, cwd, context) {
     return allowed(PERMISSION_CLASSES.FIXTURE_CHECK, words, { cwd, task: "T3" })
   }
   return denied(words, "node command is outside the fixture contract")
+}
+
+function fixtureInvocation(words, cwd, context) {
+  if (words[0] === "test" && words.length === 4 && words[1] === "!" && words[2] === "-e" && resolve(cwd) === resolve(context.fixture)) {
+    const target = resolve(cwd, words[3])
+    const expected = new Set(["src/a.txt", "src/b.txt", "src/combined.txt"].map((path) => resolve(context.fixture, path)))
+    return expected.has(target)
+      ? allowed(PERMISSION_CLASSES.FIXTURE_CHECK, words, { cwd, path: target, assertion: "absent" })
+      : denied(words, "baseline absence check is outside the exact fixture outputs")
+  }
+  if (words[0] === "printf" && words.length === 2 && words[1] === "BASELINE_PASS\\n" && resolve(cwd) === resolve(context.fixture)) {
+    return allowed(PERMISSION_CLASSES.FIXTURE_CHECK, words, { cwd, output: "BASELINE_PASS" })
+  }
+  if (
+    words[0] === "printf" && words.length === 4 && words[1] === "PORT=%s TOKEN_SET=%s\\n" &&
+    words[2] === "${EXECUTOR_LANE_E2E_PORT:-}" && words[3] === "${EXECUTOR_LANE_E2E_TOKEN:+yes}" &&
+    resolve(cwd) === resolve(context.fixture)
+  ) {
+    return allowed(PERMISSION_CLASSES.FIXTURE_CHECK, words, { cwd, output: "E2E_PORT_AND_TOKEN_PRESENCE_ONLY" })
+  }
+  if (words[0] === "mkdir" && words.length === 2 && words[1] === "lanes" && resolve(cwd) === resolve(context.root)) {
+    return allowed(PERMISSION_CLASSES.OWNED_PROBE_LAYOUT_PREPARE, words, { cwd, path: resolve(context.root, "lanes") })
+  }
+  return null
 }
 
 function classifyAtom(atom, cwd, context) {
@@ -305,6 +333,8 @@ function classifyAtom(atom, cwd, context) {
   }
   if (words[0] === "git") return gitInvocation(words, cwd, context)
   if (words[0] === "node") return nodeInvocation(words, cwd, context)
+  const fixture = fixtureInvocation(words, cwd, context)
+  if (fixture) return fixture
   if (words[0] === "rm") {
     const target = words.length === 2
       ? (isAbsolute(words[1]) ? resolve(words[1]) : resolve(cwd, words[1]))

@@ -13,6 +13,7 @@ import { DatabaseSync } from "node:sqlite"
 import { assessLaneRuntimeCapability, REQUIRED_RUNTIME_CAPABILITIES } from "../lib/lane-worktrees.mjs"
 import { classifyExecutorLaneE2E } from "../lib/executor-lane-e2e.mjs"
 import { evaluateExecutorLaneCommand } from "../lib/executor-lane-permission.mjs"
+import { assessMeasuredOmoCategoryRoute } from "../lib/executor-lane-category-route.mjs"
 import {
   ALLOWED_MODELS,
   DEFAULT_MODEL,
@@ -352,7 +353,10 @@ async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
 
   const agentNames = ["build", "plan", "sisyphus", "hephaestus", "sisyphus-junior", "OpenCode-Builder", "prometheus", "metis", "momus", "oracle", "librarian", "explore", "multimodal-looker", "atlas"]
   const categoryNames = ["visual-engineering", "ultrabrain", "deep", "artistry", "quick", "unspecified-low", "unspecified-high", "writing", "lane-e2e"]
-  const onlyModel = { models: [model], fallback_models: [], reasoning: "high" }
+  const agentModelConfig = { models: [model], fallback_models: [], reasoning: "high" }
+  // The measured OMO config projection intentionally keeps this legacy
+  // category shape, while dropping category `models` and `reasoning`.
+  const categoryModelConfig = { model, fallback_models: [], reasoningEffort: "high" }
   await write(join(home, ".omo", "omo.jsonc"), JSON.stringify({
     "[opencode]": {
       auto_update: false,
@@ -361,9 +365,9 @@ async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
       runtime_fallback: false,
       disabled_providers: ["anthropic", "google", "openrouter", "opencode-go", "deepseek", "kimi", "glm", "qwen", "minimax"],
       background_task: { modelConcurrency: { [model]: 2 } },
-      agents: Object.fromEntries(agentNames.map((name) => [name, onlyModel])),
+      agents: Object.fromEntries(agentNames.map((name) => [name, agentModelConfig])),
       categories: Object.fromEntries(categoryNames.map((name) => [name, {
-        ...onlyModel,
+        ...categoryModelConfig,
         description: name === "lane-e2e" ? "Disposable Executor lane E2E implementation worker" : undefined,
         tools: name === "lane-e2e" ? { bash: true, edit: false, write: false, task: false } : undefined,
       }])),
@@ -416,6 +420,11 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
   if (!capability.available || capability.status !== STATUS.PROVEN) throw new Error(`canonical capability gate failed: ${capability.reason}`)
   const omoConfig = parseJson(await readFile(runtime.omoConfigPath, "utf8"))["[opencode]"]
   if (omoConfig.model_fallback !== false || omoConfig.runtime_fallback !== false) throw new Error("OMO fallbacks are not disabled")
+  const categoryProjectionSource = await readFile(join(omoPackageRoot, "packages", "omo-opencode", "src", "plugin-config", "omo-config-chain.ts"), "utf8")
+  const categoryRoute = assessMeasuredOmoCategoryRoute({
+    category: omoConfig.categories?.["lane-e2e"], model, projectionSource: categoryProjectionSource,
+  })
+  if (!categoryRoute.valid) throw new Error(`${categoryRoute.code}: ${categoryRoute.reason}`)
 
   const agents = {}
   for (const role of ROLE_NAMES) {
@@ -445,8 +454,23 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
   }
   const permissionSamples = [
     evaluateExecutorLaneCommand({
+      command: "node --version && node --check scripts/lane-worker.mjs && node --check scripts/check-task.mjs && node --check scripts/check-wave.mjs && node --check scripts/t3-worker.mjs && node --check scripts/check-final.mjs && test ! -e src/a.txt && test ! -e src/b.txt && test ! -e src/combined.txt && printf 'BASELINE_PASS\\n'",
+      cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
       command: `ls -ld ${fixture.root}; ls -ld ${join(fixture.root, "lanes")}; true`,
       cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
+      command: "printf 'PORT=%s TOKEN_SET=%s\\n' \"${EXECUTOR_LANE_E2E_PORT:-}\" \"${EXECUTOR_LANE_E2E_TOKEN:+yes}\"",
+      cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
+      command: "mkdir lanes",
+      cwd: fixture.root,
       context: runtime.permissionContext,
     }),
     evaluateExecutorLaneCommand({
@@ -460,7 +484,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
       context: runtime.permissionContext,
     }),
   ]
-  if (!permissionSamples[0].allowed || !permissionSamples[1].allowed || permissionSamples[2].allowed) {
+  if (!permissionSamples.slice(0, 5).every((sample) => sample.allowed) || permissionSamples[5].allowed) {
     throw new Error("probe-local semantic permission adapter failed its preflight samples")
   }
   return {
@@ -474,6 +498,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
     omoHead,
     openCodeVersion: openCode.stdout.trim(),
     model,
+    categoryRoute,
     agents,
     executorCliAlias: { name: "executor", promptSha256: aliasPromptSha256, canonicalPromptSha256: runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256, matchesCanonical: true },
     fallback: { model: false, runtime: false },
