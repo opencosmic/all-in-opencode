@@ -26,7 +26,7 @@ const FIXTURE_NODE_CHECKS = new Set([
   "scripts/check-final.mjs",
 ])
 const BOOTSTRAP_EXPRESSION = 'const p=require("./package.json"); console.log("BOOTSTRAP_OK", p.private === true, p.type)'
-const FIXTURE_SYNTAX_CHECK_LOOP = /^for (file|f) in scripts\/\*\.mjs; do node --check "\$(file|f)"; done$/
+const FIXTURE_SYNTAX_CHECK_LOOP = /^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+scripts\/\*\.mjs\s*;\s*do\s+node\s+--check\s+"\$\1"\s*;\s*done$/
 export const OMO_NON_INTERACTIVE_ENV_PREAMBLE = "export CI=true DEBIAN_FRONTEND=noninteractive GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never HOMEBREW_NO_AUTO_UPDATE=1 GIT_EDITOR=: EDITOR=: VISUAL='' GIT_SEQUENCE_EDITOR=: GIT_MERGE_AUTOEDIT=no GIT_PAGER=cat PAGER=cat npm_config_yes=true PIP_NO_INPUT=1 YARN_ENABLE_IMMUTABLE_INSTALLS=false"
 const OMO_NON_INTERACTIVE_ENV_WORDS = shellWords(OMO_NON_INTERACTIVE_ENV_PREAMBLE)
 
@@ -368,11 +368,11 @@ export function evaluateExecutorLaneCommand({ command, cwd, context }) {
     return {
       allowed: true,
       classification: PERMISSION_CLASSES.FIXTURE_CHECK,
-      reason: "the fixed fixture syntax-check loop is authorized",
+      reason: "the bounded fixture syntax-check loop is authorized",
       operations: [{
         allowed: true,
         classification: PERMISSION_CLASSES.FIXTURE_CHECK,
-        words: ["for", "file", "in", "scripts/*.mjs", "node", "--check"],
+        words: ["for", "<identifier>", "in", "scripts/*.mjs", "node", "--check", '"$<same-identifier>"'],
         cwd: resolve(cwd),
         fixturePattern: "scripts/*.mjs",
         raw: command.trim(),

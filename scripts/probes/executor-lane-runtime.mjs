@@ -453,7 +453,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
   if (config.agent.Executor.permission.bash !== "allow" || !config.plugin.includes(adapterPlugin)) {
     throw new Error("probe-local semantic permission adapter is not authoritative")
   }
-  const permissionSamples = [
+  const allowedPermissionSamples = [
     evaluateExecutorLaneCommand({
       command: "node --version && node --check scripts/lane-worker.mjs && node --check scripts/check-task.mjs && node --check scripts/check-wave.mjs && node --check scripts/t3-worker.mjs && node --check scripts/check-final.mjs && test ! -e src/a.txt && test ! -e src/b.txt && test ! -e src/combined.txt && printf 'BASELINE_PASS\\n'",
       cwd: fixture.fixture,
@@ -479,6 +479,11 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
       cwd: fixture.fixture,
       context: runtime.permissionContext,
     }),
+    ...["file", "f", "script"].map((variable) => evaluateExecutorLaneCommand({
+      command: `for ${variable} in scripts/*.mjs; do node --check "$${variable}"; done`,
+      cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    })),
     evaluateExecutorLaneCommand({
       command: "node scripts/check-task.mjs T1",
       cwd: fixture.lanes.T1,
@@ -489,8 +494,20 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
       cwd: fixture.lanes.T2,
       context: runtime.permissionContext,
     }),
+  ]
+  const deniedPermissionSamples = [
     evaluateExecutorLaneCommand({
       command: "node scripts/check-task.mjs T1",
+      cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
+      command: 'for file in scripts/*.mjs; do node --check "$f"; done',
+      cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
+      command: 'for script in scripts/*.mjs; do rm "$script"; done',
       cwd: fixture.fixture,
       context: runtime.permissionContext,
     }),
@@ -500,7 +517,8 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
       context: runtime.permissionContext,
     }),
   ]
-  if (!permissionSamples.slice(0, 7).every((sample) => sample.allowed) || permissionSamples[7].allowed || permissionSamples[8].allowed) {
+  const permissionSamples = [...allowedPermissionSamples, ...deniedPermissionSamples]
+  if (!allowedPermissionSamples.every((sample) => sample.allowed) || deniedPermissionSamples.some((sample) => sample.allowed)) {
     throw new Error("probe-local semantic permission adapter failed its preflight samples")
   }
   return {

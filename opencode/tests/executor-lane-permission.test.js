@@ -39,12 +39,25 @@ test("disposable-root inspection is authorized but unrelated container mutation 
 })
 
 test("the bounded read-only fixture syntax-check loop is authorized without general shell expansion", () => {
-  const result = decide('for file in scripts/*.mjs; do node --check "$file"; done')
-  assert.equal(result.allowed, true)
-  assert.equal(result.classification, PERMISSION_CLASSES.FIXTURE_CHECK)
-  assert.equal(decide('for f in scripts/*.mjs; do node --check "$f"; done').allowed, true)
-  assert.equal(decide('for file in ../*.mjs; do node --check "$file"; done').allowed, false)
-  assert.equal(decide('for file in scripts/*.mjs; do rm "$file"; done').allowed, false)
+  for (const variable of ["file", "f", "script", "entry", "file_name"]) {
+    const result = decide(`for ${variable} in scripts/*.mjs; do node --check "$${variable}"; done`)
+    assert.equal(result.allowed, true, variable)
+    assert.equal(result.classification, PERMISSION_CLASSES.FIXTURE_CHECK, variable)
+  }
+  assert.equal(decide('for file in scripts/*.mjs; do node --check "$f"; done').allowed, false)
+  assert.equal(decide('for script in scripts/*.mjs; do node --check "$file"; done').allowed, false)
+  assert.equal(decide('for a in scripts/*.mjs; do node --check "$b"; done').allowed, false)
+  assert.equal(decide('for script in ../*.mjs; do node --check "$script"; done').allowed, false)
+  assert.equal(decide('for script in scripts/*.js; do node --check "$script"; done').allowed, false)
+  assert.equal(decide('for script in scripts/*.mjs; do rm "$script"; done').allowed, false)
+  assert.equal(decide('for script in scripts/*.mjs; do node "$script"; done').allowed, false)
+  assert.equal(decide('for script in scripts/*.mjs; do node --check "$script"; echo done; done').allowed, false)
+  assert.equal(decide('for script in scripts/*.mjs; do node --check "$(cat "$script")"; done').allowed, false)
+  assert.equal(decide('for script in scripts/*.mjs; do node --check "$script" > /tmp/out; done').allowed, false)
+  assert.equal(decide('for script in scripts/*.mjs; do node --check "$script"; done; git status').allowed, false)
+  assert.equal(decide('for x in *; do echo "$x"; done').allowed, false)
+  assert.equal(decide('for script in scripts/*.mjs; do node --check "$script"; done', context.root).allowed, false)
+  assert.equal(decide('for script in scripts/*.mjs; do node --check "$script"; done', context.lanes.T1).allowed, false)
 })
 
 test("safe chained Git inspection is allowed", () => {
