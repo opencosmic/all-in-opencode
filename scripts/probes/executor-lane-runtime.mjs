@@ -12,6 +12,7 @@ import { DatabaseSync } from "node:sqlite"
 
 import { assessLaneRuntimeCapability, REQUIRED_RUNTIME_CAPABILITIES } from "../lib/lane-worktrees.mjs"
 import { classifyExecutorLaneE2E } from "../lib/executor-lane-e2e.mjs"
+import { evaluateExecutorLaneCommand } from "../lib/executor-lane-permission.mjs"
 import {
   ALLOWED_MODELS,
   DEFAULT_MODEL,
@@ -256,50 +257,6 @@ async function createBarrier() {
   return { server, token, port: server.address().port, events }
 }
 
-function exactBashPolicy(fixture) {
-  const rules = {
-    "*": "ask",
-    "git status*": "allow",
-    "git rev-parse*": "allow",
-    "git branch --show-current*": "allow",
-    "git worktree list*": "allow",
-    "git diff*": "allow",
-    "git log*": "allow",
-    "git show*": "allow",
-    "git ls-files*": "allow",
-    "git rev-list*": "allow",
-    "git merge-base*": "allow",
-    "openspec status*": "allow",
-    "openspec validate*": "allow",
-    "node scripts/check-task.mjs *": "allow",
-    "node scripts/check-wave.mjs": "allow",
-    "node scripts/check-final.mjs": "allow",
-    "git add src/a.txt": "allow",
-    "git add src/b.txt": "allow",
-    "git commit -m 'T1: add A'": "allow",
-    "git commit -m 'T2: add B'": "allow",
-    [`ls -la ${fixture.root}`]: "allow",
-    [`ls -la ${fixture.fixture}`]: "allow",
-    [`ls ${fixture.root}`]: "allow",
-    [`ls ${fixture.fixture}`]: "allow",
-    [`ls -ld ${fixture.root}*`]: "allow",
-    [`pwd; git status --short --branch; git log --oneline -10; git submodule status; git worktree list --porcelain; ls ${fixture.root}`]: "allow",
-    "node --check scripts/lane-worker.mjs; node --check scripts/check-task.mjs; node --check scripts/check-wave.mjs; node --check scripts/t3-worker.mjs; node --check scripts/check-final.mjs; node -e 'const p=require(\"./package.json\"); console.log(\"BOOTSTRAP_OK\", p.private === true, p.type)'": "allow",
-    "env | grep '^EXECUTOR_LANE_E2E_' || true": "allow",
-  }
-  for (const id of ["T1", "T2"]) {
-    const branch = fixture.branches[id]
-    const path = fixture.lanes[id]
-    rules[`git worktree add -b ${branch} ${path} ${fixture.head}`] = "allow"
-    rules[`git worktree add -b *${branch}* *${path}* ${fixture.head}`] = "allow"
-    rules[`git merge --no-ff --no-edit ${branch}`] = "allow"
-    rules[`rm ${path}/.omo/run-continuation/ses_*.json`] = "allow"
-    rules[`git worktree remove ${path}`] = "allow"
-    rules[`git branch -d ${branch}`] = "allow"
-  }
-  return rules
-}
-
 async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
   const runtimeRoot = join(fixture.root, "runtime")
   const home = join(runtimeRoot, "home")
@@ -309,6 +266,8 @@ async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
   }
   const configDir = join(xdg.config, "opencode")
   const dataDir = join(xdg.data, "opencode")
+  const permissionContextPath = join(runtimeRoot, "permission-context.json")
+  const permissionDecisionsPath = join(runtimeRoot, "permission-decisions.jsonl")
   await Promise.all([
     mkdir(join(home, ".omo"), { recursive: true }), mkdir(configDir, { recursive: true }),
     mkdir(dataDir, { recursive: true }), mkdir(xdg.state, { recursive: true }), mkdir(xdg.cache, { recursive: true }),
@@ -325,7 +284,24 @@ async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
   const executeCommand = await readFile(executeCommandPath, "utf8")
   await writeFile(executeCommandPath, executeCommand.replace("agent: Executor", "agent: executor"))
 
-  const roleOverride = Object.fromEntries(ROLE_NAMES.map((name) => [name, { model, variant: "high" }]))
+  const permissionContext = {
+    schemaVersion: 1,
+    authorizedByUser: true,
+    root: fixture.root,
+    fixture: fixture.fixture,
+    head: fixture.head,
+    commonDir: fixture.commonDir,
+    lanes: fixture.lanes,
+    branches: fixture.branches,
+  }
+  await write(permissionContextPath, JSON.stringify(permissionContext, null, 2) + "\n")
+  await write(permissionDecisionsPath, "")
+
+  const roleOverride = Object.fromEntries(ROLE_NAMES.map((name) => [name, {
+    model,
+    variant: "high",
+    permission: { bash: "allow" },
+  }]))
   const executorPermission = {
     "*": "deny",
     read: { "*": "allow", ".env*": "deny", "*/.env*": "deny" },
@@ -334,7 +310,10 @@ async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
     task: "allow", call_omo_agent: "allow", background_output: "allow", background_cancel: "allow",
     workspace_inspect: "allow",
     edit: { "*": "deny", "openspec/changes/**/tasks.md": "allow" },
-    bash: exactBashPolicy(fixture),
+    // This is safe only inside the isolated probe because the semantic
+    // tool.execute.before adapter below denies every operation outside the
+    // provenance-owned fixture lifecycle and records every decision.
+    bash: "allow",
     external_directory: { "*": "deny", [fixture.lanes.T1]: "allow", [fixture.lanes.T2]: "allow" },
   }
   roleOverride.Executor.permission = executorPermission
@@ -353,6 +332,7 @@ async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
     plugin: [
       pathToFileURL(join(omoPackageRoot, "dist", "index.js")).href,
       pathToFileURL(join(REPO_ROOT, "opencode", "plugins", "workspace-inspector.js")).href,
+      pathToFileURL(join(REPO_ROOT, "scripts", "probes", "executor-lane-permission-plugin.mjs")).href,
     ],
   }, null, 2) + "\n")
 
@@ -392,7 +372,13 @@ async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
       EXECUTOR_CANONICAL_PROMPT_SHA256: createHash("sha256").update(executorPrompt).digest("hex"),
       EXECUTOR_LANE_E2E_PORT: String(barrier.port),
       EXECUTOR_LANE_E2E_TOKEN: barrier.token,
+      EXECUTOR_LANE_E2E_USER_AUTHORIZED: "1",
+      EXECUTOR_LANE_E2E_PERMISSION_CONTEXT: permissionContextPath,
+      EXECUTOR_LANE_E2E_PERMISSION_DECISIONS: permissionDecisionsPath,
     },
+    permissionContextPath,
+    permissionDecisionsPath,
+    permissionContext,
   }
 }
 
@@ -439,9 +425,29 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
   const openSpec = await runCommand("openspec", ["validate", "executor-lane-e2e", "--strict", "--no-interactive"], { cwd: fixture.fixture, env: runtime.env, timeout: 120_000 })
   if (openSpec.code !== 0) throw new Error(`fixture OpenSpec validation failed: ${openSpec.stderr || openSpec.stdout}`)
   const config = parseJson(await readFile(runtime.configPath, "utf8"))
-  const approval = config.agent.Executor.permission.bash
-  if (approval["*"] !== "ask" || Object.values(approval).some((value) => !["ask", "allow"].includes(value))) {
-    throw new Error("probe-local Bash policy did not preserve ask-by-default")
+  const adapterPlugin = pathToFileURL(join(REPO_ROOT, "scripts", "probes", "executor-lane-permission-plugin.mjs")).href
+  if (config.agent.Executor.permission.bash !== "allow" || !config.plugin.includes(adapterPlugin)) {
+    throw new Error("probe-local semantic permission adapter is not authoritative")
+  }
+  const permissionSamples = [
+    evaluateExecutorLaneCommand({
+      command: `ls -ld ${fixture.root}; ls -ld ${join(fixture.root, "lanes")}; true`,
+      cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
+      command: `git worktree add -b ${fixture.branches.T1} ${fixture.lanes.T1} ${fixture.head}`,
+      cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    }),
+    evaluateExecutorLaneCommand({
+      command: "git reset --hard",
+      cwd: fixture.fixture,
+      context: runtime.permissionContext,
+    }),
+  ]
+  if (!permissionSamples[0].allowed || !permissionSamples[1].allowed || permissionSamples[2].allowed) {
+    throw new Error("probe-local semantic permission adapter failed its preflight samples")
   }
   return {
     completedAt: Date.now(),
@@ -459,7 +465,14 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
     fallback: { model: false, runtime: false },
     capabilityEvidence,
     capability,
-    approval: { default: "ask", allowedCommands: Object.keys(approval).filter((key) => key !== "*") },
+    approval: {
+      mechanism: "probe-local-adapter",
+      authorizedByUser: true,
+      bashRuntimePermission: "allow-behind-semantic-guard",
+      plugin: adapterPlugin,
+      policyReady: true,
+      samples: permissionSamples.map(({ allowed, classification, reason }) => ({ allowed, classification, reason })),
+    },
     fixture: { root: fixture.root, canonical: fixture.fixture, head: fixture.head, commonDir: fixture.commonDir, lanes: fixture.lanes, branches: fixture.branches },
   }
 }
@@ -472,6 +485,8 @@ This is an authorized disposable runtime E2E. Follow the production Executor lif
 
 Use the current canonical fixture as the change worktree. Freshly dispatch Plan Reviewer. Then execute tasks.md exactly as written.
 
+The fixture directory is the only canonical Git/Node inspection CWD. The disposable root merely contains the fixture and lanes; never run fixture Git/Node checks with the disposable root as tool workdir. Do not remove parent or Plan Reviewer continuation markers during implementation; lane-marker cleanup belongs only to the final owned-lane cleanup step.
+
 For wave 1 create these exact lanes from baseline ${fixture.head} using the exact unquoted git worktree commands allowed by the probe-local ask-by-default policy:
 ${lane("T1")}
 ${lane("T2")}
@@ -482,7 +497,7 @@ After both workers complete, do not change tasks.md yet. Inspect each lane, run 
 
 Integrate in canonical task order T1 then T2 with exact git merge --no-ff --no-edit commands. Run node scripts/check-wave.mjs. Only after it passes, edit T1 and T2 checkboxes. Recompute readiness. Dispatch T3 through normal task(category="lane-e2e", load_skills=[], run_in_background=false, directory=${JSON.stringify(fixture.fixture)}). Its only tool call must be node scripts/t3-worker.mjs with no cd/workdir override. Review its actual diff, run node scripts/check-final.mjs, then mark T3 complete.
 
-For each lane, classify only active-session .omo/run-continuation markers as known bookkeeping. Remove only exact recognized marker files, then run normal git worktree remove and git branch -d. Never force. End with a concise status; do not invoke /verify or /ship.`
+For each lane, inspect .omo/run-continuation and remove markers one exact path at a time only when they belong to known active/completed sessions in that lane. Never use a wildcard or recursive removal. Then run normal git worktree remove and git branch -d. Never force. End with a concise status; do not invoke /verify or /ship.`
 }
 
 async function spawnRuntime(fixture, runtime, prompt) {
@@ -543,16 +558,32 @@ function sessionAgent(db, id) {
     .map((row) => parseJson(row.data)).findLast((message) => message?.agent)?.agent
 }
 
-function sessionText(db, id) {
-  return rows(db, "SELECT data FROM part WHERE session_id = ? ORDER BY time_created, id", id)
+export function sessionText(db, id) {
+  return rows(db, `
+    SELECT part.data
+    FROM part
+    JOIN message ON message.id = part.message_id
+    WHERE part.session_id = ? AND json_extract(message.data, '$.role') = 'assistant'
+    ORDER BY part.time_created, part.id
+  `, id)
     .map((row) => parseJson(row.data)).filter((part) => part?.type === "text").map((part) => part.text).join("\n")
 }
 
-function finalVerdict(text, accepted, rejected) {
+export function finalVerdict(text, accepted, rejected) {
   const approvedAt = text.lastIndexOf(accepted)
   const rejectedAt = text.lastIndexOf(rejected)
   if (approvedAt < 0 && rejectedAt < 0) return undefined
   return approvedAt > rejectedAt ? accepted : rejected
+}
+
+function sessionErrors(db, id) {
+  return rows(db, "SELECT data FROM message WHERE session_id = ? ORDER BY time_created, id", id)
+    .map((row) => parseJson(row.data)?.error).filter(Boolean).map((error) => ({
+      name: error.name,
+      message: error.data?.message ?? error.message,
+      statusCode: error.data?.statusCode,
+      type: parseJson(error.data?.responseBody)?.error?.type,
+    }))
 }
 
 function toolParts(db, id, tool) {
@@ -578,7 +609,12 @@ async function collectEvidence(fixture, runtime, preflightResult, monitored) {
   const db = new DatabaseSync(runtime.dbPath, { readOnly: true })
   try {
     const sessions = rows(db, "SELECT id, parent_id, directory, title, time_created, time_updated FROM session ORDER BY time_created")
-      .map((session) => ({ ...session, agent: sessionAgent(db, session.id), text: sessionText(db, session.id) }))
+      .map((session) => ({
+        ...session,
+        agent: sessionAgent(db, session.id),
+        text: sessionText(db, session.id),
+        errors: sessionErrors(db, session.id),
+      }))
     const executor = sessions.find((session) => !session.parent_id && session.agent === "Executor") ?? sessions.find((session) => !session.parent_id)
     const childFor = (id) => sessions.find((session) => session.parent_id === executor?.id && session.directory === fixture.lanes[id] && session.agent === "Sisyphus-Junior")
     const workerSessions = { T1: childFor("T1"), T2: childFor("T2") }
@@ -604,6 +640,10 @@ async function collectEvidence(fixture, runtime, preflightResult, monitored) {
     const t3Session = sessions.find((session) => session.parent_id === executor?.id && session.directory === fixture.fixture && session.agent === "Sisyphus-Junior" && toolEvidence(db, session.id, "node scripts/t3-worker.mjs"))
     const t3Tool = t3Session ? toolEvidence(db, t3Session.id, "node scripts/t3-worker.mjs") : null
     const logText = existsSync(runtime.logPath) ? await readFile(runtime.logPath, "utf8") : ""
+    const permissionDecisions = existsSync(runtime.permissionDecisionsPath)
+      ? (await readFile(runtime.permissionDecisionsPath, "utf8")).split("\n").filter(Boolean).map(parseJson).filter(Boolean)
+      : []
+    const deniedPermissionDecisions = permissionDecisions.filter((decision) => decision.allowed !== true)
     const sessionAgents = new Map(sessions.map((session) => [session.id, session.agent]))
     const modelRequests = collectModelRequests(db, logText, (agent) => agent).map((request) => ({
       ...request,
@@ -648,6 +688,19 @@ async function collectEvidence(fixture, runtime, preflightResult, monitored) {
       preflight: preflightResult,
       route: { command: "/execute", agent: executor?.agent, executorPromptMatchesCanonical: preflightResult.executorCliAlias?.matchesCanonical === true, executorSession: executor?.id, planReviewSession: planReviewer?.id, planReview: planReviewer ? finalVerdict(planReviewer.text, "[APPROVED]", "[REJECTED]") : undefined },
       capabilityGate: preflightResult.capability,
+      permissionApproval: {
+        status: permissionDecisions.length === 0
+          ? STATUS.UNPROVEN
+          : deniedPermissionDecisions.length > 0
+            ? STATUS.FAILED
+            : STATUS.PROVEN,
+        mechanism: "probe-local-adapter",
+        authorizedByUser: true,
+        policyReady: preflightResult.approval?.policyReady === true,
+        allowedCount: permissionDecisions.length - deniedPermissionDecisions.length,
+        deniedCount: deniedPermissionDecisions.length,
+        decisions: permissionDecisions,
+      },
       sessionTopology: sessions.map(({ text, ...session }) => session),
       lanes: {
         T1: { linked: monitored.observations.lanesCreated.T1, owned: true, path: fixture.lanes.T1, branch: fixture.branches.T1, baseSha: fixture.head, commonDir: fixture.commonDir },
@@ -688,7 +741,9 @@ async function collectEvidence(fixture, runtime, preflightResult, monitored) {
       execution: {
         exitCode: monitored.result.code,
         signal: monitored.result.signal,
-        usageLimitReached: /usage limit has been reached/i.test(monitored.result.stderr + monitored.result.stdout),
+        usageLimitReached: /usage limit has been reached/i.test(
+          monitored.result.stderr + monitored.result.stdout + JSON.stringify(sessions.flatMap((session) => session.errors)),
+        ),
       },
       cli: monitored.result,
       barrierEvents: monitored.events,

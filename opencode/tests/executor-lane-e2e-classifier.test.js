@@ -1,7 +1,9 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import { DatabaseSync } from "node:sqlite"
 
 import { classifyExecutorLaneE2E } from "../../scripts/lib/executor-lane-e2e.mjs"
+import { finalVerdict, sessionText } from "../../scripts/probes/executor-lane-runtime.mjs"
 import { STATUS } from "../../scripts/probes/worktree-isolation.mjs"
 
 function completeEvidence() {
@@ -35,6 +37,14 @@ function completeEvidence() {
   return {
     route: { command: "/execute", agent: "Executor", planReview: "[APPROVED]" },
     capabilityGate: { status: STATUS.PROVEN },
+    permissionApproval: {
+      status: STATUS.PROVEN,
+      mechanism: "probe-local-adapter",
+      authorizedByUser: true,
+      policyReady: true,
+      allowedCount: 12,
+      deniedCount: 0,
+    },
     lanes: { T1: lane("T1"), T2: lane("T2") },
     workers: { T1: worker("T1", 100, 300), T2: worker("T2", 200, 400) },
     mutationConfinement: {
@@ -82,6 +92,19 @@ test("missing actual Executor route remains unproven", () => {
   const evidence = completeEvidence()
   delete evidence.route
   assert.equal(classifyExecutorLaneE2E(evidence).status, STATUS.UNPROVEN)
+})
+
+test("missing permission-adapter evidence remains unproven", () => {
+  const evidence = completeEvidence()
+  delete evidence.permissionApproval
+  assert.equal(classifyExecutorLaneE2E(evidence).capabilities.permissionGate, STATUS.UNPROVEN)
+})
+
+test("an unsafe denied Bash request fails the permission gate", () => {
+  const evidence = completeEvidence()
+  evidence.permissionApproval.status = STATUS.FAILED
+  evidence.permissionApproval.deniedCount = 1
+  assert.equal(classifyExecutorLaneE2E(evidence).capabilities.permissionGate, STATUS.FAILED)
 })
 
 test("sequential worker tools fail the concurrency capability", () => {
@@ -159,6 +182,14 @@ test("provider exhaustion before lane creation leaves missing lifecycle evidence
   const result = classifyExecutorLaneE2E({
     route: { command: "/execute", agent: "Executor", planReview: "[APPROVED]" },
     capabilityGate: { status: STATUS.PROVEN },
+    permissionApproval: {
+      status: STATUS.PROVEN,
+      mechanism: "probe-local-adapter",
+      authorizedByUser: true,
+      policyReady: true,
+      allowedCount: 1,
+      deniedCount: 0,
+    },
     integration: { strategy: "MERGE_NO_FF", order: [], results: [], conflict: false },
     execution: { exitCode: 2, usageLimitReached: true },
     modelRequests: [{ provider: "openai", model: "gpt-5.6-luna", reasoning: "high" }],
@@ -168,4 +199,28 @@ test("provider exhaustion before lane creation leaves missing lifecycle evidence
   assert.equal(classified.capabilities.capabilityGate, STATUS.PROVEN)
   assert.equal(classified.capabilities.deterministicIntegration, STATUS.UNPROVEN)
   assert.equal(classified.status, STATUS.UNPROVEN)
+})
+
+test("verdict extraction ignores user instructions and preserves an incomplete review as unproven", () => {
+  const db = new DatabaseSync(":memory:")
+  try {
+    db.exec(`
+      CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT);
+      CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, time_created INTEGER, data TEXT);
+    `)
+    const insertMessage = db.prepare("INSERT INTO message VALUES (?, 'ses_review', ?, ?)")
+    const insertPart = db.prepare("INSERT INTO part VALUES (?, ?, 'ses_review', ?, ?)")
+    insertMessage.run("msg_user", 1, JSON.stringify({ role: "user" }))
+    insertPart.run("part_user", "msg_user", 1, JSON.stringify({ type: "text", text: "Return [APPROVED] or [REJECTED]." }))
+    insertMessage.run("msg_incomplete", 2, JSON.stringify({ role: "assistant", error: { data: { message: "The usage limit has been reached" } } }))
+    insertPart.run("part_reasoning", "msg_incomplete", 2, JSON.stringify({ type: "reasoning", text: "Reviewing" }))
+    assert.equal(sessionText(db, "ses_review"), "")
+    assert.equal(finalVerdict(sessionText(db, "ses_review"), "[APPROVED]", "[REJECTED]"), undefined)
+
+    insertMessage.run("msg_approved", 3, JSON.stringify({ role: "assistant", finish: "stop" }))
+    insertPart.run("part_approved", "msg_approved", 3, JSON.stringify({ type: "text", text: "[APPROVED] The plan is executable." }))
+    assert.equal(finalVerdict(sessionText(db, "ses_review"), "[APPROVED]", "[REJECTED]"), "[APPROVED]")
+  } finally {
+    db.close()
+  }
 })

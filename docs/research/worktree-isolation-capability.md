@@ -236,3 +236,15 @@ without `--run`, the script only prints usage.
 A prompt such as `WORKSPACE: /path` is not proof. Prompt compliance allows one forgotten `cd` to operate in the parent tree; runtime-enforced isolation must make the selected directory intrinsic to the child session/tool context.
 
 The Executor `LANE_WORKTREES` lifecycle is implemented in policy and deterministic helper tests: exact runtime plus task-independence gates, current-wave linked-worktree creation, runtime `directory` dispatch, lane inspection/review, deterministic integration, combined checks, checkbox timing, interruption recovery, and conservative cleanup. Production enablement remains disabled because the installed OMO runtime has not adopted the required measured capability set, and the custom Executor lane E2E against that exact dependency is not yet proven. The isolated OMO patch exposes the missing primitive, and concurrent sibling execution plus immediate-parent nested preservation are mechanically proven only on that measured path. This is not general production OMO compatibility. `EPHEMERAL_SANDBOX` remains disabled and unimplemented.
+
+The E2E's earlier non-interactive permission blocker is resolved by a probe-only
+semantic guard. It records every Bash decision, permits compound read-only
+inspection only inside provenance-owned disposable paths, binds each mutable
+Git operation to the exact expected lane/path/branch/baseline, and recognizes
+continuation-marker removal only from the effective tool CWD and a known
+session/worktree relationship. Production Executor permissions are unchanged.
+The latest accepted attempt remained `UNPROVEN` because the OpenAI Luna usage
+limit was reached during the fresh Plan Reviewer turn, before a verdict, Bash
+request, or lane creation. That is a runtime-capacity blocker, not a failed
+review, permission denial, or isolation contradiction; no lifecycle capability
+is promoted from the incomplete run.

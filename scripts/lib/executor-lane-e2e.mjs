@@ -88,6 +88,15 @@ export function classifyExecutorLaneE2E(evidence = {}) {
     evidence.route?.planReview === "[APPROVED]",
   )
   const capabilityGate = status(evidence.capabilityGate?.status === STATUS.PROVEN)
+  const permissionGate = status(
+    evidence.permissionApproval?.status === STATUS.PROVEN &&
+    evidence.permissionApproval?.mechanism === "probe-local-adapter" &&
+    evidence.permissionApproval?.authorizedByUser === true &&
+    evidence.permissionApproval?.policyReady === true &&
+    evidence.permissionApproval?.allowedCount > 0 &&
+    evidence.permissionApproval?.deniedCount === 0,
+    evidence.permissionApproval?.status === STATUS.FAILED || evidence.permissionApproval?.deniedCount > 0,
+  )
   const lanes = evidence.lanes ?? {}
   const laneCreationFacts = [lanes.T1, lanes.T2]
   const laneCreation = status(
@@ -154,6 +163,7 @@ export function classifyExecutorLaneE2E(evidence = {}) {
   const capabilities = {
     actualExecutorRoute: route,
     capabilityGate,
+    permissionGate,
     laneCreation,
     workerT1ActualCwd: workerT1,
     workerT2ActualCwd: workerT2,
