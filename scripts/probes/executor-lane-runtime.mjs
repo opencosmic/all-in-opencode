@@ -14,6 +14,7 @@ import { assessLaneRuntimeCapability, REQUIRED_RUNTIME_CAPABILITIES } from "../l
 import { assessLaneFocusedCheck, classifyExecutorLaneE2E } from "../lib/executor-lane-e2e.mjs"
 import { evaluateExecutorLaneCommand } from "../lib/executor-lane-permission.mjs"
 import { assessMeasuredOmoCategoryRoute } from "../lib/executor-lane-category-route.mjs"
+import { runObservedCommand } from "../lib/observed-command.mjs"
 import {
   ALLOWED_MODELS,
   DEFAULT_MODEL,
@@ -29,12 +30,14 @@ const PROBE_PREFIX = "executor-lane-e2e-"
 const OWNER_FILE = ".executor-lane-e2e-owner.json"
 const EXPECTED_OMO_HEAD = "5c699bc74830864eac0cd27ae7e453a3faf5a3df"
 const RUNTIME_TIMEOUT_MS = 20 * 60_000
-const ROLE_NAMES = ["Executor", "executor", "Plan Reviewer", "Reviewer", "QA", "Sisyphus-Junior"]
+const ROLE_NAMES = ["executor", "Plan Reviewer", "Reviewer", "QA", "Sisyphus-Junior"]
+const AGENT_OVERRIDE_NAMES = ["Executor", ...ROLE_NAMES]
 
 function usage() {
   return `Usage:
   node scripts/probes/executor-lane-runtime.mjs --preflight-only --omo-package-root <path> --evidence-dir <path>
   node scripts/probes/executor-lane-runtime.mjs --run --omo-package-root <path> --evidence-dir <path> [--keep]
+  node scripts/probes/executor-lane-runtime.mjs --diagnose-debug-agent --omo-package-root <path> --evidence-dir <path>
 
 The probe never invokes an LLM unless --run is present. It uses an isolated
 HOME/XDG runtime, the real /execute command, the real Executor, and the exact
@@ -42,11 +45,12 @@ measured OMO build supplied by --omo-package-root.`
 }
 
 function parseArgs(argv) {
-  const options = { run: false, preflightOnly: false, keep: false, model: DEFAULT_MODEL }
+  const options = { run: false, preflightOnly: false, diagnoseDebugAgent: false, keep: false, model: DEFAULT_MODEL }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === "--run") options.run = true
     else if (arg === "--preflight-only") options.preflightOnly = true
+    else if (arg === "--diagnose-debug-agent") options.diagnoseDebugAgent = true
     else if (arg === "--keep") options.keep = true
     else if (arg === "--omo-package-root") options.omoPackageRoot = resolve(argv[++index])
     else if (arg === "--evidence-dir") options.evidenceDir = resolve(argv[++index])
@@ -54,7 +58,7 @@ function parseArgs(argv) {
     else if (arg === "--help" || arg === "-h") options.help = true
     else throw new Error(`unknown argument: ${arg}`)
   }
-  if (options.run && options.preflightOnly) throw new Error("choose --run or --preflight-only")
+  if ([options.run, options.preflightOnly, options.diagnoseDebugAgent].filter(Boolean).length > 1) throw new Error("choose one probe mode")
   return options
 }
 
@@ -312,7 +316,7 @@ async function setupRuntime(fixture, omoPackageRoot, model, barrier) {
   await write(permissionContextPath, JSON.stringify(permissionContext, null, 2) + "\n")
   await write(permissionDecisionsPath, "")
 
-  const roleOverride = Object.fromEntries(ROLE_NAMES.map((name) => [name, {
+  const roleOverride = Object.fromEntries(AGENT_OVERRIDE_NAMES.map((name) => [name, {
     model,
     variant: "high",
     permission: { bash: "allow" },
@@ -404,6 +408,14 @@ function stripAnsi(value) {
   return value.replace(/\u001b\[[0-9;]*m/g, "")
 }
 
+export function assessExecutorAliasRoute({ config, model, promptSha256, expectedPromptSha256, fallback }) {
+  return config?.model?.providerID === "openai" &&
+    `openai/${config?.model?.modelID}` === model &&
+    config?.variant === "high" &&
+    fallback?.model === false && fallback?.runtime === false &&
+    promptSha256 === expectedPromptSha256
+}
+
 async function preflight(runtime, fixture, model, omoPackageRoot) {
   const canonicalStatus = await gitValue(REPO_ROOT, "status", "--short")
   if (canonicalStatus) throw new Error("canonical repository must be clean before runtime preflight")
@@ -428,6 +440,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
   if (!categoryRoute.valid) throw new Error(`${categoryRoute.code}: ${categoryRoute.reason}`)
 
   const agents = {}
+  let executorCliAlias
   for (const role of ROLE_NAMES) {
     const result = await runCommand("opencode", ["debug", "agent", role], { cwd: fixture.fixture, env: runtime.env, timeout: 120_000 })
     if (result.code !== 0) throw new Error(`agent preflight failed for ${role}: ${result.stderr}`)
@@ -437,12 +450,13 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
       throw new Error(`effective route for ${role} is not ${model}/high: ${JSON.stringify({ model: config?.model, variant: config?.variant, reasoningEffort: config?.reasoningEffort })}`)
     }
     agents[role] = { provider: config.model.providerID, model: config.model.modelID, reasoning, reasoningSource: config?.variant ? "effective-agent" : "isolated-OMO-agent-and-category" }
-  }
-  const executorAlias = await runCommand("opencode", ["debug", "agent", "executor"], { cwd: fixture.fixture, env: runtime.env, timeout: 120_000 })
-  const executorAliasConfig = parseJson(stripAnsi(executorAlias.stdout))
-  const aliasPromptSha256 = createHash("sha256").update(executorAliasConfig?.prompt ?? "").digest("hex")
-  if (executorAlias.code !== 0 || aliasPromptSha256 !== runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256) {
-    throw new Error("probe-local Executor CLI alias does not match the canonical prompt")
+    if (role === "executor") {
+      const promptSha256 = createHash("sha256").update(config?.prompt ?? "").digest("hex")
+      if (!assessExecutorAliasRoute({ config, model, promptSha256, expectedPromptSha256: runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256, fallback: { model: omoConfig.model_fallback, runtime: omoConfig.runtime_fallback } })) {
+        throw new Error("probe-local Executor CLI alias does not match the canonical prompt or Luna/high route")
+      }
+      executorCliAlias = { name: "executor", promptSha256, canonicalPromptSha256: runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256, matchesCanonical: true }
+    }
   }
   const models = await runCommand("opencode", ["models"], { cwd: fixture.fixture, env: runtime.env, timeout: 120_000 })
   if (models.code !== 0 || !models.stdout.split(/\s+/).includes(model)) throw new Error(`allowed model is unavailable: ${models.stderr}`)
@@ -535,7 +549,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
     omoConfigSha256: createHash("sha256").update(omoConfigText).digest("hex"),
     categoryRoute,
     agents,
-    executorCliAlias: { name: "executor", promptSha256: aliasPromptSha256, canonicalPromptSha256: runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256, matchesCanonical: true },
+    executorCliAlias,
     fallback: { model: false, runtime: false },
     capabilityEvidence,
     capability,
@@ -887,6 +901,28 @@ export async function runExecutorLaneProbe(options) {
   try {
     const fixture = await createFixture(root, barrier.port, barrier.token)
     const runtime = await setupRuntime(fixture, options.omoPackageRoot, options.model, barrier)
+    if (options.diagnoseDebugAgent) {
+      const commands = [
+        ["opencode", ["--version"], false],
+        ["opencode", ["debug", "agent", "Executor"], true],
+        ["opencode", ["debug", "agent", "executor"], true],
+        ["opencode", ["debug", "agent", "Plan Reviewer"], true],
+        ["opencode", ["models"], false],
+      ]
+      const diagnostics = []
+      for (const [command, args, expectsAgentJson] of commands) {
+        diagnostics.push(await runObservedCommand(command, args, {
+          cwd: fixture.fixture,
+          env: runtime.env,
+          timeout: 30_000,
+          expectedJson: expectsAgentJson ? (value) => Boolean(value?.model && value?.prompt) : () => false,
+          logPath: runtime.logPath,
+        }))
+      }
+      const diagnostic = { noLlmCalls: true, fixture, runtime: { logPath: runtime.logPath }, diagnostics }
+      await write(join(root, "debug-agent-diagnostics.json"), JSON.stringify(diagnostic, null, 2) + "\n")
+      return { mode: "diagnose-debug-agent", root, diagnostic }
+    }
     const preflightResult = await preflight(runtime, fixture, options.model, options.omoPackageRoot)
     await write(join(root, "preflight.json"), JSON.stringify(preflightResult, null, 2) + "\n")
     if (options.preflightOnly) return { mode: "preflight-only", root, preflight: preflightResult }
@@ -903,7 +939,7 @@ export async function runExecutorLaneProbe(options) {
 if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
   try {
     const options = parseArgs(process.argv.slice(2))
-    if (options.help || (!options.run && !options.preflightOnly)) {
+    if (options.help || (!options.run && !options.preflightOnly && !options.diagnoseDebugAgent)) {
       console.log(usage())
     } else {
       const result = await runExecutorLaneProbe(options)
