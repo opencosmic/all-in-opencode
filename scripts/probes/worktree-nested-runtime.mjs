@@ -610,9 +610,9 @@ to A, and requires its one nested normal task to omit directory and inherit A.`
 }
 
 export async function runNestedRuntimeProbe(options) {
-  if (!options.run) throw new Error("runtime execution requires the explicit --run flag")
+  if (!options.run && !options.preflightOnly) throw new Error("runtime execution requires the explicit --run flag")
   if (!options.omoPackageRoot || !options.evidenceDir) {
-    throw new Error("--omo-package-root and --evidence-dir are required with --run")
+    throw new Error("--omo-package-root and --evidence-dir are required")
   }
   if (!ALLOWED_MODELS.has(options.model)) throw new Error(`model is not allowed: ${options.model}`)
   const omoPackageRoot = resolve(options.omoPackageRoot)
@@ -685,7 +685,7 @@ export async function runNestedRuntimeProbe(options) {
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
   const options = parseArgs(process.argv.slice(2))
-  if (options.help || !options.run) {
+  if (options.help || (!options.run && !options.preflightOnly)) {
     console.log(usage())
   } else {
     console.log(JSON.stringify(await runNestedRuntimeProbe(options), null, 2))

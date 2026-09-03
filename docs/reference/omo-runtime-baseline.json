@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-04",
+  "upstream": {
+    "repository": "https://github.com/code-yeongyu/oh-my-openagent",
+    "candidate": {
+      "release": "v5.0.0-beta.39",
+      "channel": "prerelease",
+      "baseCommit": "c21fceb6f005127e0754792a2c7442d55d1ee8e0",
+      "integrationCommit": "82e477113",
+      "sourceRemote": "https://github.com/code-yeongyu/oh-my-openagent.git"
+    }
+  },
+  "production": {
+    "opencodeVersion": "1.18.25",
+    "omoVersion": "4.19.4",
+    "pluginSpec": "oh-my-openagent@latest",
+    "laneWorktrees": "DISABLED",
+    "ephemeralSandbox": "DISABLED"
+  },
+  "patches": {
+    "P01": {
+      "name": "caller-selected child directory propagation",
+      "status": "STILL_REQUIRED",
+      "upstream": "https://github.com/code-yeongyu/oh-my-openagent/pull/7534",
+      "candidateCommit": "519525ce5",
+      "capabilities": ["CAP-01", "CAP-02", "CAP-08"]
+    },
+    "P02": {
+      "name": "synchronous active-tool completion correctness",
+      "status": "REPLACED_BY_EQUIVALENT",
+      "researchCommit": "f80bdb047",
+      "candidateEvidence": "sync-session-poller pending-tool tests",
+      "capabilities": ["CAP-03"]
+    },
+    "P03": {
+      "name": "background active-tool completion correctness",
+      "status": "STILL_REQUIRED",
+      "candidateCommit": "82e477113",
+      "capabilities": ["CAP-04"]
+    }
+  },
+  "lastCandidateResult": {
+    "status": "REJECTED",
+    "reason": "Isolated OpenCode 1.18.25 agent-resolution preflight timed out before any runtime LLM call.",
+    "runtimeCalls": 0
+  },
+  "requiredChecks": {
+    "static": [
+      "node --test opencode/tests/worktree-isolation-probe.test.js",
+      "node scripts/probes/worktree-isolation.mjs --omo-package-root <candidate>"
+    ],
+    "omo": [
+      "bun test packages/omo-opencode/src/tools/delegate-task/tool-directory-argument.test.ts packages/omo-opencode/src/tools/delegate-task/sync-session-creator.test.ts packages/omo-opencode/src/tools/delegate-task/sync-task.test.ts packages/omo-opencode/src/tools/delegate-task/sync-session-poller.test.ts packages/omo-opencode/src/features/background-agent/manager.polling.test.ts",
+      "bun run --cwd packages/omo-opencode typecheck",
+      "OMO_SKIP_MATERIALIZE=1 bun run build"
+    ],
+    "runtime": [
+      "worktree sync/background/concurrent/nested probes with an explicitly pinned allowed model and disabled fallbacks",
+      "Executor lane E2E with lane-local review, integration, dependent task, and cleanup evidence"
+    ]
+  }
+}

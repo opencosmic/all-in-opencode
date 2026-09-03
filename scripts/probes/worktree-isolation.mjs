@@ -111,14 +111,21 @@ export function inspectNormalTaskSource({ delegateTypes, backgroundTypes, bundle
 
   const delegateTaskAcceptsCwd = hasOwnField(delegateArgs, "cwd") || hasOwnField(delegateArgs, "directory")
   const launchInputAcceptsCwd = hasOwnField(launchInput, "cwd") || hasOwnField(launchInput, "directory")
-  const syncInheritsParent =
-    Boolean(syncBlock) &&
-    /const parentDirectory = parentSession\?\.data\?\.directory \?\? input\.defaultDirectory/.test(syncBlock) &&
-    /query:\s*\{\s*directory: parentDirectory\s*\}/.test(syncBlock)
+  const syncUsesParentDefault =
+    /const parentDirectory = parentSession\?\.data\?\.directory \?\? input\.defaultDirectory/.test(syncBlock ?? "") &&
+    /query:\s*\{\s*directory: parentDirectory\s*\}/.test(syncBlock ?? "")
+  const syncUsesExplicitParentDefault =
+    /const sessionDirectory = input\.directory \?\? parentSession\?\.data\?\.directory \?\? input\.defaultDirectory/.test(syncBlock ?? "") &&
+    /query:\s*\{\s*directory: sessionDirectory\s*\}/.test(syncBlock ?? "")
+  const syncInheritsParent = Boolean(syncBlock) && (syncUsesParentDefault || syncUsesExplicitParentDefault)
+  const backgroundUsesParentDefault =
+    /const parentDirectory = parentSession\?\.data\?\.directory \?\? this\.directory/.test(backgroundBlock ?? "") &&
+    /query:\s*\{\s*directory: parentDirectory\s*\}/.test(backgroundBlock ?? "")
+  const backgroundUsesExplicitParentDefault =
+    /const sessionDirectory = input\.directory \?\? parentSession\?\.data\?\.directory \?\? (?:this\.)?directory/.test(backgroundBlock ?? "") &&
+    /query:\s*\{\s*directory: sessionDirectory\s*\}/.test(backgroundBlock ?? "")
   const backgroundInheritsParent =
-    Boolean(backgroundBlock) &&
-    /const parentDirectory = parentSession\?\.data\?\.directory \?\? this\.directory/.test(backgroundBlock) &&
-    /query:\s*\{\s*directory: parentDirectory\s*\}/.test(backgroundBlock)
+    Boolean(backgroundBlock) && (backgroundUsesParentDefault || backgroundUsesExplicitParentDefault)
 
   const decisive =
     delegateArgs !== null &&

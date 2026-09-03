@@ -109,6 +109,34 @@ test("source classifier remains UNPROVEN when a caller cwd field or required evi
   assert.equal(result.status, STATUS.UNPROVEN)
 })
 
+test("source classifier recognizes the explicit-parent-default directory precedence used by the supported P01 patch", () => {
+  const result = inspectNormalTaskSource({
+    delegateTypes: decisiveDelegateTypes.replace("category?: string;", "category?: string;\n  directory?: string;"),
+    backgroundTypes: decisiveBackgroundTypes.replace("parentSessionId: string;", "parentSessionId: string;\n  directory?: string;"),
+    bundleSource: `
+function createSyncSession(client, input) {
+  const sessionDirectory = input.directory ?? parentSession?.data?.directory ?? input.defaultDirectory;
+  return client.session.create({ query: { directory: sessionDirectory } });
+}
+// packages/omo-opencode/src/tools/delegate-task/sync-prompt-sender.ts
+class BackgroundManager {
+  async startTask(item) {
+    const sessionDirectory = input.directory ?? parentSession?.data?.directory ?? directory;
+    const createResult = await client.session.create({ query: { directory: sessionDirectory } });
+    const sessionID = createResult.data.id;
+    await input.onSessionCreated?.(sessionID);
+  }
+}
+`,
+  })
+
+  assert.equal(result.delegateTaskAcceptsCwd, true)
+  assert.equal(result.launchInputAcceptsCwd, true)
+  assert.equal(result.syncInheritsParent, true)
+  assert.equal(result.backgroundInheritsParent, true)
+  assert.equal(result.status, STATUS.UNPROVEN)
+})
+
 test("OpenCode session-directory primitive is proven only from its installed API shape", () => {
   const present = inspectOpenCodeSessionApiSource(`
 export type SessionCreateData = {

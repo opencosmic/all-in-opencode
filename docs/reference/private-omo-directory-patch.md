@@ -2,7 +2,10 @@
 
 This runbook keeps the caller-selected child-session directory patch usable if
 upstream review is delayed or never results in a merge. It does not authorize
-production lane worktrees or worker sandboxes.
+production lane worktrees or worker sandboxes. The current candidate, patch
+statuses, and validation outcome are recorded in
+[`omo-runtime-baseline.json`](omo-runtime-baseline.json); the no-AI update
+procedure is [`updating-omo-manually.md`](../guides/updating-omo-manually.md).
 
 ## Validated patch identity
 
