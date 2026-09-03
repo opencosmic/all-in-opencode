@@ -13,7 +13,8 @@
   },
   "production": {
     "opencodeVersion": "1.18.25",
-    "omoVersion": "4.19.4",
+    "lastObservedOmoVersion": "4.19.4",
+    "currentlyResolvedOmoVersion": "UNOBSERVABLE_NO_MATERIALIZED_PACKAGE",
     "pluginSpec": "oh-my-openagent@latest",
     "laneWorktrees": "DISABLED",
     "ephemeralSandbox": "DISABLED"
