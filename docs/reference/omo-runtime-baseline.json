@@ -3,11 +3,23 @@
   "updatedAt": "2026-09-04",
   "upstream": {
     "repository": "https://github.com/code-yeongyu/oh-my-openagent",
-    "candidate": {
+    "historicalProofRuntime": {
+      "version": "5.0.0-beta.30",
+      "sourceCommit": "5c699bc74830864eac0cd27ae7e453a3faf5a3df",
+      "baseTag": "v5.0.0-beta.30",
+      "patchCommits": [
+        "d9eed7d1f",
+        "f80bdb047",
+        "5c699bc74830864eac0cd27ae7e453a3faf5a3df"
+      ],
+      "evidence": "historical local research worktree; not an immutable production artifact",
+      "openCodeVersion": "1.18.25"
+    },
+    "rejectedCandidate": {
       "release": "v5.0.0-beta.39",
-      "channel": "prerelease",
       "baseCommit": "c21fceb6f005127e0754792a2c7442d55d1ee8e0",
       "integrationCommit": "82e477113",
+      "result": "REJECTED_PRE_RUNTIME_PREFLIGHT",
       "sourceRemote": "https://github.com/code-yeongyu/oh-my-openagent.git"
     }
   },
@@ -16,6 +28,7 @@
     "lastObservedOmoVersion": "4.19.4",
     "currentlyResolvedOmoVersion": "UNOBSERVABLE_NO_MATERIALIZED_PACKAGE",
     "pluginSpec": "oh-my-openagent@latest",
+    "activation": "SKIPPED_NO_IMMUTABLE_PRODUCTION_ARTIFACT",
     "laneWorktrees": "DISABLED",
     "ephemeralSandbox": "DISABLED"
   },
@@ -43,7 +56,7 @@
   },
   "lastCandidateResult": {
     "status": "REJECTED",
-    "reason": "Isolated OpenCode 1.18.25 agent-resolution preflight timed out before any runtime LLM call.",
+    "reason": "Beta.39 preflight timed out; historical beta.30 proof runtime remains local-only and is not promoted.",
     "runtimeCalls": 0
   },
   "requiredChecks": {

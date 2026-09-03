@@ -1,25 +1,19 @@
-# Cập nhật OMO thủ công
+# Updating OMO manually
+
+Do not update production OMO casually while lane worktrees are in use. The
+authoritative record is [`omo-runtime-baseline.json`](../reference/omo-runtime-baseline.json).
+
+The resolver remains `oh-my-openagent@latest` and `LANE_WORKTREES` remains
+disabled. The only runtime that passed historical isolation probes is a local
+post-beta.30 research build, which has no immutable production-resolvable
+artifact. It is evidence, not a production pin.
+
+## Safe candidate workflow
 
 ```text
-OMO mới
-↓
-không cài production ngay
-↓
-tạo candidate
-↓
-kiểm tra P01/P02/P03
-↓
-chạy compatibility gate
-↓
-PASS → promote
-FAIL → giữ OMO hiện tại
+new OMO source → isolated exact tag/commit → build and static P01/P02/P03 checks
+→ runtime probes and Executor lane E2E → verify resolved artifact → promote
 ```
-
-Không cập nhật trực tiếp package OMO production trước khi candidate vượt qua
-toàn bộ gate. Nguồn chuẩn là
-[`omo-runtime-baseline.json`](../reference/omo-runtime-baseline.json).
-
-## Chuẩn bị candidate
 
 ```sh
 git clone https://github.com/code-yeongyu/oh-my-openagent.git ~/src/omo-candidate
@@ -28,74 +22,31 @@ git fetch --tags origin
 git checkout -b integration/omo-<version> <upstream-tag-or-commit>
 bun install --frozen-lockfile
 bun run build
-```
-
-Chạy static gate từ repository workflow:
-
-```sh
 cd ~/Workspace/repo/opencode-workflow
 ./scripts/check-omo-update.sh --candidate ~/src/omo-candidate
 ```
 
-`STATIC_RESULT: PASS` không phải là quyền promote. Sau đó chạy toàn bộ lệnh
-trong `requiredChecks.omo` và `requiredChecks.runtime` của baseline. Runtime
-probe phải pin model được phép, reasoning `high` hoặc thấp hơn, và tắt mọi
-fallback không được phép.
+`STATIC_RESULT: PASS` is not promotion approval. Run every check listed in the
+baseline, including focused tests, typecheck, build, runtime probes, and the
+Executor lane E2E. Runtime requests must use only an allowed OpenAI model with
+reasoning `high` or lower and constrained fallback.
 
-## A. Không cần local patch
+## Patches and history
 
-Khi P01/P02/P03 đều `UPSTREAMED`, checkout upstream candidate, build, chạy
-gate ở trên và runtime probes. Chỉ sau khi tất cả PASS mới cập nhật plugin
-production sang đúng artifact đã test.
+Apply only patches marked `STILL_REQUIRED` in the baseline. Do not reapply a
+patch replaced by equivalent upstream behavior. The historical proof runtime
+was `5.0.0-beta.30` at source commit
+`5c699bc74830864eac0cd27ae7e453a3faf5a3df`; it is not a production pin.
 
-## B/C. Chỉ một số hoặc không patch nào được upstream
+If a patch conflicts or any check fails, stop and retain the current runtime.
+Never guess at semantic conflict resolution.
 
-Tạo branch integration mới từ upstream candidate. Chỉ cherry-pick các patch
-được baseline ghi là `STILL_REQUIRED`; không áp lại patch `UPSTREAMED` hoặc
-`REPLACED_BY_EQUIVALENT`.
+## Promotion and rollback
 
-```sh
-git cherry-pick <P01-commit-if-required>
-git cherry-pick <P02-commit-if-required>
-git cherry-pick <P03-commit-if-required>
-```
+Promotion is a separate reviewed step. Pin the exact immutable artifact that
+passed all checks, record the previous plugin specification, and update the
+baseline in the same change. If smoke validation fails, restore the previous
+specification and verify the resolved plugin identity.
 
-Cherry-pick sạch không chứng minh tương thích: vẫn phải build, static gate,
-runtime probes và lane E2E.
-
-## D/F. Conflict hoặc test fail
-
-**DỪNG. Không promote production.** Không đoán cách resolve conflict.
-
-```sh
-git cherry-pick --abort
-```
-
-Giữ OMO production hiện tại. Candidate thất bại có thể bị xóa sau khi kiểm tra
-đúng path của candidate; không dùng `git reset --hard` trên user work.
-
-## E. Upstream thay thế patch bằng hành vi tương đương
-
-Không ép code patch cũ vào kiến trúc mới. Chạy `check-omo-update.sh`, sau đó
-chạy CAP-01/CAP-02/CAP-08 runtime probes. Chỉ khi PASS mới đổi trạng thái patch
-thành `REPLACED_BY_EQUIVALENT` hoặc `UPSTREAMED` trong baseline.
-
-## G. Beta/prerelease
-
-Test stable trước. Không chuyển production stable sang beta trừ khi beta là
-cách duy nhất có capability bắt buộc và tất cả gate đã PASS. Beta.39 đã bị từ
-chối trên OpenCode 1.18.25 vì agent-resolution preflight timeout.
-
-## H/I. PR #7534 không merge hoặc merge muộn
-
-Nếu PR không merge, integration branch mới vẫn có thể dùng upstream + P01
-(và P02/P03 nếu cần). Nếu PR merge, không tự bỏ P01: xác nhận hành vi bằng
-CAP-01/CAP-02/CAP-08 probes trước, rồi mới retire patch.
-
-## Promote và rollback
-
-Promotion là bước thủ công riêng: pin đúng commit/artifact đã PASS, lưu lại
-plugin spec cũ và cập nhật baseline trong cùng review. Nếu smoke test lỗi,
-khôi phục chính xác plugin spec cũ rồi xác nhận `opencode --version` và plugin
-path. Không sửa `~/.cache/opencode/...`: cache không phải source có thể review,
-không ổn định và không có rollback đáng tin cậy.
+Do not edit `~/.cache/opencode/...` manually. Cache contents are not reviewable,
+reproducible, or a dependable rollback mechanism.

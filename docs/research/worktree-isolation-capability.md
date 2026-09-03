@@ -4,7 +4,10 @@ This record describes the reproducible capability probe for caller-selected chil
 
 ## Current measured result
 
-**Validated with:** OpenCode 1.18.25, OMO 4.19.4, Node.js 24.20.0, Bun 1.4.0, and Darwin 24.4.0.
+**Historical proof runtime:** OpenCode 1.18.25 with local post-beta.30 OMO
+source `5c699bc74830864eac0cd27ae7e453a3faf5a3df` (package metadata
+`5.0.0-beta.30`). The separate 4.19.4 checkout was not the runtime that
+produced the successful worktree proofs.
 
 **Verdict:** `CALLER_SELECTED_CWD_UNAVAILABLE`
 
