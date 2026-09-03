@@ -3,10 +3,10 @@
 Do not update production OMO casually while lane worktrees are in use. The
 authoritative record is [`omo-runtime-baseline.json`](../reference/omo-runtime-baseline.json).
 
-The resolver remains `oh-my-openagent@latest` and `LANE_WORKTREES` remains
-disabled. The only runtime that passed historical isolation probes is a local
-post-beta.30 research build, which has no immutable production-resolvable
-artifact. It is evidence, not a production pin.
+Production is pinned to the immutable artifact recorded in the baseline, and
+`LANE_WORKTREES` is enabled behind its runtime and topology gates. Do not
+replace that pin with `@latest`. The artifact was built from the historical
+post-beta.30 research source that passed the isolation probes.
 
 ## Safe candidate workflow
 

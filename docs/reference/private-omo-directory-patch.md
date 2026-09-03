@@ -86,6 +86,6 @@ base, and create hidden state that cannot be reproduced or rolled back safely.
 Production policy remains:
 
 ```text
-LANE_WORKTREES = DISABLED
+LANE_WORKTREES = ENABLED (capability and topology gated)
 EPHEMERAL_SANDBOX = DISABLED
 ```

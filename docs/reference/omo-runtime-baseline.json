@@ -27,9 +27,15 @@
     "opencodeVersion": "1.18.25",
     "lastObservedOmoVersion": "4.19.4",
     "currentlyResolvedOmoVersion": "UNOBSERVABLE_NO_MATERIALIZED_PACKAGE",
-    "pluginSpec": "oh-my-openagent@latest",
-    "activation": "SKIPPED_NO_IMMUTABLE_PRODUCTION_ARTIFACT",
-    "laneWorktrees": "DISABLED",
+    "pluginSpec": "/Users/code/Workspace/omo-artifacts/oh-my-openagent-5.0.0-beta.30-5c699bc7.tgz",
+    "artifact": {
+      "path": "/Users/code/Workspace/omo-artifacts/oh-my-openagent-5.0.0-beta.30-5c699bc7.tgz",
+      "sha256": "80e86224f4f718fb09e6a9238edcff41dbdabdb50916e9e04658e783b8b026f9",
+      "sourceSha": "5c699bc74830864eac0cd27ae7e453a3faf5a3df",
+      "buildCommand": "bun run --cwd packages/omo-opencode typecheck && OMO_SKIP_MATERIALIZE=1 bun run build && npm pack --ignore-scripts"
+    },
+    "activation": "SUCCESS",
+    "laneWorktrees": "ENABLED",
     "ephemeralSandbox": "DISABLED"
   },
   "patches": {
