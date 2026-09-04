@@ -30,6 +30,7 @@ const PROBE_PREFIX = "executor-lane-e2e-"
 const OWNER_FILE = ".executor-lane-e2e-owner.json"
 const EXPECTED_OMO_HEAD = "5c699bc74830864eac0cd27ae7e453a3faf5a3df"
 const RUNTIME_TIMEOUT_MS = 20 * 60_000
+const ROUTE_PROOF_TIMEOUT_MS = 30_000
 const ROLE_NAMES = ["executor", "Plan Reviewer", "Reviewer", "QA", "Sisyphus-Junior"]
 const AGENT_OVERRIDE_NAMES = ["Executor", ...ROLE_NAMES]
 
@@ -428,6 +429,46 @@ export function assessExecutorAliasRoute({ config, model, promptSha256, expected
     promptSha256 === expectedPromptSha256
 }
 
+export function assessObservedAgentLookup({ role, observation, config, model, promptSha256, expectedPromptSha256, fallback }) {
+  if (observation?.timedOut || observation?.processExited !== true || observation?.exitCode !== 0 || observation?.jsonComplete !== true) return false
+  if (config?.name !== role) return false
+  if (role === "executor") {
+    return assessExecutorAliasRoute({ config, model, promptSha256, expectedPromptSha256, fallback })
+  }
+  const reasoning = config?.variant ?? config?.reasoningEffort
+  return config?.model?.providerID === "openai" && `openai/${config?.model?.modelID}` === model && reasoning === "high"
+}
+
+function observedLookupSummary(observation) {
+  return {
+    startedAt: observation.startedAt,
+    finishedAt: observation.finishedAt,
+    durationMs: observation.finishedAt - observation.startedAt,
+    processExited: observation.processExited,
+    exitCode: observation.exitCode,
+    exitSignal: observation.exitSignal,
+    timedOut: observation.timedOut,
+    jsonComplete: observation.jsonComplete,
+    stdoutBytes: observation.stdoutBytes,
+    stderr: observation.stderr,
+    timeoutSnapshot: observation.timeoutSnapshot,
+    cleanupSnapshot: observation.cleanupSnapshot,
+    processGroupTerminationAttempted: observation.processGroupTerminationAttempted,
+  }
+}
+
+async function resolveAgentForPreflight(runtime, fixture, role) {
+  const observation = await runObservedCommand("opencode", ["debug", "agent", role], {
+    cwd: fixture.fixture,
+    env: runtime.env,
+    timeout: ROUTE_PROOF_TIMEOUT_MS,
+    expectedJson: (value) => Boolean(value?.model && value?.prompt),
+    logPath: runtime.logPath,
+  })
+  const config = parseJson(stripAnsi(observation.stdout))
+  return { config, observation }
+}
+
 async function preflight(runtime, fixture, model, omoPackageRoot) {
   const canonicalStatus = await gitValue(REPO_ROOT, "status", "--short")
   if (canonicalStatus) throw new Error("canonical repository must be clean before runtime preflight")
@@ -453,20 +494,26 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
 
   const agents = {}
   let executorCliAlias
+  const routeProof = { noLlmCalls: true, command: "opencode debug agent <role>", timeoutMs: ROUTE_PROOF_TIMEOUT_MS, lookups: {} }
   for (const role of ROLE_NAMES) {
-    const result = await runCommand("opencode", ["debug", "agent", role], { cwd: fixture.fixture, env: runtime.env, timeout: 120_000 })
-    if (result.code !== 0) throw new Error(`agent preflight failed for ${role}: ${result.stderr}`)
-    const config = parseJson(stripAnsi(result.stdout))
+    const { config, observation } = await resolveAgentForPreflight(runtime, fixture, role)
+    const summary = observedLookupSummary(observation)
+    routeProof.lookups[role] = summary
     const reasoning = config?.variant ?? (role === "Sisyphus-Junior" ? omoConfig.agents?.["sisyphus-junior"]?.reasoning : undefined)
-    if (config?.model?.providerID !== "openai" || `openai/${config?.model?.modelID}` !== model || reasoning !== "high") {
+    const promptSha256 = createHash("sha256").update(config?.prompt ?? "").digest("hex")
+    if (!assessObservedAgentLookup({
+      role,
+      observation,
+      config,
+      model,
+      promptSha256,
+      expectedPromptSha256: runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256,
+      fallback: { model: omoConfig.model_fallback, runtime: omoConfig.runtime_fallback },
+    })) {
       throw new Error(`effective route for ${role} is not ${model}/high: ${JSON.stringify({ model: config?.model, variant: config?.variant, reasoningEffort: config?.reasoningEffort })}`)
     }
     agents[role] = { provider: config.model.providerID, model: config.model.modelID, reasoning, reasoningSource: config?.variant ? "effective-agent" : "isolated-OMO-agent-and-category" }
     if (role === "executor") {
-      const promptSha256 = createHash("sha256").update(config?.prompt ?? "").digest("hex")
-      if (!assessExecutorAliasRoute({ config, model, promptSha256, expectedPromptSha256: runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256, fallback: { model: omoConfig.model_fallback, runtime: omoConfig.runtime_fallback } })) {
-        throw new Error("probe-local Executor CLI alias does not match the canonical prompt or Luna/high route")
-      }
       executorCliAlias = { name: "executor", promptSha256, canonicalPromptSha256: runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256, matchesCanonical: true }
     }
   }
@@ -561,6 +608,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
     omoConfigSha256: createHash("sha256").update(omoConfigText).digest("hex"),
     categoryRoute,
     agents,
+    routeProof,
     executorCliAlias,
     fallback: { model: false, runtime: false },
     capabilityEvidence,
