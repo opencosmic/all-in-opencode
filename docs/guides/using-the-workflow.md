@@ -15,6 +15,9 @@ approved OpenSpec proposal + behavioral specs
   -> /execute -> implemented, reviewed, and QA-evidenced change
   -> /verify -> independent current-state verdict
   -> /ship -> user chooses integration
+
+standalone real-browser goal
+  -> /ego -> Ego Browser -> external ego-browser runtime -> ego lite Task Space
 ```
 
 | Situation | Use | Do not use it when |
@@ -26,6 +29,7 @@ approved OpenSpec proposal + behavioral specs
 | The implemented change needs independent proof | `/verify <change>` | You expect it to repair, archive, or integrate the change. |
 | A freshly verified change is ready for an explicit delivery decision | `/ship <change>` | You want automatic merge, push, archive, or cleanup. |
 | An approved strategy should go to native OMO Prometheus planning | `/omo <strategy>` | You want the custom OpenSpec lifecycle; `/omo` does not create OpenSpec artifacts. |
+| A website or authenticated web application requires real interaction, extraction, screenshots, or browser QA | `/ego <task>` | You want code changes or any stage of the OpenSpec/OMO implementation workflows. |
 
 ## What each route produces
 
@@ -44,6 +48,14 @@ approved OpenSpec proposal + behavioral specs
 ### Native OMO route
 
 `/omo` sends an approved neutral strategy to OMO's native Prometheus planner. It creates native `.omo/plans/` state and follows OMO's Momus review gate; it does **not** create or read OpenSpec artifacts and does not start implementation. Keep this route separate from the custom lifecycle.
+
+### Ego Browser route
+
+`/ego` sends one standalone browser goal directly to the primary-only Ego Browser agent. That agent loads the externally installed official `ego-browser` skill, creates or reuses one ego-lite Task Space for the goal, performs coherent browser actions, verifies resulting state, and cleans up the space unless a concrete reason requires it to remain open.
+
+This route does **not** enter OpenSpec, mutate implementation progress, use OMO categories, use CodeGraph, or edit repository source. Existing coding agents do not receive `ego-browser` access in Phase 1. If login, CAPTCHA, MFA, payment/security confirmation, or another manual step is required, Ego Browser hands control to the user and resumes only after explicit confirmation.
+
+Before first use on a machine, run the opt-in `./scripts/setup-ego-browser.sh`, complete ego lite's GUI onboarding, and confirm `./scripts/check-ego-browser.sh` reports `READY`. The official skill and app remain external machine dependencies; neither is installed by `scripts/install.sh` or required by `scripts/verify.sh`. Ensure `~/.local/bin` is visible to the OpenCode process and restart OpenCode after setup.
 
 ## Real operating patterns
 

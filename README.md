@@ -14,6 +14,8 @@ The custom lifecycle is:
 
 `/omo` is a separate route from an approved product strategy to OMO's native Prometheus planner.
 
+`/ego <task>` is a separate browser-automation route to the primary-only Ego Browser agent and the external `citrolabs/ego-lite` `ego-browser` skill/runtime. It does not enter OpenSpec, create implementation state, use OMO categories or CodeGraph, or modify project source code.
+
 - Strategist owns product intent and creates the OpenSpec proposal and behavioral specs.
 - Planner creates `design.md` and `tasks.md` from the approved contract.
 - Plan Reviewer independently reviews those planning artifacts.
@@ -30,7 +32,7 @@ The custom tool surface is deliberately limited to `codegraph_codegraph_explore`
 ## Repository layout
 
 - `opencode/agents/`: custom agent definitions.
-- `opencode/commands/`: `/omo`, `/spec`, `/plan`, `/execute`, `/verify`, and `/ship`.
+- `opencode/commands/`: `/ego`, `/omo`, `/spec`, `/plan`, `/execute`, `/verify`, and `/ship`.
 - `opencode/plugins/`: workflow guard and read-only workspace inspection plugins.
 - `opencode/tests/`: deterministic policy and integration tests.
 - `opencode/opencode.jsonc` and `opencode/tui.json`: public-safe OpenCode configuration.
@@ -60,6 +62,31 @@ The migrated configuration was validated with OpenCode 1.18.23, Oh My OpenAgent 
 npm ci --prefix opencode
 ```
 
+Ego Browser additionally depends on the externally installed official [`citrolabs/ego-lite`](https://github.com/citrolabs/ego-lite) `ego-browser` skill and runtime. This repository authors the OpenCode agent and command only; it does not vendor `skills/ego-browser/**`, the browser application, Task Spaces, or browser state.
+
+The upstream skill command is `npx skills add citrolabs/ego-lite`. For a deterministic global OpenCode installation, use the explicit target below, then run the installer shipped inside that skill:
+
+```sh
+npx --yes skills add citrolabs/ego-lite --global --agent opencode --skill ego-browser -y
+sh ~/.config/opencode/skills/ego-browser/scripts/install.sh
+```
+
+The official macOS installer selects `arm64` or `x64`, installs `ego lite.app` under `/Applications` (falling back to `~/Applications`), removes its quarantine attribute, and launches onboarding. Complete the GUI choice yourself. Onboarding normally registers `ego-browser` under `~/.local/bin`; add that directory to the persistent shell PATH only when it is not already present.
+
+For the same flow as one explicit, opt-in command:
+
+```sh
+./scripts/setup-ego-browser.sh
+```
+
+This setup is never run by ordinary link installation or static verification. Check local readiness without changing repository validity:
+
+```sh
+./scripts/check-ego-browser.sh
+```
+
+Ready state requires both `ego-browser runtime: available and provisioned` and `ego-browser skill: discoverable`, followed by `optional runtime status: READY`. Restart OpenCode after installing or updating the agent/skill so a running process reloads discovery and permissions.
+
 ## Install the live links
 
 Review the manifest at `scripts/links.tsv`, then preview the operation:
@@ -76,6 +103,8 @@ Install creates only the approved links. Existing real files are moved into a ti
 ```
 
 The installer links individual public-safe files and source-only directories. It never links all of `~/.config/opencode` or `~/.omo` and does not touch OpenSpec telemetry, benchmarks, OMO runtime files, CodeGraph indexes, sessions, caches, or credentials.
+
+The `opencode/agents` and `opencode/commands` directory links also discover Ego Browser and `/ego`; no per-file link or external-skill lifecycle is added to `scripts/links.tsv`.
 
 ## Validate
 

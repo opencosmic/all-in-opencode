@@ -4,7 +4,7 @@ import { readFile, readdir } from "node:fs/promises"
 
 const root = "/Users/code/.config/opencode"
 const enabled = ["planner.md", "plan-reviewer.md", "executor.md", "reviewer.md", "verifier.md"]
-const excluded = ["strategist.md", "researcher.md", "validator.md", "qa.md"]
+const excluded = ["strategist.md", "researcher.md", "validator.md", "qa.md", "ego-browser.md"]
 const permission = "codegraph_codegraph_explore: allow"
 
 async function agent(name) {

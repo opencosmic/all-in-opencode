@@ -15,6 +15,7 @@ The files under [`opencode/agents/`](../../opencode/agents/) and [`opencode/comm
 | Reviewer | Focused implementation review | Nothing | Repairs, task state, delegation | `explore` only |
 | QA | Runtime/user-facing evidence | Nothing | Repairs, task state, delivery | No rollout |
 | Verifier | `/verify` and shipping gate | Nothing | Repairs, task state, archive, delivery | `explore` only |
+| Ego Browser | Standalone `/ego` browser automation | Browser state within the requested Task Space | Repository files, coding workflow state, delegation, out-of-scope remote actions | No rollout |
 
 ### Delegation and independence
 
@@ -22,6 +23,7 @@ The files under [`opencode/agents/`](../../opencode/agents/) and [`opencode/comm
 - Planner may consult only Plan Reviewer, Explore, Librarian, and Oracle. The [planner delegation guard](../../opencode/plugins/planner-delegation-guard.js) blocks category implementation workers and all continuation shapes.
 - Executor delegates application changes to fresh OMO category workers. When its exact runtime and task-independence gates pass, it may create current-wave lane worktrees, bind workers with the task API `directory`, integrate accepted lane commits in task order, and remove only proven-owned clean lanes. It requests Reviewer and applicable QA evidence; those roles report findings and never repair them.
 - Verifier independently assesses current artifacts, diff, and fresh evidence. A prior approval, worker claim, or previous verifier message is not durable authority.
+- Ego Browser is a primary-only route. Existing coding agents do not delegate to it, and it cannot invoke task or OMO workers.
 
 ## Commands
 
@@ -33,9 +35,12 @@ The files under [`opencode/agents/`](../../opencode/agents/) and [`opencode/comm
 | `/verify <change>` | Verifier | Explicit or unambiguous implemented change and current comparison basis | `VERIFIED`, `VERIFIED_WITH_CONCERNS`, or `BLOCKED` | Missing essential evidence/context or contradicted contract | `VERIFIED` directly authorizes shipping; concerns require explicit current acceptance; blocked cannot proceed |
 | `/ship <change>` | Executor + fresh Verifier | Current artifacts, tree, and fresh Verifier outcome | Explicit choice after shipping authorization: merge locally, push + PR, keep branch | `VERIFIED_WITH_CONCERNS` requires explicit acceptance of exact current named concerns; `BLOCKED` stops | User-selected delivery action after the applicable authorization gate |
 | `/omo <strategy>` | OMO Prometheus | One approved product strategy | Native `.omo/plans/<slug>.md` and Momus outcome | Ambiguous/unapproved strategy or product impossibility | Native `/ulw-execute` or `/start-work` handoff |
+| `/ego <task>` | Ego Browser | Official external `ego-browser` skill/runtime available when browser execution begins | Verified browser result and a completed or intentionally retained ego-lite Task Space | Runtime unavailable, user-owned control, required manual step, or unverified result | Report result or wait for explicit user confirmation |
 
 ## Evidence roles
 
 `codegraph_codegraph_explore` is exposed only to Planner, Plan Reviewer, Executor, Reviewer, and Verifier. It is current structural/index evidence, never an implementation, diff, compiler, test, runtime, or product-contract authority. All enabled roles fall back without retry loops when it is absent, stale, pending, ambiguous, or insufficient.
 
 For the rationale and validated scope, read [CodeGraph integration research](../research/codegraph-integration.md). For hard boundaries, read [invariants](invariants.md).
+
+Ego Browser receives only the `ego-browser` skill, the `ego-browser *` shell surface, and the question tool for user handoff. All other skills and generic shell commands are denied; edit/write, task delegation, OMO delegation, external-directory access, and CodeGraph access are denied. The Node.js runtime remains a behavioral escape risk rather than a hard OS sandbox, as described in [architecture](../architecture.md#independent-browser-route).

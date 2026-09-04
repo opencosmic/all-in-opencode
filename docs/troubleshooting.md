@@ -18,7 +18,7 @@ If the live path was previously migrated, locate the corresponding backup under 
 
 ### OpenCode does not discover a custom agent or command
 
-**Actionable failure.** First run `./scripts/verify.sh`; the live `agents/` and `commands/` directories must be the expected links. Then compare the filename and front matter with [`workflow-discovery.test.js`](../opencode/tests/workflow-discovery.test.js): commands are exactly `omo`, `spec`, `plan`, `execute`, `verify`, and `ship`, and their exact agent targets are tested. Run:
+**Actionable failure.** First run `./scripts/verify.sh`; the live `agents/` and `commands/` directories must be the expected links. Then compare the filename and front matter with [`workflow-discovery.test.js`](../opencode/tests/workflow-discovery.test.js): commands are exactly `ego`, `omo`, `spec`, `plan`, `execute`, `verify`, and `ship`, and their exact agent targets are tested. Run:
 
 ```sh
 node --test ~/.config/opencode/tests/*.test.js
@@ -28,6 +28,12 @@ opencode agent list
 Edit the canonical file in this repository, never a copied live file.
 
 ## Dependency and runtime availability
+
+### `scripts/check-ego-browser.sh` reports `NOT READY`
+
+**Actionable external-dependency status; not an authored-config failure.** Run the opt-in `./scripts/setup-ego-browser.sh`, complete the ego lite GUI onboarding, and rerun the check. A ready machine has a discoverable official skill plus a provisioned `ego-browser` command, normally under `~/.local/bin`.
+
+If the skill is missing, reinstall it globally for OpenCode with `npx --yes skills add citrolabs/ego-lite --global --agent opencode --skill ego-browser -y`. If the command exists but the check says it is not provisioned, reopen ego lite and finish onboarding. If the command is absent after onboarding, confirm `~/.local/bin` is in the persistent PATH inherited by OpenCode, then restart OpenCode. Do not copy the skill into this repository or weaken Ego Browser's shell permissions.
 
 ### Plugin module resolution fails or `node_modules` is absent
 

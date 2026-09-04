@@ -5,6 +5,7 @@ import { readFile, readdir } from "node:fs/promises"
 const root = "/Users/code/.config/opencode"
 
 const commandTargets = new Map([
+  ["ego.md", "Ego Browser"],
   ["omo.md", "Prometheus - Plan Builder"],
   ["spec.md", "Strategist"],
   ["plan.md", "Planner"],
@@ -23,6 +24,7 @@ const oldCommands = [
 ]
 
 const agentNames = new Map([
+  ["ego-browser.md", "Ego Browser"],
   ["strategist.md", "Strategist"],
   ["researcher.md", "Researcher"],
   ["validator.md", "Validator"],

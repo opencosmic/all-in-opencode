@@ -39,6 +39,30 @@ Every execution and shipping gate re-evaluates current artifacts and evidence. P
 
 Executor supports `IN_PLACE`, `CHANGE_WORKTREE`, and a capability-gated `LANE_WORKTREES` lifecycle; `EPHEMERAL_SANDBOX` remains disabled and unimplemented. Lane mode requires exact adopted runtime evidence plus at least two independently safe dependency-ready tasks. Executor creates current-wave linked worktrees from one canonical HEAD, dispatches workers through the runtime `directory` field, inspects and reviews lane diffs, integrates accepted commits in task order with non-fast-forward merges, runs combined checks, then updates `tasks.md`. Interruption and ambiguous state preserve lanes. Recovery derives from `tasks.md` and Git/worktree provenance rather than a second ledger. Production is now pinned to the exact measured OMO artifact recorded in the runtime baseline; the capability and topology gates still decide each execution.
 
+## Independent browser route
+
+```text
+/ego <task>
+    |
+    v
+Ego Browser
+    |
+    v
+upstream ego-browser skill
+    |
+    v
+ego-browser runtime
+    |
+    v
+ego lite Task Space
+```
+
+This is an independent browser-automation capability, not another stage in the custom lifecycle. It does not enter OpenSpec, create or mutate implementation execution state, use an OMO category, use CodeGraph, or modify project source code. Ego Browser is primary-only in Phase 1, so the existing coding roles do not automatically delegate to it or gain its skill/runtime access.
+
+The external [`citrolabs/ego-lite`](https://github.com/citrolabs/ego-lite) project owns the official `skills/ego-browser/SKILL.md`, runtime, browser application, Task Spaces, and browser state. This repository owns only the agent policy, `/ego` route, tests, and documentation; it does not vendor or link the upstream skill lifecycle.
+
+The outer OpenCode shell policy permits only `ego-browser *`, but `ego-browser` executes agent-authored JavaScript in Node.js. That command restriction is not an OS-level security sandbox. The agent policy therefore also prohibits using the runtime for unrelated filesystem access, child-process execution, arbitrary processes, or repository mutation. This is a behavioral boundary layered on least-privilege OpenCode routing, not hard process isolation.
+
 ## Agent responsibilities
 
 - Strategist: product strategy and OpenSpec product-contract authoring.
@@ -49,6 +73,7 @@ Executor supports `IN_PLACE`, `CHANGE_WORKTREE`, and a capability-gated `LANE_WO
 - Reviewer: independent diff-first code review.
 - QA: read-only runtime and user-facing evidence.
 - Verifier: independent final proof against the approved change.
+- Ego Browser: primary-only real-browser automation through the externally owned ego-browser runtime; no repository, delegation, OMO, or CodeGraph role.
 
 ## CodeGraph
 
