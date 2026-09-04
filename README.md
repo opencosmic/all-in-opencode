@@ -62,18 +62,13 @@ The migrated configuration was validated with OpenCode 1.18.23, Oh My OpenAgent 
 npm ci --prefix opencode
 ```
 
-Ego Browser additionally depends on the externally installed official [`citrolabs/ego-lite`](https://github.com/citrolabs/ego-lite) `ego-browser` skill and runtime. This repository authors the OpenCode agent and command only; it does not vendor `skills/ego-browser/**`, the browser application, Task Spaces, or browser state.
+Ego Browser additionally depends on the externally installed official [`citrolabs/ego-lite`](https://github.com/citrolabs/ego-lite) `ego-browser` skill and runtime. This repository authors the OpenCode agent and command only; it does not vendor `skills/ego-browser/**`, the browser application, Task Spaces, or browser state. The upstream skill command remains `npx skills add citrolabs/ego-lite`.
 
-The upstream skill command is `npx skills add citrolabs/ego-lite`. For a deterministic global OpenCode installation, use the explicit target below, then run the installer shipped inside that skill:
-
-```sh
-npx --yes skills add citrolabs/ego-lite --global --agent opencode --skill ego-browser -y
-sh ~/.config/opencode/skills/ego-browser/scripts/install.sh
-```
+[OpenCode supports global skills](https://opencode.ai/v2/docs/skills#discovery) under `~/.config/opencode/skills`, `~/.agents/skills`, and `~/.claude/skills`. The setup and readiness scripts resolve one existing `ego-browser` installation in that deterministic precedence order, matching OpenCode's highest-priority global source first. They do not copy the skill between locations or install another copy when a supported installation already exists.
 
 The official macOS installer selects `arm64` or `x64`, installs `ego lite.app` under `/Applications` (falling back to `~/Applications`), removes its quarantine attribute, and launches onboarding. Complete the GUI choice yourself. Onboarding normally registers `ego-browser` under `~/.local/bin`; add that directory to the persistent shell PATH only when it is not already present.
 
-For the same flow as one explicit, opt-in command:
+Use the repository's explicit, opt-in setup command. It installs the official skill only when none of the supported global locations contains it, resolves the actual installation, and runs the upstream application installer from that directory:
 
 ```sh
 ./scripts/setup-ego-browser.sh
