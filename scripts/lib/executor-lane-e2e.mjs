@@ -121,8 +121,10 @@ export function classifyExecutorLaneE2E(evidence = {}) {
   const route = status(
     evidence.route?.command === "/execute" &&
     (evidence.route?.agent === "Executor" ||
-      (evidence.route?.agent === "executor" && evidence.route?.executorPromptMatchesCanonical === true)) &&
-    evidence.route?.planReview === "[APPROVED]",
+      (evidence.route?.agent === "executor" && evidence.route?.executorPromptMatchesCanonical === true)),
+  )
+  const planReview = status(
+    evidence.route?.planReview === "[APPROVED]" && Boolean(evidence.route?.planReviewSession),
   )
   const capabilityGate = status(evidence.capabilityGate?.status === STATUS.PROVEN)
   const permissionGate = status(
@@ -184,11 +186,24 @@ export function classifyExecutorLaneE2E(evidence = {}) {
   const combinedChecks = status(evidence.combinedChecks?.passed === true, evidence.combinedChecks?.passed === false)
   const taskTransitions = classifyTaskTiming(evidence.taskSnapshots)
   const t3 = status(
-    evidence.T3?.sessionID && evidence.T3?.workspaceMode === "CHANGE_WORKTREE" &&
+    evidence.T3?.sessionID && evidence.T3?.taskID === "T3" &&
+    Array.isArray(evidence.T3?.dependencies) && evidence.T3.dependencies.join(",") === "T1,T2" &&
+    evidence.T3?.workspaceMode === "CHANGE_WORKTREE" &&
+    evidence.T3?.actualCwd === evidence.T3?.expectedCwd &&
+    evidence.T3?.actualCwd !== lanes.T1?.path && evidence.T3?.actualCwd !== lanes.T2?.path &&
     strictlyAfter(evidence.T3?.start, evidence.combinedChecks?.completedAt) &&
-    evidence.T3?.observedT1 === true && evidence.T3?.observedT2 === true && evidence.T3?.completed === true,
+    evidence.T3?.observedT1 === true && evidence.T3?.observedT2 === true && evidence.T3?.completed === true &&
+    evidence.T3?.serial === true,
     evidence.T3?.start !== undefined && evidence.combinedChecks?.completedAt !== undefined &&
       !strictlyAfter(evidence.T3.start, evidence.combinedChecks.completedAt),
+  )
+  const finalValidation = status(
+    evidence.finalValidation?.command === "node scripts/check-final.mjs" &&
+    evidence.finalValidation?.workdir === evidence.T3?.expectedCwd &&
+    evidence.finalValidation?.status === "completed" &&
+    evidence.finalValidation?.exitCode === 0 &&
+    strictlyAfter(evidence.finalValidation?.start, evidence.T3?.end),
+    evidence.finalValidation?.status === "failed" || evidence.finalValidation?.exitCode > 0,
   )
   const cleanup = status(
     ["T1", "T2"].every((id) =>
@@ -201,6 +216,7 @@ export function classifyExecutorLaneE2E(evidence = {}) {
 
   const capabilities = {
     actualExecutorRoute: route,
+    planReviewerApproval: planReview,
     capabilityGate,
     permissionGate,
     laneCreation,
@@ -215,6 +231,7 @@ export function classifyExecutorLaneE2E(evidence = {}) {
     combinedChecks,
     taskTransitionTiming: taskTransitions,
     dependentT3Gate: t3,
+    finalValidation,
     safeCleanup: cleanup,
     modelProviderCompliance,
   }

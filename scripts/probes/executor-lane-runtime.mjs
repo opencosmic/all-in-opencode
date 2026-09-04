@@ -739,6 +739,7 @@ async function collectEvidence(fixture, runtime, preflightResult, monitored) {
     const t3Event = event("t3-finish")?.evidence ?? event("t3-start")?.evidence
     const t3Session = sessions.find((session) => session.parent_id === executor?.id && session.directory === fixture.fixture && session.agent === "Sisyphus-Junior" && toolEvidence(db, session.id, "node scripts/t3-worker.mjs"))
     const t3Tool = t3Session ? toolEvidence(db, t3Session.id, "node scripts/t3-worker.mjs") : null
+    const finalCheck = t3Session ? toolEvidence(db, t3Session.id, "node scripts/check-final.mjs") : null
     const logText = existsSync(runtime.logPath) ? await readFile(runtime.logPath, "utf8") : ""
     const permissionDecisions = existsSync(runtime.permissionDecisionsPath)
       ? (await readFile(runtime.permissionDecisionsPath, "utf8")).split("\n").filter(Boolean).map(parseJson).filter(Boolean)
@@ -878,7 +879,8 @@ async function collectEvidence(fixture, runtime, preflightResult, monitored) {
       },
       combinedChecks: { passed: waveCheck?.passed, completedAt: waveCheck?.at },
       taskSnapshots: { ...monitored.snapshots, final: finalTasks },
-      T3: t3Session && t3Tool ? { sessionID: t3Session.id, workspaceMode: "CHANGE_WORKTREE", start: t3Event?.start, end: t3Event?.end, actualCwd: t3Event?.pwd, observedT1: t3Event?.observedT1, observedT2: t3Event?.observedT2, completed: t3Event?.completed } : null,
+      T3: t3Session && t3Tool ? { sessionID: t3Session.id, taskID: "T3", dependencies: ["T1", "T2"], workspaceMode: "CHANGE_WORKTREE", expectedCwd: fixture.fixture, start: t3Event?.start, end: t3Event?.end, actualCwd: t3Event?.pwd, observedT1: t3Event?.observedT1, observedT2: t3Event?.observedT2, completed: t3Event?.completed, serial: true } : null,
+      finalValidation: finalCheck ? { command: finalCheck.command, workdir: finalCheck.workdir, status: finalCheck.status, exitCode: finalCheck.status === "completed" ? 0 : 1, start: finalCheck.start, end: finalCheck.end } : null,
       cleanup: {
         T1: { owned: true, worktreeRemoved: monitored.observations.lanesCreated.T1 && !worktrees.includes(fixture.lanes.T1), branchDeleted: monitored.observations.lanesCreated.T1 && !branches.split("\n").includes(fixture.branches.T1) },
         T2: { owned: true, worktreeRemoved: monitored.observations.lanesCreated.T2 && !worktrees.includes(fixture.lanes.T2), branchDeleted: monitored.observations.lanesCreated.T2 && !branches.split("\n").includes(fixture.branches.T2) },

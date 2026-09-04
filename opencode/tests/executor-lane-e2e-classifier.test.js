@@ -35,7 +35,7 @@ function completeEvidence() {
     },
   })
   return {
-    route: { command: "/execute", agent: "Executor", planReview: "[APPROVED]" },
+    route: { command: "/execute", agent: "Executor", planReviewSession: "ses_plan", planReview: "[APPROVED]" },
     capabilityGate: { status: STATUS.PROVEN },
     permissionApproval: {
       status: STATUS.PROVEN,
@@ -73,7 +73,8 @@ function completeEvidence() {
       afterIntegration: { T1: false, T2: false, T3: false },
       afterCombined: { T1: true, T2: true, T3: false },
     },
-    T3: { sessionID: "ses_T3", workspaceMode: "CHANGE_WORKTREE", start: 1001, observedT1: true, observedT2: true, completed: true },
+    T3: { sessionID: "ses_T3", taskID: "T3", dependencies: ["T1", "T2"], workspaceMode: "CHANGE_WORKTREE", expectedCwd: "/fixture", actualCwd: "/fixture", start: 1001, end: 1100, observedT1: true, observedT2: true, completed: true, serial: true },
+    finalValidation: { command: "node scripts/check-final.mjs", workdir: "/fixture", status: "completed", exitCode: 0, start: 1101 },
     cleanup: {
       T1: { owned: true, worktreeRemoved: true, branchDeleted: true },
       T2: { owned: true, worktreeRemoved: true, branchDeleted: true },
@@ -97,6 +98,15 @@ test("missing actual Executor route remains unproven", () => {
   const evidence = completeEvidence()
   delete evidence.route
   assert.equal(classifyExecutorLaneE2E(evidence).status, STATUS.UNPROVEN)
+})
+
+test("Executor route and Plan Reviewer approval are separate dimensions", () => {
+  const evidence = completeEvidence()
+  delete evidence.route.planReview
+  delete evidence.route.planReviewSession
+  const result = classifyExecutorLaneE2E(evidence)
+  assert.equal(result.capabilities.actualExecutorRoute, STATUS.PROVEN)
+  assert.equal(result.capabilities.planReviewerApproval, STATUS.UNPROVEN)
 })
 
 test("missing permission-adapter evidence remains unproven", () => {
@@ -212,6 +222,24 @@ test("T3 starting before the post-wave gate fails", () => {
   const evidence = completeEvidence()
   evidence.T3.start = 999
   assert.equal(classifyExecutorLaneE2E(evidence).capabilities.dependentT3Gate, STATUS.FAILED)
+})
+
+test("T3 requires exact dependency, canonical CWD, and serial evidence", () => {
+  for (const mutate of [
+    (e) => { e.T3.dependencies = ["T1"] },
+    (e) => { e.T3.actualCwd = e.lanes.T1.path },
+    (e) => { e.T3.serial = false },
+  ]) {
+    const evidence = completeEvidence(); mutate(evidence)
+    assert.equal(classifyExecutorLaneE2E(evidence).capabilities.dependentT3Gate, STATUS.UNPROVEN)
+  }
+})
+
+test("missing or early final validation cannot prove the E2E", () => {
+  const missing = completeEvidence(); delete missing.finalValidation
+  assert.equal(classifyExecutorLaneE2E(missing).capabilities.finalValidation, STATUS.UNPROVEN)
+  const early = completeEvidence(); early.finalValidation.start = 1099
+  assert.equal(classifyExecutorLaneE2E(early).capabilities.finalValidation, STATUS.UNPROVEN)
 })
 
 test("forbidden model request keeps the E2E unproven", () => {
