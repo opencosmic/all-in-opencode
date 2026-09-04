@@ -31,6 +31,8 @@ const OWNER_FILE = ".executor-lane-e2e-owner.json"
 const EXPECTED_OMO_HEAD = "5c699bc74830864eac0cd27ae7e453a3faf5a3df"
 const RUNTIME_TIMEOUT_MS = 20 * 60_000
 const ROUTE_PROOF_TIMEOUT_MS = 30_000
+const PLUGIN_SDK_BOOTSTRAP_TIMEOUT_MS = 60_000
+const PLUGIN_SDK_PACKAGE = "@opencode-ai/plugin"
 const ROLE_NAMES = ["executor", "Plan Reviewer", "Reviewer", "QA", "Sisyphus-Junior"]
 const AGENT_OVERRIDE_NAMES = ["Executor", ...ROLE_NAMES]
 
@@ -421,6 +423,49 @@ function stripAnsi(value) {
   return value.replace(/\u001b\[[0-9;]*m/g, "")
 }
 
+export function pluginSdkBootstrapManifest(openCodeVersion) {
+  return {
+    private: true,
+    dependencies: { [PLUGIN_SDK_PACKAGE]: openCodeVersion },
+  }
+}
+
+async function materializePluginSdk(runtime, openCodeVersion) {
+  const configDirectory = dirname(runtime.configPath)
+  const manifestPath = join(configDirectory, "package.json")
+  const manifest = pluginSdkBootstrapManifest(openCodeVersion)
+  await write(manifestPath, JSON.stringify(manifest, null, 2) + "\n")
+  const observation = await runObservedCommand("npm", [
+    "install", "--ignore-scripts", "--no-audit", "--no-fund", "--package-lock=false",
+  ], {
+    cwd: configDirectory,
+    env: runtime.env,
+    timeout: PLUGIN_SDK_BOOTSTRAP_TIMEOUT_MS,
+    expectedJson: () => false,
+  })
+  const installedManifestPath = join(configDirectory, "node_modules", PLUGIN_SDK_PACKAGE, "package.json")
+  const installedManifest = existsSync(installedManifestPath)
+    ? parseJson(await readFile(installedManifestPath, "utf8"))
+    : null
+  const succeeded = observation.timedOut !== true &&
+    observation.processExited === true &&
+    observation.exitCode === 0 &&
+    installedManifest?.version === openCodeVersion
+  if (!succeeded) {
+    throw new Error(`isolated ${PLUGIN_SDK_PACKAGE}@${openCodeVersion} bootstrap failed`)
+  }
+  return {
+    package: PLUGIN_SDK_PACKAGE,
+    requestedVersion: openCodeVersion,
+    installedVersion: installedManifest.version,
+    command: "npm install --ignore-scripts --no-audit --no-fund --package-lock=false",
+    timeoutMs: PLUGIN_SDK_BOOTSTRAP_TIMEOUT_MS,
+    durationMs: observation.finishedAt - observation.startedAt,
+    exitCode: observation.exitCode,
+    timedOut: observation.timedOut,
+  }
+}
+
 export function assessExecutorAliasRoute({ config, model, promptSha256, expectedPromptSha256, fallback }) {
   return config?.model?.providerID === "openai" &&
     `openai/${config?.model?.modelID}` === model &&
@@ -479,6 +524,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
   if (!ALLOWED_MODELS.has(model)) throw new Error(`model is not allowed: ${model}`)
   const openCode = await runCommand("opencode", ["--version"], { env: runtime.env })
   if (openCode.code !== 0) throw new Error(openCode.stderr)
+  const pluginSdkBootstrap = await materializePluginSdk(runtime, openCode.stdout.trim())
   const capabilityEvidence = runtimeCapabilityEvidence(openCode.stdout.trim(), omoHead)
   const capability = assessLaneRuntimeCapability(capabilityEvidence)
   if (!capability.available || capability.status !== STATUS.PROVEN) throw new Error(`canonical capability gate failed: ${capability.reason}`)
@@ -604,6 +650,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
     pluginPath: join(omoPackageRoot, "dist", "index.js"),
     omoHead,
     openCodeVersion: openCode.stdout.trim(),
+    pluginSdkBootstrap,
     model,
     omoConfigSha256: createHash("sha256").update(omoConfigText).digest("hex"),
     categoryRoute,

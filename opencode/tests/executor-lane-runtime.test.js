@@ -1,7 +1,14 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { assessExecutorAliasRoute, assessObservedAgentLookup, ownedLaneExternalDirectoryPermission } from "../../scripts/probes/executor-lane-runtime.mjs"
+import { assessExecutorAliasRoute, assessObservedAgentLookup, ownedLaneExternalDirectoryPermission, pluginSdkBootstrapManifest } from "../../scripts/probes/executor-lane-runtime.mjs"
+
+test("isolated route preflight pins the matching OpenCode plugin SDK exactly", () => {
+  assert.deepEqual(pluginSdkBootstrapManifest("1.18.27"), {
+    private: true,
+    dependencies: { "@opencode-ai/plugin": "1.18.27" },
+  })
+})
 
 test("runtime permits only roots and descendants of provenance-owned lane worktrees", () => {
   const lanes = { T1: "/fixture/lanes/T1", T2: "/fixture/lanes/T2" }
