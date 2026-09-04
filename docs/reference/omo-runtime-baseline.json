@@ -24,7 +24,7 @@
     }
   },
   "production": {
-    "opencodeVersion": "1.18.25",
+    "opencodeVersion": "1.18.27",
     "lastObservedOmoVersion": "4.19.4",
     "currentlyResolvedOmoVersion": "UNOBSERVABLE_NO_MATERIALIZED_PACKAGE",
     "pluginSpec": "/Users/code/Workspace/omo-artifacts/oh-my-openagent-5.0.0-beta.30-5c699bc7.tgz",
@@ -34,8 +34,13 @@
       "sourceSha": "5c699bc74830864eac0cd27ae7e453a3faf5a3df",
       "buildCommand": "bun run --cwd packages/omo-opencode typecheck && OMO_SKIP_MATERIALIZE=1 bun run build && npm pack --ignore-scripts"
     },
-    "activation": "SUCCESS",
-    "laneWorktrees": "ENABLED",
+    "activation": "OPEN_CODE_1_18_27_COMPATIBLE_LANE_E2E_FAILED",
+    "laneWorktrees": "DISABLED",
+    "laneCertification": {
+      "status": "FAILED",
+      "attempts": 1,
+      "reason": "The primary Executor ended while two launched background lane children were still active; OpenCode then cancelled both before either performed its first shell-tool action."
+    },
     "ephemeralSandbox": "DISABLED"
   },
   "patches": {

@@ -86,6 +86,6 @@ base, and create hidden state that cannot be reproduced or rolled back safely.
 Production policy remains:
 
 ```text
-LANE_WORKTREES = ENABLED (capability and topology gated)
+LANE_WORKTREES = DISABLED (fresh OpenCode 1.18.27 lane E2E failed at parent/child completion)
 EPHEMERAL_SANDBOX = DISABLED
 ```

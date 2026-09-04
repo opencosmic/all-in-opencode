@@ -34,7 +34,7 @@ done < "$MANIFEST"
 
 check_hash opencode/agents/planner.md 7824a471a233b29ca97ff632dcf9948db9b79d2bbf021b8b365d58e4cc8a10d0
 check_hash opencode/agents/plan-reviewer.md 80a33ef1dd75e7a43586182f524e7f8d63887efc56a668ee324f39f97a7c3281
-check_hash opencode/agents/executor.md 6f09299ab6c5f24234caf79d044626496dcf3351fb2cf710c1e7ad1740541746
+check_hash opencode/agents/executor.md 51cf0252cbc53dc233e5c9c94c68c0ca3632b24517d11e2a3babe83de602147b
 check_hash opencode/agents/reviewer.md 82ff6503ed4c6fcc2d312f3c8cd6b0c128c8a3220cf2713ea9d7fb35f0ae1c6a
 
 printf 'PASS repository root %s\n' "$REPO_ROOT"

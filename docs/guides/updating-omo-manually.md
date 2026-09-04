@@ -4,9 +4,10 @@ Do not update production OMO casually while lane worktrees are in use. The
 authoritative record is [`omo-runtime-baseline.json`](../reference/omo-runtime-baseline.json).
 
 Production is pinned to the immutable artifact recorded in the baseline, and
-`LANE_WORKTREES` is enabled behind its runtime and topology gates. Do not
-replace that pin with `@latest`. The artifact was built from the historical
-post-beta.30 research source that passed the isolation probes.
+`LANE_WORKTREES` is currently disabled after the fresh OpenCode 1.18.27 lane
+E2E exposed a parent/child completion failure. Do not replace that pin with
+`@latest`. The artifact was built from the historical post-beta.30 research
+source that passed the isolation probes.
 
 ## Safe candidate workflow
 

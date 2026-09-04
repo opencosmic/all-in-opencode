@@ -119,7 +119,7 @@ test("executor owns adaptive topology, baseline, worker workspace, and lifecycle
 test("lane worktrees require exact runtime and topology gates while sandboxes stay disabled", async () => {
   const command = await text("commands/execute.md")
   const agent = await text("agents/executor.md")
-  assert.match(agent, /`LANE_WORKTREES` is implemented but has two mandatory gates/)
+  assert.match(agent, /`LANE_WORKTREES` is implemented but currently \*\*DISABLED\*\*/)
   assert.match(agent, /Exact runtime capability/)
   assert.match(agent, /Current task independence/)
   assert.match(agent, /currently installed production OMO 4\.19\.4 has no adopted evidence/)
@@ -130,7 +130,7 @@ test("lane worktrees require exact runtime and topology gates while sandboxes st
   assert.match(agent, /Worker-driven use is capability-gated by the same proof/)
   assert.match(agent, /never send a normal category worker to a sibling sandbox based only on a prompt path/)
   assert.match(command, /prompt path alone is not actual cwd binding/)
-  assert.match(command, /`LANE_WORKTREES` is implemented and enabled behind both Executor gates/)
+  assert.match(command, /`LANE_WORKTREES` is implemented but currently \*\*DISABLED\*\*/)
   assert.match(command, /directory=<absolute lane worktree>/)
   assert.match(command, /`EPHEMERAL_SANDBOX` remains disabled and unimplemented/)
 })
