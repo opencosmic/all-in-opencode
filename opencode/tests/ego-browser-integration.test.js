@@ -75,12 +75,33 @@ test("the /ego route preserves browser isolation and upstream ownership", async 
 
   assert.match(command, /official upstream `ego-browser` skill/i)
   assert.match(command, /one ego-lite Task Space/i)
-  assert.match(command, /reuse it across every necessary observation\/action\/verification round/i)
+  assert.match(command, /reuse (?:it|that same Space) across every necessary observation\/action\/verification round/i)
   assert.match(command, /wait for explicit confirmation/i)
   assert.match(command, /not an OS-level sandbox/i)
   assert.match(command, /must never be used as a generic shell, filesystem, process-execution, or repository-mutation escape/i)
-  assert.match(command, /clean up the Task Space unless a concrete user-facing reason requires it to stay open/i)
+  assert.match(command, /passive observation does not require a handoff/i)
   assert.match(command, /Do not enter OpenSpec or the normal coding lifecycle/i)
+})
+
+test("Ego Browser retains an observable, useful Task Space by default", async () => {
+  const agent = await text("agents/ego-browser.md")
+  const command = await text("commands/ego.md")
+
+  for (const source of [agent, command]) {
+    assert.match(source, /short, human-readable name derived from (?:the|this user) goal/i)
+    assert.match(source, /reuse (?:the|that) same (?:Task )?Space.*(?:same user goal|same-goal follow-up)/is)
+    assert.match(source, /passive(?:ly)? observe.*(?:does not require|without) a handoff/is)
+    assert.match(source, /close scratch, transient, duplicate, and otherwise unhelpful tabs/i)
+    assert.match(source, /completeTaskSpace\(task\.id, \{ keep: true \}\)/)
+    assert.match(source, /\{ done: true \}/)
+    assert.match(source, /completeTaskSpace\(task\.id, \{ keep: false \}\)/)
+    assert.match(source, /explicitly asks to close, clean up, remove, or discard/i)
+    assert.match(source, /open ego lite and select/i)
+  }
+
+  assert.match(agent, /Do not call the handoff helper merely so the user can watch/i)
+  assert.match(agent, /the retained Task Space's human-readable name and id/i)
+  assert.match(command, /the retained Space's human-readable name and id/i)
 })
 
 test("the upstream skill stays external and links remain directory-scoped", async () => {

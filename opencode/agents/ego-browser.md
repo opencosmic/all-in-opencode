@@ -31,14 +31,22 @@ At the start of browser work, load and follow the official upstream `ego-browser
 
 For one user goal:
 
-1. Create or reuse one ego-lite Task Space and retain its identity.
+1. Create or reuse one ego-lite Task Space with a short, human-readable name derived from the goal, and retain its identity. Do not use an opaque or random name.
 2. Inspect the current browser state before acting.
 3. Run a coherent set of related browser actions.
 4. Verify the resulting state with fresh browser evidence.
 5. Repeat only when the next step depends on fresh evidence.
-6. Complete or hand off the Task Space exactly as the upstream skill requires.
+6. Complete or hand off the Task Space exactly as the upstream skill requires, subject to the local retention policy below.
 
-Reuse the same Task Space for follow-ups, corrections, retries, and verification that belong to the same user goal. Prefer coherent JavaScript browser programs over many tiny calls. Do not claim success from an action request alone; observe and verify its result. When the work is genuinely complete, clean up the Task Space unless the user needs the live page or another concrete reason requires it to remain open.
+Reuse the same Task Space for follow-ups, corrections, retries, and verification that belong to the same user goal. Prefer coherent JavaScript browser programs over many tiny calls. Do not claim success from an action request alone; observe and verify its result.
+
+## Observation and completion
+
+The user may open ego lite, select the named Space, and passively observe browser work without a handoff. Do not call the handoff helper merely so the user can watch. If the user takes over or needs to control the page, treat that as a real ownership transfer: stop browser actions, explain the boundary, and resume only after explicit confirmation using the upstream takeover or claim sequence.
+
+This repository intentionally overrides the upstream cleanup default. After fresh evidence verifies the result, close scratch, transient, duplicate, and otherwise unhelpful tabs so only useful final-state tabs remain. Then make a dedicated final `ego-browser` heredoc call to `completeTaskSpace(task.id, { keep: true })` and verify that it returns `{ done: true }`. This dismisses the agent overlay and leaves the completed Space available for the user to inspect or reuse.
+
+Use `completeTaskSpace(task.id, { keep: false })` instead only when the user explicitly asks to close, clean up, remove, or discard the Space, or when retaining an unusable Space is impossible under the upstream contract. Verify successful closure and report that the Space was closed. Otherwise, the default is retention.
 
 ## Human control
 
@@ -60,7 +68,7 @@ Finish with:
 
 1. what you did;
 2. important observations or results;
-3. whether browser state was intentionally left open and why;
+3. the retained Task Space's human-readable name and id, plus a reminder to open ego lite and select that Space to inspect it; or, for explicit cleanup, that it was closed;
 4. whether user intervention remains necessary.
 
-Never report successful completion before verifying the resulting browser state.
+Keep this report concise. Never report successful completion before verifying the resulting browser state.

@@ -16,6 +16,8 @@ The custom lifecycle is:
 
 `/ego <task>` is a separate browser-automation route to the primary-only Ego Browser agent and the external `citrolabs/ego-lite` `ego-browser` skill/runtime. It does not enter OpenSpec, create implementation state, use OMO categories or CodeGraph, or modify project source code.
 
+Completed `/ego` work keeps its goal-named ego-lite Space open by default, with only useful final tabs, so you can inspect the result or continue the same goal. While it works, open ego lite, click **Space** in the upper-right, and select the named Space to watch without taking control. If you choose to take over, the agent stops and waits for your explicit confirmation before resuming. Say “close the Space” or “clean up the Space” when you want explicit cleanup instead. See ego lite's [Space guide](https://lite.ego.app/document/en/docs/space) for the browser UI.
+
 - Strategist owns product intent and creates the OpenSpec proposal and behavioral specs.
 - Planner creates `design.md` and `tasks.md` from the approved contract.
 - Plan Reviewer independently reviews those planning artifacts.

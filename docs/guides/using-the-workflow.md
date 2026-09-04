@@ -51,9 +51,18 @@ standalone real-browser goal
 
 ### Ego Browser route
 
-`/ego` sends one standalone browser goal directly to the primary-only Ego Browser agent. That agent loads the externally installed official `ego-browser` skill, creates or reuses one ego-lite Task Space for the goal, performs coherent browser actions, verifies resulting state, and cleans up the space unless a concrete reason requires it to remain open.
+`/ego` sends one standalone browser goal directly to the primary-only Ego Browser agent. That agent loads the externally installed official `ego-browser` skill, creates or reuses one short, goal-named ego-lite Task Space, performs coherent browser actions, verifies resulting state, and keeps the completed Space available by default with only useful final tabs. Same-goal follow-ups reuse that Space. Ask it to close or clean up the Space when you want the explicit close behavior instead.
 
 This route does **not** enter OpenSpec, mutate implementation progress, use OMO categories, use CodeGraph, or edit repository source. Existing coding agents do not receive `ego-browser` access in Phase 1. If login, CAPTCHA, MFA, payment/security confirmation, or another manual step is required, Ego Browser hands control to the user and resumes only after explicit confirmation.
+
+To watch browser work, open ego lite, click **Space** in the upper-right, and select the human-readable Space name reported by `/ego`. Passive observation does not require handoff. A blue glow marks a Space where the agent is active. If you take over the page, automation stops at the ownership boundary and resumes only after you explicitly confirm that control can return. At completion, `/ego` reports the retained Space name and id so you can inspect it later. The official [Space guide](https://lite.ego.app/document/en/docs/space) explains the browser's Space panel.
+
+Typical requests include:
+
+- `/ego inspect my GitHub notifications and summarize the unread items` — leaves the useful notification tabs in the named Space for review.
+- `/ego run browser QA on the checkout flow and keep the evidence visible` — retains the final tested state and evidence tabs.
+- `/ego verify the title on example.com, then close the Space` — explicitly closes the test Space after verification.
+- `/ego open the account page; hand it to me if login is required` — stops for login or takeover and waits for explicit confirmation before resuming.
 
 Before first use on a machine, run the opt-in `./scripts/setup-ego-browser.sh`, complete ego lite's GUI onboarding, and confirm `./scripts/check-ego-browser.sh` reports `READY`. The official skill and app remain external machine dependencies; neither is installed by `scripts/install.sh` or required by `scripts/verify.sh`. Ensure `~/.local/bin` is visible to the OpenCode process and restart OpenCode after setup.
 
