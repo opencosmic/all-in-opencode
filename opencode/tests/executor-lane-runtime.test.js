@@ -43,10 +43,21 @@ test("Executor route proof and Plan Reviewer approval remain separate dimensions
   const observation = { processExited: true, exitCode: 0, timedOut: false, jsonComplete: true }
   const reviewer = { name: "Plan Reviewer", model: { providerID: "openai", modelID: "gpt-5.6-luna" }, variant: "high" }
   assert.equal(assessObservedAgentLookup({
-    role: "Plan Reviewer", observation, config: reviewer, model: "openai/gpt-5.6-luna",
+    role: "Plan Reviewer", observation, config: reviewer, model: "openai/gpt-5.6-luna", reasoning: "high",
   }), true)
   assert.equal(assessObservedAgentLookup({
     role: "executor", observation, config: reviewer, model: "openai/gpt-5.6-luna",
     promptSha256: "a".repeat(64), expectedPromptSha256: "a".repeat(64), fallback: { model: false, runtime: false },
+  }), false)
+})
+
+test("bounded lookup accepts a category-derived high reasoning route", () => {
+  const observation = { processExited: true, exitCode: 0, timedOut: false, jsonComplete: true }
+  const config = { name: "Sisyphus-Junior", model: { providerID: "openai", modelID: "gpt-5.6-luna" } }
+  assert.equal(assessObservedAgentLookup({
+    role: "Sisyphus-Junior", observation, config, model: "openai/gpt-5.6-luna", reasoning: "high",
+  }), true)
+  assert.equal(assessObservedAgentLookup({
+    role: "Sisyphus-Junior", observation, config, model: "openai/gpt-5.6-luna", reasoning: "medium",
   }), false)
 })

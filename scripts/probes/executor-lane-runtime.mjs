@@ -429,13 +429,12 @@ export function assessExecutorAliasRoute({ config, model, promptSha256, expected
     promptSha256 === expectedPromptSha256
 }
 
-export function assessObservedAgentLookup({ role, observation, config, model, promptSha256, expectedPromptSha256, fallback }) {
+export function assessObservedAgentLookup({ role, observation, config, model, reasoning, promptSha256, expectedPromptSha256, fallback }) {
   if (observation?.timedOut || observation?.processExited !== true || observation?.exitCode !== 0 || observation?.jsonComplete !== true) return false
   if (config?.name !== role) return false
   if (role === "executor") {
     return assessExecutorAliasRoute({ config, model, promptSha256, expectedPromptSha256, fallback })
   }
-  const reasoning = config?.variant ?? config?.reasoningEffort
   return config?.model?.providerID === "openai" && `openai/${config?.model?.modelID}` === model && reasoning === "high"
 }
 
@@ -506,6 +505,7 @@ async function preflight(runtime, fixture, model, omoPackageRoot) {
       observation,
       config,
       model,
+      reasoning,
       promptSha256,
       expectedPromptSha256: runtime.env.EXECUTOR_CANONICAL_PROMPT_SHA256,
       fallback: { model: omoConfig.model_fallback, runtime: omoConfig.runtime_fallback },
