@@ -62,6 +62,45 @@ test("assistant tool-call finish and pending or running tool parts block complet
   }
 })
 
+test("unknown and unrecognized finish reasons do not complete", async () => {
+  for (const finish of ["unknown", "tool_calls", "future-provider-state"]) {
+    const { tracker, terminals } = await tracked()
+    await tracker.observe("task", {
+      status: { type: "idle" },
+      messages: [
+        { info: message({ id: "user", role: "user", created: 1001 }), parts: [] },
+        {
+          info: message({ id: "assistant-current", role: "assistant", created: 1002, completed: 1003, parentID: "user", finish }),
+          parts: [],
+        },
+      ],
+    })
+    assert.deepEqual(terminals, [], finish)
+  }
+})
+
+test("a later post-tool terminal assistant completes", async () => {
+  const { tracker, terminals } = await tracked()
+  const user = message({ id: "user", role: "user", created: 1001 })
+  await tracker.observe("task", {
+    status: { type: "idle" },
+    messages: [{ info: user, parts: [] }, {
+      info: message({ id: "assistant-tool", role: "assistant", created: 1002, completed: 1003, parentID: "user", finish: "tool-calls" }),
+      parts: [{ ...tool("completed"), id: "tool-complete", messageID: "assistant-tool" }],
+    }],
+  })
+  assert.deepEqual(terminals, [])
+  await tracker.observe("task", {
+    status: { type: "idle" },
+    messages: [{ info: user, parts: [] }, {
+      info: message({ id: "assistant-final", role: "assistant", created: 1004, completed: 1005, parentID: "user", finish: "stop" }),
+      parts: [{ id: "text-final", sessionID: "child", messageID: "assistant-final", type: "text", text: "done" }],
+    }],
+  })
+  assert.equal(terminals.length, 1)
+  assert.equal(terminals[0].result.text, "done")
+})
+
 test("completed assistant still waits while its own tool part is active", async () => {
   const { tracker, terminals } = await tracked()
   await tracker.observe("task", {

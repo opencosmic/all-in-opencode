@@ -1,17 +1,12 @@
 import { tool } from "@opencode-ai/plugin"
 
-import { DelegationRuntime } from "./delegation/runtime.js"
+import { acquireDelegationControlPlane } from "./delegation/control-plane.js"
 
 function json(value) {
   return JSON.stringify(value, null, 2)
 }
 
-export default async function DelegationRuntimePlugin({ client }, options = {}) {
-  const runtime = await DelegationRuntime.create({
-    client,
-    stateDirectory: options.stateDirectory,
-    categories: options.categories,
-  })
+export function delegationPluginHooks(runtime) {
   return {
     tool: {
       workspace_prepare: tool({
@@ -65,4 +60,15 @@ export default async function DelegationRuntimePlugin({ client }, options = {}) 
     event: async ({ event }) => runtime.handleEvent(event),
     "chat.params": async (input, output) => runtime.applyChatParams(input.sessionID, output),
   }
+}
+
+export default async function DelegationRuntimePlugin({ client, directory, serverUrl }, options = {}) {
+  const controlPlane = await acquireDelegationControlPlane({
+    client,
+    directory,
+    serverUrl,
+    stateDirectory: options.stateDirectory,
+    categories: options.categories,
+  })
+  return delegationPluginHooks(controlPlane.runtime)
 }

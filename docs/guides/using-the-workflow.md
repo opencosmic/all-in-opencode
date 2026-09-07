@@ -133,7 +133,7 @@ Treat `BLOCKED` as a useful statement of what cannot currently be proven or safe
 
 Executor uses `workspace_prepare` to create a standard linked Git worktree from a captured base SHA. The returned `workspace_id` is the only normal handle for later mutation: the runtime validates its canonical directory, branch, repository identity, and Git common directory before dispatch or release.
 
-`delegate_task(category=...)` creates an OpenCode child session directly in that validated directory through the stock public SDK. `quick`, `standard`, `deep`, and other implementation categories select execution profiles but all route to Implementer. `delegate_task(agent="Reviewer")` and `delegate_task(agent="QA")` bind those read-only specialists to the same workspace.
+`delegate_task(category=...)` creates an OpenCode child session directly in that validated directory through the stock public SDK. `quick`, `standard`, `deep`, and other implementation categories select execution profiles but all route to Implementer. `delegate_task(agent="Reviewer")` and `delegate_task(agent="QA")` bind those read-only specialists to the same workspace. Directory-scoped plugin instances forward their local child events and parameter hooks into one process-local, repository-scoped control plane, so sibling worktrees share live task, completion, profile, and parent-resume ownership without using the JSON store as a bus.
 
 Background tasks launched by one Executor assistant turn share a completion group derived from the parent session and message IDs. The first child to finish is stored without waking Executor. When the parent is idle and every group member is terminal, one compact completion notice resumes it; detailed evidence stays behind `task_output`.
 

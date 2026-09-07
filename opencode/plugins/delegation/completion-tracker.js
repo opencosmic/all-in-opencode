@@ -3,8 +3,11 @@ function isActiveTool(part) {
 }
 
 function isIntermediateFinish(finish) {
-  return typeof finish === "string" && /tool[-_ ]?calls?/i.test(finish)
+  return finish === "tool-calls" || finish === "tool_calls" || finish === "unknown"
 }
+
+const SUCCESS_FINISHES = new Set(["stop", "length", "content-filter"])
+const ERROR_FINISHES = new Set(["error"])
 
 function errorText(error) {
   return error?.data?.message ?? error?.message ?? (error ? JSON.stringify(error) : null)
@@ -119,7 +122,13 @@ export class CompletionTracker {
         result: this.result(assistant, parts),
       })
     }
-    if (!assistant.finish) return null
+    if (ERROR_FINISHES.has(assistant.finish)) {
+      return this.finish(record, "error", {
+        error: "child assistant finished with an error",
+        result: this.result(assistant, parts),
+      })
+    }
+    if (!SUCCESS_FINISHES.has(assistant.finish)) return null
     return this.finish(record, "completed", { result: this.result(assistant, parts) })
   }
 
@@ -157,4 +166,4 @@ export class CompletionTracker {
   }
 }
 
-export { isActiveTool, isIntermediateFinish }
+export { ERROR_FINISHES, SUCCESS_FINISHES, isActiveTool, isIntermediateFinish }

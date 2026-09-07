@@ -21,6 +21,7 @@ function publicTask(task) {
     task_id: task.task_id,
     status: task.status,
     workspace_id: task.workspace_id,
+    parent_agent: task.parent_agent ?? null,
     child_session_id: task.child_session_id,
     category: task.category,
     agent: task.agent,
@@ -34,16 +35,24 @@ function publicTask(task) {
 }
 
 export class DelegationRuntime {
-  static async create({ client, stateDirectory = defaultStateDirectory(), categories, now } = {}) {
+  static async create({
+    client,
+    stateDirectory = defaultStateDirectory(),
+    registryStorePath,
+    categories,
+    now,
+  } = {}) {
     const resolvedState = resolve(stateDirectory)
     const registry = await new TaskRegistry({
-      storePath: join(resolvedState, "tasks.json"),
+      storePath: registryStorePath ?? join(resolvedState, "tasks.json"),
       now,
     }).load()
+    const profiles = new Map()
     let coordinator
     const tracker = new CompletionTracker({
       onTerminal: async (terminal) => {
         const transition = await registry.terminal(terminal.taskID, terminal.status, terminal)
+        if (transition.task.child_session_id) profiles.delete(transition.task.child_session_id)
         if (!transition.duplicate) await coordinator.onTaskTerminal(transition.task)
       },
     })
@@ -56,7 +65,6 @@ export class DelegationRuntime {
         })
       }
     }
-    const profiles = new Map()
     const runner = new SessionRunner({ client, registry, tracker, sessionProfiles: profiles })
     coordinator = new ParentResumeCoordinator({ client, registry })
     const workspaces = new WorkspaceManager({
@@ -91,6 +99,7 @@ export class DelegationRuntime {
     const task = await this.registry.register({
       parent_session_id: context.sessionID,
       parent_message_id: context.messageID,
+      parent_agent: context.agent ?? null,
       parent_directory: await realpath(context.directory),
       execution_directory: workspace.directory,
       workspace_id: workspace.workspace_id,

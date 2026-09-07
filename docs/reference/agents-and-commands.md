@@ -15,7 +15,7 @@
 | Verifier | Independent final proof | Read-only |
 | Ego Browser | Standalone browser automation | Browser Task Space only |
 
-Executor uses the workflow-owned `delegate_task` primitive for implementation and workspace-local Reviewer/QA work. Stock OMO remains available only for unrelated existing routes. Implementer is deliberately non-recursive and cannot create workspaces or delegate.
+Executor uses the workflow-owned `delegate_task` primitive for implementation and workspace-local Reviewer/QA work. Stock OMO remains available only for unrelated existing routes. Implementer is deliberately non-recursive and cannot create workspaces or delegate. Its resolved shell policy permits ordinary builds/tests and read-only Git inspection while denying commit, merge, rebase, reset, clean, switch/checkout, worktree, stash, branch mutation, tag mutation, and push operations.
 
 ## Commands
 

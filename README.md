@@ -37,7 +37,7 @@ The custom tool surface is deliberately limited to `codegraph_codegraph_explore`
 - `opencode/agents/`: custom agent definitions.
 - `opencode/commands/`: `/ego`, `/omo`, `/spec`, `/plan`, `/execute`, `/verify`, and `/ship`.
 - `opencode/plugins/`: the Delegation Runtime, workflow guard, and read-only workspace inspector.
-- `opencode/tests/`: deterministic policy, fake-SDK, completion, background, and temporary-Git-worktree tests.
+- `opencode/tests/`: deterministic policy, fake-SDK, completion, background, permission, temporary-Git-worktree, and stock OpenCode no-model host tests.
 - `opencode/opencode.jsonc` and `opencode/tui.json`: public-safe OpenCode configuration.
 - `opencode/package.json` and `opencode/package-lock.json`: pinned plugin API dependency metadata.
 - `omo/omo.jsonc`: public-safe authored OMO configuration only.
@@ -115,7 +115,7 @@ opencode debug info
 opencode agent list
 ```
 
-The deterministic suite covers command discovery, workflow state ownership, planning and execution gates, CodeGraph permissions, public plugin behavior, workspace provenance, completion correctness, grouped background resume, cancellation, and conservative release. Ordinary tests use fake SDK clients and temporary local Git repositories; they make no model calls.
+The deterministic suite covers command discovery, workflow state ownership, planning and execution gates, CodeGraph permissions, public plugin behavior, shared cross-worktree control-plane ownership, workspace provenance, completion correctness, grouped background resume, cancellation, Implementer Git enforcement, and conservative release. The host test starts stock OpenCode against a temporary repository and two linked worktrees; all completion payloads are deterministic and no test makes a model call.
 
 ## Make changes safely
 

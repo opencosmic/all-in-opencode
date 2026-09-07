@@ -15,7 +15,25 @@ permission:
   lsp: allow
   edit: allow
   write: allow
-  bash: allow
+  bash:
+    "*": allow
+    "git commit *": deny
+    "git merge *": deny
+    "git rebase *": deny
+    "git reset *": deny
+    "git clean *": deny
+    "git switch *": deny
+    "git checkout *": deny
+    "git worktree *": deny
+    "git stash *": deny
+    "git branch *": deny
+    "git tag *": deny
+    "git push *": deny
+    "git branch": allow
+    "git branch --show-current *": allow
+    "git tag": allow
+    "git tag --list *": allow
+    "git tag -l *": allow
   task: deny
   call_omo_agent: deny
   workspace_prepare: deny
@@ -40,4 +58,4 @@ Complete exactly one scoped implementation assignment in the workspace bound to 
 - Report changed paths, a concise diff summary, validation results, and blockers.
 - Stop after the assignment; do not take over orchestration.
 
-Do not create or switch workspaces, delegate tasks, spawn workers, merge, rebase, commit workflow state, edit `openspec/**`, mark tasks complete, ship, or modify sibling workspaces. If the requested scope cannot be completed safely, report the blocker instead of expanding it.
+Do not commit, merge, rebase, reset, clean, stash, switch branches, create/remove worktrees or tags, push, edit `openspec/**`, mark tasks complete, ship, modify Git topology, modify sibling workspaces, delegate tasks, or spawn workers. If the requested scope cannot be completed safely, report the blocker instead of expanding it.

@@ -69,7 +69,7 @@ async function fixture(t) {
       },
     },
   })
-  const context = { sessionID: "parent", messageID: "parent-turn", directory: repository }
+  const context = { sessionID: "parent", messageID: "parent-turn", agent: "Executor", directory: repository }
   t.after(async () => {
     await new Promise((resolve) => setImmediate(resolve))
     await rm(root, { recursive: true })
@@ -88,6 +88,7 @@ test("category delegation routes to Implementer with parent and managed workspac
     run_in_background: true,
   }, context)
   assert.equal(result.status, "running")
+  assert.equal((await runtime.taskStatus(result.task_id, context)).parent_agent, "Executor")
   assert.equal(client.state.creates[0].body.parentID, "parent")
   assert.equal(client.state.creates[0].query.directory, workspace.directory)
   assert.equal(client.state.prompts[0].query.directory, workspace.directory)

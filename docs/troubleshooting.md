@@ -71,6 +71,8 @@ Do not force-remove the worktree, force-delete its branch, reset it, or clean it
 
 **Recovery evidence, not proof of completion.** The runtime deliberately does not guess that a child completed. Inspect the surviving workspace and child/task identifiers returned by `task_status`. Cancel the task if the child must be aborted, or reconcile its workspace explicitly. Keep `tasks.md` unchecked until the implementation is integrated and freshly validated.
 
+During one live OpenCode process, linked worktrees should share a control plane keyed by server URL, Git common directory, and data root. If a task remains running while its child is visibly terminal, verify that every worktree loaded the same Delegation Runtime plugin and resolves those three identities consistently. Do not edit the repository-namespaced task JSON or use it as an event channel.
+
 ### GitHub CLI is unauthenticated
 
 **Actionable only for an operation that needs GitHub.** Local validation and local commits do not require GitHub CLI authentication. Authenticate through the user-approved GitHub CLI flow before a requested push/PR operation; do not put tokens in this repository or documentation.

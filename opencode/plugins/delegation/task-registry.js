@@ -40,10 +40,15 @@ export class TaskRegistry {
     return this.mutate(() => {
       const taskID = `task_${randomUUID()}`
       const groupID = input.background ? completionGroup(input.parent_session_id, input.parent_message_id) : null
+      const existingGroup = groupID ? this.state.groups[groupID] : null
+      if (existingGroup?.parent_agent && input.parent_agent && existingGroup.parent_agent !== input.parent_agent) {
+        throw new Error(`completion group parent agent mismatch: ${existingGroup.parent_agent} != ${input.parent_agent}`)
+      }
       const task = {
         task_id: taskID,
         parent_session_id: input.parent_session_id,
         parent_message_id: input.parent_message_id,
+        parent_agent: input.parent_agent ?? null,
         parent_directory: input.parent_directory,
         execution_directory: input.execution_directory,
         workspace_id: input.workspace_id ?? null,
@@ -68,10 +73,13 @@ export class TaskRegistry {
           completion_group: groupID,
           parent_session_id: input.parent_session_id,
           parent_message_id: input.parent_message_id,
+          parent_agent: input.parent_agent ?? null,
           parent_directory: input.parent_directory,
           closed: false,
           delivery_state: "pending",
         }
+      } else if (groupID && !this.state.groups[groupID].parent_agent && input.parent_agent) {
+        this.state.groups[groupID].parent_agent = input.parent_agent
       }
       return structuredClone(task)
     })

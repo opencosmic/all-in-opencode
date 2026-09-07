@@ -22,6 +22,7 @@ async function backgroundTask(registry, description) {
   const task = await registry.register({
     parent_session_id: "parent",
     parent_message_id: "parent-turn",
+    parent_agent: "Executor",
     parent_directory: "/repo",
     execution_directory: "/repo/workspace",
     workspace_id: "workspace",
@@ -50,6 +51,7 @@ test("same parent turn shares a group and resumes once only after all tasks are 
   await coordinator.onTaskTerminal(secondDone.task)
   assert.equal(client.state.prompts.length, 1)
   assert.match(client.state.prompts[0].body.parts[0].text, /delegation_completion/)
+  assert.equal(client.state.prompts[0].body.agent, "Executor")
 
   const duplicate = await registry.terminal(second.task_id, "completed", { result: { text: "duplicate" } })
   assert.equal(duplicate.duplicate, true)

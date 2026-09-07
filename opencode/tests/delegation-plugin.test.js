@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 
 import DelegationRuntimePlugin from "../plugins/delegation-runtime.js"
 
@@ -21,7 +22,11 @@ function client() {
 test("plugin exposes only the six workflow-owned delegation tools", async (t) => {
   const stateDirectory = await mkdtemp(join(tmpdir(), "delegation-plugin-test-"))
   t.after(async () => rm(stateDirectory, { recursive: true }))
-  const plugin = await DelegationRuntimePlugin({ client: client() }, { stateDirectory })
+  const plugin = await DelegationRuntimePlugin({
+    client: client(),
+    directory: fileURLToPath(new URL("../..", import.meta.url)),
+    serverUrl: new URL("http://127.0.0.1:40200"),
+  }, { stateDirectory })
   assert.deepEqual(Object.keys(plugin.tool), [
     "workspace_prepare",
     "delegate_task",

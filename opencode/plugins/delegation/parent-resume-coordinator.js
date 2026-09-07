@@ -55,6 +55,7 @@ export class ParentResumeCoordinator {
         path: { id: claimed.parent_session_id },
         query: { directory: claimed.parent_directory },
         body: {
+          agent: claimed.parent_agent ?? undefined,
           parts: [{
             type: "text",
             text: `Delegation completion group is terminal. Continue orchestration from this compact notice:\n${JSON.stringify(notice)}`,
