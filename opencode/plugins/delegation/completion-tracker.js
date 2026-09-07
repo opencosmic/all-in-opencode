@@ -98,7 +98,7 @@ export class CompletionTracker {
 
   async evaluate(record) {
     if (record.terminal || record.status?.type !== "idle") return record.terminal
-    if (record.sessionError && [...record.parts.values()].some(isActiveTool)) return null
+    if ([...record.parts.values()].some(isActiveTool)) return null
     if (record.sessionError && !record.userMessageID) {
       return this.finish(record, "error", { error: record.sessionError })
     }
@@ -107,29 +107,33 @@ export class CompletionTracker {
       .filter((message) => message.role === "assistant" && message.parentID === record.userMessageID)
       .sort((a, b) => (b.time?.created ?? 0) - (a.time?.created ?? 0))
     const assistant = assistants[0]
-    if (!assistant || assistant.time?.completed === undefined) return null
-    const parts = [...record.parts.values()].filter((part) => part.messageID === assistant.id)
-    if (parts.some(isActiveTool) || isIntermediateFinish(assistant.finish)) return null
+    const parts = assistant
+      ? [...record.parts.values()].filter((part) => part.messageID === assistant.id)
+      : []
+    if (assistant?.time?.completed !== undefined) {
+      if (assistant.error) {
+        return this.finish(record, "error", {
+          error: errorText(assistant.error) ?? "child assistant failed",
+          result: this.result(assistant, parts),
+        })
+      }
+      if (ERROR_FINISHES.has(assistant.finish)) {
+        return this.finish(record, "error", {
+          error: "child assistant finished with an error",
+          result: this.result(assistant, parts),
+        })
+      }
+      if (SUCCESS_FINISHES.has(assistant.finish)) {
+        return this.finish(record, "completed", { result: this.result(assistant, parts) })
+      }
+    }
     if (record.sessionError) {
       return this.finish(record, "error", {
         error: record.sessionError,
-        result: this.result(assistant, parts),
+        ...(assistant ? { result: this.result(assistant, parts) } : {}),
       })
     }
-    if (assistant.error) {
-      return this.finish(record, "error", {
-        error: errorText(assistant.error) ?? "child assistant failed",
-        result: this.result(assistant, parts),
-      })
-    }
-    if (ERROR_FINISHES.has(assistant.finish)) {
-      return this.finish(record, "error", {
-        error: "child assistant finished with an error",
-        result: this.result(assistant, parts),
-      })
-    }
-    if (!SUCCESS_FINISHES.has(assistant.finish)) return null
-    return this.finish(record, "completed", { result: this.result(assistant, parts) })
+    return null
   }
 
   result(assistant, parts) {

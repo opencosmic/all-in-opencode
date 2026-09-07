@@ -7,7 +7,7 @@ import { CategoryEngine } from "./category-engine.js"
 import { CompletionTracker } from "./completion-tracker.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
 import { SessionRunner } from "./session-runner.js"
-import { TaskRegistry } from "./task-registry.js"
+import { TaskRegistry, TERMINAL_STATUSES } from "./task-registry.js"
 import { WorkspaceManager } from "./workspace-manager.js"
 
 function defaultStateDirectory() {
@@ -53,7 +53,13 @@ export class DelegationRuntime {
       onTerminal: async (terminal) => {
         const transition = await registry.terminal(terminal.taskID, terminal.status, terminal)
         if (transition.task.child_session_id) profiles.delete(transition.task.child_session_id)
-        if (!transition.duplicate) await coordinator.onTaskTerminal(transition.task)
+        if (!transition.duplicate) {
+          try {
+            await coordinator.onTaskTerminal(transition.task)
+          } catch {
+            // Parent notification remains pending, but child completion is already durable.
+          }
+        }
       },
     })
     for (const task of registry.list()) {
@@ -109,14 +115,19 @@ export class DelegationRuntime {
       background: args.run_in_background,
       unsupported_profile_fields: route.profile.unsupported_public_fields,
     })
-    await this.runner.start({
-      task,
-      directory: workspace.directory,
-      agent: route.agent,
-      profile: route.profile,
-      description: args.description,
-      prompt: args.prompt,
-    })
+    try {
+      await this.runner.start({
+        task,
+        directory: workspace.directory,
+        agent: route.agent,
+        profile: route.profile,
+        description: args.description,
+        prompt: args.prompt,
+      })
+    } catch (error) {
+      await this.terminalizeStartupFailure(task.task_id, error)
+      throw error
+    }
     if (args.run_in_background) {
       return {
         task_id: task.task_id,
@@ -148,6 +159,25 @@ export class DelegationRuntime {
         error: workspace.error ?? null,
       })),
     }
+  }
+
+  async terminalizeStartupFailure(taskID, error) {
+    const current = this.registry.get(taskID)
+    if (TERMINAL_STATUSES.has(current.status)) return current
+    const tracked = await this.tracker.fail(taskID, error)
+    if (tracked) return this.registry.get(taskID)
+    const message = error?.message ?? String(error)
+    const transition = await this.registry.terminal(taskID, "error", {
+      error: `delegation startup failed: ${message}`,
+    })
+    if (!transition.duplicate) {
+      try {
+        await this.coordinator.onTaskTerminal(transition.task)
+      } catch {
+        // Parent notification remains pending, but startup failure is already durable.
+      }
+    }
+    return transition.task
   }
 
   taskOutput(taskID, maxChars = 20_000) {

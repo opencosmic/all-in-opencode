@@ -28,7 +28,7 @@ The isolated execution path does not call OMO task/delegation internals. Stock O
 - `CategoryEngine` resolves a caller-selected category to an ordered model chain and one reusable `Implementer`.
 - `AgentDispatcher` enforces category XOR named-agent routing. The named-agent allowlist is `Reviewer` and `QA`.
 - `SessionRunner` creates a stock OpenCode child session with `parentID` and the validated workspace `directory`, then starts one asynchronous prompt.
-- `CompletionTracker` binds the current user/assistant turn and refuses terminal completion while the assistant is incomplete, in a tool-call finish state, owns a pending/running tool part, or the session is busy/retrying.
+- `CompletionTracker` binds the current user/assistant turn, requires positive evidence for success, and waits for active tools to settle before accepting a session failure.
 - `TaskRegistry` validates state transitions, stores bounded result evidence, persists lightweight runtime state, and deduplicates group delivery.
 - `ParentResumeCoordinator` closes a background launch group when its parent turn becomes idle, waits for every sibling to become terminal, and sends exactly one compact ordinary prompt to resume the parent.
 
@@ -77,9 +77,9 @@ No configured profile field is silently claimed as applied. More elaborate avail
 
 ## Completion and background lifecycle
 
-One child session handles one tracked assignment. Current-turn freshness requires a user message created after tracking began and an assistant whose `parentID` matches it. Successful completion additionally requires assistant completion time, a finish in the positive allowlist `stop`, `length`, or `content-filter`, no pending/running tool parts, and idle session status. Missing, `unknown`, `tool-calls`, `tool_calls`, unrecognized, busy, retrying, and unknown session states are non-terminal. An explicit assistant/session error becomes terminal `error` only after active tools have settled.
+One child session handles one tracked assignment. Once registration succeeds, a startup failure is persisted as terminal `error`, including failures during prompt admission or session creation, so no task remains indefinitely `pending`. Current-turn freshness requires a user message created after tracking began and an assistant whose `parentID` matches it. Successful completion additionally requires assistant completion time, a finish in the positive allowlist `stop`, `length`, or `content-filter`, no pending/running tool parts, and idle session status. Missing, `unknown`, `tool-calls`, `tool_calls`, unrecognized, busy, retrying, and unknown session states are non-terminal success evidence. An idle session error becomes terminal `error` after active tools settle even when no assistant response was created; a completed successful assistant remains the more specific result.
 
-Background grouping is derived from `parent session ID + parent message ID`. The parent becoming idle seals the group, preventing an early child from resuming the parent before sibling delegation calls in the same turn are registered. A terminal group is claimed transactionally; duplicate events cannot send a second resume. A busy parent leaves delivery pending until its next idle event.
+Background grouping is derived from `parent session ID + parent message ID`. The parent becoming idle seals the group, preventing an early child from resuming the parent before sibling delegation calls in the same turn are registered. A terminal group is claimed transactionally; duplicate events cannot send a second resume. A busy parent leaves delivery pending until its next idle event. Child terminalization is persisted independently of parent notification: a failed resume attempt returns the group to pending without reverting the task or blocking its completion waiter.
 
 The resume prompt contains task IDs, statuses, workspace IDs, short summaries, and `task_output` retrieval hints—not raw transcripts. Task/group records capture the public tool context's parent agent, and the resume prompt explicitly selects that original agent. Older recovery records without an agent remain explicit `null` rather than guessing.
 

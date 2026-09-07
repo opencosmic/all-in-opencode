@@ -158,8 +158,49 @@ test("fresh terminal assistant error completes as error", async () => {
   assert.equal(terminals[0].error, "provider failed")
 })
 
+test("idle session error terminalizes a current user turn without an assistant", async () => {
+  const { tracker, terminals } = await tracked()
+  await tracker.handleEvent({
+    type: "message.updated",
+    properties: { info: message({ id: "user", role: "user", created: 1001 }) },
+  })
+  await tracker.handleEvent({
+    type: "session.error",
+    properties: { sessionID: "child", error: { data: { message: "provider stopped before response" } } },
+  })
+  await tracker.handleEvent({ type: "session.idle", properties: { sessionID: "child" } })
+  await tracker.observe("task", { status: { type: "idle" }, messages: [] })
+  assert.equal(terminals.length, 1)
+  assert.equal(terminals[0].status, "error")
+  assert.equal(terminals[0].error, "provider stopped before response")
+})
+
+test("a completed successful assistant remains more specific than a session error", async () => {
+  const { tracker, terminals } = await tracked()
+  await tracker.handleEvent({
+    type: "session.error",
+    properties: { sessionID: "child", error: { data: { message: "late session error" } } },
+  })
+  await tracker.observe("task", {
+    status: { type: "idle" },
+    messages: [
+      { info: message({ id: "user", role: "user", created: 1001 }), parts: [] },
+      {
+        info: message({ id: "assistant-current", role: "assistant", created: 1002, completed: 1003, parentID: "user", finish: "stop" }),
+        parts: [],
+      },
+    ],
+  })
+  assert.equal(terminals.length, 1)
+  assert.equal(terminals[0].status, "completed")
+})
+
 test("session error waits for an active tool to settle before becoming terminal", async () => {
   const { tracker, terminals } = await tracked()
+  await tracker.handleEvent({
+    type: "message.updated",
+    properties: { info: message({ id: "user", role: "user", created: 1001 }) },
+  })
   await tracker.handleEvent({ type: "message.part.updated", properties: { part: tool("running") } })
   await tracker.handleEvent({ type: "session.error", properties: { sessionID: "child", error: { data: { message: "tool failed" } } } })
   await tracker.handleEvent({ type: "session.idle", properties: { sessionID: "child" } })

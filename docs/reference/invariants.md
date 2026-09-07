@@ -14,8 +14,10 @@
 | Implementer handles one scoped change and cannot delegate, manage workspaces, integrate, edit workflow state, or run protected Git mutation commands. | Resolved Implementer permission test and contract. |
 | Reviewer and QA use the same workspace-bound SessionRunner and do not repair code. | Runtime routing tests and role permissions. |
 | Idle alone is not completion; only `stop`, `length`, and `content-filter` positively complete the current assistant, with no pending/running tool call. | CompletionTracker regression tests. |
+| A registered task becomes terminal `error` when startup fails; an idle session error also terminalizes without an assistant once active tools settle. | Runtime startup and CompletionTracker failure-path tests. |
 | Model fallback stops after a child turn is accepted. | SessionRunner tests. |
 | Background tasks from one parent turn form one group and cause at most one resume after every member is terminal. | Registry/coordinator tests. |
+| Parent notification failure cannot revert a terminal child or block its local completion waiter. | Runtime notification-failure test. |
 | Background resume explicitly preserves the parent agent exposed by public tool context. | Registry/coordinator tests. |
 | Cancellation aborts the child and preserves the workspace. | Cancellation tests. |
 | Runtime code never stages, commits, merges, rebases, or changes OpenSpec tasks. | Static/source policy tests and Executor ownership. |

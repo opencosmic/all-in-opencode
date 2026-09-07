@@ -16,16 +16,30 @@ async function git(directory, args) {
 }
 
 function fakeClient() {
-  const state = { creates: [], prompts: [], aborts: [], statuses: {}, messages: {}, promptFailures: 0, promptThrows: 0 }
+  const state = {
+    creates: [],
+    prompts: [],
+    aborts: [],
+    statuses: {},
+    messages: {},
+    createThrows: 0,
+    promptFailures: 0,
+    promptThrows: 0,
+    parentPromptThrows: 0,
+  }
   return {
     state,
     session: {
       create: async (request) => {
         state.creates.push(request)
+        if (state.createThrows-- > 0) throw new Error("session creation failed")
         return { data: { id: `child-${state.creates.length}` } }
       },
       promptAsync: async (request) => {
         state.prompts.push(request)
+        if (request.path.id === "parent" && state.parentPromptThrows-- > 0) {
+          throw new Error("parent notification failed")
+        }
         if (request.path.id.startsWith("child-") && state.promptThrows-- > 0) {
           throw new Error("transport disconnected")
         }
@@ -66,6 +80,11 @@ async function fixture(t) {
         max_tokens: 1200,
         tools: { delegate_task: false },
         prompt_append: "append",
+      },
+      bounded: {
+        description: "prompt admission fixture",
+        models: [{ model: "example/primary" }],
+        max_prompt_tokens: 1,
       },
     },
   })
@@ -160,6 +179,95 @@ test("uncertain prompt transport failure stops fallback", async (t) => {
   assert.equal(client.state.prompts.length, 1)
   const tasks = (await runtime.taskStatus(undefined, context)).tasks
   assert.equal(tasks[0].status, "error")
+})
+
+test("prompt admission failure terminalizes its task and releases the workspace activity guard", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const workspace = await runtime.workspacePrepare({ task_id: "prompt-admission" }, context)
+  await assert.rejects(runtime.delegate({
+    workspace_id: workspace.workspace_id,
+    category: "bounded",
+    description: "Too large",
+    prompt: "This prompt cannot pass the configured admission bound.",
+    run_in_background: true,
+  }, context), /exceeds max_prompt_tokens/)
+
+  const [task] = (await runtime.taskStatus(undefined, context)).tasks
+  assert.equal(task.status, "error")
+  assert.equal(task.workspace_id, workspace.workspace_id)
+  assert.equal(task.child_session_id, null)
+  assert.match(task.error, /delegation startup failed:.*max_prompt_tokens/)
+  assert.equal(runtime.registry.hasActiveWorkspace(workspace.workspace_id), false)
+  client.state.statuses.parent = { type: "idle" }
+  await runtime.handleEvent({ type: "session.idle", properties: { sessionID: "parent" } })
+  assert.equal(client.state.prompts.filter((request) => request.path.id === "parent").length, 1)
+  assert.equal((await runtime.workspaceRelease(workspace.workspace_id)).status, "released")
+  assert.equal(client.state.creates.length, 0)
+})
+
+test("session creation failure terminalizes the registered task with startup evidence", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const workspace = await runtime.workspacePrepare({ task_id: "session-create" }, context)
+  client.state.createThrows = 1
+  await assert.rejects(runtime.delegate({
+    workspace_id: workspace.workspace_id,
+    category: "test",
+    description: "Create failure",
+    prompt: "Never accepted",
+    run_in_background: true,
+  }, context), /session creation failed/)
+
+  const [task] = (await runtime.taskStatus(undefined, context)).tasks
+  assert.equal(task.status, "error")
+  assert.equal(task.child_session_id, null)
+  assert.equal(task.workspace_id, workspace.workspace_id)
+  assert.equal(task.category, "test")
+  assert.equal(task.agent, "Implementer")
+  assert.match(task.error, /delegation startup failed: session creation failed/)
+  assert.equal(runtime.registry.hasActiveWorkspace(workspace.workspace_id), false)
+})
+
+test("parent notification failure cannot undo child completion or block its waiter", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const delegated = await runtime.delegate({
+    category: "test",
+    description: "Notification failure",
+    prompt: "Complete locally",
+    run_in_background: true,
+  }, context)
+  const child = delegated.child_session_id
+  const user = { id: "notification-user", sessionID: child, role: "user", time: { created: Date.now() + 1 } }
+  const assistant = {
+    id: "notification-assistant",
+    sessionID: child,
+    role: "assistant",
+    parentID: user.id,
+    time: { created: Date.now() + 2, completed: Date.now() + 3 },
+    finish: "stop",
+  }
+  const part = {
+    id: "notification-text",
+    sessionID: child,
+    messageID: assistant.id,
+    type: "text",
+    text: "child completed",
+  }
+  client.state.statuses.parent = { type: "idle" }
+  await runtime.handleEvent({ type: "session.idle", properties: { sessionID: "parent" } })
+  client.state.parentPromptThrows = 1
+  client.state.statuses[child] = { type: "idle" }
+  client.state.messages[child] = [{ info: user, parts: [] }, { info: assistant, parts: [part] }]
+  const waiting = runtime.tracker.wait(delegated.task_id)
+
+  await runtime.handleEvent({
+    type: "session.status",
+    properties: { sessionID: child, status: { type: "idle" } },
+  })
+
+  assert.equal((await waiting).status, "completed")
+  assert.equal((await runtime.taskStatus(delegated.task_id, context)).status, "completed")
+  assert.equal(runtime.registry.group(delegated.completion_group).delivery_state, "pending")
+  assert.equal(client.state.prompts.filter((request) => request.path.id === "parent").length, 1)
 })
 
 test("foreground delegation waits for a fresh terminal child turn", async (t) => {
