@@ -135,6 +135,57 @@ test("fresh terminal assistant with no active tools completes exactly once", asy
   assert.equal(terminals[0].result.text, "done")
 })
 
+test("genuine idle completes when the fresh status list omits the child", async () => {
+  const { tracker, terminals } = await tracked()
+  const user = message({ id: "user", role: "user", created: 1001 })
+  const assistant = message({
+    id: "assistant-current",
+    role: "assistant",
+    created: 1002,
+    completed: 1003,
+    parentID: "user",
+    finish: "stop",
+  })
+  await tracker.handleEvent({ type: "session.idle", properties: { sessionID: "child" } })
+  await tracker.observe("task", {
+    status: { type: "unknown" },
+    messages: [{ info: user, parts: [] }, { info: assistant, parts: [] }],
+  })
+  assert.equal(terminals.length, 1)
+  assert.equal(terminals[0].status, "completed")
+})
+
+test("missing status without genuine idle evidence remains unknown", async () => {
+  const { tracker, terminals } = await tracked()
+  await tracker.observe("task", {
+    status: { type: "unknown" },
+    messages: [
+      { info: message({ id: "user", role: "user", created: 1001 }), parts: [] },
+      {
+        info: message({
+          id: "assistant-current",
+          role: "assistant",
+          created: 1002,
+          completed: 1003,
+          parentID: "user",
+          finish: "stop",
+        }),
+        parts: [],
+      },
+    ],
+  })
+  assert.deepEqual(terminals, [])
+  assert.equal(tracker.records.get("task").status.type, "unknown")
+})
+
+test("missing status reconciliation does not downgrade observed idle", async () => {
+  const { tracker, terminals } = await tracked()
+  await tracker.handleEvent({ type: "session.idle", properties: { sessionID: "child" } })
+  await tracker.observe("task", { status: { type: "unknown" }, messages: [] })
+  assert.deepEqual(terminals, [])
+  assert.equal(tracker.records.get("task").status.type, "idle")
+})
+
 test("fresh terminal assistant error completes as error", async () => {
   const { tracker, terminals } = await tracked()
   await tracker.observe("task", {

@@ -31,6 +31,7 @@ export class CompletionTracker {
       messages: new Map(),
       parts: new Map(),
       status: { type: "busy" },
+      idleObserved: false,
       requiresSnapshot: false,
       sessionError: null,
       terminal: null,
@@ -64,10 +65,12 @@ export class CompletionTracker {
     if (event.type === "message.part.removed") record.parts.delete(properties.partID)
     if (event.type === "session.status") {
       record.status = properties.status
+      if (properties.status?.type !== "idle") record.idleObserved = false
       if (properties.status?.type === "idle") record.requiresSnapshot = true
     }
     if (event.type === "session.idle") {
       record.status = { type: "idle" }
+      record.idleObserved = true
       record.requiresSnapshot = true
     }
     if (event.type === "session.error") record.sessionError = errorText(properties.error) ?? "child session error"
@@ -91,7 +94,15 @@ export class CompletionTracker {
       this.acceptMessage(record, item.info)
       for (const part of item.parts ?? []) record.parts.set(part.id, part)
     }
-    if (status) record.status = status
+    if (status) {
+      const preserveObservedIdle = status.type === "unknown"
+        && record.idleObserved
+        && record.status?.type === "idle"
+      if (!preserveObservedIdle) {
+        record.status = status
+        if (status.type !== "idle") record.idleObserved = false
+      }
+    }
     record.requiresSnapshot = false
     return this.evaluate(record)
   }

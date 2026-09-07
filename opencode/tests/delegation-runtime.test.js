@@ -270,6 +270,60 @@ test("parent notification failure cannot undo child completion or block its wait
   assert.equal(client.state.prompts.filter((request) => request.path.id === "parent").length, 1)
 })
 
+test("session.idle remains authoritative when the status list omits the child", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const delegated = await runtime.delegate({
+    category: "test",
+    description: "Omitted idle status",
+    prompt: "Complete locally",
+    run_in_background: true,
+  }, context)
+  const child = delegated.child_session_id
+  const user = { id: "idle-user", sessionID: child, role: "user", time: { created: Date.now() + 1 } }
+  const assistant = {
+    id: "idle-assistant",
+    sessionID: child,
+    role: "assistant",
+    parentID: user.id,
+    time: { created: Date.now() + 2, completed: Date.now() + 3 },
+    finish: "stop",
+  }
+  client.state.messages[child] = [{ info: user, parts: [] }, { info: assistant, parts: [] }]
+
+  await runtime.handleEvent({ type: "session.idle", properties: { sessionID: child } })
+
+  const task = await runtime.taskStatus(delegated.task_id, context)
+  assert.equal(Object.hasOwn(client.state.statuses, child), false)
+  assert.equal(task.status, "completed")
+  assert.ok(task.completed_at)
+})
+
+test("an omitted status without session.idle evidence stays running", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const delegated = await runtime.delegate({
+    category: "test",
+    description: "Unknown omitted status",
+    prompt: "Do not infer idle",
+    run_in_background: true,
+  }, context)
+  const child = delegated.child_session_id
+  const user = { id: "unknown-user", sessionID: child, role: "user", time: { created: Date.now() + 1 } }
+  const assistant = {
+    id: "unknown-assistant",
+    sessionID: child,
+    role: "assistant",
+    parentID: user.id,
+    time: { created: Date.now() + 2, completed: Date.now() + 3 },
+    finish: "stop",
+  }
+  client.state.messages[child] = [{ info: user, parts: [] }, { info: assistant, parts: [] }]
+
+  await runtime.runner.observeTask(delegated.task_id)
+
+  assert.equal(Object.hasOwn(client.state.statuses, child), false)
+  assert.equal((await runtime.taskStatus(delegated.task_id, context)).status, "running")
+})
+
 test("foreground delegation waits for a fresh terminal child turn", async (t) => {
   const { client, runtime, context } = await fixture(t)
   const originalPrompt = client.session.promptAsync

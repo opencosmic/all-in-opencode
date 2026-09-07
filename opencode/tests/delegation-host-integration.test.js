@@ -91,7 +91,34 @@ export default async function probe(input) {
   return {
     ...hooks,
     event: async ({ event }) => {
+      const sessionID = event.properties?.sessionID
+      const trackedTaskID = sessionID ? plane.runtime.tracker.taskForSession(sessionID) : null
       await hooks.event({ event })
+      if (trackedTaskID && ["session.status", "session.idle"].includes(event.type)) {
+        const statusResult = await input.client.session.status({ query: { directory: input.directory } })
+        const statuses = statusResult?.data ?? statusResult ?? {}
+        await record({
+          type: "lifecycle",
+          directory: input.directory,
+          task_id: trackedTaskID,
+          child_session_id: sessionID,
+          event_type: event.type,
+          event_status: event.properties?.status?.type ?? null,
+          status_entry_present: Object.hasOwn(statuses, sessionID),
+        })
+        if (event.type === "session.idle") {
+          const terminal = plane.runtime.registry.get(trackedTaskID)
+          await record({
+            type: "terminal",
+            directory: input.directory,
+            control_plane_id: plane.id,
+            task_id: trackedTaskID,
+            child_session_id: sessionID,
+            status: terminal.status,
+            completed_at: terminal.completed_at,
+          })
+        }
+      }
       if (event.type !== "session.created") return
       await record({
         type: "host_event",
@@ -141,19 +168,13 @@ export default async function probe(input) {
           text: "completed in " + input.directory,
         } },
       })
-      await plane.runtime.tracker.observe(task.task_id, { messages: [], status: { type: "idle" } })
-      const completedAt = plane.runtime.registry.get(task.task_id).completed_at
-      await plane.runtime.tracker.observe(task.task_id, { messages: [], status: { type: "idle" } })
-      const terminal = plane.runtime.registry.get(task.task_id)
       await record({
-        type: "terminal",
+        type: "armed",
         directory: input.directory,
         control_plane_id: plane.id,
         task_id: task.task_id,
         child_session_id: childSessionID,
         before_final: beforeFinal,
-        status: terminal.status,
-        completed_at_stable: completedAt === terminal.completed_at,
       })
     },
   }
@@ -264,12 +285,26 @@ test("stock OpenCode host forwards two linked-worktree event streams into one de
     return response.json()
   }))
 
+  await waitFor(async () => {
+    const lines = await readJsonLines(diagnostics)
+    return lines.filter((entry) => entry.type === "armed").length === 2
+  })
+  await Promise.all(sessions.map(async (session, index) => {
+    const directory = [canonicalT1, canonicalT2][index]
+    const response = await fetch(
+      `${server.url}/session/${session.id}/abort?directory=${encodeURIComponent(directory)}`,
+      { method: "POST" },
+    )
+    assert.equal(response.status, 200, JSON.stringify(server.output()))
+  }))
+
   const evidence = await waitFor(async () => {
     const lines = await readJsonLines(diagnostics)
     return lines.filter((entry) => entry.type === "terminal").length === 2 ? lines : null
   })
   const instances = evidence.filter((entry) => entry.type === "instance" && [canonicalRepository, canonicalT1, canonicalT2].includes(entry.directory))
   const hostEvents = evidence.filter((entry) => entry.type === "host_event" && sessions.some((session) => session.id === entry.child_session_id))
+  const lifecycle = evidence.filter((entry) => entry.type === "lifecycle")
   const terminals = evidence.filter((entry) => entry.type === "terminal")
   assert.deepEqual(new Set(instances.map((entry) => entry.control_plane_id)).size, 1)
   assert.deepEqual(new Set(terminals.map((entry) => entry.control_plane_id)).size, 1)
@@ -277,9 +312,11 @@ test("stock OpenCode host forwards two linked-worktree event streams into one de
   assert.ok(hostEvents.every((entry) => entry.observer_directory === entry.session_directory))
   assert.deepEqual(new Set(terminals.map((entry) => entry.directory)), new Set([canonicalT1, canonicalT2]))
   assert.deepEqual(new Set(terminals.map((entry) => entry.child_session_id)), new Set(sessions.map((session) => session.id)))
-  assert.ok(terminals.every((entry) => entry.before_final === "running"))
+  assert.ok(lifecycle.some((entry) => entry.event_type === "session.status" && entry.event_status === "idle"))
+  assert.ok(lifecycle.some((entry) => entry.event_type === "session.idle"))
+  assert.ok(lifecycle.every((entry) => entry.status_entry_present === false))
   assert.ok(
-    terminals.every((entry) => entry.status === "completed" && entry.completed_at_stable),
+    terminals.every((entry) => entry.status === "completed" && entry.completed_at),
     JSON.stringify({ terminals, server: server.output() }),
   )
 

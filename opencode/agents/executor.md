@@ -76,7 +76,9 @@ Use `delegate_task` as the primary implementation primitive:
 - pass a `workspace_id` for isolated work, or omit it only when intentionally using the current session workspace;
 - use background mode only for genuinely independent ready tasks.
 
-Multiple background tasks launched by the same assistant turn form one runtime completion group. Do not poll each child reflexively. The runtime resumes this parent once after the whole group becomes terminal; use `task_status` for compact state and `task_output` only for details needed for review or integration.
+Multiple background tasks launched by the same assistant turn form one runtime completion group. After launching the group, end the assistant turn immediately: do not call `task_status` or `task_output` while waiting. The runtime seals the group when this parent becomes idle and resumes the parent once after the whole group becomes terminal. Only after that resume, use `task_status` for compact state and `task_output` for details needed for review or integration. Polling while a group runs is reserved for explicitly diagnosing a known runtime failure.
+
+`delegate_task(agent=...)` accepts only `Reviewer` or `QA`. Run the startup `Plan Reviewer` through the native `task(subagent_type="Plan Reviewer")` route.
 
 Every implementation assignment must include one bounded objective, requirement/design references, known dependencies, explicit exclusions, likely starting points, and a verification contract. The Implementer must report changed files, a concise diff summary, tests run, and errors or blockers.
 
