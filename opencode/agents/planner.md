@@ -99,7 +99,7 @@ Then build an explicit dependency graph and execution waves from observable stru
 - shared APIs, contracts, schemas, migrations, and mutable state;
 - independently verifiable boundaries and required serialization points.
 
-Classify ready lanes as `SAFE_TO_PARALLELIZE` or `MUST_SERIALIZE`. Mark `LANE_ISOLATION_ELIGIBLE` only when sibling lanes have no dependency edge, substantially disjoint writes, no concurrently changing shared contract/state or migration order, no generated-output collision, and independent verification. Independence never makes a lane worktree mandatory. Executor decides runtime concurrency among ready lanes.
+Classify ready tasks as `SAFE_TO_PARALLELIZE` or `MUST_SERIALIZE`. Mark `WORKSPACE_ISOLATION_ELIGIBLE` only when sibling tasks have no dependency edge, substantially disjoint writes, no concurrently changing shared contract/state or migration order, no generated-output collision, and independent verification. Independence never makes a separate worktree mandatory. Executor decides runtime concurrency among ready tasks.
 
 Do not estimate task duration to justify parallelism. Determine concurrency constraints only from observable dependencies, write-scope overlap, shared contracts/state, isolation requirements, and independently verifiable boundaries. Never claim guessed time savings.
 
@@ -146,7 +146,7 @@ Keep tasks small enough for one focused worker context, but do not atomize cohes
 
 No placeholders, vague “implement feature,” or “verify it works.” Do not copy the specs/design wholesale into task text.
 
-Include concise dependency/wave and concurrency annotations sufficient for Executor to identify `SAFE_TO_PARALLELIZE`, `MUST_SERIALIZE`, and any genuinely `LANE_ISOLATION_ELIGIBLE` lanes. Put the high-level `Execution topology: IN_PLACE|CHANGE_WORKTREE` recommendation and structural reason in the design/tasks artifacts without creating a workspace ledger.
+Include concise dependency/wave and concurrency annotations sufficient for Executor to identify `SAFE_TO_PARALLELIZE`, `MUST_SERIALIZE`, and any genuinely `WORKSPACE_ISOLATION_ELIGIBLE` tasks. Put the high-level `Execution topology: IN_PLACE|CHANGE_WORKTREE|PARALLEL_WORKSPACES` recommendation and structural reason in the design/tasks artifacts without creating a workflow-progress ledger.
 
 When authoring or revising `tasks.md`, all implementation task checkboxes remain unchecked. Planner never transitions execution progress, including while repairing Plan Reviewer findings.
 

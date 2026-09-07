@@ -1,6 +1,6 @@
 {
   "plugin": [
-    "/Users/code/Workspace/omo-artifacts/oh-my-openagent-5.0.0-beta.30-5c699bc7.tgz"
+    "oh-my-openagent@4.19.4"
   ],
   "$schema": "https://opencode.ai/config.json"
 }

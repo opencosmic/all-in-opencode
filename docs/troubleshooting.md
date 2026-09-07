@@ -59,19 +59,17 @@ For experiment setup, require an exact-root, complete, zero-pending index and a 
 
 **Known non-blocking warning in historical benchmark preflight.** The valid CodeGraph and cross-repository benchmark reports recorded the warning while agent resolution, explore probes, and index preflight passed. It did not affect those experiments. If it coincides with a current runtime failure, diagnose that failure independently rather than assuming the warning is harmless.
 
-### Node prints an ESM reparsing warning
-
-**Known warning unless the test/command fails.** The repository uses ESM-style plugin/test source. Judge the command by its exit status and the behavior it proves; do not change module packaging simply to suppress a warning without a separate compatibility decision.
-
 ## External tools and recovery
 
-### A worktree probe leaves `.omo/run-continuation/<session-id>.json`
+### `/execute` preserves a managed workspace after failure or refused release
 
-**Preserve and classify it; do not hide it with `.gitignore` or delete `.omo/**`.** OMO writes this project-local continuation state through the session's plugin directory. It is known runtime bookkeeping only when the exact marker path, a known current session ID, that session's expected directory/context, and the measured marker shape all agree. Such a marker can make literal Git cleanliness fail without proving that a worker mutated outside its assigned worktree. Any other `.omo` path, unknown session marker, mismatched context, or malformed JSON remains untrusted evidence: preserve it, stop automatic cleanup, and investigate ownership before deciding worker isolation or lifecycle status.
+**Expected conservative behavior.** Use `task_status` to inspect persisted task state and surviving workspace manifests, then inspect `task_output`, Git status, branch/base relationship, and the actual diff. Cancellation never deletes a workspace. Dirty, active, mismatched, unintegrated, or Git-refused workspaces remain available for explicit reconciliation.
 
-### `/execute` preserves a lane after a conflict, interruption, or refused removal
+Do not force-remove the worktree, force-delete its branch, reset it, or clean it. A matching branch name or path alone is not ownership. Only `workspace_release` may normally remove a provenance-validated managed workspace, and it refuses unknown state.
 
-**Expected conservative behavior.** Do not force-remove the worktree, force-delete its branch, reset it, or clean it. Re-run `/execute` against the canonical change so Executor can inspect unchecked `tasks.md` entries, canonical Git history/status, linked-worktree identity, lane branch/base relationship, uncommitted data, and classified OMO bookkeeping. A matching name alone is not ownership. An integrated lane with an unchecked task requires fresh combined canonical checks before the checkbox may change; an unintegrated attributable lane may be reused only after its contents and assumptions are revalidated. Unknown or user-created worktrees remain external.
+### A task remains `running` after OpenCode or the plugin restarted
+
+**Recovery evidence, not proof of completion.** The runtime deliberately does not guess that a child completed. Inspect the surviving workspace and child/task identifiers returned by `task_status`. Cancel the task if the child must be aborted, or reconcile its workspace explicitly. Keep `tasks.md` unchecked until the implementation is integrated and freshly validated.
 
 ### GitHub CLI is unauthenticated
 

@@ -32,9 +32,9 @@ while IFS='|' read -r source_rel live_rel kind; do
   printf 'PASS link %s -> %s\n' "$live_path" "$source_path"
 done < "$MANIFEST"
 
-check_hash opencode/agents/planner.md 7824a471a233b29ca97ff632dcf9948db9b79d2bbf021b8b365d58e4cc8a10d0
+check_hash opencode/agents/planner.md 8eeabf09d6cf2e3faa2265d4e8ad77626c15040183b823006b75eca902027346
 check_hash opencode/agents/plan-reviewer.md 80a33ef1dd75e7a43586182f524e7f8d63887efc56a668ee324f39f97a7c3281
-check_hash opencode/agents/executor.md 51cf0252cbc53dc233e5c9c94c68c0ca3632b24517d11e2a3babe83de602147b
+check_hash opencode/agents/executor.md 363f98e52f431ad207027f4778ccf6084bc52245ec8e5107aae0ba9e89980f2e
 check_hash opencode/agents/reviewer.md 82ff6503ed4c6fcc2d312f3c8cd6b0c128c8a3220cf2713ea9d7fb35f0ae1c6a
 
 printf 'PASS repository root %s\n' "$REPO_ROOT"

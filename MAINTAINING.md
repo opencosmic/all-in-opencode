@@ -49,7 +49,7 @@ Keep commits atomic and descriptive. Review staged and unstaged diffs for unrela
 | Workspace/worktree logic | [architecture](docs/architecture.md), [invariants](docs/reference/invariants.md) | Preserve one canonical OpenSpec artifact directory and conservative cleanup. |
 | CodeGraph policy/tool access | [CodeGraph research](docs/research/codegraph-integration.md), [decision](docs/decisions/planner-optimization.md) | Do not expand tools, indexes, or worker access from inference; new evidence is required. |
 | OMO/OpenCode/CodeGraph version change | README prerequisites, architecture, research | Separate observed validation versions from hard requirements; revalidate actual runtime behavior. |
-| Private OMO directory patch refresh | [private patch runbook](docs/reference/private-omo-directory-patch.md), [worktree capability](docs/research/worktree-isolation-capability.md) | Reconstruct every delegation/session path after upstream refactors; pin, build, test, and probe before adoption. |
+| Delegation Runtime or OpenCode public API change | [architecture](docs/architecture.md), delegation tests, installed public SDK types | Preserve the public-only boundary, completion invariant, one-shot resume, and conservative workspace ownership. |
 | Documentation only | [docs index](docs/README.md) | Keep one responsibility per document; link to source instead of duplicating it. |
 
 ## When documentation changes

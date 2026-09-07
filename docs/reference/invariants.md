@@ -1,31 +1,21 @@
 # Workflow invariants
 
-These are current hard boundaries extracted from the canonical source and deterministic tests. The source/tests remain executable truth; some boundaries are prompt/policy or test enforced rather than separate runtime mechanisms. Links below identify the owning implementation and enforcement evidence.
-
-| Invariant | Current enforcement / source |
+| Invariant | Enforcement |
 |---|---|
-| `tasks.md` is the only durable custom execution-progress state. | [Planner](../../opencode/agents/planner.md), [Executor](../../opencode/agents/executor.md), `openspec-hardening-policy.test.js` |
-| The custom workflow does not create or consume native OMO planning/notepad/work/Boulder state. | [Executor](../../opencode/agents/executor.md), [`/execute`](../../opencode/commands/execute.md), policy tests |
-| Strategist owns product intent; Planner owns engineering how in only `design.md` and `tasks.md`. | [Strategist](../../opencode/agents/strategist.md), [Planner](../../opencode/agents/planner.md) |
-| Planner is planning-only: it never writes code, checks execution progress, creates worktrees, or invokes implementation workers. | [Planner](../../opencode/agents/planner.md), [delegation guard](../../opencode/plugins/planner-delegation-guard.js), guard tests |
-| Planner consultations are bounded to fresh explicit targets; continuation `task_id` calls and category workers are denied. | [delegation guard](../../opencode/plugins/planner-delegation-guard.js), [tests](../../opencode/tests/planner-delegation-guard.test.js) |
-| Executor alone transitions custom task progress, and only after fresh implementation, review, applicable QA, canonical integration, and combined-check evidence. | [Executor](../../opencode/agents/executor.md), [lane policy helper](../../scripts/lib/lane-worktrees.mjs), policy tests |
-| Plan Reviewer, Reviewer, QA, and Verifier are independent evidence roles; none repairs its own finding. | Role definitions under [`agents/`](../../opencode/agents/), policy tests |
-| Prior approval is advisory, not durable authority; `/execute`, `/verify`, and `/ship` re-evaluate current state. | [`/execute`](../../opencode/commands/execute.md), [`/verify`](../../opencode/commands/verify.md), [`/ship`](../../opencode/commands/ship.md) |
-| Any relevant code, artifact, base, branch/worktree, comparison basis, or diff change makes prior verification stale. Any concern acceptance is bound to that same verified state; archive/sync also makes it stale and requires a fresh verifier before merge/push. | [Verifier](../../opencode/agents/verifier.md), [`/ship`](../../opencode/commands/ship.md), policy tests |
-| Canonical OpenSpec artifacts must have one active workspace; they are never silently copied, migrated, stashed, or duplicated for isolation. | [`/spec`](../../opencode/commands/spec.md), [Executor](../../opencode/agents/executor.md), workspace tests |
-| A prompt `WORKSPACE:` path is not proof of child cwd binding. Lane worktrees and worker sandboxes require actual runtime binding. | [Executor](../../opencode/agents/executor.md), [`/execute`](../../opencode/commands/execute.md), policy tests |
-| `LANE_WORKTREES` requires both exact adopted runtime-capability evidence and at least two independently safe dependency-ready tasks; unavailable or ambiguous gates fall back before worker mutation. | [Executor](../../opencode/agents/executor.md), [lane policy helper](../../scripts/lib/lane-worktrees.mjs), `lane-worktrees-policy.test.js` |
-| Executor owns lane creation, runtime `directory` dispatch, deterministic non-fast-forward integration, post-wave checks, and conservative cleanup. Workers never own lane lifecycle. | [Executor](../../opencode/agents/executor.md), [lane policy helper](../../scripts/lib/lane-worktrees.mjs), lane tests |
-| Workspace cleanup is provenance-aware and conservative; unknown/dirty/external worktrees are not force-deleted. | [Executor](../../opencode/agents/executor.md), [`/ship`](../../opencode/commands/ship.md) |
-| Worker mutation confinement and OMO runtime bookkeeping are distinct: only an exact, session-proven `.omo/run-continuation/<session-id>.json` marker is known bookkeeping; unknown `.omo` mutations block the lifecycle decision. | [Executor](../../opencode/agents/executor.md), [worktree probe classifier](../../scripts/probes/worktree-isolation.mjs), `worktree-bookkeeping-policy.test.js` |
-| CodeGraph is OMO-owned derived structural evidence. The custom workflow neither provisions indexes nor adds a second graph lifecycle. | [Architecture](../architecture.md), [CodeGraph research](../research/codegraph-integration.md) |
-| The only custom CodeGraph surface is `codegraph_codegraph_explore`, available to Planner, Plan Reviewer, Executor, Reviewer, and Verifier. | Agent permissions; [`codegraph-integration.test.js`](../../opencode/tests/codegraph-integration.test.js) |
-| CodeGraph is explore-only and non-blocking; exact source/LSP/diff/tests/runtime remain the appropriate evidence for their respective claims. | Enabled role CodeGraph sections; [research](../research/codegraph-integration.md) |
-| `/ego` routes directly to primary-only Ego Browser and remains outside OpenSpec, OMO categories, CodeGraph, and the normal coding-agent delegation graph. | [Ego Browser](../../opencode/agents/ego-browser.md), [`/ego`](../../opencode/commands/ego.md), `ego-browser-integration.test.js` |
-| Only Ego Browser may load the external `ego-browser` skill or run the `ego-browser *` command; it cannot edit/write files or launch task/OMO workers. | Ego Browser permissions; `ego-browser-integration.test.js` |
-| The upstream ego-browser skill/runtime remains externally owned and unvendored. Its Node.js execution surface is not an OS-level sandbox and must not be used for filesystem/process/repository escape. | [Architecture](../architecture.md#independent-browser-route), Ego Browser policy tests |
-| Planning concurrency is based on observable dependencies, write overlap, shared contracts/state, and independently verifiable boundaries—not duration guesses. | [Planner](../../opencode/agents/planner.md), policy tests |
-| Git source is canonical for public-safe authored configuration; live paths are narrow symlinks, not a duplicate authored copy. | [`links.tsv`](../../scripts/links.tsv), [`install.sh`](../../scripts/install.sh), [`verify.sh`](../../scripts/verify.sh) |
-
-When changing any row, change the source and tests first, then update this navigation reference and the relevant architecture/research/decision documentation.
+| `tasks.md` is the only durable workflow-progress state. | Planner, Executor, and policy tests. |
+| Git owns isolation; OpenCode owns session execution; Delegation Runtime owns task/session lifecycle; Executor owns integration. | [Architecture](../architecture.md) and delegation tests. |
+| Isolated delegation depends only on stock OpenCode public APIs and does not import OMO internals. | Static dependency guard. |
+| A managed workspace is identified by runtime-issued ID plus canonical path, branch, base SHA, repository identity, and Git common directory. | WorkspaceManager provenance tests. |
+| Unknown, dirty, active, mismatched, unintegrated, or refused workspaces are preserved. No force cleanup is allowed. | WorkspaceManager release tests. |
+| Category selection is caller-owned and deterministic; every implementation category routes to Implementer. | CategoryEngine tests. |
+| Exactly one of category or allowlisted named agent is required. | AgentDispatcher tests. |
+| Implementer handles one scoped change and cannot delegate, manage workspaces, integrate, or edit workflow state. | Implementer permissions and contract. |
+| Reviewer and QA use the same workspace-bound SessionRunner and do not repair code. | Runtime routing tests and role permissions. |
+| Idle alone is not completion; the current assistant must be terminal and own no pending/running tool call. | CompletionTracker regression tests. |
+| Model fallback stops after a child turn is accepted. | SessionRunner tests. |
+| Background tasks from one parent turn form one group and cause at most one resume after every member is terminal. | Registry/coordinator tests. |
+| Cancellation aborts the child and preserves the workspace. | Cancellation tests. |
+| Runtime code never stages, commits, merges, rebases, or changes OpenSpec tasks. | Static/source policy tests and Executor ownership. |
+| Plan Reviewer, Reviewer, QA, and Verifier are independent evidence roles and do not repair their own findings. | Agent definitions. |
+| Prior approval becomes stale after relevant code, artifact, base, branch/worktree, comparison, or diff changes. | Execute, verify, and ship policies. |
+| CodeGraph remains OMO-owned derived evidence; `/ego` remains an independent external browser route. | Role permissions and integration tests. |

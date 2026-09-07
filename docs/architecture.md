@@ -1,88 +1,86 @@
 # Architecture
 
-## Ownership boundaries
-
-This repository owns authored OpenCode agents, commands, plugins, tests, and public-safe OpenCode and OMO configuration. Live entrypoints are symlinks to that source at the smallest audited granularity.
-
-OpenCode owns its installed packages and local UI/runtime material. OMO owns its runtime, daemon data, downloaded tools, native state, and CodeGraph provisioning. OpenSpec owns project contracts and changes inside each target project. The global OpenSpec telemetry file remains local. Git repositories used as benchmark targets remain independent.
-
-Project-owned local evidence and backups live under `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}`. The default layout separates `benchmarks/<experiment-id>` from `backups/` for OpenCode, OpenSpec, OMO, and migration snapshots. These data trees are neither Git source nor application runtime and must not be recreated inside application configuration roots.
-
-## Custom lifecycle
+## Runtime boundary
 
 ```text
-approved product direction
-          |
-          v
-        /spec
-          |
-          v
- proposal.md + specs/**
-          |
-          v
-        /plan
-          |
-          v
- design.md + tasks.md -> Plan Reviewer
-          |
-          v
-       /execute -> Reviewer / QA
-          |
-          v
-       /verify
-          |
-          v
-        /ship
+Workflow Orchestrator
+        |
+        v
+Delegation Runtime
+  +-- Category Engine ---> Implementer
+  +-- Task Registry
+  +-- Session Runner ----> stock OpenCode public SDK
+  +-- Completion Tracker
+  +-- Parent Resume Coordinator
+  +-- Agent Dispatcher --> Reviewer / QA
+  +-- Workspace Manager -> Git linked worktrees
 ```
 
-Every execution and shipping gate re-evaluates current artifacts and evidence. Prior conversational approval is advisory, not durable authority. `tasks.md` is the only durable custom execution checklist and progress state.
+Git owns filesystem isolation. OpenCode owns model, tool, and session execution. The workflow-owned Delegation Runtime owns task/session lifecycle and workspace provenance. The Category Engine owns deterministic execution-profile resolution. Implementer owns one scoped code change. Executor owns orchestration, review sequencing, integration, and OpenSpec task transitions. Reviewer and QA are read-only quality gates.
 
-Executor supports `IN_PLACE`, `CHANGE_WORKTREE`, and an implemented but currently disabled `LANE_WORKTREES` lifecycle; `EPHEMERAL_SANDBOX` remains disabled and unimplemented. A fresh OpenCode 1.18.27 lane attempt ended the primary Executor while background lane children were active, which caused OpenCode to cancel them before their first shell tools. Lane mode stays disabled until that lifecycle is corrected and a complete certification passes. The eventual lane gate still requires exact adopted runtime evidence plus at least two independently safe dependency-ready tasks. Executor creates current-wave linked worktrees from one canonical HEAD, dispatches workers through the runtime `directory` field, inspects and reviews lane diffs, integrates accepted commits in task order with non-fast-forward merges, runs combined checks, then updates `tasks.md`. Interruption and ambiguous state preserve lanes. Recovery derives from `tasks.md` and Git/worktree provenance rather than a second ledger. Production remains pinned to the exact measured OMO artifact recorded in the runtime baseline.
+The isolated execution path does not call OMO task/delegation internals. Stock Oh My OpenAgent 4.19.4 remains installed for unrelated existing workflow behavior and may be removed later without rewriting workspace execution. OpenCode and OMO source are never patched.
 
-## Independent browser route
+## Delegation components
+
+- `WorkspaceManager` creates a linked worktree from a resolved base commit, records path/branch/repository/common-directory provenance outside the repository, validates that provenance on every later mutation, and refuses unsafe cleanup.
+- `CategoryEngine` resolves a caller-selected category to an ordered model chain and one reusable `Implementer`.
+- `AgentDispatcher` enforces category XOR named-agent routing. The named-agent allowlist is `Reviewer` and `QA`.
+- `SessionRunner` creates a stock OpenCode child session with `parentID` and the validated workspace `directory`, then starts one asynchronous prompt.
+- `CompletionTracker` binds the current user/assistant turn and refuses terminal completion while the assistant is incomplete, in a tool-call finish state, owns a pending/running tool part, or the session is busy/retrying.
+- `TaskRegistry` validates state transitions, stores bounded result evidence, persists lightweight runtime state, and deduplicates group delivery.
+- `ParentResumeCoordinator` closes a background launch group when its parent turn becomes idle, waits for every sibling to become terminal, and sends exactly one compact ordinary prompt to resume the parent.
+
+V1 deliberately excludes recursive implementation delegation, arbitrary agent routing, a DAG scheduler, separate OpenCode processes, automatic mutation retry, automatic commit/merge, streaming injection, and force cleanup.
+
+## Public tool surface
+
+The plugin exposes exactly:
+
+- `workspace_prepare({ task_id, change_id?, base_sha? })`
+- `delegate_task({ workspace_id?, category?, agent?, description, prompt, run_in_background? })`
+- `task_status({ task_id?, workspace_id? })`
+- `task_output({ task_id, max_chars? })`
+- `task_cancel({ task_id })`
+- `workspace_release({ workspace_id })`
+
+`delegate_task` requires exactly one of `category` and `agent`. Omitting `workspace_id` intentionally binds the child to the current session directory; an isolated task uses only a runtime-issued `workspace_id`, never an arbitrary mutation path.
+
+## Category profiles
+
+The current configuration is [`categories.js`](../opencode/plugins/delegation/categories.js). Profiles support `description`, ordered `models[]`, `reasoning`, `variant`, `temperature`, `top_p`, `max_tokens`, `tools`, `prompt_append`, `max_prompt_tokens`, and `disable`.
+
+OpenCode 1.18.29's public prompt API applies model, agent, system text, and tool availability. Its public `chat.params` hook applies temperature, top-p, and maximum output tokens. `max_prompt_tokens` uses a conservative local `ceil(characters / 4)` admission bound. The public prompt API does not expose per-prompt reasoning or variant selection, so those fields are retained in the clean profile abstraction and reported as `unsupported_profile_fields`; they are not patched, faked, or silently treated as applied.
+
+An ordered model fallback is attempted only when `promptAsync` rejects before accepting the child turn. After acceptance, any failure becomes task evidence and the workspace is preserved.
+
+## Completion and background lifecycle
+
+One child session handles one tracked assignment. Current-turn freshness requires a user message created after tracking began and an assistant whose `parentID` matches it. Successful completion additionally requires assistant completion time, a non-tool-call finish, no pending/running tool parts, and idle session status.
+
+Background grouping is derived from `parent session ID + parent message ID`. The parent becoming idle seals the group, preventing an early child from resuming the parent before sibling delegation calls in the same turn are registered. A terminal group is claimed transactionally; duplicate events cannot send a second resume. A busy parent leaves delivery pending until its next idle event.
+
+The resume prompt contains task IDs, statuses, workspace IDs, short summaries, and `task_output` retrieval hints—not raw transcripts.
+
+## Worktree lifecycle and recovery
 
 ```text
-/ego <task>
-    |
-    v
-Ego Browser
-    |
-    v
-upstream ego-browser skill
-    |
-    v
-ego-browser runtime
-    |
-    v
-ego lite Task Space
+resolve base SHA
+  -> write preparing manifest
+  -> git worktree add -b
+  -> validate directory + branch + common dir + registration
+  -> run child sessions
+  -> Executor reviews/integrates
+  -> prove tasks terminal + clean tree + branch ancestor of repository HEAD
+  -> normal worktree remove
+  -> safe branch -d
 ```
 
-This is an independent browser-automation capability, not another stage in the custom lifecycle. It does not enter OpenSpec, create or mutate implementation execution state, use an OMO category, use CodeGraph, or modify project source code. Ego Browser is primary-only in Phase 1, so the existing coding roles do not automatically delegate to it or gain its skill/runtime access.
+Manifests and the runtime task registry live under `$OPENCODE_WORKFLOW_DATA_ROOT/delegation`, or `~/.local/share/opencode-workflow/delegation` when the variable is unset. They are infrastructure provenance and recovery evidence, never a replacement for `tasks.md`.
 
-The external [`citrolabs/ego-lite`](https://github.com/citrolabs/ego-lite) project owns the official `skills/ego-browser/SKILL.md`, runtime, browser application, Task Spaces, and browser state. This repository owns only the agent policy, `/ego` route, tests, and documentation; it does not vendor or link the upstream skill lifecycle.
+Dirty, active, mismatched, unintegrated, unknown, or Git-refused workspaces are preserved with explicit diagnostics. The runtime never uses force removal, force branch deletion, reset, clean, automatic staging, commit, merge, or rebase. After restart, `task_status` surfaces persisted tasks and surviving managed workspace manifests for reconciliation; it does not guess completion.
 
-The outer OpenCode shell policy permits only `ego-browser *`, but `ego-browser` executes agent-authored JavaScript in Node.js. That command restriction is not an OS-level security sandbox. The agent policy therefore also prohibits using the runtime for unrelated filesystem access, child-process execution, arbitrary processes, or repository mutation. This is a behavioral boundary layered on least-privilege OpenCode routing, not hard process isolation.
+## Existing workflow ownership
 
-## Agent responsibilities
+The custom lifecycle remains `/spec -> /plan -> /execute -> /verify -> /ship`. Every execution and shipping gate re-evaluates current artifacts and evidence. `tasks.md` is the only durable workflow-progress state.
 
-- Strategist: product strategy and OpenSpec product-contract authoring.
-- Researcher and Validator: read-only evidence and adversarial product validation.
-- Planner: engineering design and executable task planning.
-- Plan Reviewer: independent, read-only planning review.
-- Executor: implementation orchestration and task-state ownership.
-- Reviewer: independent diff-first code review.
-- QA: read-only runtime and user-facing evidence.
-- Verifier: independent final proof against the approved change.
-- Ego Browser: primary-only real-browser automation through the externally owned ego-browser runtime; no repository, delegation, OMO, or CodeGraph role.
-
-## CodeGraph
-
-CodeGraph 1.5.0 was the validated OMO-owned runtime version. It supplies derived structural/index evidence only. The custom workflow exposes only `codegraph_codegraph_explore` to Planner, Plan Reviewer, Executor, Reviewer, and Verifier. No custom lifecycle, durable graph state, or additional impact/caller/callee/node/search/file/status surface is introduced.
-
-## Live source model
-
-`scripts/links.tsv` is the auditable source-to-live manifest. The installer validates all sources and live content before changing anything, backs up every replaced path before creating a link, rejects unexpected symlinks, and retains a checksum inventory. `scripts/verify.sh` proves link targets and frozen production hashes.
-
-Installer backups default to `$OPENCODE_WORKFLOW_DATA_ROOT/backups/migrations`, falling back to `~/Workspace/data/opencode-workflow/backups/migrations`. Benchmarks and backups are never live link targets.
-
-OpenSpec's global telemetry configuration remains local and independently owned. This is intentional partial canonicalization: public safety takes precedence over forcing every live file into Git.
+The independent `/ego` browser route and OMO's native planning route remain separate. CodeGraph remains OMO-owned derived structural evidence.

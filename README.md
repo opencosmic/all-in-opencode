@@ -1,6 +1,6 @@
 # OpenCode Workflow
 
-This repository is the canonical authored source for a custom OpenCode workflow built on Oh My OpenAgent (OMO) and OpenSpec. It keeps workflow policy, agent definitions, commands, plugins, deterministic tests, and public-safe configuration reviewable in Git while leaving credentials, caches, sessions, benchmarks, and provisioned runtimes local.
+This repository is the canonical authored source for a custom OpenCode/OpenSpec workflow. It includes a workflow-owned Delegation Runtime built on stock OpenCode public APIs and Git worktrees. Stock Oh My OpenAgent (OMO) remains available for unrelated existing routes, but isolated delegation does not depend on it.
 
 No software license has been selected for this repository.
 
@@ -21,11 +21,12 @@ Completed `/ego` work keeps its goal-named ego-lite Space open by default, with 
 - Strategist owns product intent and creates the OpenSpec proposal and behavioral specs.
 - Planner creates `design.md` and `tasks.md` from the approved contract.
 - Plan Reviewer independently reviews those planning artifacts.
-- Executor orchestrates implementation through OMO workers.
+- Executor orchestrates implementation through the workflow-owned Delegation Runtime.
+- Category-selected work routes to one reusable Implementer; Reviewer and QA can inspect the same isolated workspace.
 - Reviewer, QA, and Verifier provide independent code, runtime, and final evidence.
 - Researcher and Validator support product discovery and validation.
 
-`tasks.md` is the only durable custom execution-progress state. OMO remains the owner of its native runtime state, and CodeGraph remains OMO-owned derived structural evidence.
+`tasks.md` is the only durable workflow-progress state. Lightweight task and workspace manifests are infrastructure provenance and recovery evidence only. OMO remains the owner of its native runtime state, and CodeGraph remains OMO-owned derived structural evidence.
 
 ## CodeGraph policy
 
@@ -35,8 +36,8 @@ The custom tool surface is deliberately limited to `codegraph_codegraph_explore`
 
 - `opencode/agents/`: custom agent definitions.
 - `opencode/commands/`: `/ego`, `/omo`, `/spec`, `/plan`, `/execute`, `/verify`, and `/ship`.
-- `opencode/plugins/`: workflow guard and read-only workspace inspection plugins.
-- `opencode/tests/`: deterministic policy and integration tests.
+- `opencode/plugins/`: the Delegation Runtime, workflow guard, and read-only workspace inspector.
+- `opencode/tests/`: deterministic policy, fake-SDK, completion, background, and temporary-Git-worktree tests.
 - `opencode/opencode.jsonc` and `opencode/tui.json`: public-safe OpenCode configuration.
 - `opencode/package.json` and `opencode/package-lock.json`: pinned plugin API dependency metadata.
 - `omo/omo.jsonc`: public-safe authored OMO configuration only.
@@ -47,18 +48,20 @@ The global OpenSpec file at `~/.config/openspec/config.json` is not included: th
 
 ## Local data ownership
 
-Authored source belongs in this Git repository. Project-owned data that must remain local belongs under `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}`:
+Authored source belongs in this Git repository. Project-owned benchmark and backup data that must remain local belongs under `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}`:
 
 - benchmark evidence: `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}/benchmarks/<experiment-id>`;
 - configuration and migration backups: `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}/backups/`.
 
 The environment variable is optional; without it, the default is `~/Workspace/data/opencode-workflow`. Future benchmark and backup work must use this data root directly and must not recreate `~/.config/opencode/benchmarks` or `~/.config/opencode/backups`.
 
+Delegation Runtime provenance and task-recovery metadata uses `$OPENCODE_WORKFLOW_DATA_ROOT/delegation` when that variable is set, otherwise `~/.local/share/opencode-workflow/delegation`. Managed worktrees live beneath that state root. This state never replaces OpenSpec `tasks.md`.
+
 The live application roots remain `~/.config/opencode`, `~/.config/openspec`, and `~/.omo`. They contain only canonical source entrypoints and application-owned local state. OMO runtime and CodeGraph indexes remain under `~/.omo`; OpenSpec's private telemetry configuration remains under `~/.config/openspec`; runtime dependencies remain where OpenCode requires them. The external `ego-lite` and `codegraph` repositories remain independent benchmark targets under `~/Workspace/repo`.
 
 ## Prerequisites
 
-The migrated configuration was validated with OpenCode 1.18.23, Oh My OpenAgent 4.19.4, OMO-owned CodeGraph 1.5.0, OpenSpec CLI, and Node.js 24. Install the JavaScript dependency without vendoring it:
+The Delegation Runtime is validated against the stock OpenCode 1.18.29 public plugin/SDK surface and stock Oh My OpenAgent 4.19.4, plus OMO-owned CodeGraph 1.5.0, OpenSpec CLI, and Node.js 24. Install the JavaScript dependency without vendoring it:
 
 ```sh
 npm ci --prefix opencode
@@ -108,12 +111,11 @@ The `opencode/agents` and `opencode/commands` directory links also discover Ego 
 ```sh
 ./scripts/verify.sh
 node --test ~/.config/opencode/tests/*.test.js
-node scripts/probes/worktree-isolation.mjs
 opencode debug info
 opencode agent list
 ```
 
-The deterministic suite covers command discovery, workflow state ownership, planning and execution gates, CodeGraph permissions, plugin behavior, and worktree safety. The standalone child-CWD probe emits environment-specific machine-readable evidence and makes no LLM call when installed runtime inspection is decisive.
+The deterministic suite covers command discovery, workflow state ownership, planning and execution gates, CodeGraph permissions, public plugin behavior, workspace provenance, completion correctness, grouped background resume, cancellation, and conservative release. Ordinary tests use fake SDK clients and temporary local Git repositories; they make no model calls.
 
 ## Make changes safely
 

@@ -39,7 +39,7 @@ standalone real-browser goal
 
 `/plan` is engineering-planning work. Planner reads the current contract and repository, writes only `design.md` and `tasks.md`, and requests an independent Plan Reviewer verdict. `[APPROVED]` is the normal handoff to `/execute`; `[REJECTED]` means planning must be corrected or product intent clarified.
 
-`/execute` is controlled implementation. Executor requests a new Plan Reviewer review every time, establishes the actual workspace and baseline, delegates code changes to OMO workers, and owns custom task-checkbox transitions. When both runtime capability and task independence are proven, it may use sibling lane worktrees for a ready wave; otherwise it retains the existing in-place/change-worktree path. It finishes with a whole-change review and hands off to `/verify`; it does not self-verify or ship.
+`/execute` is controlled implementation. Executor requests a new Plan Reviewer review every time, establishes the actual workspace and baseline, delegates code changes through the workflow-owned Delegation Runtime, and owns task-checkbox transitions. Independent ready tasks may use separate managed workspaces; category-selected implementation always routes to the reusable Implementer. Executor finishes with a whole-change review and hands off to `/verify`; it does not self-verify or ship.
 
 `/verify` independently binds evidence to the current workspace, artifacts, diff, and fresh checks. Its only outcomes are `VERIFIED`, `VERIFIED_WITH_CONCERNS`, or `BLOCKED`. `VERIFIED` directly authorizes shipping. `VERIFIED_WITH_CONCERNS` can authorize shipping only when the user explicitly accepts its exact current named concerns; that does not change the verdict or erase concerns. `BLOCKED` requires repair or evidence and cannot be bypassed. Verification and concern acceptance both become stale after a relevant code, artifact, base, branch/worktree, comparison-basis, or diff change.
 
@@ -129,13 +129,15 @@ BLOCKED → provide the requested missing context, authority, or observation; do
 
 Treat `BLOCKED` as a useful statement of what cannot currently be proven or safely decided. Supply the smallest missing input—for example, the canonical change, a target workspace, a user delivery choice, or access to an external observation—rather than asking the role to guess.
 
-### Lane-worktree execution
+### Parallel workspace execution
 
-`LANE_WORKTREES` is an Executor-owned execution mode, not a Planner guarantee. It is currently **DISABLED**: the fresh OpenCode 1.18.27 certification created both lane children but the primary Executor ended before they completed, and OpenCode cancelled them before their first shell-tool actions. Executor must use the existing in-place/change-worktree path until that completion lifecycle is corrected and a full certification passes. Once re-enabled, it may select lanes only when the exact active OpenCode/OMO runtime has adopted mechanical proof for child directory binding and the full measured isolation/completion contract, and the current ready wave has at least two tasks with no dependency, write-scope, shared-contract/schema/migration/generated-output/state/resource, or verification collision. A version number or `WORKSPACE:` prompt is not that proof. Production remains pinned to the exact measured OMO artifact recorded in `omo-runtime-baseline.json`.
+Executor uses `workspace_prepare` to create a standard linked Git worktree from a captured base SHA. The returned `workspace_id` is the only normal handle for later mutation: the runtime validates its canonical directory, branch, repository identity, and Git common directory before dispatch or release.
 
-For an eligible wave, Executor creates one uniquely named linked worktree/branch per lane from the same canonical HEAD. Normal OMO workers receive the lane through the task API's `directory` field; OMO/OpenCode owns provider-slot queuing. Executor inspects each lane diff, obtains lane-local review and applicable QA, commits accepted task-attributable changes, and integrates them in approved task order with non-fast-forward merges. It then runs combined checks in the canonical change worktree. Only integrated tasks whose combined checks pass become checked in `tasks.md`; a correct but unintegrated lane is still incomplete.
+`delegate_task(category=...)` creates an OpenCode child session directly in that validated directory through the stock public SDK. `quick`, `standard`, `deep`, and other implementation categories select execution profiles but all route to Implementer. `delegate_task(agent="Reviewer")` and `delegate_task(agent="QA")` bind those read-only specialists to the same workspace.
 
-Conflicts, cancellations, unknown mutations, and interruptions preserve the lane. Known provenance-matched OMO continuation markers are runtime bookkeeping rather than worker escape, but no other `.omo` state is ignored. Cleanup is optional: only an exact Executor-owned, integrated, clean lane with no needed unique commits may be normally removed, followed by safe branch deletion. Refused removal, dirty state, or unclear ownership is preserved. Resume uses `tasks.md` plus current Git/worktree facts rather than a custom lane ledger.
+Background tasks launched by one Executor assistant turn share a completion group derived from the parent session and message IDs. The first child to finish is stored without waking Executor. When the parent is idle and every group member is terminal, one compact completion notice resumes it; detailed evidence stays behind `task_output`.
+
+Executor reviews the real workspace diff and evidence, controls any commit/integration, runs combined checks, and only then checks `tasks.md`. Failed, cancelled, interrupted, dirty, unintegrated, or provenance-mismatched workspaces are preserved. `workspace_release` performs only normal worktree removal and safe branch deletion after all safety checks pass.
 
 ## Use evidence efficiently
 
@@ -144,7 +146,7 @@ Conflicts, cancellations, unknown mutations, and interruptions preserve the lane
 - Prefer exact source, LSP, Git diff, tests, and runtime checks when the question is semantic, behavioral, or about the actual mutation. CodeGraph falls back immediately when its index is unavailable, stale, pending, ambiguous, or insufficient.
 - Keep review and verification independent. Reviewer examines a focused implementation package; Verifier proves the current change against its full contract. Neither repairs its own findings.
 - Do not treat an old approval as permanent. `/execute`, `/verify`, and `/ship` each inspect current state, and archive/sync or integration-related mutations invalidate earlier evidence.
-- Treat OMO runtime state by provenance, not by filename exclusion. A mechanically matched `.omo/run-continuation/<known-session-id>.json` marker is runtime bookkeeping rather than a worker mutation escape; any other `.omo` mutation remains untrusted and must be preserved for investigation.
+- Keep stock OMO native state separate from Delegation Runtime task/workspace provenance and from OpenSpec `tasks.md`.
 - Do not benchmark routine edits. Benchmark only when a change may alter retrieval, context economics, model/tool policy, role boundaries, CodeGraph usage, orchestration, or correctness/coverage trade-offs. See [MAINTAINING.md](../../MAINTAINING.md#when-benchmarking-is-justified).
 
 ## Before `/ship`

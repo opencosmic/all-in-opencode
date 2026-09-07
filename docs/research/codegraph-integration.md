@@ -47,7 +47,7 @@ Do not aggregate its tool, token, latency, recall, or quality observations into 
 
 **HISTORICALLY VALIDATED FINDING:** the corrected CodeGraph and later Planner experiments used detached worktrees outside sensitive configuration roots, each with an independent complete OMO-owned CodeGraph 1.5.0 index, exact resolved project root, zero pending work, and `worktreeMismatch: null`. Indexing and preflight probes were excluded from timed model work.
 
-This validates an experiment preflight pattern, not a new custom runtime lifecycle. OMO retains index ownership. The current Executor policy separately requires actual child cwd binding before lane worktrees or worker-driven sandboxes can be used; a `WORKSPACE:` prompt is not binding proof.
+This validates an experiment preflight pattern, not a runtime lifecycle. OMO retains index ownership. The Delegation Runtime separately binds child sessions to provenance-validated workspace directories through the stock OpenCode public API; a prompt path alone is not binding proof.
 
 ## Why the narrow tool surface and no proxy
 

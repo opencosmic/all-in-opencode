@@ -6,7 +6,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 
-import { inspectWorkspace, parseWorktreeList } from "../plugins/workspace-inspector.js"
+import { inspectWorkspace, parseWorktreeList } from "../plugins/workspace-inspector/core.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -25,11 +25,11 @@ async function createRepo(prefix) {
 
 test("parses branch and detached worktree records", () => {
   const parsed = parseWorktreeList(
-    "worktree /tmp/main\nHEAD abc\nbranch refs/heads/main\n\nworktree /tmp/lane\nHEAD def\ndetached\n",
+    "worktree /tmp/main\nHEAD abc\nbranch refs/heads/main\n\nworktree /tmp/worker\nHEAD def\ndetached\n",
   )
   assert.deepEqual(parsed, [
     { path: "/tmp/main", head: "abc", branch: "main", detached: false, locked: false, prunable: false },
-    { path: "/tmp/lane", head: "def", branch: null, detached: true, locked: false, prunable: false },
+    { path: "/tmp/worker", head: "def", branch: null, detached: true, locked: false, prunable: false },
   ])
 })
 
