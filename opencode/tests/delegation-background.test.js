@@ -9,7 +9,9 @@ function fakeClient() {
   return {
     state,
     session: {
-      status: async () => ({ data: { parent: { type: state.parentStatus } } }),
+      status: async () => ({
+        data: state.parentStatus === "idle" ? {} : { parent: { type: state.parentStatus } },
+      }),
       promptAsync: async (request) => {
         state.prompts.push(request)
         return { data: undefined }
@@ -88,4 +90,39 @@ test("busy parent buffers a ready group and idle flushes it once", async () => {
   await coordinator.onParentIdle("parent")
   await coordinator.onParentIdle("parent")
   assert.equal(client.state.prompts.length, 1)
+})
+
+test("missing parent status without a current-process idle witness fails closed", async () => {
+  const registry = await new TaskRegistry().load()
+  const client = fakeClient()
+  const coordinator = new ParentResumeCoordinator({ client, registry })
+  const task = await backgroundTask(registry, "persisted-closed-group")
+  await registry.closeParentGroups("parent")
+  await coordinator.onTaskTerminal((await registry.terminal(task.task_id, "completed", {
+    result: { text: "ready" },
+  })).task)
+  assert.equal(client.state.prompts.length, 0)
+  assert.equal(registry.group(task.completion_group).delivery_state, "pending")
+})
+
+test("busy status invalidates stale idle evidence until a new idle event", async () => {
+  const registry = await new TaskRegistry().load()
+  const client = fakeClient()
+  const coordinator = new ParentResumeCoordinator({ client, registry })
+  const task = await backgroundTask(registry, "stale-idle")
+
+  client.state.parentStatus = "busy"
+  await coordinator.onParentIdle("parent")
+  await coordinator.onTaskTerminal((await registry.terminal(task.task_id, "completed", {
+    result: { text: "ready" },
+  })).task)
+  assert.equal(client.state.prompts.length, 0)
+
+  client.state.parentStatus = "idle"
+  await coordinator.tryResume(task.completion_group)
+  assert.equal(client.state.prompts.length, 0)
+
+  await coordinator.onParentIdle("parent")
+  assert.equal(client.state.prompts.length, 1)
+  assert.equal(registry.group(task.completion_group).delivery_state, "delivered")
 })

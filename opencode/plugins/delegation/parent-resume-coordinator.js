@@ -9,6 +9,7 @@ export class ParentResumeCoordinator {
   constructor({ client, registry }) {
     this.client = client
     this.registry = registry
+    this.idleParents = new Set()
   }
 
   async onTaskTerminal(task) {
@@ -17,6 +18,7 @@ export class ParentResumeCoordinator {
   }
 
   async onParentIdle(parentSessionID) {
+    this.idleParents.add(parentSessionID)
     const groups = await this.registry.closeParentGroups(parentSessionID)
     let resumed = false
     for (const groupID of groups) resumed = (await this.tryResume(groupID)) || resumed
@@ -36,7 +38,11 @@ export class ParentResumeCoordinator {
       await this.client.session.status({ query: { directory: snapshot.parent_directory } }),
       snapshot.parent_session_id,
     )
-    if (status.type !== "idle") return false
+    if (!["idle", "unknown"].includes(status.type)) {
+      this.idleParents.delete(snapshot.parent_session_id)
+      return false
+    }
+    if (status.type === "unknown" && !this.idleParents.has(snapshot.parent_session_id)) return false
     const claimed = await this.registry.claimDelivery(groupID)
     if (!claimed) return false
     const notice = {
@@ -62,6 +68,7 @@ export class ParentResumeCoordinator {
           }],
         },
       }), "parent session.promptAsync")
+      this.idleParents.delete(claimed.parent_session_id)
       await this.registry.finishDelivery(groupID, true)
       return true
     } catch (error) {
