@@ -52,6 +52,11 @@ test("effective Executor policy keeps Plan Reviewer and blocks implementation fa
   assert.equal(effectiveAction(executor.permission, "bash", "git worktree add /tmp/fallback"), "deny")
   assert.equal(effectiveAction(executor.permission, "bash", "git worktree remove /tmp/fallback"), "deny")
   assert.equal(effectiveAction(executor.permission, "bash", "git status --short"), "ask")
+  assert.equal(
+    effectiveAction(executor.permission, "external_directory", "/tmp/delegation/workspaces/task/src/index.js"),
+    "allow",
+    "Executor must be able to inspect runtime-managed worktrees outside its canonical directory",
+  )
 
   assert.match(executor.prompt, /either `workspace_prepare` or `delegate_task` is unavailable, stop immediately/)
   assert.match(executor.prompt, /Do not substitute manual `git worktree add`\/`git worktree remove`/)

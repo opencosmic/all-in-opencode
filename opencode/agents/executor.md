@@ -37,7 +37,7 @@ permission:
     "git worktree add *": deny
     "git worktree remove *": deny
   skill: deny
-  external_directory: deny
+  external_directory: allow
 ---
 
 # Executor

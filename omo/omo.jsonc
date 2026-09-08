@@ -2,6 +2,9 @@
 {
   "[opencode]": {
     "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/omo.schema.json",
+    "disabled_hooks": [
+      "todo-continuation-enforcer"
+    ],
     "agents": {
       "sisyphus": {
         "models": [
