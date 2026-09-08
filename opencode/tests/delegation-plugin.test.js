@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import * as DelegationRuntimeEntrypoint from "../plugins/delegation-runtime.js"
 import DelegationRuntimePlugin from "../plugins/delegation-runtime.js"
 
 function client() {
@@ -19,7 +20,8 @@ function client() {
   }
 }
 
-test("plugin exposes only the six workflow-owned delegation tools", async (t) => {
+test("plugin entrypoint is default-only and exposes the six workflow-owned delegation tools", async (t) => {
+  assert.deepEqual(Object.keys(DelegationRuntimeEntrypoint), ["default"])
   const stateDirectory = await mkdtemp(join(tmpdir(), "delegation-plugin-test-"))
   t.after(async () => rm(stateDirectory, { recursive: true }))
   const plugin = await DelegationRuntimePlugin({
@@ -55,8 +57,10 @@ test("new runtime has a stock public dependency boundary", async () => {
     }
   }
   const entry = await readFile(new URL("../plugins/delegation-runtime.js", import.meta.url), "utf8")
-  assert.match(entry, /from "@opencode-ai\/plugin"/)
   assert.doesNotMatch(entry, /oh-my-openagent|opencode.*(?:internal|src)/i)
+  const hooks = await readFile(new URL("../plugins/delegation/plugin-hooks.js", import.meta.url), "utf8")
+  assert.match(hooks, /from "@opencode-ai\/plugin"/)
+  assert.doesNotMatch(hooks, /oh-my-openagent|opencode.*(?:internal|src)/i)
 })
 
 test("OpenCode configuration uses stock OMO instead of a local source artifact", async () => {

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 
-import { delegationPluginHooks } from "../plugins/delegation-runtime.js"
+import { delegationPluginHooks } from "../plugins/delegation/plugin-hooks.js"
 import {
   acquireDelegationControlPlane,
   clearDelegationControlPlanesForTest,

@@ -23,14 +23,19 @@ permission:
   task_output: allow
   task_cancel: allow
   workspace_release: allow
-  task: allow
-  call_omo_agent: allow
-  background_output: allow
-  background_cancel: allow
+  task:
+    "*": deny
+    "Plan Reviewer": allow
+  call_omo_agent: deny
+  background_output: deny
+  background_cancel: deny
   edit:
     "*": deny
     "openspec/changes/**/tasks.md": allow
-  bash: ask
+  bash:
+    "*": ask
+    "git worktree add *": deny
+    "git worktree remove *": deny
   skill: deny
   external_directory: deny
 ---
@@ -62,6 +67,8 @@ Use the simplest safe topology. In-place or an existing change worktree remains 
 
 `workspace_prepare` is the only normal API for creating a delegation workspace. The runtime owns and validates its path, branch, Git common directory, repository identity, and base SHA. Never substitute a caller-selected directory for a `workspace_id`.
 
+If an approved plan requires workflow-owned delegation and either `workspace_prepare` or `delegate_task` is unavailable, stop immediately and report a Delegation Runtime/tool-loading blocker. Do not substitute manual `git worktree add`/`git worktree remove`, OMO `task(category=...)`, Sisyphus-Junior, `call_omo_agent`, manually constructed child sessions, or another implementation framework.
+
 Independent ready tasks may run in parallel workspaces. Serialize tasks with dependency edges, overlapping writes, shared interfaces/contracts/schemas/migrations, generated-output collisions, mutable shared state, ports/processes, external services, or shared test fixtures. Ambiguity means serialize.
 
 On interruption or failure, preserve isolated workspaces. Reconcile them from `tasks.md`, task status/output, manifests surfaced by preflight, and current Git facts. Naming alone never proves ownership.
@@ -78,7 +85,7 @@ Use `delegate_task` as the primary implementation primitive:
 
 Multiple background tasks launched by the same assistant turn form one runtime completion group. After launching the group, end the assistant turn immediately: do not call `task_status` or `task_output` while waiting. The runtime seals the group when this parent becomes idle and resumes the parent once after the whole group becomes terminal. Only after that resume, use `task_status` for compact state and `task_output` for details needed for review or integration. Polling while a group runs is reserved for explicitly diagnosing a known runtime failure.
 
-`delegate_task(agent=...)` accepts only `Reviewer` or `QA`. Run the startup `Plan Reviewer` through the native `task(subagent_type="Plan Reviewer")` route.
+`delegate_task(agent=...)` accepts only `Reviewer` or `QA`. The native `task` route is restricted to `task(subagent_type="Plan Reviewer")` for the startup review and must never be used for implementation. OMO implementation routes and `call_omo_agent` are unavailable to Executor by policy.
 
 Every implementation assignment must include one bounded objective, requirement/design references, known dependencies, explicit exclusions, likely starting points, and a verification contract. The Implementer must report changed files, a concise diff summary, tests run, and errors or blockers.
 

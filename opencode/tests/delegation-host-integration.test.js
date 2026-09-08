@@ -12,7 +12,7 @@ import { promisify } from "node:util"
 
 const execFileAsync = promisify(execFile)
 const testDirectory = dirname(fileURLToPath(import.meta.url))
-const delegationEntry = pathToFileURL(join(testDirectory, "../plugins/delegation-runtime.js")).href
+const pluginHooksEntry = pathToFileURL(join(testDirectory, "../plugins/delegation/plugin-hooks.js")).href
 const controlPlaneEntry = pathToFileURL(join(testDirectory, "../plugins/delegation/control-plane.js")).href
 
 async function git(directory, args) {
@@ -53,7 +53,7 @@ async function availablePort() {
 function probeSource() {
   return `
 import { appendFile } from "node:fs/promises"
-import { delegationPluginHooks } from ${JSON.stringify(delegationEntry)}
+import { delegationPluginHooks } from ${JSON.stringify(pluginHooksEntry)}
 import { acquireDelegationControlPlane } from ${JSON.stringify(controlPlaneEntry)}
 
 const canonical = process.env.DELEGATION_PROBE_CANONICAL
