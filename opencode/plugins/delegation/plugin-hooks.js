@@ -53,7 +53,7 @@ export function delegationPluginHooks(runtime) {
       workspace_release: tool({
         description: "Safely release a managed, terminal, clean, integrated workspace without force operations.",
         args: { workspace_id: tool.schema.string().min(1) },
-        execute: async (args) => json(await runtime.workspaceRelease(args.workspace_id)),
+        execute: async (args, context) => json(await runtime.workspaceRelease(args.workspace_id, context)),
       }),
     },
     event: async ({ event }) => runtime.handleEvent(event),

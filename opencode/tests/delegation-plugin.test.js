@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url"
 
 import * as DelegationRuntimeEntrypoint from "../plugins/delegation-runtime.js"
 import DelegationRuntimePlugin from "../plugins/delegation-runtime.js"
+import { clearDelegationControlPlanesForTest } from "../plugins/delegation/control-plane.js"
 
 function client() {
   return {
@@ -43,6 +44,34 @@ test("plugin entrypoint is default-only and exposes the six workflow-owned deleg
   assert.equal(typeof plugin.event, "function")
   assert.equal(typeof plugin["chat.params"], "function")
   assert.equal(typeof plugin["permission.ask"], "function")
+})
+
+test("plugin entrypoint initializes with the full tool set outside Git", async (t) => {
+  clearDelegationControlPlanesForTest()
+  const directory = await mkdtemp(join(tmpdir(), "delegation-plugin-non-git-directory-"))
+  const stateDirectory = await mkdtemp(join(tmpdir(), "delegation-plugin-non-git-state-"))
+  t.after(async () => {
+    clearDelegationControlPlanesForTest()
+    await Promise.all([
+      rm(directory, { recursive: true }),
+      rm(stateDirectory, { recursive: true }),
+    ])
+  })
+
+  const plugin = await DelegationRuntimePlugin({
+    client: client(),
+    directory,
+    serverUrl: new URL("http://127.0.0.1:40201"),
+  }, { stateDirectory, skillRoots: [] })
+
+  assert.deepEqual(Object.keys(plugin.tool), [
+    "workspace_prepare",
+    "delegate_task",
+    "task_status",
+    "task_output",
+    "task_cancel",
+    "workspace_release",
+  ])
 })
 
 test("new runtime has a stock public dependency boundary", async () => {

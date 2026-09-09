@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -138,6 +138,42 @@ test("category without a variant sends only the model reference", async (t) => {
   assert.equal(Object.hasOwn(client.state.prompts[0].body, "variant"), false)
 })
 
+test("ordinary delegation works outside Git while workspace operations stay Git-only", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "delegation-runtime-non-git-test-"))
+  const directory = join(root, "directory")
+  const stateDirectory = join(root, "state")
+  await mkdir(directory)
+  const client = fakeClient()
+  const runtime = await DelegationRuntime.create({
+    client,
+    stateDirectory,
+    directory,
+    skillEntries: [],
+    categories: { quick: { description: "quick route", model: "example/primary" } },
+  })
+  const context = { sessionID: "parent", messageID: "turn", agent: "Assistant", directory }
+  t.after(async () => rm(root, { recursive: true }))
+
+  const result = await runtime.delegate({
+    category: "quick",
+    description: "Delegate from a plain directory",
+    prompt: "Inspect the current directory",
+    run_in_background: true,
+  }, context)
+  assert.equal(result.status, "running")
+  assert.equal(client.state.creates[0].query.directory, await realpath(directory))
+  assert.equal(client.state.prompts[0].body.agent, "Implementer")
+  assert.deepEqual((await runtime.taskStatus(undefined, context)).preserved_workspaces, [])
+  await assert.rejects(
+    runtime.workspacePrepare({ task_id: "non-git-workspace" }, context),
+    /workspace_prepare requires a Git repository.*not inside a Git worktree/,
+  )
+  await assert.rejects(
+    runtime.workspaceRelease("ws_missing", context),
+    /workspace_release requires a Git repository.*not inside a Git worktree/,
+  )
+})
+
 test("category profiles are shared across per-worktree plugin instances", async (t) => {
   const { root, client, runtime, context } = await fixture(t)
   const result = await runtime.delegate({
@@ -186,6 +222,35 @@ test("delegation injects only explicitly selected skill contents", async (t) => 
     prompt: "Fail closed",
     run_in_background: true,
   }, context), /unknown skill.*missing/)
+})
+
+test("video analysis composes the shared Implementer, category context, and watch location", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const skillPath = "/Users/example/.agents/skills/watch/SKILL.md"
+  runtime.skills = new SkillResolver({ entries: [{
+    name: "watch",
+    description: "Watch videos",
+    path: skillPath,
+    content: "WATCH SKILL CONTENT",
+  }] })
+  await runtime.delegate({
+    category: "video-analysis",
+    load_skills: ["watch"],
+    description: "Analyze video",
+    prompt: "Explain the opening hook",
+    run_in_background: true,
+  }, context)
+  const created = client.state.creates[0]
+  const prompt = client.state.prompts[0]
+  assert.equal(prompt.body.agent, "Implementer")
+  assert.match(prompt.body.system, /workflow-owned Implementer/)
+  assert.match(prompt.body.system, /<Category_Context name="video-analysis">/)
+  assert.match(prompt.body.system, /WATCH SKILL CONTENT/)
+  assert.match(prompt.body.system, new RegExp(skillPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.ok(created.body.permission.some((rule) =>
+    rule.permission === "skill" && rule.pattern === "watch" && rule.action === "allow"))
+  assert.ok(created.body.permission.some((rule) =>
+    rule.permission === "bash" && rule.pattern.includes("scripts/watch.py") && rule.action === "allow"))
 })
 
 test("workspace references in prompts must be bound by the workspace_id argument", async (t) => {

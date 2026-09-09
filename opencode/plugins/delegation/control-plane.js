@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto"
+import { realpath } from "node:fs/promises"
 import { resolve } from "node:path"
 
 import { DelegationRuntime, defaultStateDirectory } from "./runtime.js"
-import { WorkspaceManager } from "./workspace-manager.js"
+import { isNotGitRepositoryError, WorkspaceManager } from "./workspace-manager.js"
 
 const CONTROL_PLANES = Symbol.for("opencode-workflow.delegation.control-planes.v1")
 
@@ -39,17 +40,36 @@ function configurationFingerprint({ categories, categoryConfigPath, skillRoots }
   return createHash("sha256").update(JSON.stringify({ categories, categoryConfigPath, skillRoots })).digest("hex")
 }
 
+async function controlPlaneFacts(directory, stateDirectory) {
+  const workspaces = new WorkspaceManager({ stateDirectory })
+  try {
+    const facts = await workspaces.repositoryFacts(directory)
+    return { ...facts, identity: facts.commonDir, isGitRepository: true }
+  } catch (error) {
+    if (!isNotGitRepositoryError(error)) throw error
+    const canonicalDirectory = await realpath(directory)
+    return {
+      root: null,
+      commonDir: null,
+      projectKey: createHash("sha256").update(`directory:${canonicalDirectory}`).digest("hex").slice(0, 20),
+      identity: `directory:${canonicalDirectory}`,
+      isGitRepository: false,
+    }
+  }
+}
+
 export async function describeControlPlane({ directory, serverUrl, stateDirectory = defaultStateDirectory() }) {
   const resolvedState = resolve(stateDirectory)
-  const facts = await new WorkspaceManager({ stateDirectory: resolvedState }).repositoryFacts(directory)
+  const facts = await controlPlaneFacts(directory, resolvedState)
   return {
-    key: controlPlaneKey({ commonDir: facts.commonDir, serverUrl, stateDirectory: resolvedState }),
+    key: controlPlaneKey({ commonDir: facts.identity, serverUrl, stateDirectory: resolvedState }),
     server: serverIdentity(serverUrl),
     stateDirectory: resolvedState,
     registryStorePath: registryStorePath(resolvedState, facts.projectKey),
     repositoryRoot: facts.root,
     repositoryCommonDir: facts.commonDir,
     repositoryID: facts.projectKey,
+    isGitRepository: facts.isGitRepository,
   }
 }
 

@@ -37,6 +37,10 @@ function projectKey(commonDir) {
   return createHash("sha256").update(commonDir).digest("hex").slice(0, 20)
 }
 
+function isNotGitRepositoryError(error) {
+  return /not a git repository|outside any repository/i.test(String(error?.message ?? error))
+}
+
 function parseWorktrees(output) {
   if (!output.trim()) return []
   return output.trim().split(/\n\n+/).map((block) => {
@@ -73,13 +77,22 @@ export class WorkspaceManager {
     return { root, commonDir, projectKey: projectKey(commonDir) }
   }
 
+  async requireRepositoryFacts(directory, operation) {
+    try {
+      return await this.repositoryFacts(directory)
+    } catch (error) {
+      if (!isNotGitRepositoryError(error)) throw error
+      throw new Error(`${operation} requires a Git repository. Current directory is not inside a Git worktree.`)
+    }
+  }
+
   manifestPath(project, workspaceID) {
     return join(this.stateDirectory, "manifests", project, `${workspaceID}.json`)
   }
 
   async prepare({ task_id: taskID, change_id: changeID, base_sha: requestedBase } = {}, repositoryDirectory) {
     if (!taskID) throw new Error("workspace_prepare requires task_id")
-    const repository = await this.repositoryFacts(repositoryDirectory)
+    const repository = await this.requireRepositoryFacts(repositoryDirectory, "workspace_prepare")
     const baseSha = await this.git(repository.root, [
       "rev-parse",
       "--verify",
@@ -180,7 +193,13 @@ export class WorkspaceManager {
   }
 
   async listPreserved(repositoryDirectory) {
-    const repository = await this.repositoryFacts(repositoryDirectory)
+    let repository
+    try {
+      repository = await this.repositoryFacts(repositoryDirectory)
+    } catch (error) {
+      if (isNotGitRepositoryError(error)) return []
+      throw error
+    }
     const directory = join(this.stateDirectory, "manifests", repository.projectKey)
     let files
     try {
@@ -197,7 +216,8 @@ export class WorkspaceManager {
     return records
   }
 
-  async release(workspaceID) {
+  async release(workspaceID, repositoryDirectory) {
+    if (repositoryDirectory) await this.requireRepositoryFacts(repositoryDirectory, "workspace_release")
     const { manifest, path } = await this.findManifest(workspaceID)
     const validated = await this.get(workspaceID)
     if (await this.hasActiveTasks(workspaceID)) {
@@ -248,4 +268,4 @@ export class WorkspaceManager {
   }
 }
 
-export { parseWorktrees }
+export { isNotGitRepositoryError, parseWorktrees }

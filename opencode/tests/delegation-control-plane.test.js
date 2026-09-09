@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -116,4 +116,30 @@ test("a child-directory chat.params adapter preserves the shared profile hook", 
   const output = {}
   await delegationPluginHooks(child.runtime)["chat.params"]({ sessionID: "child-session" }, output)
   assert.deepEqual(output, {})
+})
+
+test("non-Git directories get stable isolated control planes", async (t) => {
+  clearDelegationControlPlanesForTest()
+  const root = await mkdtemp(join(tmpdir(), "delegation-control-plane-non-git-test-"))
+  const firstDirectory = join(root, "first")
+  const secondDirectory = join(root, "second")
+  const stateDirectory = join(root, "state")
+  await Promise.all([mkdir(firstDirectory), mkdir(secondDirectory)])
+  t.after(async () => {
+    clearDelegationControlPlanesForTest()
+    await rm(root, { recursive: true })
+  })
+
+  const input = { client: fakeClient(), serverUrl: new URL("http://127.0.0.1:40128"), stateDirectory, skillRoots: [] }
+  const first = await acquireDelegationControlPlane({ ...input, directory: firstDirectory })
+  const sameFirst = await acquireDelegationControlPlane({ ...input, client: fakeClient(), directory: firstDirectory })
+  const second = await acquireDelegationControlPlane({ ...input, directory: secondDirectory })
+
+  assert.strictEqual(first, sameFirst)
+  assert.notStrictEqual(first, second)
+  assert.equal(first.isGitRepository, false)
+  assert.equal(first.repositoryRoot, null)
+  assert.equal(first.repositoryCommonDir, null)
+  assert.notEqual(first.repositoryID, second.repositoryID)
+  assert.notEqual(first.registryStorePath, second.registryStorePath)
 })

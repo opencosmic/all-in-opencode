@@ -242,8 +242,8 @@ export class DelegationRuntime {
     return publicTask(this.registry.get(taskID))
   }
 
-  async workspaceRelease(workspaceID) {
-    return this.workspaces.release(workspaceID)
+  async workspaceRelease(workspaceID, context) {
+    return this.workspaces.release(workspaceID, context?.directory)
   }
 
   delegateTaskDescription() {
@@ -255,7 +255,7 @@ export class DelegationRuntime {
     const skillList = skills.length
       ? skills.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
       : "- none"
-    return `Delegate one scoped assignment through a category or an allowlisted named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. Git mechanics require category="git". Browser work through Implementer requires category="browser-automation" and, for the current backend, load_skills=["ego-browser"]. Pass workspace_id for a managed workspace.`
+    return `Delegate one scoped assignment through a category or an allowlisted named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. Git mechanics require category="git". Browser work through Implementer requires category="browser-automation" and, for the current backend, load_skills=["ego-browser"]. Video-content analysis normally requires category="video-analysis" with load_skills=["watch"]; use it when evidence must come from the video itself rather than the surrounding website. Pass workspace_id for a managed workspace.`
   }
 
   async handleEvent(event) {
