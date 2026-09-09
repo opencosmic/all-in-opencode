@@ -10,7 +10,7 @@ Use Assistant for normal questions and bounded work. It may answer directly, ins
 
 Non-trivial implementation flows through `delegate_task(category=...)` to Implementer. Use `load_skills=["skill-name"]` only for selected specialized instructions. Use `git` only when the Git operation and authority are explicit. For browser work, use `/browser` for the dedicated Browser agent or ask Assistant, which routes it through `browser-automation` with `load_skills=["ego-browser"]` to the currently installed browser backend. Both entry paths are intentionally retained.
 
-The category catalog is dynamic. Built-ins are centrally defined; `opencode/categories.json` can add, override, or disable entries. Each enabled entry uses one `model`, an optional `variant`, an optional `prompt_append`, and optional tool narrowing. It does not support model arrays, fallback models, or `reasoning`.
+The category catalog is dynamic. Built-ins are centrally defined; `opencode/categories.json` can add, override, or disable entries. Each enabled entry uses one `model`, an optional `variant`, an optional `prompt_append`, and optional tool narrowing. It does not support model arrays, fallback models, or `reasoning`. All category entries route to the shared Implementer. The category's `prompt_append` supplies its execution specialization, while `load_skills` remains an independent explicit capability selection.
 
 Assistant uses todos for meaningful multi-step work and verifies results before reporting completion. It does not silently create OpenSpec changes.
 
@@ -54,3 +54,16 @@ Before first browser use, run:
 ```
 
 The dedicated user-facing route is `/browser` and the Assistant category route is `browser-automation`; Ego Lite is only the current backend. Login, CAPTCHA, MFA, payment, security confirmation, and user takeover remain human-control boundaries. Browser work must verify the resulting page state and must not mutate repository files.
+
+## Video analysis
+
+Ask about the video itself when the required evidence is spoken content, transcript, frames, motion, editing, composition, a screen recording, or on-screen UI state. Assistant should route that work as `category="video-analysis"` with `load_skills=["watch"]`. For example, “Analyze the first 15 seconds of this video and explain the visual and spoken hook.” The `watch` skill remains independent from CategoryEngine and is selected explicitly, but the current hard runtime permissions support its bundled execution only under `video-analysis`; selecting it with another category does not automatically authorize its runtime.
+
+Provision and inspect the upstream skill with:
+
+```sh
+./scripts/setup-watch.sh
+./scripts/check-watch.sh
+```
+
+The upstream skill's bundled preflight owns its current macOS/Linux/Windows dependency guidance for `ffmpeg`, `ffprobe`, `yt-dlp`, and optional Whisper API configuration. On macOS it may use Homebrew for the binaries; API keys belong in the upstream `~/.config/watch/.env` file and are never stored in this repository.

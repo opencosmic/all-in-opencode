@@ -37,6 +37,10 @@ Run `./scripts/setup-ego-browser.sh`, finish the Ego Lite GUI onboarding, then r
 
 Use `/browser` for the dedicated Browser route, or ask Assistant to use `category="browser-automation"`; both routes require the same external backend health.
 
+## Video analysis is unavailable
+
+Run `./scripts/setup-watch.sh` and `./scripts/check-watch.sh`. The first script installs the upstream `bradautomates/claude-video` `watch` skill into a supported global skill directory and does not copy it into this repository. The upstream `scripts/setup.py` preflight reports or installs `ffmpeg`, `ffprobe`, and `yt-dlp` as appropriate for the platform, and optional Whisper keys remain in `~/.config/watch/.env`. Ask Assistant to use `category="video-analysis", load_skills=["watch"]` when the evidence must come from the video itself.
+
 ## Old managed config remains
 
 Run `./scripts/install.sh --dry-run`. The installer removes the former `~/.omo/omo.jsonc` only when it is a symlink to this repository's retired path. It preserves any user-owned file or other symlink and reports it for manual review.

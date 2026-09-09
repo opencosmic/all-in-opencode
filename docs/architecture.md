@@ -7,6 +7,7 @@ User
  |                      +-- CategoryEngine --> Implementer
  |                                            +-- git
  |                                            +-- browser-automation
+ |                                            +-- video-analysis + watch
  |                      +-- /browser --> Browser --> ego-browser backend
  |
  +-- formal work ----> /spec -> /plan -> /execute -> /verify -> /ship
@@ -27,9 +28,11 @@ OpenCode owns model, variant, tool, permission, and session execution. Git owns 
 
 The six runtime tools are `workspace_prepare`, `delegate_task`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces.
 
-Categories are small execution profiles: one `model`, an optional string `variant`, an execution-mindset `prompt_append`, and optional tool narrowing. `opencode/categories.json` is loaded once at startup and field-merges user entries over built-ins. It supports built-in overrides, custom categories, and `disable: true`; an enabled category without a model fails clearly. There is no model fallback chain.
+The runtime also initializes outside Git repositories. In that case, ordinary delegation and task inspection use a stable directory-scoped control plane, while workspace preparation and release remain Git-only operations.
 
-`load_skills` is an explicit list of installed/local skill names. The runtime advertises only name/description metadata and injects full content for selected skills into the child Implementer system context. Unknown names fail closed.
+Categories are small execution profiles: one `model`, an optional string `variant`, an execution-mindset `prompt_append`, and optional tool narrowing. `opencode/categories.json` is loaded once at startup and field-merges user entries over built-ins. It supports built-in overrides, custom categories, and `disable: true`; an enabled category without a model fails clearly. There is no model fallback chain. Every category uses the same Implementer contract. Category context changes the executor's mindset and completion bar; it is not a second executor or a skill binding.
+
+`load_skills` is an explicit list of installed/local skill names. The runtime advertises only name/description metadata and injects full content plus the selected skill's location for bundled runtime resolution into the child Implementer system context. Unknown names fail closed. Skill choice remains independent from category choice, while hard runtime authorization remains category-scoped: the current `watch` runtime boundary is available only to `video-analysis`.
 
 Workspace release accepts either ancestry or Git-proven patch equivalence. A cherry-picked workspace is removed normally while its non-ancestor branch is retained when safe `git branch -d` refuses; release never force-deletes it.
 
@@ -42,6 +45,8 @@ Independent tasks launched by one parent turn share a completion group. The pare
 Executor obtains a fresh Plan Reviewer verdict, prepares one provenance-bound workspace per eligible task, launches implementation, inspects each real diff, and delegates Reviewer/QA into that same workspace. After approval, Executor selects a deterministic integration order and delegates explicit Git mechanics through the `git` category. Task-scoped commits become source-derived integration inputs. A normal implementation category never re-applies reviewed changes in canonical.
 
 The Git category is session-scoped through OpenCode's public permission hook. Ordinary Implementers retain their restrictive Git policy. Only the exact Git category may receive bounded status/log/diff/show/rev-parse, staging, commit, and selected-SHA cherry-pick operations. Destructive operations, force operations, arbitrary history rewriting, and silent user-change disposal remain denied.
+
+The `video-analysis` category is also session-scoped. It disables repository mutation and admits the upstream `watch` skill only when the caller explicitly selects `load_skills=["watch"]`. Its permission boundary permits only the selected skill's `setup.py`/`watch.py`, the skill directory, and generated `watch-*` outputs beneath the system temp directory. The upstream skill owns video download, captions, frame extraction, timestamp filtering, and optional Whisper fallback; selecting `watch` with another category does not grant those runtime permissions.
 
 Workspace release is conservative: tasks must be terminal, identity and provenance must still match, the worktree must be clean, and unique changes must be integrated. Refusal preserves evidence.
 

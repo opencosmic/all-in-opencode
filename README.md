@@ -43,6 +43,10 @@ The runtime exposes exactly six tools:
 
 `CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are preserved in the registry, while `opencode/categories.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The `delegate_task` description presents the resolved catalog at startup.
 
+Category execution has three separate layers: the shared Implementer contract holds invariants for every delegated task, `category.prompt_append` supplies the selected execution mindset and completion bar, and `load_skills` injects only the explicitly selected capability instructions. Category choice and skill choice remain independent. Git and browser behavior still have hard session permissions; their category contexts do not replace those boundaries.
+
+The Delegation Runtime loads in any directory. Ordinary `delegate_task` work does not require a Git repository; `workspace_prepare` and `workspace_release` remain Git/worktree operations and report a clear error when called outside one.
+
 Categories define the model, optional variant, execution mindset, and optional tool narrowing. The V1 schema is intentionally small:
 
 ```json
@@ -107,6 +111,19 @@ Provision the current backend explicitly, then verify it:
 ```
 
 The backend remains external. This repository does not vendor its skill, application, Task Spaces, browser state, or credentials.
+
+## Video analysis
+
+For questions that depend on the actual contents of a video, Assistant routes through the shared Implementer with `category="video-analysis"` and `load_skills=["watch"]`. This covers summaries, timestamped questions, hooks, editing structure, screen recordings, visual-versus-spoken comparisons, and on-screen UI evidence. A website-only task remains `browser-automation`; watching the video embedded on that website is `video-analysis`.
+
+Provision the upstream `bradautomates/claude-video` Agent Skill with:
+
+```sh
+./scripts/setup-watch.sh
+./scripts/check-watch.sh
+```
+
+The setup script installs the self-contained `watch` skill into an existing supported global skill root. Its own bundled `scripts/setup.py` handles the current `ffmpeg`, `ffprobe`, and `yt-dlp` preflight and optional Whisper configuration. The project does not vendor those scripts or store API keys. The normal example is: “Analyze the first 15 seconds of this video and explain the visual and spoken hook.”
 
 ## Installation
 
