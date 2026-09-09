@@ -41,6 +41,7 @@ export function categoryPermission(profile, input) {
   const type = input.type ?? input.permission
 
   if (profile.category === "git" && type === "bash") {
+    if (profile.tools?.bash === false) return "deny"
     return isSafeGitCommand(value) ? "allow" : "deny"
   }
 
@@ -49,9 +50,10 @@ export function categoryPermission(profile, input) {
   }
 
   if (profile.category === "browser-automation") {
-    if (type === "skill") return value === "ego-browser" ? "allow" : "deny"
-    if (type === "bash") return isBrowserRuntimeCommand(value) ? "allow" : "deny"
+    if (type === "skill") return profile.tools?.skill === false || value !== "ego-browser" ? "deny" : "allow"
+    if (type === "bash") return profile.tools?.bash === false || !isBrowserRuntimeCommand(value) ? "deny" : "allow"
     if (type === "external_directory") {
+      if (profile.tools?.skill === false) return "deny"
       return /\/(?:\.config\/opencode|\.agents|\.claude)\/skills\/ego-browser(?:\/|$)/.test(value)
         ? "allow"
         : "deny"
@@ -63,42 +65,50 @@ export function categoryPermission(profile, input) {
   return null
 }
 
-export function categorySessionPermission(category) {
+export function categorySessionPermission(category, tools = {}) {
   if (category === "git") {
-    return [
+    const rules = [
       { permission: "edit", pattern: "*", action: "deny" },
       { permission: "write", pattern: "*", action: "deny" },
       { permission: "skill", pattern: "*", action: "deny" },
       { permission: "bash", pattern: "*", action: "deny" },
-      ...[
-        "git status", "git status *",
-        "git log", "git log *",
-        "git diff", "git diff *",
-        "git show", "git show *",
-        "git rev-parse", "git rev-parse *",
-        "git branch", "git branch --show-current",
-        "git add *",
-        "git commit *",
-        "git cherry-pick *",
-      ].map((pattern) => ({ permission: "bash", pattern, action: "allow" })),
+    ]
+    if (tools.bash !== false) rules.push(...[
+      "git status", "git status *",
+      "git log", "git log *",
+      "git diff", "git diff *",
+      "git show", "git show *",
+      "git rev-parse", "git rev-parse *",
+      "git branch", "git branch --show-current",
+      "git add *",
+      "git commit *",
+      "git cherry-pick *",
+    ].map((pattern) => ({ permission: "bash", pattern, action: "allow" })))
+    rules.push(
       { permission: "bash", pattern: "git commit *--amend*", action: "deny" },
       { permission: "bash", pattern: "git commit *--force*", action: "deny" },
       { permission: "bash", pattern: "git cherry-pick --*", action: "deny" },
-    ]
+    )
+    return rules
   }
   if (category === "browser-automation") {
-    return [
+    const rules = [
       { permission: "edit", pattern: "*", action: "deny" },
       { permission: "write", pattern: "*", action: "deny" },
       { permission: "skill", pattern: "*", action: "deny" },
-      { permission: "skill", pattern: "ego-browser", action: "allow" },
       { permission: "external_directory", pattern: "*", action: "deny" },
+      { permission: "bash", pattern: "*", action: "deny" },
+    ]
+    if (tools.skill !== false) rules.push(
+      { permission: "skill", pattern: "ego-browser", action: "allow" },
       { permission: "external_directory", pattern: "*/skills/ego-browser", action: "allow" },
       { permission: "external_directory", pattern: "*/skills/ego-browser/*", action: "allow" },
-      { permission: "bash", pattern: "*", action: "deny" },
+    )
+    if (tools.bash !== false) rules.push(
       { permission: "bash", pattern: "ego-browser", action: "allow" },
       { permission: "bash", pattern: "ego-browser *", action: "allow" },
-    ]
+    )
+    return rules
   }
   return undefined
 }

@@ -56,7 +56,7 @@ export class SessionRunner {
       body: {
         parentID: task.parent_session_id,
         title: description,
-        permission: categorySessionPermission(category),
+        permission: categorySessionPermission(category, profile.tools),
       },
       query: { directory },
     }), "session.create")
@@ -71,8 +71,9 @@ export class SessionRunner {
       tools: toolsFor(agent, profile.tools, category),
       parts: [{ type: "text", text }],
     }
-    const model = parseModel(profile.model, profile.variant)
+    const model = parseModel(profile.model)
     if (model) body.model = model
+    if (profile.variant !== undefined) body.variant = profile.variant
     await this.registry.selectModel(task.task_id, profile.model)
     try {
       const response = await this.client.session.promptAsync({

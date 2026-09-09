@@ -111,7 +111,9 @@ test("category delegation routes to Implementer with parent and managed workspac
   assert.equal(client.state.creates[0].query.directory, workspace.directory)
   assert.equal(client.state.prompts[0].query.directory, workspace.directory)
   assert.equal(client.state.prompts[0].body.agent, "Implementer")
-  assert.deepEqual(client.state.prompts[0].body.model, { providerID: "example", modelID: "primary", variant: "focused" })
+  assert.deepEqual(client.state.prompts[0].body.model, { providerID: "example", modelID: "primary" })
+  assert.equal(client.state.prompts[0].body.model.variant, undefined)
+  assert.equal(client.state.prompts[0].body.variant, "focused")
   assert.equal(client.state.prompts[0].body.tools.delegate_task, false)
   assert.equal(client.state.prompts[0].body.tools.workspace_prepare, false)
   assert.equal(client.state.prompts[0].body.tools.task, false)
@@ -122,6 +124,18 @@ test("category delegation routes to Implementer with parent and managed workspac
   runtime.applyChatParams(result.child_session_id, params)
   assert.deepEqual(params, {})
   assert.notEqual(workspace.directory, repository)
+})
+
+test("category without a variant sends only the model reference", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  await runtime.delegate({
+    category: "bounded",
+    description: "Model-only fixture",
+    prompt: "Inspect only",
+    run_in_background: true,
+  }, context)
+  assert.deepEqual(client.state.prompts[0].body.model, { providerID: "example", modelID: "primary" })
+  assert.equal(Object.hasOwn(client.state.prompts[0].body, "variant"), false)
 })
 
 test("category profiles are shared across per-worktree plugin instances", async (t) => {

@@ -57,6 +57,47 @@ test("sensitive category sessions receive fail-closed session permissions", () =
   assert.equal(categorySessionPermission("quick"), undefined)
 })
 
+test("git tool overrides narrow bash without broadening the hard ceiling", () => {
+  const defaultRules = categorySessionPermission("git")
+  const narrowedRules = categorySessionPermission("git", { bash: false })
+  assert.ok(defaultRules.some((rule) => rule.permission === "bash" && rule.action === "allow"))
+  assert.equal(narrowedRules.some((rule) => rule.permission === "bash" && rule.action === "allow"), false)
+  assert.ok(narrowedRules.some((rule) =>
+    rule.permission === "bash" && rule.pattern === "*" && rule.action === "deny"))
+
+  const broadenedRules = categorySessionPermission("git", { edit: true, write: true })
+  assert.ok(broadenedRules.some((rule) => rule.permission === "edit" && rule.pattern === "*" && rule.action === "deny"))
+  assert.ok(broadenedRules.some((rule) => rule.permission === "write" && rule.pattern === "*" && rule.action === "deny"))
+  assert.equal(categoryPermission({ category: "git", tools: { bash: false } }, {
+    type: "bash",
+    pattern: "git status",
+  }), "deny")
+})
+
+test("browser tool overrides narrow selected capabilities without broadening the hard ceiling", () => {
+  const defaultRules = categorySessionPermission("browser-automation")
+  assert.ok(defaultRules.some((rule) => rule.permission === "skill" && rule.pattern === "ego-browser" && rule.action === "allow"))
+  assert.ok(defaultRules.some((rule) => rule.permission === "bash" && rule.pattern === "ego-browser *" && rule.action === "allow"))
+
+  const skillNarrowed = categorySessionPermission("browser-automation", { skill: false })
+  assert.equal(skillNarrowed.some((rule) => rule.permission === "skill" && rule.action === "allow"), false)
+  assert.equal(categoryPermission({ category: "browser-automation", tools: { skill: false } }, {
+    type: "skill",
+    pattern: "ego-browser",
+  }), "deny")
+
+  const bashNarrowed = categorySessionPermission("browser-automation", { bash: false })
+  assert.equal(bashNarrowed.some((rule) => rule.permission === "bash" && rule.action === "allow"), false)
+  assert.equal(categoryPermission({ category: "browser-automation", tools: { bash: false } }, {
+    type: "bash",
+    pattern: "ego-browser --version",
+  }), "deny")
+
+  const broadenedRules = categorySessionPermission("browser-automation", { edit: true, write: true, bash: true, skill: true })
+  assert.ok(broadenedRules.some((rule) => rule.permission === "edit" && rule.pattern === "*" && rule.action === "deny"))
+  assert.ok(broadenedRules.some((rule) => rule.permission === "write" && rule.pattern === "*" && rule.action === "deny"))
+})
+
 test("permission decisions are scoped to the exact category session", () => {
   const request = { type: "bash", pattern: "git commit -m reviewed-task" }
   assert.equal(categoryPermission({ category: "git" }, request), "allow")
