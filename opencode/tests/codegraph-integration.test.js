@@ -3,15 +3,24 @@ import assert from "node:assert/strict"
 import { readFile, readdir } from "node:fs/promises"
 
 const root = "/Users/code/.config/opencode"
-const enabled = ["planner.md", "plan-reviewer.md", "executor.md", "reviewer.md", "verifier.md"]
-const excluded = ["strategist.md", "researcher.md", "validator.md", "qa.md", "ego-browser.md"]
+const enabled = [
+  "assistant.md",
+  "explorer.md",
+  "technical-advisor.md",
+  "planner.md",
+  "plan-reviewer.md",
+  "executor.md",
+  "reviewer.md",
+  "verifier.md",
+]
+const excluded = ["strategist.md", "researcher.md", "validator.md", "qa.md", "librarian.md"]
 const permission = "codegraph_codegraph_explore: allow"
 
 async function agent(name) {
   return readFile(`${root}/agents/${name}`, "utf8")
 }
 
-test("only the five rollout agents receive the exact explore permission", async () => {
+test("only structurally relevant agents receive the exact explore permission", async () => {
   for (const name of enabled) {
     const source = await agent(name)
     assert.equal(source.split(permission).length - 1, 1, `${name} must allow exactly one explore permission`)
@@ -31,8 +40,8 @@ test("only the five rollout agents receive the exact explore permission", async 
   assert.deepEqual(holders.sort(), [...enabled].sort())
 })
 
-test("rollout doctrine is bounded, non-duplicative, and evidence calibrated", async () => {
-  for (const name of enabled) {
+test("CodeGraph doctrine is bounded and evidence calibrated", async () => {
+  for (const name of ["explorer.md", "planner.md", "plan-reviewer.md", "executor.md", "reviewer.md", "verifier.md"]) {
     const source = await agent(name)
     assert.match(source, /available and (?:its index is )?current/i)
     assert.match(source, /Treat current source returned by CodeGraph as already read/i)
@@ -47,6 +56,7 @@ test("rollout doctrine is bounded, non-duplicative, and evidence calibrated", as
 })
 
 test("role-specific CodeGraph guidance preserves evidence boundaries", async () => {
+  assert.match(await agent("explorer.md"), /architecture, structural relationships, and cross-file call\/data flow/)
   assert.match(await agent("planner.md"), /architecture, dependencies, callers\/consumers, and task topology/)
   assert.match(await agent("plan-reviewer.md"), /high-impact structural claims/)
   assert.match(await agent("executor.md"), /Worker access is not assumed/)
@@ -65,4 +75,10 @@ test("commands and excluded roles do not acquire CodeGraph lifecycle ownership",
   for (const name of excluded) {
     assert.doesNotMatch(await agent(name), /codegraph/i)
   }
+})
+
+test("CodeGraph is configured directly through its public MCP server", async () => {
+  const config = await readFile(`${root}/opencode.jsonc`, "utf8")
+  assert.match(config, /"codegraph",\s*"serve",\s*"--mcp"/s)
+  assert.doesNotMatch(config, /oh-my-openagent/i)
 })

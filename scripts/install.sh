@@ -6,6 +6,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 MANIFEST="$SCRIPT_DIR/links.tsv"
 DATA_ROOT=${OPENCODE_WORKFLOW_DATA_ROOT:-"$HOME/Workspace/data/opencode-workflow"}
+LEGACY_OMO_SOURCE="$REPO_ROOT/omo/omo.jsonc"
+LEGACY_OMO_DEST="$HOME/.omo/omo.jsonc"
 DRY_RUN=0
 BACKUP_DIR=""
 MIGRATING=0
@@ -80,6 +82,12 @@ done
 
 [ -f "$MANIFEST" ] || fail "link manifest is missing: $MANIFEST"
 
+if [ -L "$LEGACY_OMO_DEST" ] && [ "$(readlink "$LEGACY_OMO_DEST")" = "$LEGACY_OMO_SOURCE" ]; then
+  printf '%s\n' "$LEGACY_OMO_DEST -> remove obsolete repository-managed symlink"
+elif [ -e "$LEGACY_OMO_DEST" ] || [ -L "$LEGACY_OMO_DEST" ]; then
+  printf '%s\n' "Preserving non-managed legacy OMO config: $LEGACY_OMO_DEST"
+fi
+
 # Complete validation before moving any live path.
 while IFS='|' read -r source_rel live_rel kind; do
   case "$source_rel" in ''|'#'*) continue ;; esac
@@ -110,6 +118,10 @@ done < "$MANIFEST"
 if [ "$DRY_RUN" -eq 1 ]; then
   printf '%s\n' "Dry run complete; no live paths changed."
   exit 0
+fi
+
+if [ -L "$LEGACY_OMO_DEST" ] && [ "$(readlink "$LEGACY_OMO_DEST")" = "$LEGACY_OMO_SOURCE" ]; then
+  rm "$LEGACY_OMO_DEST"
 fi
 
 if [ -z "$BACKUP_DIR" ]; then

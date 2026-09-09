@@ -1,4 +1,13 @@
-const NAMED_AGENTS = new Set(["Reviewer", "QA"])
+const NAMED_AGENTS = new Set([
+  "Explorer",
+  "Librarian",
+  "Technical Advisor",
+  "Plan Reviewer",
+  "Researcher",
+  "Validator",
+  "Reviewer",
+  "QA",
+])
 
 export class AgentDispatcher {
   constructor(categoryEngine) {
@@ -25,7 +34,6 @@ export class AgentDispatcher {
           task_cancel: false,
           workspace_release: false,
           task: false,
-          call_omo_agent: false,
         },
         prompt_append: "",
         unsupported_public_fields: [],

@@ -13,7 +13,7 @@ Strategy argument:
 ## Resolve readiness and target
 
 1. Work only in the target project/repository. If the current directory is the user's home directory or the project root is ambiguous, stop and ask the user to open the intended project.
-2. Resolve one APPROVED strategy from the explicit path, canonical `.product/strategy/`, or legacy `.omo/strategy/`. With no argument, infer only one unambiguous APPROVED strategy; otherwise ask and stop.
+2. Resolve one APPROVED strategy from the explicit path or canonical `.product/strategy/`. With no argument, infer only one unambiguous APPROVED strategy; otherwise ask and stop.
 3. Require a defined problem, target customer, selected wedge/behavior, scope, non-goals, contradictory evidence/key assumptions, success criteria, and accepted locked decisions. If a decision-critical product question remains, stop and return it to Strategist.
 
 ## Change-workspace placement gate — before persistent artifacts
@@ -50,7 +50,7 @@ Use the exact current CLI outputs rather than remembered templates:
 4. `openspec instructions specs --change <name> --json`
 5. Write only the required `specs/**/spec.md` delta files. Specify observable requirements, invariants, inputs/outputs, product-visible failure behavior, and testable `#### Scenario` blocks. Use implementation-independent behavior; security/privacy/reliability constraints belong here only when they are part of the product contract.
 
-Do not create `design.md`, `tasks.md`, application code, `.omo/plans/`, `.omo/notepads/`, or `.omo/work/`. Never use `/opsx-apply`.
+Do not create `design.md`, `tasks.md`, or application code. Never use `/opsx-apply`.
 
 Run `openspec validate <name> --type change --strict --no-interactive --json` and inspect final status. Distinguish intentional downstream incompleteness from malformed proposal/specs; actual structural or contract errors block handoff.
 

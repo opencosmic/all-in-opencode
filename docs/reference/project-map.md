@@ -2,16 +2,13 @@
 
 | Path | Purpose |
 |---|---|
-| [`opencode/agents/`](../../opencode/agents/) | Workflow roles, including reusable Implementer and read-only Reviewer/QA specialists. |
-| [`opencode/commands/`](../../opencode/commands/) | `/ego`, `/omo`, `/spec`, `/plan`, `/execute`, `/verify`, and `/ship`. |
-| [`opencode/plugins/delegation-runtime.js`](../../opencode/plugins/delegation-runtime.js) | Public six-tool Delegation Runtime plugin entry. |
-| [`opencode/plugins/delegation/`](../../opencode/plugins/delegation/) | Shared control-plane acquisition, WorkspaceManager, category configuration/engine, TaskRegistry, SessionRunner, CompletionTracker, ParentResumeCoordinator, and dispatch boundaries. |
-| [`opencode/plugins/workspace-inspector.js`](../../opencode/plugins/workspace-inspector.js) | Read-only repository/worktree preflight. |
-| [`opencode/plugins/planner-delegation-guard.js`](../../opencode/plugins/planner-delegation-guard.js) | Planner consultation limits. |
-| [`opencode/tests/`](../../opencode/tests/) | Deterministic policy, plugin, fake-SDK, completion, background, permission, temporary-Git-worktree, and stock OpenCode no-model host tests. |
-| [`opencode/opencode.jsonc`](../../opencode/opencode.jsonc), [`opencode/tui.json`](../../opencode/tui.json) | Stock OMO plugin declaration and public-safe OpenCode configuration. |
-| [`opencode/package.json`](../../opencode/package.json) | Exact public OpenCode plugin/SDK dependency used for local validation. |
-| [`omo/omo.jsonc`](../../omo/omo.jsonc) | Stock OMO configuration for unrelated existing routes; not a Delegation Runtime dependency. |
-| [`scripts/`](../../scripts/) | Conservative live-link installation and verification only. |
-
-The live link topology is defined by [`scripts/links.tsv`](../../scripts/links.tsv). Runtime provenance is stored outside Git and never replaces OpenSpec `tasks.md`.
+| [`opencode/agents/`](../../opencode/agents/) | Assistant, Browser, formal lifecycle roles, specialists, and Implementer. |
+| [`opencode/commands/`](../../opencode/commands/) | `/spec`, `/plan`, `/execute`, `/verify`, `/ship`, and `/browser`. |
+| [`opencode/plugins/delegation-runtime.js`](../../opencode/plugins/delegation-runtime.js) | Loader-safe Delegation Runtime entrypoint. |
+| [`opencode/plugins/delegation/`](../../opencode/plugins/delegation/) | WorkspaceManager, CategoryEngine, TaskRegistry, SessionRunner, CompletionTracker, ParentResumeCoordinator, dispatch, and category permissions. |
+| [`opencode/plugins/workspace-inspector.js`](../../opencode/plugins/workspace-inspector.js) | Read-only workspace placement and provenance evidence. |
+| [`opencode/opencode.jsonc`](../../opencode/opencode.jsonc) | Public CodeGraph MCP configuration. |
+| [`opencode/tests/`](../../opencode/tests/) | Deterministic discovery, policy, runtime, workspace, completion, and host tests. |
+| [`scripts/links.tsv`](../../scripts/links.tsv) | Narrow canonical-to-live symlink manifest. |
+| [`scripts/setup-codegraph.sh`](../../scripts/setup-codegraph.sh), [`scripts/check-codegraph.sh`](../../scripts/check-codegraph.sh) | Independent CodeGraph setup and health. |
+| [`scripts/setup-ego-browser.sh`](../../scripts/setup-ego-browser.sh), [`scripts/check-ego-browser.sh`](../../scripts/check-ego-browser.sh) | Current external browser backend setup and health. |

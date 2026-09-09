@@ -119,11 +119,11 @@ test("delegation runtime owns isolation while Executor owns integration", async 
   assert.match(agent, /workflow-owned Delegation Runtime owns isolated workspace and child-session lifecycle/)
   assert.match(agent, /categories to `Implementer`/)
   assert.match(agent, /route read-only inspection to `Reviewer` or `QA`/)
-  assert.match(agent, /The runtime never stages, commits, rebases, merges, or checks tasks/)
+  assert.match(agent, /The runtime never decides what to stage, commit, integrate, or check/)
   assert.match(agent, /`workspace_release` uses normal Git removal and safe branch deletion/)
   assert.match(agent, /Never force-remove, force-delete, reset, or clean/)
-  assert.match(command, /Executor alone decides controlled commit and integration/)
-  assert.match(command, /runtime and workers must never auto-commit, merge, rebase/)
+  assert.match(command, /Executor alone decides integration order and scope/)
+  assert.match(agent, /git category only executes the operation you explicitly select/)
 })
 
 test("ship keeps its exact menu and applies provenance-aware conservative cleanup", async () => {
@@ -164,7 +164,7 @@ test("active custom workflow creates no second durable state system", async () =
   const executor = await text("agents/executor.md")
   const execute = await text("commands/execute.md")
   assert.match(executor, /OpenSpec `tasks\.md` is the only durable execution-progress source of truth/)
-  assert.match(executor, /Never create or rely on[\s\S]*`\.superpowers\/sdd\/\*\*`/)
+  assert.match(executor, /Never create or rely on another workflow-progress ledger/)
   assert.match(execute, /Use `tasks\.md` as the only durable task-progress source of truth/)
   assert.match(executor, /Naming alone never proves ownership/)
 })

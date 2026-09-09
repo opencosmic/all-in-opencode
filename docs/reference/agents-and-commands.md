@@ -1,32 +1,31 @@
 # Agents and commands
 
-## Agents
+## Primary roles
 
 | Agent | Responsibility | Mutation boundary |
 |---|---|---|
-| Strategist | Product intent and OpenSpec product contract | Strategy, proposal, specs only |
-| Researcher / Validator | Product evidence and adversarial validation | Read-only |
-| Planner | Engineering design and executable tasks | `design.md`, unchecked `tasks.md` only |
-| Plan Reviewer | Independent planning gate | Read-only |
-| Executor | Delegation, review sequencing, integration, task transitions | Task checkboxes; no direct application edits |
-| Implementer | One scoped implementation assignment | Assigned workspace application/source/test/config only |
-| Reviewer | Diff-first code review in the assigned workspace | Read-only |
-| QA | Runtime/user-facing verification in the assigned workspace | Read-only |
+| Assistant | Ordinary questions, investigation, bounded work, and routing | Small direct edits or delegated implementation; no implicit OpenSpec state |
+| Browser | Direct browser navigation, interaction, visual inspection, and Task Spaces | Browser backend only; no application or workflow-file mutation |
+| Strategist | Product WHAT, WHY, WHO, behavior, and scope | Product strategy, proposal, and specs only |
+| Planner | Engineering HOW and executable tasks | Active change's `design.md` and `tasks.md` only |
+| Executor | Implementation orchestration, review, integration, task transitions | `tasks.md`; code changes occur through workers |
 | Verifier | Independent final proof | Read-only |
-| Ego Browser | Standalone browser automation | Browser Task Space only |
 
-Executor uses the workflow-owned `delegate_task` primitive for implementation and workspace-local Reviewer/QA work. Stock OMO remains available only for unrelated existing routes. Implementer is deliberately non-recursive and cannot create workspaces or delegate. Its resolved shell policy permits ordinary builds/tests and read-only Git inspection while denying commit, merge, rebase, reset, clean, switch/checkout, worktree, stash, branch mutation, tag mutation, and push operations.
+## Specialists
+
+Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, and QA are read-only. Technical Advisor has no approval authority. Plan Reviewer is the independent `[APPROVED]` / `[REJECTED]` gate. Named delegation accepts only this exact allowlist.
+
+Implementer executes one bounded category assignment. It cannot create workspaces, delegate recursively, mutate OpenSpec state, ship, or own global integration. Ordinary Implementers cannot commit, merge, rebase, reset, clean, switch, modify worktrees, stash, mutate branches/tags, or push. The exact `git` category receives only the public-hook permission needed for its explicit bounded operation.
 
 ## Commands
 
-| Command | Owner | Result |
+| Command | Agent | Result |
 |---|---|---|
-| `/spec <strategy>` | Strategist | Proposal and behavioral specs |
-| `/plan <change>` | Planner | Design, unchecked tasks, fresh Plan Reviewer verdict |
-| `/execute <change>` | Executor | Delegated implementation, review/QA evidence, controlled integration, task transitions |
-| `/verify <change>` | Verifier | `VERIFIED`, `VERIFIED_WITH_CONCERNS`, or `BLOCKED` |
-| `/ship <change>` | Executor + fresh Verifier | Explicit merge, push/PR, or keep-branch choice |
-| `/omo <strategy>` | Stock OMO | Native OMO planning route |
-| `/ego <task>` | Ego Browser | Verified browser result and retained Task Space |
+| `/spec <strategy>` | Strategist | Proposal and behavioral delta specs |
+| `/plan <change>` | Planner | Design, task graph, and Plan Reviewer verdict |
+| `/execute <change>` | Executor | Reviewed, integrated, tested implementation |
+| `/verify <change>` | Verifier | Independent verification verdict |
+| `/ship <change>` | Executor | Explicitly selected integration/archive action |
+| `/browser <goal>` | Browser | Standalone browser workflow through the external browser backend |
 
-See [architecture](../architecture.md) for the runtime lifecycle and [invariants](invariants.md) for hard boundaries.
+Ordinary Assistant work needs no dedicated command.

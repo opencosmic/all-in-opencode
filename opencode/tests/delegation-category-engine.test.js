@@ -46,9 +46,34 @@ test("dispatcher enforces category XOR named agent and allowlists specialists", 
   assert.throws(() => dispatcher.resolve({}), /exactly one/)
   assert.throws(() => dispatcher.resolve({ category: "quick", agent: "Reviewer" }), /exactly one/)
   assert.equal(dispatcher.resolve({ category: "quick" }).agent, "Implementer")
-  assert.equal(dispatcher.resolve({ agent: "Reviewer" }).agent, "Reviewer")
-  assert.equal(dispatcher.resolve({ agent: "QA" }).agent, "QA")
+  for (const agent of [
+    "Explorer",
+    "Librarian",
+    "Technical Advisor",
+    "Plan Reviewer",
+    "Researcher",
+    "Validator",
+    "Reviewer",
+    "QA",
+  ]) assert.equal(dispatcher.resolve({ agent }).agent, agent)
   assert.throws(() => dispatcher.resolve({ agent: "Executor" }), /not allowed/)
+  assert.throws(() => dispatcher.resolve({ agent: "RandomAgent" }), /not allowed/)
+})
+
+test("required workflow categories resolve through the local engine", () => {
+  const engine = new CategoryEngine()
+  for (const category of [
+    "quick",
+    "deep",
+    "ultrabrain",
+    "visual-engineering",
+    "writing",
+    "artistry",
+    "unspecified-low",
+    "unspecified-high",
+    "git",
+    "browser-automation",
+  ]) assert.equal(engine.resolve(category).agent, "Implementer")
 })
 
 test("unsupported category fields are rejected instead of ignored", () => {

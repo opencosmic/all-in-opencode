@@ -18,7 +18,6 @@ permission:
   edit: deny
   write: deny
   task: deny
-  call_omo_agent: deny
   todowrite: allow
   workspace_inspect: allow
   question: deny

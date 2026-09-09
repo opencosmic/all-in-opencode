@@ -15,12 +15,8 @@ coverage/
 
 # Derived CodeGraph and workflow runtime state
 .codegraph/
-/opencode/.omo/
 /opencode/backups/
 /opencode/benchmarks/
-/omo/codegraph/
-/omo/run-continuation/
-/omo/runtime/
 
 # Local backup and scratch material
 *.bak

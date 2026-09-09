@@ -205,21 +205,46 @@ export class WorkspaceManager {
     }
     const status = await this.git(validated.directory, ["status", "--porcelain=v1", "--untracked-files=all"])
     if (status) throw new Error("workspace is dirty; preserving it")
+    let integration = "ancestor"
     try {
       await this.git(manifest.repository_root, ["merge-base", "--is-ancestor", manifest.branch, "HEAD"])
     } catch {
-      throw new Error("workspace branch is not proven integrated into repository HEAD; preserving it")
+      const cherry = await this.git(manifest.repository_root, [
+        "cherry", "HEAD", manifest.branch, manifest.base_sha,
+      ])
+      const commits = cherry.split("\n").map((line) => line.trim()).filter(Boolean)
+      if (!commits.length || commits.some((line) => !line.startsWith("- "))) {
+        throw new Error("workspace branch is not proven integrated into repository HEAD; preserving it")
+      }
+      integration = "patch-equivalent"
     }
     await this.git(manifest.repository_root, ["worktree", "remove", manifest.directory])
+    let branchPreserved = false
     try {
       await this.git(manifest.repository_root, ["branch", "-d", manifest.branch])
     } catch (error) {
-      await writeJson(path, { ...manifest, status: "worktree_released_branch_preserved", error: error.message })
-      throw new Error(`worktree was normally removed but safe branch deletion refused: ${error.message}`)
+      if (integration !== "patch-equivalent") {
+        await writeJson(path, { ...manifest, status: "worktree_released_branch_preserved", error: error.message })
+        throw new Error(`worktree was normally removed but safe branch deletion refused: ${error.message}`)
+      }
+      branchPreserved = true
     }
-    const released = { ...manifest, status: "released", released_at: this.now() }
+    const released = {
+      ...manifest,
+      status: "released",
+      integration,
+      branch_preserved: branchPreserved,
+      released_at: this.now(),
+    }
     await writeJson(path, released)
-    return { workspace_id: workspaceID, status: "released", branch: manifest.branch, directory: manifest.directory }
+    return {
+      workspace_id: workspaceID,
+      status: "released",
+      branch: manifest.branch,
+      directory: manifest.directory,
+      integration,
+      branch_preserved: branchPreserved,
+    }
   }
 }
 

@@ -39,6 +39,7 @@ test("plugin entrypoint is default-only and exposes the six workflow-owned deleg
   ])
   assert.equal(typeof plugin.event, "function")
   assert.equal(typeof plugin["chat.params"], "function")
+  assert.equal(typeof plugin["permission.ask"], "function")
 })
 
 test("new runtime has a stock public dependency boundary", async () => {
@@ -63,10 +64,11 @@ test("new runtime has a stock public dependency boundary", async () => {
   assert.doesNotMatch(hooks, /oh-my-openagent|opencode.*(?:internal|src)/i)
 })
 
-test("OpenCode configuration uses stock OMO instead of a local source artifact", async () => {
-  for (const path of ["../opencode.jsonc", "../tui.json"]) {
-    const config = await readFile(new URL(path, import.meta.url), "utf8")
-    assert.match(config, /"oh-my-openagent@4\.19\.4"/)
-    assert.doesNotMatch(config, /omo-artifacts|file:\/\/|\.tgz/)
-  }
+test("OpenCode configuration is OMO-free and owns the public CodeGraph MCP entry", async () => {
+  const config = await readFile(new URL("../opencode.jsonc", import.meta.url), "utf8")
+  const tui = await readFile(new URL("../tui.json", import.meta.url), "utf8")
+  assert.doesNotMatch(`${config}\n${tui}`, /oh-my-openagent|call_omo_agent/)
+  assert.match(config, /"codegraph"/)
+  assert.match(config, /"codegraph",\s*"serve",\s*"--mcp"/s)
+  assert.match(config, /"enabled": true/)
 })

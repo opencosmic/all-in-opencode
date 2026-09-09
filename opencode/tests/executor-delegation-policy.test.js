@@ -24,7 +24,7 @@ function effectiveAction(rules, permission, value) {
     .at(-1)?.action
 }
 
-test("effective Executor policy keeps Plan Reviewer and blocks implementation fallbacks", async () => {
+test("effective Executor policy uses only workflow-owned delegation and Git integration", async () => {
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Executor"], {
     cwd: repository,
     env: { ...process.env, OPENCODE_CONFIG_DIR: configDirectory },
@@ -43,12 +43,9 @@ test("effective Executor policy keeps Plan Reviewer and blocks implementation fa
     assert.equal(executor.tools[toolName], true, `${toolName} must remain available`)
   }
 
-  assert.equal(executor.tools.task, true, "Plan Reviewer keeps the native task tool visible")
-  assert.equal(effectiveAction(executor.permission, "task", "Plan Reviewer"), "allow")
-  assert.equal(effectiveAction(executor.permission, "task", "Sisyphus-Junior"), "deny")
+  assert.equal(executor.tools.task, false)
+  assert.equal(effectiveAction(executor.permission, "task", "Plan Reviewer"), "deny")
   assert.equal(effectiveAction(executor.permission, "task", "Implementer"), "deny")
-  assert.equal(executor.tools.call_omo_agent, false)
-  assert.equal(effectiveAction(executor.permission, "call_omo_agent", "explore"), "deny")
   assert.equal(effectiveAction(executor.permission, "bash", "git worktree add /tmp/fallback"), "deny")
   assert.equal(effectiveAction(executor.permission, "bash", "git worktree remove /tmp/fallback"), "deny")
   assert.equal(effectiveAction(executor.permission, "bash", "git status --short"), "ask")
@@ -60,8 +57,10 @@ test("effective Executor policy keeps Plan Reviewer and blocks implementation fa
 
   assert.match(executor.prompt, /either `workspace_prepare` or `delegate_task` is unavailable, stop immediately/)
   assert.match(executor.prompt, /Do not substitute manual `git worktree add`\/`git worktree remove`/)
-  assert.match(executor.prompt, /OMO `task\(category=\.\.\.\)`/)
-  assert.match(executor.prompt, /Sisyphus-Junior/)
   assert.match(executor.prompt, /manually constructed child sessions/)
   assert.match(executor.prompt, /another implementation framework/)
+  assert.match(executor.prompt, /delegate_task\(agent="Plan Reviewer"\)/)
+  assert.match(executor.prompt, /delegate_task\(category="git"\)/)
+  assert.match(executor.prompt, /Never launch a normal implementation category merely to re-apply/)
+  assert.match(executor.prompt, /Category guide: `quick`.*`browser-automation`/s)
 })

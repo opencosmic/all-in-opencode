@@ -4,11 +4,20 @@ import { join, resolve } from "node:path"
 
 import { AgentDispatcher } from "./agent-dispatcher.js"
 import { CategoryEngine } from "./category-engine.js"
+import { categoryPermission } from "./category-permissions.js"
 import { CompletionTracker } from "./completion-tracker.js"
+import { readJson } from "./json-store.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
 import { SessionRunner } from "./session-runner.js"
 import { TaskRegistry, TERMINAL_STATUSES } from "./task-registry.js"
 import { WorkspaceManager } from "./workspace-manager.js"
+
+const SESSION_PROFILES = Symbol.for("opencode-workflow.delegation.session-profiles")
+
+function sharedSessionProfiles() {
+  globalThis[SESSION_PROFILES] ??= new Map()
+  return globalThis[SESSION_PROFILES]
+}
 
 function defaultStateDirectory() {
   return process.env.OPENCODE_WORKFLOW_DATA_ROOT
@@ -47,7 +56,11 @@ export class DelegationRuntime {
       storePath: registryStorePath ?? join(resolvedState, "tasks.json"),
       now,
     }).load()
-    const profiles = new Map()
+    // OpenCode creates a plugin instance per project/worktree. Child-session
+    // permission hooks therefore run in a sibling instance and need the same
+    // process-local profile registry as the parent instance that dispatched
+    // the session.
+    const profiles = sharedSessionProfiles()
     let coordinator
     const tracker = new CompletionTracker({
       onTerminal: async (terminal) => {
@@ -99,6 +112,13 @@ export class DelegationRuntime {
 
   async delegate(args, context) {
     const route = this.dispatcher.resolve(args)
+    const referencedWorkspaces = `${args.description}\n${args.prompt}`.match(/\bws_[0-9a-f-]+\b/g) ?? []
+    if (!args.workspace_id && referencedWorkspaces.length) {
+      throw new Error("delegation prompt references a managed workspace but workspace_id was omitted")
+    }
+    if (args.workspace_id && referencedWorkspaces.some((id) => id !== args.workspace_id)) {
+      throw new Error("delegation prompt references a workspace that does not match workspace_id")
+    }
     const workspace = args.workspace_id
       ? await this.workspaces.get(args.workspace_id)
       : { workspace_id: null, directory: await realpath(context.directory) }
@@ -120,6 +140,7 @@ export class DelegationRuntime {
         task,
         directory: workspace.directory,
         agent: route.agent,
+        category: route.category,
         profile: route.profile,
         description: args.description,
         prompt: args.prompt,
@@ -231,6 +252,19 @@ export class DelegationRuntime {
     if (profile.temperature !== undefined) output.temperature = profile.temperature
     if (profile.top_p !== undefined) output.topP = profile.top_p
     if (profile.max_tokens !== undefined) output.maxOutputTokens = profile.max_tokens
+  }
+
+  async applyPermission(input, output) {
+    let profile = this.profiles.get(input.sessionID)
+    if (!profile && this.registry.storePath) {
+      const persisted = await readJson(this.registry.storePath, { tasks: {} })
+      const task = Object.values(persisted?.tasks ?? {}).find(
+        (candidate) => candidate.child_session_id === input.sessionID,
+      )
+      if (task) profile = { category: task.category, agent: task.agent }
+    }
+    const decision = categoryPermission(profile, input)
+    if (decision) output.status = decision
   }
 }
 

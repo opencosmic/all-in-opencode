@@ -1,86 +1,42 @@
 # Troubleshooting
 
-Start by inspecting ownership and the smallest affected surface. Prefer:
-
-```text
-inspect → identify owner → verify backup → repair smallest surface → re-run checks
-```
-
-Do not casually delete `~/.omo`, CodeGraph indexes/projects, benchmark evidence, backups, or package state.
-
-## Links and discovery
-
-### `scripts/verify.sh` reports a missing, broken, or wrong link
-
-**Actionable failure.** Read [`scripts/links.tsv`](../scripts/links.tsv) to identify the intended source and live path. Confirm the repository source exists and inspect the live path without replacing it. Use `./scripts/install.sh --dry-run` to review the approved repair; the installer refuses unexpected symlinks and content drift rather than overwriting them.
-
-If the live path was previously migrated, locate the corresponding backup under `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}/backups/migrations/` before changing anything. Then rerun `./scripts/verify.sh`.
-
-### OpenCode does not discover a custom agent or command
-
-**Actionable failure.** First run `./scripts/verify.sh`; the live `agents/` and `commands/` directories must be the expected links. Then compare the filename and front matter with [`workflow-discovery.test.js`](../opencode/tests/workflow-discovery.test.js): commands are exactly `ego`, `omo`, `spec`, `plan`, `execute`, `verify`, and `ship`, and their exact agent targets are tested. Run:
+Start with:
 
 ```sh
-node --test ~/.config/opencode/tests/*.test.js
-opencode agent list
+git status --short
+git diff --check
+node --test opencode/tests/*.test.js
+./scripts/verify.sh
 ```
 
-Edit the canonical file in this repository, never a copied live file.
+Do not reset, clean, stash, force-remove worktrees, or delete broad runtime/index directories to make a check pass.
 
-## Dependency and runtime availability
+## Agent or command is missing
 
-### `scripts/check-ego-browser.sh` reports `NOT READY`
+Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are exactly `spec`, `plan`, `execute`, `verify`, `ship`, and `browser`. Restart OpenCode after authored agent, command, plugin, skill, or MCP changes.
 
-**Actionable external-dependency status; not an authored-config failure.** Run the opt-in `./scripts/setup-ego-browser.sh`, complete the ego lite GUI onboarding, and rerun the check. A ready machine has a discoverable official skill plus a provisioned `ego-browser` command, normally under `~/.local/bin`.
+## Delegation tool is missing
 
-If the skill is missing, reinstall it globally for OpenCode with `npx --yes skills add citrolabs/ego-lite --global --agent opencode --skill ego-browser -y`. If the command exists but the check says it is not provisioned, reopen ego lite and finish onboarding. If the command is absent after onboarding, confirm `~/.local/bin` is in the persistent PATH inherited by OpenCode, then restart OpenCode. Do not copy the skill into this repository or weaken Ego Browser's shell permissions.
+Run `opencode debug config` and confirm the local Delegation Runtime plugin is discovered. Run the loader and host integration tests. Executor must stop if a required workflow-owned tool is unavailable; manual worktree or alternate delegation fallback is not valid.
 
-### Plugin module resolution fails or `node_modules` is absent
+## Background group does not resume
 
-**Actionable failure.** The repository intentionally keeps only dependency metadata; the ignored repository-local `opencode/node_modules` is a local validation bridge, not Git content and not a link over OpenCode's installed package state. Install it from the repository:
+Inspect deterministic task status, the task registry, child session status/events, and parent idle evidence. Do not add a polling loop. Busy/running/retry parents are intentionally not resumed. A missing status is accepted only with a current-process idle witness.
 
-```sh
-npm ci --prefix opencode
-```
+## Workspace release refuses
 
-If installation is blocked by network/DNS or an unavailable package cache, that is an environment/dependency acquisition issue, not a reason to vendor `node_modules` or modify workflow policy. Restore connectivity/cache access, then retry the intended install.
+Treat refusal as preservation. Inspect task terminal state, worktree identity, status, unique commits, and integration evidence. Never force-remove, reset, or clean the workspace.
 
-### CodeGraph explore is unavailable, pending, stale, or reports a worktree mismatch
+## CodeGraph is unavailable or stale
 
-**Actionable limitation for structural retrieval; not a workflow bypass.** CodeGraph is OMO-owned. Inspect the current workspace and OMO runtime/index status; do not create a second custom index lifecycle. The enabled roles must fall back to ordinary repository tools for the concrete evidence gap. CodeGraph is not compiler, diff, test, or runtime truth, so complete those checks normally.
+Run `./scripts/check-codegraph.sh`. If the CLI is absent or the project is unindexed, run `./scripts/setup-codegraph.sh`. Restart OpenCode after MCP changes. Agents should fall back to source tools immediately; CodeGraph must not block correctness work.
 
-For experiment setup, require an exact-root, complete, zero-pending index and a successful infrastructure-only explore probe. Do not place disposable worktrees under sensitive configuration directories: historical experiment `20260827T155125Z` failed for that reason. See [CodeGraph research](research/codegraph-integration.md#invalid-infrastructure-attempt).
+## Browser backend is not ready
 
-### OMO doctor warns about `agents.*.models` schema shape
+Run `./scripts/setup-ego-browser.sh`, finish the Ego Lite GUI onboarding, then run `./scripts/check-ego-browser.sh`. Ensure `~/.local/bin` is in the PATH inherited by OpenCode and restart it. Do not copy the external skill into this repository or broaden ordinary Implementer permissions.
 
-**Context-dependent warning.** The authored OMO configuration contains `models` lists. Treat a doctor/schema warning as actionable when agent resolution or actual invocation fails; otherwise record it as environment feedback and do not rewrite configuration solely to silence it.
+Use `/browser` for the dedicated Browser route, or ask Assistant to use `category="browser-automation"`; both routes require the same external backend health.
 
-### `runtime-skills` reports a port-0 warning
+## Old managed config remains
 
-**Known non-blocking warning in historical benchmark preflight.** The valid CodeGraph and cross-repository benchmark reports recorded the warning while agent resolution, explore probes, and index preflight passed. It did not affect those experiments. If it coincides with a current runtime failure, diagnose that failure independently rather than assuming the warning is harmless.
-
-## External tools and recovery
-
-### `/execute` preserves a managed workspace after failure or refused release
-
-**Expected conservative behavior.** Use `task_status` to inspect persisted task state and surviving workspace manifests, then inspect `task_output`, Git status, branch/base relationship, and the actual diff. Cancellation never deletes a workspace. Dirty, active, mismatched, unintegrated, or Git-refused workspaces remain available for explicit reconciliation.
-
-Do not force-remove the worktree, force-delete its branch, reset it, or clean it. A matching branch name or path alone is not ownership. Only `workspace_release` may normally remove a provenance-validated managed workspace, and it refuses unknown state.
-
-### A task remains `running` after OpenCode or the plugin restarted
-
-**Recovery evidence, not proof of completion.** The runtime deliberately does not guess that a child completed. Inspect the surviving workspace and child/task identifiers returned by `task_status`. Cancel the task if the child must be aborted, or reconcile its workspace explicitly. Keep `tasks.md` unchecked until the implementation is integrated and freshly validated.
-
-During one live OpenCode process, linked worktrees should share a control plane keyed by server URL, Git common directory, and data root. If a task remains running while its child is visibly terminal, verify that every worktree loaded the same Delegation Runtime plugin and resolves those three identities consistently. Do not edit the repository-namespaced task JSON or use it as an event channel.
-
-### GitHub CLI is unauthenticated
-
-**Actionable only for an operation that needs GitHub.** Local validation and local commits do not require GitHub CLI authentication. Authenticate through the user-approved GitHub CLI flow before a requested push/PR operation; do not put tokens in this repository or documentation.
-
-### A prior migration needs recovery
-
-**Actionable failure; proceed conservatively.** Identify the exact live path and canonical target from [`links.tsv`](../scripts/links.tsv), verify a matching migration backup exists, and inspect its contents. Restore or repair only that path using the installer/backed-up material, then rerun verification and deterministic tests. Never use a broad deletion to “start clean.”
-
-## Workflow verdicts
-
-`[REJECTED]`, `[CHANGES_REQUIRED]`, `QA_FAIL`, `VERIFIED_WITH_CONCERNS`, and `BLOCKED` are not tool crashes. They report an evidence or authority boundary. Return the issue to the owning role, provide the missing decision/evidence, or, only for `VERIFIED_WITH_CONCERNS`, explicitly accept the exact current named shipping concerns where `/ship` asks for that decision. Acceptance authorizes shipping despite those concerns; it does not change the verdict, bypass `BLOCKED`, or survive a relevant mutation. Do not force a handoff by editing task state, creating alternate ledgers, or treating past approval as current authority.
+Run `./scripts/install.sh --dry-run`. The installer removes the former `~/.omo/omo.jsonc` only when it is a symlink to this repository's retired path. It preserves any user-owned file or other symlink and reports it for manual review.

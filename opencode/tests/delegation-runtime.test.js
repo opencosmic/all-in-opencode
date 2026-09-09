@@ -109,6 +109,7 @@ test("category delegation routes to Implementer with parent and managed workspac
   assert.equal(result.status, "running")
   assert.equal((await runtime.taskStatus(result.task_id, context)).parent_agent, "Executor")
   assert.equal(client.state.creates[0].body.parentID, "parent")
+  assert.equal(client.state.creates[0].body.permission, undefined)
   assert.equal(client.state.creates[0].query.directory, workspace.directory)
   assert.equal(client.state.prompts[0].query.directory, workspace.directory)
   assert.equal(client.state.prompts[0].body.agent, "Implementer")
@@ -116,7 +117,7 @@ test("category delegation routes to Implementer with parent and managed workspac
   assert.equal(client.state.prompts[0].body.tools.delegate_task, false)
   assert.equal(client.state.prompts[0].body.tools.workspace_prepare, false)
   assert.equal(client.state.prompts[0].body.tools.task, false)
-  assert.equal(client.state.prompts[0].body.tools.call_omo_agent, false)
+  assert.equal(Object.hasOwn(client.state.prompts[0].body.tools, "call_omo_agent"), false)
   assert.match(client.state.prompts[0].body.parts[0].text, /append/)
   const params = {}
   runtime.applyChatParams(result.child_session_id, params)
@@ -124,10 +125,57 @@ test("category delegation routes to Implementer with parent and managed workspac
   assert.notEqual(workspace.directory, repository)
 })
 
-test("named Reviewer and QA use the same child session runner and current workspace", async (t) => {
+test("category profiles are shared across per-worktree plugin instances", async (t) => {
+  const { root, client, runtime, context } = await fixture(t)
+  const result = await runtime.delegate({
+    category: "test",
+    description: "Cross-instance permission fixture",
+    prompt: "Inspect only",
+    run_in_background: true,
+  }, context)
+  const sibling = await DelegationRuntime.create({
+    client,
+    stateDirectory: join(root, "state"),
+    categories: {
+      test: { description: "test route", models: [{ model: "example/primary" }] },
+    },
+  })
+  sibling.profiles.delete(result.child_session_id)
+  const output = { status: "ask" }
+  await sibling.applyPermission({
+    sessionID: result.child_session_id,
+    permission: "bash",
+    patterns: ["git commit -m forbidden-outside-git-category"],
+    metadata: { command: "git commit -m forbidden-outside-git-category" },
+  }, output)
+  assert.equal(output.status, "deny")
+})
+
+test("workspace references in prompts must be bound by the workspace_id argument", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const workspace = await runtime.workspacePrepare({ task_id: "bound-workspace" }, context)
+  await assert.rejects(runtime.delegate({
+    category: "test",
+    description: "Implement in isolated workspace",
+    prompt: `Use ${workspace.workspace_id}`,
+    run_in_background: true,
+  }, context), /workspace_id was omitted/)
+  assert.equal(client.state.creates.length, 0)
+
+  await assert.rejects(runtime.delegate({
+    workspace_id: workspace.workspace_id,
+    category: "test",
+    description: "Implement in isolated workspace",
+    prompt: "Use ws_00000000-0000-0000-0000-000000000000",
+    run_in_background: true,
+  }, context), /does not match workspace_id/)
+  assert.equal(client.state.creates.length, 0)
+})
+
+test("allowlisted specialists use the same child session runner and current workspace", async (t) => {
   const { client, runtime, context } = await fixture(t)
   const workspace = await runtime.workspacePrepare({ task_id: "review-target" }, context)
-  for (const agent of ["Reviewer", "QA"]) {
+  for (const agent of ["Explorer", "Librarian", "Technical Advisor", "Plan Reviewer", "Reviewer", "QA"]) {
     await runtime.delegate({
       workspace_id: workspace.workspace_id,
       agent,
@@ -136,9 +184,11 @@ test("named Reviewer and QA use the same child session runner and current worksp
       run_in_background: true,
     }, context)
   }
-  assert.deepEqual(client.state.prompts.map((call) => call.body.agent), ["Reviewer", "QA"])
-  assert.deepEqual(client.state.creates.map((call) => call.query.directory), [workspace.directory, workspace.directory])
-  assert.deepEqual(client.state.creates.map((call) => call.body.parentID), ["parent", "parent"])
+  assert.deepEqual(client.state.prompts.map((call) => call.body.agent), [
+    "Explorer", "Librarian", "Technical Advisor", "Plan Reviewer", "Reviewer", "QA",
+  ])
+  assert.ok(client.state.creates.every((call) => call.query.directory === workspace.directory))
+  assert.ok(client.state.creates.every((call) => call.body.parentID === "parent"))
 })
 
 test("model fallback occurs only for pre-acceptance rejection", async (t) => {

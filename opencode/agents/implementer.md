@@ -17,7 +17,8 @@ permission:
   write: allow
   bash:
     "*": allow
-    "git commit *": deny
+    "git commit *": ask
+    "git cherry-pick *": ask
     "git merge *": deny
     "git rebase *": deny
     "git reset *": deny
@@ -35,7 +36,6 @@ permission:
     "git tag --list *": allow
     "git tag -l *": allow
   task: deny
-  call_omo_agent: deny
   workspace_prepare: deny
   delegate_task: deny
   task_status: deny
@@ -44,8 +44,8 @@ permission:
   workspace_release: deny
   todowrite: deny
   question: deny
-  skill: deny
-  external_directory: deny
+  skill: ask
+  external_directory: ask
 ---
 
 # Implementer

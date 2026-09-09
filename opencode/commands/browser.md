@@ -1,6 +1,6 @@
 ---
-description: Run an isolated real-browser task through Ego Browser and the upstream ego-browser runtime
-agent: Ego Browser
+description: Run an isolated real-browser task through the Browser agent and the upstream ego-browser runtime
+agent: Browser
 subtask: false
 ---
 
@@ -16,6 +16,6 @@ The user may open ego lite and select the named Space to passively observe progr
 
 Use `ego-browser` only for the requested browser work. Its agent-authored JavaScript runs in Node.js; the allowed outer command is not an OS-level sandbox and must never be used as a generic shell, filesystem, process-execution, or repository-mutation escape.
 
-This route intentionally overrides the upstream cleanup default. After fresh browser evidence confirms completion, close scratch, transient, duplicate, and otherwise unhelpful tabs so only useful final-state tabs remain. Then use a dedicated final `ego-browser` heredoc to call `completeTaskSpace(task.id, { keep: true })` and verify `{ done: true }`. This is the default: it dismisses the agent overlay and retains the completed Space for inspection and same-goal follow-up.
+After fresh browser evidence confirms completion, close scratch, transient, duplicate, and otherwise unhelpful tabs so only useful final-state tabs remain. Then use one dedicated final `ego-browser` heredoc to call `task.finish({ keep: ["p1"] })` (or the labels of useful final pages) and verify the finish receipt. This dismisses the agent overlay and retains the completed Space for inspection and same-goal follow-up.
 
-Only when the user explicitly asks to close, clean up, remove, or discard the Space (or retention is impossible under the upstream contract), finish with `completeTaskSpace(task.id, { keep: false })`, verify closure, and report it. Otherwise concisely report what happened, the important results, the retained Space's human-readable name and id, how to open ego lite and select it, and any remaining user intervention.
+Only when the user explicitly asks to close, clean up, remove, or discard the Space (or retention is impossible under the upstream contract), finish with `task.finish({ keep: [] })`, verify closure in the finish receipt, and report it. Otherwise concisely report what happened, the important results, the retained Space's human-readable name and id, how to open ego lite and select it, and any remaining user intervention.

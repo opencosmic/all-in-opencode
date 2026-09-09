@@ -20,7 +20,7 @@ function decision(rules, command) {
   return rules.findLast((rule) => rule.permission === "bash" && wildcard(command, rule.pattern))?.action ?? "ask"
 }
 
-test("resolved Implementer permissions deny Git mutation while retaining read-only Git and build commands", async () => {
+test("resolved Implementer permissions reserve commit mechanics for category mediation", async () => {
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Implementer"], {
     cwd: repository,
     encoding: "utf8",
@@ -28,7 +28,6 @@ test("resolved Implementer permissions deny Git mutation while retaining read-on
   })
   const rules = JSON.parse(stdout).permission
   const denied = [
-    "git commit -m change",
     "git merge feature",
     "git rebase main",
     "git reset --hard HEAD",
@@ -43,6 +42,11 @@ test("resolved Implementer permissions deny Git mutation while retaining read-on
     "git push origin main",
   ]
   for (const command of denied) assert.equal(decision(rules, command), "deny", command)
+
+  for (const command of [
+    "git commit -m change",
+    "git cherry-pick 0123456789abcdef",
+  ]) assert.equal(decision(rules, command), "ask", command)
 
   const allowed = [
     "git status --short",

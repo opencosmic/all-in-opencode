@@ -1,6 +1,18 @@
 {
-  "plugin": [
-    "oh-my-openagent@4.19.4"
-  ],
-  "$schema": "https://opencode.ai/config.json"
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "build": { "disable": true },
+    "plan": { "disable": true }
+  },
+  "mcp": {
+    "codegraph": {
+      "type": "local",
+      "command": [
+        "codegraph",
+        "serve",
+        "--mcp"
+      ],
+      "enabled": true
+    }
+  }
 }

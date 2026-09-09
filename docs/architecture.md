@@ -1,108 +1,54 @@
 # Architecture
 
-## Runtime boundary
-
 ```text
-Workflow Orchestrator
-        |
-        v
-Shared Delegation Control Plane (server + Git common dir + data root)
-  +-- Task Registry (one live owner / serialized persistence)
-  +-- Completion Tracker <---- canonical plugin instance events
-  |                        <---- worktree T1 plugin instance events
-  |                        <---- worktree T2 plugin instance events
-  +-- Session Runner ----------> stock OpenCode public SDK
-  +-- Parent Resume Coordinator
-  +-- Category Engine ----------> Implementer
-  +-- Agent Dispatcher --------> Reviewer / QA
-  +-- Workspace Manager -------> Git linked worktrees T1 / T2
+User
+ +-- ordinary work --> Assistant
+ |                      +-- Explorer / Librarian / Technical Advisor
+ |                      +-- CategoryEngine --> Implementer
+ |                                            +-- git
+ |                                            +-- browser-automation
+ |                      +-- /browser --> Browser --> ego-browser backend
+ |
+ +-- formal work ----> /spec -> /plan -> /execute -> /verify -> /ship
+                                      |
+                                      +-- Delegation Runtime
+                                          +-- WorkspaceManager
+                                          +-- TaskRegistry
+                                          +-- SessionRunner
+                                          +-- CompletionTracker
+                                          +-- ParentResumeCoordinator
 ```
 
-Git owns filesystem isolation. OpenCode owns model, tool, and session execution. The workflow-owned Delegation Runtime owns task/session lifecycle and workspace provenance. The Category Engine owns deterministic execution-profile resolution. Implementer owns one scoped code change. Executor owns orchestration, review sequencing, integration, and OpenSpec task transitions. Reviewer and QA are read-only quality gates.
+OpenCode owns model, tool, permission, and session execution. Git owns filesystem isolation. This repository owns agent prompts, category resolution, task/session lifecycle, workspace provenance, grouped completion, and parent resume. OpenSpec `tasks.md` owns durable formal-workflow progress.
 
-The isolated execution path does not call OMO task/delegation internals. Stock Oh My OpenAgent 4.19.4 remains installed for unrelated existing workflow behavior and may be removed later without rewriting workspace execution. OpenCode and OMO source are never patched.
+## Delegation boundary
 
-## Delegation components
+`delegate_task` requires exactly one category or allowlisted named specialist. Categories route to the reusable Implementer. Named specialists are Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, and QA. Unknown names fail closed.
 
-- `WorkspaceManager` creates a linked worktree from a resolved base commit, records path/branch/repository/common-directory provenance outside the repository, validates that provenance on every later mutation, and refuses unsafe cleanup.
-- `CategoryEngine` resolves a caller-selected category to an ordered model chain and one reusable `Implementer`.
-- `AgentDispatcher` enforces category XOR named-agent routing. The named-agent allowlist is `Reviewer` and `QA`.
-- `SessionRunner` creates a stock OpenCode child session with `parentID` and the validated workspace `directory`, then starts one asynchronous prompt.
-- `CompletionTracker` binds the current user/assistant turn, requires positive evidence for success, and waits for active tools to settle before accepting a session failure.
-- `TaskRegistry` validates state transitions, stores bounded result evidence, persists lightweight runtime state, and deduplicates group delivery.
-- `ParentResumeCoordinator` closes a background launch group when its parent turn becomes idle, waits for every sibling to become terminal, and sends exactly one compact ordinary prompt to resume the parent.
+The six runtime tools are `workspace_prepare`, `delegate_task`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces.
 
-### Directory-scoped plugin ownership
+Workspace release accepts either ancestry or Git-proven patch equivalence. A cherry-picked workspace is removed normally while its non-ancestor branch is retained when safe `git branch -d` refuses; release never force-deletes it.
 
-OpenCode 1.18.29 source tag `v1.18.29` (commit `16747470f976aca3d362ad730bcd3fe82ecc2c9a`) establishes the relevant boundary. `packages/opencode/src/effect/instance-state.ts` caches plugin hook state by instance directory. `packages/opencode/src/plugin/index.ts` initializes external plugins for that directory and discards bus events whose `event.location.directory` differs from it. `packages/opencode/src/session/session.ts` creates a session in the directory selected by the request's workspace routing, and `packages/opencode/src/session/llm/request.ts` invokes `chat.params` through that directory's plugin service.
+## Background lifecycle
 
-Consequently, the canonical plugin instance cannot observe a child session running in a sibling linked worktree. Every directory instance now acquires a process-local control-plane promise from a `globalThis` symbol map. The key combines the OpenCode server URL, the canonical Git common directory shared by linked worktrees, and the resolved data root. A different server, repository, process, or data root cannot share live state. The first initializer owns the sole `TaskRegistry`, `CompletionTracker`, child-session mapping, execution-profile map, background delivery state, and `ParentResumeCoordinator`; later directory instances forward their local events and `chat.params` hooks to that same owner.
+Independent tasks launched by one parent turn share a completion group. The parent performs unrelated work or becomes idle. Child events are observed and terminal state is persisted. Once every member is terminal, ParentResumeCoordinator resumes an eligible idle parent once. A missing status requires a current-process idle witness; busy, running, or retry status suppresses resume and invalidates stale witnesses. The parent retrieves detailed stored output after resume. There is no model-driven polling loop.
 
-The registry store is additionally namespaced by repository identity, and every mutation is serialized by its single owner. JSON persistence remains recovery evidence, not an event bus. The SDK client held by the owner is safe across sibling adapters because every session create, prompt, message, status, abort, and parent-resume request supplies an explicit public `directory` query.
+## Workspace and integration lifecycle
 
-V1 deliberately excludes recursive implementation delegation, arbitrary agent routing, a DAG scheduler, separate OpenCode processes, automatic mutation retry, automatic commit/merge, streaming injection, and force cleanup.
+Executor obtains a fresh Plan Reviewer verdict, prepares one provenance-bound workspace per eligible task, launches implementation, inspects each real diff, and delegates Reviewer/QA into that same workspace. After approval, Executor selects a deterministic integration order and delegates explicit Git mechanics through the `git` category. Task-scoped commits become source-derived integration inputs. A normal implementation category never re-applies reviewed changes in canonical.
 
-## Public tool surface
+The Git category is session-scoped through OpenCode's public permission hook. Ordinary Implementers retain their restrictive Git policy. Only the exact Git category may receive bounded status/log/diff/show/rev-parse, staging, commit, and selected-SHA cherry-pick operations. Destructive operations, force operations, arbitrary history rewriting, and silent user-change disposal remain denied.
 
-The plugin exposes exactly:
+Workspace release is conservative: tasks must be terminal, identity and provenance must still match, the worktree must be clean, and unique changes must be integrated. Refusal preserves evidence.
 
-- `workspace_prepare({ task_id, change_id?, base_sha? })`
-- `delegate_task({ workspace_id?, category?, agent?, description, prompt, run_in_background? })`
-- `task_status({ task_id?, workspace_id? })`
-- `task_output({ task_id, max_chars? })`
-- `task_cancel({ task_id })`
-- `workspace_release({ workspace_id })`
+## Specialists
 
-`delegate_task` requires exactly one of `category` and `agent`. Omitting `workspace_id` intentionally binds the child to the current session directory; an isolated task uses only a runtime-issued `workspace_id`, never an arbitrary mutation path.
+Explorer answers questions about this codebase. Librarian answers questions about external dependencies and platforms. Technical Advisor helps choose among genuinely difficult technical approaches but has no approval authority. Plan Reviewer independently audits a completed plan and returns `[APPROVED]` or `[REJECTED]` without repairing it.
 
-## Category profiles
+## CodeGraph
 
-The current configuration is [`categories.js`](../opencode/plugins/delegation/categories.js). Profiles support `description`, ordered `models[]`, `reasoning`, `variant`, `temperature`, `top_p`, `max_tokens`, `tools`, `prompt_append`, `max_prompt_tokens`, and `disable`.
+The public CodeGraph CLI is provisioned independently and connected through `codegraph serve --mcp` in the authored OpenCode config. Explorer is the primary consumer of `codegraph_codegraph_explore`; other structurally relevant roles use it selectively. Graph results are derived structural evidence, never a substitute for source, diff, compiler, tests, or runtime proof.
 
-| Field | Classification | Application point |
-|---|---|---|
-| `description` | `SUPPORTED` | Child title and assignment prefix |
-| ordered `models` | `SUPPORTED` | Public prompt `model`; pre-acceptance fallback only |
-| `temperature` | `SUPPORTED` | Shared child `chat.params` profile |
-| `top_p` | `SUPPORTED` | Shared child `chat.params` profile as `topP` |
-| `max_tokens` | `SUPPORTED` | Shared child `chat.params` profile as `maxOutputTokens` |
-| `tools` | `SUPPORTED` | Public prompt tool map, with recursive/orchestration tools forced off for Implementer |
-| `prompt_append` | `SUPPORTED` | Appended to the public prompt text |
-| `max_prompt_tokens` | `SUPPORTED` | Conservative local `ceil(characters / 4)` admission bound |
-| `disable` | `SUPPORTED` | Local category admission gate |
-| `reasoning` | `UNSUPPORTED_PUBLIC_API` | Recorded in `unsupported_profile_fields`; not applied |
-| `variant` | `UNSUPPORTED_PUBLIC_API` | Recorded in `unsupported_profile_fields`; not applied |
+## Browser capability
 
-No configured profile field is silently claimed as applied. More elaborate availability preflight or post-acceptance model retry remains `DEFERRED`; an ordered model fallback is attempted only when `promptAsync` returns a definite rejection before accepting the child turn. After uncertain transport acceptance or confirmed acceptance, any failure becomes task evidence and the workspace is preserved.
-
-## Completion and background lifecycle
-
-One child session handles one tracked assignment. Once registration succeeds, a startup failure is persisted as terminal `error`, including failures during prompt admission or session creation, so no task remains indefinitely `pending`. Current-turn freshness requires a user message created after tracking began and an assistant whose `parentID` matches it. Successful completion additionally requires assistant completion time, a finish in the positive allowlist `stop`, `length`, or `content-filter`, no pending/running tool parts, and idle session status. Missing, `unknown`, `tool-calls`, `tool_calls`, unrecognized, busy, retrying, and unknown session states are non-terminal success evidence. An idle session error becomes terminal `error` after active tools settle even when no assistant response was created; a completed successful assistant remains the more specific result.
-
-Background grouping is derived from `parent session ID + parent message ID`. The parent becoming idle seals the group, preventing an early child from resuming the parent before sibling delegation calls in the same turn are registered. A terminal group is claimed transactionally; duplicate events cannot send a second resume. A busy parent leaves delivery pending until its next idle event. Child terminalization is persisted independently of parent notification: a failed resume attempt returns the group to pending without reverting the task or blocking its completion waiter.
-
-The resume prompt contains task IDs, statuses, workspace IDs, short summaries, and `task_output` retrieval hints—not raw transcripts. Task/group records capture the public tool context's parent agent, and the resume prompt explicitly selects that original agent. Older recovery records without an agent remain explicit `null` rather than guessing.
-
-## Worktree lifecycle and recovery
-
-```text
-resolve base SHA
-  -> write preparing manifest
-  -> git worktree add -b
-  -> validate directory + branch + common dir + registration
-  -> run child sessions
-  -> Executor reviews/integrates
-  -> prove tasks terminal + clean tree + branch ancestor of repository HEAD
-  -> normal worktree remove
-  -> safe branch -d
-```
-
-Manifests and repository-namespaced runtime task registries live under `$OPENCODE_WORKFLOW_DATA_ROOT/delegation`, or `~/.local/share/opencode-workflow/delegation` when the variable is unset. They are infrastructure provenance and recovery evidence, never a replacement for `tasks.md`.
-
-Dirty, active, mismatched, unintegrated, unknown, or Git-refused workspaces are preserved with explicit diagnostics. The runtime never uses force removal, force branch deletion, reset, clean, automatic staging, commit, merge, or rebase. After restart, `task_status` surfaces persisted tasks and surviving managed workspace manifests for reconciliation; it does not guess completion.
-
-## Existing workflow ownership
-
-The custom lifecycle remains `/spec -> /plan -> /execute -> /verify -> /ship`. Every execution and shipping gate re-evaluates current artifacts and evidence. `tasks.md` is the only durable workflow-progress state.
-
-The independent `/ego` browser route and OMO's native planning route remain separate. CodeGraph remains OMO-owned derived structural evidence.
+The dedicated `/browser` route launches the purpose-built `Browser` primary agent for direct navigation, interaction, visual inspection, Task Spaces, and browser evidence. Assistant independently routes website work to `browser-automation`; CategoryEngine launches an Implementer with editing disabled and a session-scoped permission for the installed browser skill/runtime only. Both use the current external Ego Lite backend, while the category remains backend-neutral. The two routes intentionally coexist for practical comparison.

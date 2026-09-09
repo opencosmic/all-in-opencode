@@ -24,7 +24,6 @@ permission:
   edit: deny
   write: deny
   task: deny
-  call_omo_agent: deny
   todowrite: deny
   question: deny
   skill: deny

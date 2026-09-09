@@ -5,13 +5,12 @@ import { readFile, readdir } from "node:fs/promises"
 const root = "/Users/code/.config/opencode"
 
 const commandTargets = new Map([
-  ["ego.md", "Ego Browser"],
-  ["omo.md", "Prometheus - Plan Builder"],
   ["spec.md", "Strategist"],
   ["plan.md", "Planner"],
   ["execute.md", "Executor"],
   ["verify.md", "Verifier"],
   ["ship.md", "Executor"],
+  ["browser.md", "Browser"],
 ])
 
 const oldCommands = [
@@ -24,13 +23,18 @@ const oldCommands = [
 ]
 
 const agentNames = new Map([
-  ["ego-browser.md", "Ego Browser"],
+  ["assistant.md", "Assistant"],
+  ["browser.md", "Browser"],
+  ["explorer.md", "Explorer"],
+  ["librarian.md", "Librarian"],
+  ["technical-advisor.md", "Technical Advisor"],
   ["strategist.md", "Strategist"],
   ["researcher.md", "Researcher"],
   ["validator.md", "Validator"],
   ["planner.md", "Planner"],
   ["plan-reviewer.md", "Plan Reviewer"],
   ["executor.md", "Executor"],
+  ["implementer.md", "Implementer"],
   ["reviewer.md", "Reviewer"],
   ["qa.md", "QA"],
   ["verifier.md", "Verifier"],
@@ -67,6 +71,8 @@ test("new command files exist with exact agent targets and old commands are abse
   }
   for (const file of oldCommands) assert.equal(files.includes(file), false)
   assert.equal(files.includes("worktree.md"), false)
+  assert.equal(files.includes("omo.md"), false)
+  assert.equal(files.includes("ego.md"), false)
 })
 
 test("plan command targets custom Planner and cannot select native plan implicitly", async () => {

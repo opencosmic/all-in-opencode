@@ -1,4 +1,9 @@
-import { IMPLEMENTER_CONTRACT } from "./implementer-contract.js"
+import {
+  BROWSER_IMPLEMENTER_CONTRACT,
+  GIT_IMPLEMENTER_CONTRACT,
+  IMPLEMENTER_CONTRACT,
+} from "./implementer-contract.js"
+import { categorySessionPermission } from "./category-permissions.js"
 import { parseModel, sdkData, sessionStatusFor } from "./sdk.js"
 
 function promptText(description, prompt, append) {
@@ -13,7 +18,8 @@ function ensurePromptBound(text, maxPromptTokens) {
   }
 }
 
-function toolsFor(agent, configured) {
+function toolsFor(agent, configured, category) {
+  if (agent === "Implementer" && ["git", "browser-automation"].includes(category)) return undefined
   const tools = { ...(configured ?? {}) }
   if (agent === "Implementer") {
     Object.assign(tools, {
@@ -24,10 +30,16 @@ function toolsFor(agent, configured) {
       task_cancel: false,
       workspace_release: false,
       task: false,
-      call_omo_agent: false,
     })
   }
   return Object.keys(tools).length ? tools : undefined
+}
+
+function systemFor(agent, category) {
+  if (agent !== "Implementer") return undefined
+  if (category === "git") return GIT_IMPLEMENTER_CONTRACT
+  if (category === "browser-automation") return BROWSER_IMPLEMENTER_CONTRACT
+  return IMPLEMENTER_CONTRACT
 }
 
 export class SessionRunner {
@@ -39,25 +51,29 @@ export class SessionRunner {
     this.now = now
   }
 
-  async start({ task, directory, agent, profile, description, prompt }) {
+  async start({ task, directory, agent, category, profile, description, prompt }) {
     const text = promptText(description, prompt, profile.prompt_append)
     ensurePromptBound(text, profile.max_prompt_tokens)
     const created = sdkData(await this.client.session.create({
-      body: { parentID: task.parent_session_id, title: description },
+      body: {
+        parentID: task.parent_session_id,
+        title: description,
+        permission: categorySessionPermission(category),
+      },
       query: { directory },
     }), "session.create")
     const childSessionID = created.id
     this.tracker.track({ taskID: task.task_id, childSessionID, startedAt: this.now() })
     await this.registry.start(task.task_id, { child_session_id: childSessionID })
-    this.sessionProfiles.set(childSessionID, profile)
+    this.sessionProfiles.set(childSessionID, { ...profile, category, agent })
 
     const models = profile.models?.length ? profile.models : [{ model: null }]
     const failures = []
     for (const candidate of models) {
       const body = {
         agent,
-        system: agent === "Implementer" ? IMPLEMENTER_CONTRACT : undefined,
-        tools: toolsFor(agent, profile.tools),
+        system: systemFor(agent, category),
+        tools: toolsFor(agent, profile.tools, category),
         parts: [{ type: "text", text }],
       }
       try {
@@ -119,4 +135,4 @@ export class SessionRunner {
   }
 }
 
-export { ensurePromptBound, promptText, toolsFor }
+export { ensurePromptBound, promptText, systemFor, toolsFor }

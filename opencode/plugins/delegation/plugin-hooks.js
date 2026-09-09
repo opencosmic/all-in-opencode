@@ -17,7 +17,7 @@ export function delegationPluginHooks(runtime) {
         execute: async (args, context) => json(await runtime.workspacePrepare(args, context)),
       }),
       delegate_task: tool({
-        description: "Delegate one scoped assignment through a category or an allowlisted named specialist.",
+        description: "Delegate one scoped assignment through a category or an allowlisted named specialist. Pass workspace_id as an argument whenever the assignment targets a workspace returned by workspace_prepare; naming it only in the prompt is rejected.",
         args: {
           workspace_id: tool.schema.string().min(1).optional(),
           category: tool.schema.string().min(1).optional(),
@@ -57,5 +57,6 @@ export function delegationPluginHooks(runtime) {
     },
     event: async ({ event }) => runtime.handleEvent(event),
     "chat.params": async (input, output) => runtime.applyChatParams(input.sessionID, output),
+    "permission.ask": async (input, output) => runtime.applyPermission(input, output),
   }
 }

@@ -92,3 +92,22 @@ test("clean integrated release uses only normal removal and safe branch deletion
   const source = await readFile(new URL("../plugins/delegation/workspace-manager.js", import.meta.url), "utf8")
   assert.doesNotMatch(source, /worktree", "remove", "--force|branch", "-D|reset", "--hard|clean", "-/)
 })
+
+test("patch-equivalent cherry-picked work releases normally and retains its non-ancestor branch", async (t) => {
+  const { repository, manager } = await fixture(t)
+  const prepared = await manager.prepare({ task_id: "cherry-release" }, repository)
+  await writeFile(join(prepared.directory, "tracked.txt"), "cherry-picked\n")
+  await git(prepared.directory, ["add", "tracked.txt"])
+  await git(prepared.directory, ["commit", "-m", "workspace change"])
+  const workspaceCommit = await git(prepared.directory, ["rev-parse", "HEAD"])
+  await writeFile(join(repository, "canonical.txt"), "canonical divergence\n")
+  await git(repository, ["add", "canonical.txt"])
+  await git(repository, ["commit", "-m", "canonical divergence"])
+  await git(repository, ["cherry-pick", workspaceCommit])
+
+  const released = await manager.release(prepared.workspace_id)
+  assert.equal(released.status, "released")
+  assert.equal(released.integration, "patch-equivalent")
+  assert.equal(released.branch_preserved, true)
+  assert.equal(await git(repository, ["branch", "--list", prepared.branch]), `* ${prepared.branch}`.replace("* ", ""))
+})

@@ -32,9 +32,20 @@ while IFS='|' read -r source_rel live_rel kind; do
   printf 'PASS link %s -> %s\n' "$live_path" "$source_path"
 done < "$MANIFEST"
 
-check_hash opencode/agents/planner.md 8eeabf09d6cf2e3faa2265d4e8ad77626c15040183b823006b75eca902027346
-check_hash opencode/agents/plan-reviewer.md 80a33ef1dd75e7a43586182f524e7f8d63887efc56a668ee324f39f97a7c3281
-check_hash opencode/agents/executor.md bbb0d9f7167ddd8cc43782b579abf9e400cc5de9ae279c08ab7569743a485f74
-check_hash opencode/agents/reviewer.md 82ff6503ed4c6fcc2d312f3c8cd6b0c128c8a3220cf2713ea9d7fb35f0ae1c6a
+[ ! -e "$REPO_ROOT/omo/omo.jsonc" ] || fail "obsolete OMO configuration still exists"
+[ ! -e "$REPO_ROOT/opencode/commands/omo.md" ] || fail "obsolete /omo command still exists"
+[ -f "$REPO_ROOT/opencode/agents/browser.md" ] || fail "dedicated Browser agent is missing"
+[ -f "$REPO_ROOT/opencode/commands/browser.md" ] || fail "dedicated /browser command is missing"
+[ ! -e "$REPO_ROOT/opencode/commands/ego.md" ] || fail "obsolete /ego command still exists"
+if [ -L "$HOME/.omo/omo.jsonc" ] && [ "$(readlink "$HOME/.omo/omo.jsonc")" = "$REPO_ROOT/omo/omo.jsonc" ]; then
+  fail "obsolete repository-managed OMO symlink still exists"
+fi
+
+check_hash opencode/agents/planner.md a69e5edaeeb44c82a9fb923717dba3e1c99f449acf62286e429c64cc5601b347
+check_hash opencode/agents/plan-reviewer.md e60475766ed21222ec332aedeaf89a59072a6e88af6f6219117e25649f0dadd5
+check_hash opencode/agents/executor.md c84cdd2c23851acf59ddfec71eaff235b723bf9f688c1133c8856230121dedb9
+check_hash opencode/agents/reviewer.md 895fd594ba5204a81ae8e615572006d02cf4059a4f055aaa09796e253da6df6a
+
+"$SCRIPT_DIR/check-codegraph.sh" "$REPO_ROOT"
 
 printf 'PASS repository root %s\n' "$REPO_ROOT"
