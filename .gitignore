@@ -21,4 +21,7 @@ coverage/
 # Local backup and scratch material
 *.bak
 *.bak.*
-.worktrees/
+.worktrees
+
+# Editor and IDE specific files
+.vscode/
