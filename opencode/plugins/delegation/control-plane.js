@@ -35,8 +35,8 @@ function registryStorePath(stateDirectory, projectKey) {
   return resolve(stateDirectory, "tasks", projectKey, "tasks.json")
 }
 
-function configurationFingerprint(categories) {
-  return createHash("sha256").update(JSON.stringify(categories ?? null)).digest("hex")
+function configurationFingerprint({ categories, categoryConfigPath, skillRoots }) {
+  return createHash("sha256").update(JSON.stringify({ categories, categoryConfigPath, skillRoots })).digest("hex")
 }
 
 export async function describeControlPlane({ directory, serverUrl, stateDirectory = defaultStateDirectory() }) {
@@ -59,11 +59,13 @@ export async function acquireDelegationControlPlane({
   serverUrl,
   stateDirectory = defaultStateDirectory(),
   categories,
+  categoryConfigPath,
+  skillRoots,
   now,
 } = {}) {
   if (!directory) throw new Error("delegation control plane requires a plugin directory")
   const descriptor = await describeControlPlane({ directory, serverUrl, stateDirectory })
-  const fingerprint = configurationFingerprint(categories)
+  const fingerprint = configurationFingerprint({ categories, categoryConfigPath, skillRoots })
   const planes = sharedControlPlanes()
   let pending = planes.get(descriptor.key)
   if (!pending) {
@@ -76,6 +78,9 @@ export async function acquireDelegationControlPlane({
         stateDirectory: descriptor.stateDirectory,
         registryStorePath: descriptor.registryStorePath,
         categories,
+        categoryConfigPath,
+        directory,
+        skillRoots,
         now,
       }),
     }))()

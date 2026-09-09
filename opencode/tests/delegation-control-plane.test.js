@@ -99,21 +99,21 @@ test("one control plane rejects divergent category configuration", async (t) => 
     serverUrl: new URL("http://127.0.0.1:40127"),
     stateDirectory,
   }
-  await acquireDelegationControlPlane({ ...input, directory: repository, categories: { one: { models: [] } } })
+  await acquireDelegationControlPlane({ ...input, directory: repository, categories: { one: { model: "example/one" } } })
   await assert.rejects(
-    acquireDelegationControlPlane({ ...input, directory: sibling, categories: { two: { models: [] } } }),
+    acquireDelegationControlPlane({ ...input, directory: sibling, categories: { two: { model: "example/two" } } }),
     /category configuration differs/,
   )
 })
 
-test("a child-directory chat.params adapter reads the shared execution profile", async (t) => {
+test("a child-directory chat.params adapter preserves the shared profile hook", async (t) => {
   const { repository, sibling, stateDirectory } = await fixture(t)
   const input = { client: fakeClient(), serverUrl: new URL("http://127.0.0.1:40126"), stateDirectory }
   const canonical = await acquireDelegationControlPlane({ ...input, directory: repository })
   const child = await acquireDelegationControlPlane({ ...input, directory: sibling })
-  canonical.runtime.profiles.set("child-session", { temperature: 0.1, top_p: 0.7, max_tokens: 900 })
+  canonical.runtime.profiles.set("child-session", { category: "standard", model: "example/model", variant: "high" })
 
   const output = {}
   await delegationPluginHooks(child.runtime)["chat.params"]({ sessionID: "child-session" }, output)
-  assert.deepEqual(output, { temperature: 0.1, topP: 0.7, maxOutputTokens: 900 })
+  assert.deepEqual(output, {})
 })

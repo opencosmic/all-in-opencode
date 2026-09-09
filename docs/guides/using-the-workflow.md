@@ -8,7 +8,9 @@ Use Assistant for normal questions and bounded work. It may answer directly, ins
 - Librarian for upstream documentation and version-specific behavior.
 - Technical Advisor for a difficult design decision with meaningful alternatives.
 
-Non-trivial implementation flows through `delegate_task(category=...)` to Implementer. Use `git` only when the Git operation and authority are explicit. For browser work, use `/browser` for the dedicated Browser agent or ask Assistant, which routes it through `browser-automation` to the currently installed browser backend. Both entry paths are intentionally retained for practical comparison.
+Non-trivial implementation flows through `delegate_task(category=...)` to Implementer. Use `load_skills=["skill-name"]` only for selected specialized instructions. Use `git` only when the Git operation and authority are explicit. For browser work, use `/browser` for the dedicated Browser agent or ask Assistant, which routes it through `browser-automation` with `load_skills=["ego-browser"]` to the currently installed browser backend. Both entry paths are intentionally retained.
+
+The category catalog is dynamic. Built-ins are centrally defined; `opencode/categories.json` can add, override, or disable entries. Each enabled entry uses one `model`, an optional `variant`, an optional `prompt_append`, and optional tool narrowing. It does not support model arrays, fallback models, or `reasoning`.
 
 Assistant uses todos for meaningful multi-step work and verifies results before reporting completion. It does not silently create OpenSpec changes.
 

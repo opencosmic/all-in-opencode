@@ -7,16 +7,18 @@ export function sdkData(result, operation) {
   return result
 }
 
-export function parseModel(reference) {
+export function parseModel(reference, variant) {
   if (!reference) return undefined
   const separator = reference.indexOf("/")
   if (separator < 1 || separator === reference.length - 1) {
     throw new Error(`model must use provider/model form: ${reference}`)
   }
-  return {
+  const model = {
     providerID: reference.slice(0, separator),
     modelID: reference.slice(separator + 1),
   }
+  if (variant !== undefined) model.variant = variant
+  return model
 }
 
 export function sessionStatusFor(result, sessionID) {

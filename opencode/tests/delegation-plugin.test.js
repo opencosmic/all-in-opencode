@@ -37,6 +37,9 @@ test("plugin entrypoint is default-only and exposes the six workflow-owned deleg
     "task_cancel",
     "workspace_release",
   ])
+  assert.match(plugin.tool.delegate_task.description, /Available categories:/)
+  assert.match(plugin.tool.delegate_task.description, /browser-automation/)
+  assert.ok(plugin.tool.delegate_task.args.load_skills)
   assert.equal(typeof plugin.event, "function")
   assert.equal(typeof plugin["chat.params"], "function")
   assert.equal(typeof plugin["permission.ask"], "function")

@@ -41,7 +41,26 @@ The runtime exposes exactly six tools:
 - `task_cancel`
 - `workspace_release`
 
-`CategoryEngine` maps categories to one reusable `Implementer`. Supported profiles include `quick`, `deep`, `ultrabrain`, `visual-engineering`, `writing`, `artistry`, `unspecified-low`, `unspecified-high`, `git`, and `browser-automation`, plus compatibility-sensitive focused categories already used by the workflow.
+`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are preserved in the registry, while `opencode/categories.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The `delegate_task` description presents the resolved catalog at startup.
+
+Categories define the model, optional variant, execution mindset, and optional tool narrowing. The V1 schema is intentionally small:
+
+```json
+{
+  "categories": {
+    "deep": { "model": "openai/gpt-5.6-sol", "variant": "max" },
+    "backend-heavy": {
+      "description": "Complex backend implementation work",
+      "model": "provider/model",
+      "variant": "high",
+      "prompt_append": "Check failure and data-integrity paths."
+    },
+    "unused-category": { "disable": true }
+  }
+}
+```
+
+Each enabled category has exactly one configured `model` and may have one string `variant`; there are no model arrays, fallback models, or category-level `reasoning` fields. A category still routes only to the reusable Implementer. Skills are separate specialized instructions and are injected only when selected, for example `delegate_task(category="deep", load_skills=["debugging"], ...)`.
 
 Independent background launches in one parent turn form one completion group. The parent does unrelated work or yields. `CompletionTracker` records terminal state and `ParentResumeCoordinator` resumes the idle parent exactly once after the group is terminal. The parent then retrieves bounded results with `task_output`; it does not run a model-driven polling loop.
 
@@ -76,9 +95,9 @@ Check runtime, index, and OpenCode MCP health with:
 There are intentionally two browser entry paths for practical comparison:
 
 - `/browser` opens the dedicated workflow-owned `Browser` agent for direct browser workflows.
-- Assistant delegates `category="browser-automation"` through CategoryEngine to Implementer for browser work requested as part of ordinary assistance.
+- Assistant delegates `category="browser-automation", load_skills=["ego-browser"]` through CategoryEngine to Implementer for browser work requested as part of ordinary assistance.
 
-Both paths use the external official `citrolabs/ego-lite` `ego-browser` skill/runtime. `Ego Lite` is the current backend; `browser-automation` is the backend-neutral category and may be replaced later without changing the routing architecture.
+The dedicated `Browser` route is the workflow-facing browser agent. The `browser-automation` category is browser capability through the reusable Implementer, and `ego-browser` is the current external backend/skill identifier. Both paths use the external official `citrolabs/ego-lite` runtime.
 
 Provision the current backend explicitly, then verify it:
 
@@ -103,10 +122,10 @@ The installer backs up pre-existing matching content before linking. During migr
 Install the stock public JavaScript plugin dependency where OpenCode discovers it:
 
 ```sh
-npm install --prefix ~/.config/opencode @opencode-ai/plugin@1.18.22
+npm install --prefix ~/.config/opencode @opencode-ai/plugin@1.18.29
 ```
 
-Final verification used OpenCode 1.18.30, `@opencode-ai/plugin` 1.18.22, CodeGraph 1.5.0, OpenSpec CLI, and Node.js 24.
+Final verification used OpenCode 1.18.30, `@opencode-ai/plugin` 1.18.29, CodeGraph 1.5.0, OpenSpec CLI, and Node.js 24.
 
 ## Verification
 

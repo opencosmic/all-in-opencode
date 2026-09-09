@@ -54,7 +54,7 @@ export class TaskRegistry {
         workspace_id: input.workspace_id ?? null,
         category: input.category ?? null,
         agent: input.agent,
-        unsupported_profile_fields: input.unsupported_profile_fields ?? [],
+        variant: input.variant ?? null,
         description: input.description,
         status: "pending",
         child_session_id: null,

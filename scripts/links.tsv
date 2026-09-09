@@ -4,4 +4,5 @@ opencode/commands|.config/opencode/commands|directory
 opencode/plugins|.config/opencode/plugins|directory
 opencode/tests|.config/opencode/tests|directory
 opencode/opencode.jsonc|.config/opencode/opencode.jsonc|file
+opencode/categories.json|.config/opencode/categories.json|file
 opencode/tui.json|.config/opencode/tui.json|file

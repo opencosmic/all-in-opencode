@@ -7,6 +7,7 @@ import { join } from "node:path"
 import { promisify } from "node:util"
 
 import { DelegationRuntime } from "../plugins/delegation/runtime.js"
+import { SkillResolver } from "../plugins/delegation/skill-resolver.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -74,17 +75,14 @@ async function fixture(t) {
     categories: {
       test: {
         description: "test route",
-        models: [{ model: "example/primary" }, { model: "example/fallback" }],
-        temperature: 0.2,
-        top_p: 0.8,
-        max_tokens: 1200,
+        model: "example/primary",
+        variant: "focused",
         tools: { delegate_task: false },
         prompt_append: "append",
       },
       bounded: {
         description: "prompt admission fixture",
-        models: [{ model: "example/primary" }],
-        max_prompt_tokens: 1,
+        model: "example/primary",
       },
     },
   })
@@ -113,15 +111,16 @@ test("category delegation routes to Implementer with parent and managed workspac
   assert.equal(client.state.creates[0].query.directory, workspace.directory)
   assert.equal(client.state.prompts[0].query.directory, workspace.directory)
   assert.equal(client.state.prompts[0].body.agent, "Implementer")
-  assert.deepEqual(client.state.prompts[0].body.model, { providerID: "example", modelID: "primary" })
+  assert.deepEqual(client.state.prompts[0].body.model, { providerID: "example", modelID: "primary", variant: "focused" })
   assert.equal(client.state.prompts[0].body.tools.delegate_task, false)
   assert.equal(client.state.prompts[0].body.tools.workspace_prepare, false)
   assert.equal(client.state.prompts[0].body.tools.task, false)
   assert.equal(Object.hasOwn(client.state.prompts[0].body.tools, "call_omo_agent"), false)
-  assert.match(client.state.prompts[0].body.parts[0].text, /append/)
+  assert.match(client.state.prompts[0].body.system, /append/)
+  assert.doesNotMatch(client.state.prompts[0].body.parts[0].text, /append/)
   const params = {}
   runtime.applyChatParams(result.child_session_id, params)
-  assert.deepEqual(params, { temperature: 0.2, topP: 0.8, maxOutputTokens: 1200 })
+  assert.deepEqual(params, {})
   assert.notEqual(workspace.directory, repository)
 })
 
@@ -137,7 +136,7 @@ test("category profiles are shared across per-worktree plugin instances", async 
     client,
     stateDirectory: join(root, "state"),
     categories: {
-      test: { description: "test route", models: [{ model: "example/primary" }] },
+      test: { description: "test route", model: "example/primary" },
     },
   })
   sibling.profiles.delete(result.child_session_id)
@@ -149,6 +148,30 @@ test("category profiles are shared across per-worktree plugin instances", async 
     metadata: { command: "git commit -m forbidden-outside-git-category" },
   }, output)
   assert.equal(output.status, "deny")
+})
+
+test("delegation injects only explicitly selected skill contents", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  runtime.skills = new SkillResolver({ entries: [
+    { name: "foo", description: "Foo", content: "FOO SKILL CONTENT" },
+    { name: "bar", description: "Bar", content: "BAR SKILL CONTENT" },
+  ] })
+  await runtime.delegate({
+    category: "test",
+    load_skills: ["foo"],
+    description: "Skill fixture",
+    prompt: "Inspect only",
+    run_in_background: true,
+  }, context)
+  assert.match(client.state.prompts[0].body.system, /FOO SKILL CONTENT/)
+  assert.doesNotMatch(client.state.prompts[0].body.system, /BAR SKILL CONTENT/)
+  await assert.rejects(runtime.delegate({
+    category: "test",
+    load_skills: ["missing"],
+    description: "Unknown skill",
+    prompt: "Fail closed",
+    run_in_background: true,
+  }, context), /unknown skill.*missing/)
 })
 
 test("workspace references in prompts must be bound by the workspace_id argument", async (t) => {
@@ -191,33 +214,22 @@ test("allowlisted specialists use the same child session runner and current work
   assert.ok(client.state.creates.every((call) => call.body.parentID === "parent"))
 })
 
-test("model fallback occurs only for pre-acceptance rejection", async (t) => {
+test("configured model failure is surfaced without fallback", async (t) => {
   const { client, runtime, context } = await fixture(t)
   client.state.promptFailures = 1
-  const result = await runtime.delegate({
+  await assert.rejects(runtime.delegate({
     category: "test",
-    description: "Fallback fixture",
+    description: "No fallback fixture",
     prompt: "No mutation",
     run_in_background: true,
-  }, context)
-  assert.equal(client.state.prompts.length, 2)
-  assert.deepEqual(client.state.prompts.map((call) => call.body.model.modelID), ["primary", "fallback"])
-  assert.equal((await runtime.taskStatus(result.task_id, context)).model, "example/fallback")
-
-  await runtime.handleEvent({
-    type: "session.error",
-    properties: { sessionID: result.child_session_id, error: { data: { message: "failed after acceptance" } } },
-  })
-  client.state.statuses[result.child_session_id] = { type: "idle" }
-  await runtime.handleEvent({
-    type: "session.status",
-    properties: { sessionID: result.child_session_id, status: { type: "idle" } },
-  })
-  assert.equal(client.state.prompts.length, 2)
-  assert.equal((await runtime.taskStatus(result.task_id, context)).status, "error")
+  }, context), /configured model example\/primary failed.*model unavailable/)
+  assert.equal(client.state.prompts.length, 1)
+  const [task] = (await runtime.taskStatus(undefined, context)).tasks
+  assert.equal(task.model, "example/primary")
+  assert.equal(task.status, "error")
 })
 
-test("uncertain prompt transport failure stops fallback", async (t) => {
+test("prompt transport failure surfaces without fallback", async (t) => {
   const { client, runtime, context } = await fixture(t)
   client.state.promptThrows = 1
   await assert.rejects(runtime.delegate({
@@ -225,34 +237,35 @@ test("uncertain prompt transport failure stops fallback", async (t) => {
     description: "Uncertain acceptance",
     prompt: "Do not retry",
     run_in_background: true,
-  }, context), /acceptance is uncertain; model fallback stopped/)
+  }, context), /configured model example\/primary failed before child turn acceptance/)
   assert.equal(client.state.prompts.length, 1)
   const tasks = (await runtime.taskStatus(undefined, context)).tasks
   assert.equal(tasks[0].status, "error")
 })
 
-test("prompt admission failure terminalizes its task and releases the workspace activity guard", async (t) => {
+test("model startup failure terminalizes its task and releases the workspace activity guard", async (t) => {
   const { client, runtime, context } = await fixture(t)
   const workspace = await runtime.workspacePrepare({ task_id: "prompt-admission" }, context)
+  client.state.promptFailures = 1
   await assert.rejects(runtime.delegate({
     workspace_id: workspace.workspace_id,
     category: "bounded",
-    description: "Too large",
-    prompt: "This prompt cannot pass the configured admission bound.",
+    description: "Model unavailable",
+    prompt: "The configured model is unavailable.",
     run_in_background: true,
-  }, context), /exceeds max_prompt_tokens/)
+  }, context), /configured model example\/primary failed/)
 
   const [task] = (await runtime.taskStatus(undefined, context)).tasks
   assert.equal(task.status, "error")
   assert.equal(task.workspace_id, workspace.workspace_id)
-  assert.equal(task.child_session_id, null)
-  assert.match(task.error, /delegation startup failed:.*max_prompt_tokens/)
+  assert.equal(task.child_session_id, "child-1")
+  assert.match(task.error, /configured model example\/primary failed/)
   assert.equal(runtime.registry.hasActiveWorkspace(workspace.workspace_id), false)
   client.state.statuses.parent = { type: "idle" }
   await runtime.handleEvent({ type: "session.idle", properties: { sessionID: "parent" } })
   assert.equal(client.state.prompts.filter((request) => request.path.id === "parent").length, 1)
   assert.equal((await runtime.workspaceRelease(workspace.workspace_id)).status, "released")
-  assert.equal(client.state.creates.length, 0)
+  assert.equal(client.state.creates.length, 1)
 })
 
 test("session creation failure terminalizes the registered task with startup evidence", async (t) => {
@@ -442,7 +455,7 @@ test("restart surfaces persisted tasks and surviving managed workspaces without 
     client,
     stateDirectory: join(root, "state"),
     categories: {
-      test: { description: "test route", models: [{ model: "example/primary" }] },
+      test: { description: "test route", model: "example/primary" },
     },
   })
   assert.equal((await restarted.taskStatus(delegated.task_id, context)).status, "running")

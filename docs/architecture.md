@@ -19,13 +19,17 @@ User
                                           +-- ParentResumeCoordinator
 ```
 
-OpenCode owns model, tool, permission, and session execution. Git owns filesystem isolation. This repository owns agent prompts, category resolution, task/session lifecycle, workspace provenance, grouped completion, and parent resume. OpenSpec `tasks.md` owns durable formal-workflow progress.
+OpenCode owns model, variant, tool, permission, and session execution. Git owns filesystem isolation. This repository owns the built-in and user-overridden category registry, selective skill resolution, agent prompts, task/session lifecycle, workspace provenance, grouped completion, and parent resume. OpenSpec `tasks.md` owns durable formal-workflow progress.
 
 ## Delegation boundary
 
 `delegate_task` requires exactly one category or allowlisted named specialist. Categories route to the reusable Implementer. Named specialists are Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, and QA. Unknown names fail closed.
 
 The six runtime tools are `workspace_prepare`, `delegate_task`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces.
+
+Categories are small execution profiles: one `model`, an optional string `variant`, an execution-mindset `prompt_append`, and optional tool narrowing. `opencode/categories.json` is loaded once at startup and field-merges user entries over built-ins. It supports built-in overrides, custom categories, and `disable: true`; an enabled category without a model fails clearly. There is no model fallback chain.
+
+`load_skills` is an explicit list of installed/local skill names. The runtime advertises only name/description metadata and injects full content for selected skills into the child Implementer system context. Unknown names fail closed.
 
 Workspace release accepts either ancestry or Git-proven patch equivalence. A cherry-picked workspace is removed normally while its non-ancestor branch is retained when safe `git branch -d` refuses; release never force-deletes it.
 
@@ -51,4 +55,4 @@ The public CodeGraph CLI is provisioned independently and connected through `cod
 
 ## Browser capability
 
-The dedicated `/browser` route launches the purpose-built `Browser` primary agent for direct navigation, interaction, visual inspection, Task Spaces, and browser evidence. Assistant independently routes website work to `browser-automation`; CategoryEngine launches an Implementer with editing disabled and a session-scoped permission for the installed browser skill/runtime only. Both use the current external Ego Lite backend, while the category remains backend-neutral. The two routes intentionally coexist for practical comparison.
+The dedicated `/browser` route launches the purpose-built `Browser` primary agent for direct navigation, interaction, visual inspection, Task Spaces, and browser evidence. Assistant independently routes website work to `browser-automation` with `load_skills=["ego-browser"]`; CategoryEngine launches an Implementer with editing disabled and a session-scoped permission for the installed browser skill/runtime only. Both use the current external Ego Lite backend, while the category remains backend-neutral. The two routes intentionally coexist.

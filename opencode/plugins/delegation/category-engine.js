@@ -1,81 +1,138 @@
+import { readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
+
 import { DEFAULT_CATEGORIES } from "./categories.js"
 
-const SUPPORTED_PROFILE_FIELDS = new Set([
+const SUPPORTED_FIELDS = new Set([
   "description",
-  "models",
-  "reasoning",
+  "model",
   "variant",
-  "temperature",
-  "top_p",
-  "max_tokens",
   "tools",
   "prompt_append",
-  "max_prompt_tokens",
   "disable",
 ])
 
-function normalizeModel(entry, inheritedReasoning) {
-  const item = typeof entry === "string" ? { model: entry } : { ...entry }
-  for (const field of Object.keys(item)) {
-    if (!["model", "reasoning"].includes(field)) throw new Error(`unsupported category model field: ${field}`)
+const DEFAULT_CATEGORY_CONFIG_PATH = fileURLToPath(new URL("../../categories.json", import.meta.url))
+
+function categoryConfigError(configPath, message) {
+  return new Error(`invalid category config ${configPath}: ${message}`)
+}
+
+function validateCategory(name, source, configPath) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    throw categoryConfigError(configPath, `category "${name}" must be an object`)
   }
-  if (!item.model || typeof item.model !== "string") throw new Error("category model entries require model")
-  return {
-    model: item.model,
-    reasoning: item.reasoning ?? inheritedReasoning,
+  for (const field of Object.keys(source)) {
+    if (!SUPPORTED_FIELDS.has(field)) {
+      throw categoryConfigError(configPath, `category "${name}" has unsupported field "${field}"`)
+    }
+  }
+  for (const field of ["description", "model", "variant", "prompt_append"]) {
+    if (source[field] !== undefined && typeof source[field] !== "string") {
+      throw categoryConfigError(configPath, `category "${name}" field "${field}" must be a string`)
+    }
+  }
+  if (source.model !== undefined && !source.model.trim()) {
+    throw categoryConfigError(configPath, `category "${name}" field "model" must not be empty`)
+  }
+  if (source.disable !== undefined && typeof source.disable !== "boolean") {
+    throw categoryConfigError(configPath, `category "${name}" field "disable" must be boolean`)
+  }
+  if (source.tools !== undefined && (
+    !source.tools
+    || Array.isArray(source.tools)
+    || typeof source.tools !== "object"
+    || Object.values(source.tools).some((value) => typeof value !== "boolean")
+  )) {
+    throw categoryConfigError(configPath, `category "${name}" field "tools" must map tool names to booleans`)
   }
 }
 
-export { DEFAULT_CATEGORIES }
+function readCategoryConfig(configPath) {
+  let parsed
+  try {
+    parsed = JSON.parse(readFileSync(configPath, "utf8"))
+  } catch (error) {
+    if (error?.code === "ENOENT") return {}
+    throw categoryConfigError(configPath, error?.message ?? String(error))
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw categoryConfigError(configPath, "top-level value must be an object")
+  }
+  if (!parsed.categories || typeof parsed.categories !== "object" || Array.isArray(parsed.categories)) {
+    throw categoryConfigError(configPath, "top-level categories must be an object")
+  }
+  for (const [name, source] of Object.entries(parsed.categories)) validateCategory(name, source, configPath)
+  return parsed.categories
+}
+
+function mergeCategory(builtin, override) {
+  if (!builtin) return override ? structuredClone(override) : undefined
+  if (!override) return structuredClone(builtin)
+  return {
+    ...structuredClone(builtin),
+    ...structuredClone(override),
+    ...(override.tools === undefined && builtin.tools ? { tools: { ...builtin.tools } } : {}),
+  }
+}
+
+function validateModel(name, model) {
+  if (typeof model !== "string" || !model.trim()) {
+    throw new Error(`Category "${name}" has no configured model. Configure categories.${name}.model and retry.`)
+  }
+  const separator = model.indexOf("/")
+  if (separator < 1 || separator === model.length - 1) {
+    throw new Error(`Category "${name}" has invalid model "${model}". Configure it as provider/model and retry.`)
+  }
+}
+
+export { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_CONFIG_PATH, readCategoryConfig, validateCategory }
 
 export class CategoryEngine {
-  constructor(categories = DEFAULT_CATEGORIES) {
-    this.categories = structuredClone(categories)
+  constructor(userCategories, { builtins = DEFAULT_CATEGORIES, configPath = DEFAULT_CATEGORY_CONFIG_PATH } = {}) {
+    this.configPath = configPath
+    this.builtins = structuredClone(builtins)
+    this.userCategories = userCategories === undefined
+      ? readCategoryConfig(configPath)
+      : structuredClone(userCategories)
+    if (!this.userCategories || typeof this.userCategories !== "object" || Array.isArray(this.userCategories)) {
+      throw categoryConfigError(configPath, "categories must be an object")
+    }
+    for (const [name, source] of Object.entries(this.userCategories)) validateCategory(name, source, configPath)
+    this.categories = Object.fromEntries(
+      [...new Set([...Object.keys(this.builtins), ...Object.keys(this.userCategories)])]
+        .map((name) => [name, mergeCategory(this.builtins[name], this.userCategories[name])]),
+    )
+  }
+
+  has(name) {
+    return Boolean(this.categories[name] && !this.categories[name].disable)
+  }
+
+  list() {
+    return Object.entries(this.categories)
+      .filter(([, source]) => !source.disable)
+      .map(([name, source]) => ({
+        name,
+        description: source.description ?? "",
+        model: source.model,
+        variant: source.variant,
+      }))
   }
 
   resolve(name) {
     const source = this.categories[name]
-    if (!source) throw new Error(`unknown delegation category: ${name}`)
+    if (!source) throw new Error(`unknown delegation category: ${name}. Available: ${this.list().map((entry) => entry.name).join(", ")}`)
     if (source.disable) throw new Error(`delegation category is disabled: ${name}`)
-    for (const field of Object.keys(source)) {
-      if (!SUPPORTED_PROFILE_FIELDS.has(field)) throw new Error(`unsupported category field: ${field}`)
+    validateModel(name, source.model)
+    return {
+      category: name,
+      agent: "Implementer",
+      profile: {
+        ...structuredClone(source),
+        tools: source.tools ? { ...source.tools } : undefined,
+        prompt_append: source.prompt_append ?? "",
+      },
     }
-    if (source.models !== undefined && !Array.isArray(source.models)) throw new Error("category models must be an array")
-    for (const field of ["description", "reasoning", "variant", "prompt_append"]) {
-      if (source[field] !== undefined && typeof source[field] !== "string") {
-        throw new Error(`category ${field} must be a string`)
-      }
-    }
-    for (const field of ["temperature", "top_p", "max_tokens", "max_prompt_tokens"]) {
-      if (source[field] !== undefined && (!Number.isFinite(source[field]) || source[field] < 0)) {
-        throw new Error(`category ${field} must be a non-negative finite number`)
-      }
-    }
-    if (source.top_p !== undefined && source.top_p > 1) throw new Error("category top_p must be at most 1")
-    for (const field of ["max_tokens", "max_prompt_tokens"]) {
-      if (source[field] !== undefined && !Number.isInteger(source[field])) {
-        throw new Error(`category ${field} must be an integer`)
-      }
-    }
-    if (source.disable !== undefined && typeof source.disable !== "boolean") throw new Error("category disable must be boolean")
-    if (source.tools !== undefined && (
-      !source.tools
-      || Array.isArray(source.tools)
-      || typeof source.tools !== "object"
-      || Object.values(source.tools).some((value) => typeof value !== "boolean")
-    )) {
-      throw new Error("category tools must map tool names to booleans")
-    }
-    const models = (source.models ?? []).map((entry) => normalizeModel(entry, source.reasoning))
-    const profile = {
-      ...source,
-      models,
-      tools: source.tools ? { ...source.tools } : undefined,
-      prompt_append: source.prompt_append ?? "",
-      unsupported_public_fields: ["reasoning", "variant"].filter((field) =>
-        source[field] !== undefined || models.some((entry) => entry[field] !== undefined),
-      ),
-    }
-    return { category: name, agent: "Implementer", profile }
   }
 }

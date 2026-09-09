@@ -1,44 +1,91 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 import { AgentDispatcher } from "../plugins/delegation/agent-dispatcher.js"
 import { CategoryEngine, DEFAULT_CATEGORIES } from "../plugins/delegation/category-engine.js"
-import { ensurePromptBound } from "../plugins/delegation/session-runner.js"
 
-test("category lookup resolves every implementation category to Implementer", () => {
+test("built-in categories resolve to Implementer with model, variant, description, and prompt append", () => {
   const engine = new CategoryEngine()
-  for (const category of Object.keys(DEFAULT_CATEGORIES)) {
-    const result = engine.resolve(category)
+  for (const [name, expected] of Object.entries(DEFAULT_CATEGORIES)) {
+    const result = engine.resolve(name)
     assert.equal(result.agent, "Implementer")
-    assert.equal(result.category, category)
+    assert.equal(result.category, name)
+    assert.equal(result.profile.model, expected.model)
+    assert.equal(result.profile.variant, expected.variant)
+    assert.equal(result.profile.description, expected.description)
+    assert.equal(result.profile.prompt_append, expected.prompt_append ?? "")
   }
 })
 
-test("category model chains preserve deterministic order and prompt append", () => {
+test("user category fields override built-ins without recursive merging", () => {
   const engine = new CategoryEngine({
-    custom: {
-      description: "fixture",
-      models: [
-        { model: "example/fast", reasoning: "low" },
-        { model: "example/fallback", reasoning: "high" },
-      ],
-      variant: "focused",
-      prompt_append: "Stay focused.",
+    deep: {
+      model: "example/replacement",
+      variant: "max",
+      prompt_append: "Use the replacement mindset.",
+      tools: { bash: false },
     },
   })
-  const { profile } = engine.resolve("custom")
-  assert.deepEqual(profile.models, [
-    { model: "example/fast", reasoning: "low" },
-    { model: "example/fallback", reasoning: "high" },
-  ])
-  assert.equal(profile.prompt_append, "Stay focused.")
-  assert.deepEqual(profile.unsupported_public_fields, ["reasoning", "variant"])
+  const { profile } = engine.resolve("deep")
+  assert.equal(profile.model, "example/replacement")
+  assert.equal(profile.variant, "max")
+  assert.equal(profile.prompt_append, "Use the replacement mindset.")
+  assert.deepEqual(profile.tools, { bash: false })
+  assert.equal(profile.description, DEFAULT_CATEGORIES.deep.description)
 })
 
-test("unknown and disabled categories fail closed", () => {
-  const engine = new CategoryEngine({ off: { disable: true, models: [] } })
-  assert.throws(() => engine.resolve("missing"), /unknown delegation category/)
-  assert.throws(() => engine.resolve("off"), /disabled/)
+test("custom categories load from repository configuration without editing JavaScript", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "category-config-test-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const configPath = join(root, "categories.json")
+  await writeFile(configPath, JSON.stringify({ categories: {
+    "backend-heavy": {
+      description: "Complex backend implementation work",
+      model: "provider/model",
+      variant: "high",
+    },
+  }}))
+  const engine = new CategoryEngine(undefined, { configPath })
+  assert.deepEqual(engine.list().find((entry) => entry.name === "backend-heavy"), {
+    name: "backend-heavy",
+    description: "Complex backend implementation work",
+    model: "provider/model",
+    variant: "high",
+  })
+  assert.equal(engine.resolve("backend-heavy").profile.model, "provider/model")
+})
+
+test("disabled categories are absent from presentation and fail when explicitly selected", () => {
+  const engine = new CategoryEngine({
+    deep: { disable: true },
+    "unused-category": { disable: true },
+  })
+  assert.equal(engine.has("deep"), false)
+  assert.equal(engine.has("unused-category"), false)
+  assert.equal(engine.list().some((entry) => ["deep", "unused-category"].includes(entry.name)), false)
+  assert.throws(() => engine.resolve("deep"), /disabled/)
+})
+
+test("unknown and invalid categories fail closed with useful errors", () => {
+  const engine = new CategoryEngine({
+    "missing-model": { description: "fixture" },
+  })
+  assert.throws(() => engine.resolve("missing"), /unknown delegation category.*Available/)
+  assert.throws(() => engine.resolve("missing-model"), /Category "missing-model" has no configured model/)
+  assert.throws(() => new CategoryEngine({ bad: { reasoning: "high" } }), /unsupported field "reasoning"/)
+})
+
+test("category schema has one model and variant, with no fallback or reasoning fields", () => {
+  for (const source of Object.values(DEFAULT_CATEGORIES)) {
+    assert.equal(Object.hasOwn(source, "models"), false)
+    assert.equal(Object.hasOwn(source, "fallback_models"), false)
+    assert.equal(Object.hasOwn(source, "reasoning"), false)
+  }
+  assert.throws(() => new CategoryEngine({ bad: { models: [{ model: "provider/model" }] } }), /unsupported field "models"/)
+  assert.throws(() => new CategoryEngine({ bad: { fallback_models: [] } }), /unsupported field "fallback_models"/)
 })
 
 test("dispatcher enforces category XOR named agent and allowlists specialists", () => {
@@ -58,30 +105,4 @@ test("dispatcher enforces category XOR named agent and allowlists specialists", 
   ]) assert.equal(dispatcher.resolve({ agent }).agent, agent)
   assert.throws(() => dispatcher.resolve({ agent: "Executor" }), /not allowed/)
   assert.throws(() => dispatcher.resolve({ agent: "RandomAgent" }), /not allowed/)
-})
-
-test("required workflow categories resolve through the local engine", () => {
-  const engine = new CategoryEngine()
-  for (const category of [
-    "quick",
-    "deep",
-    "ultrabrain",
-    "visual-engineering",
-    "writing",
-    "artistry",
-    "unspecified-low",
-    "unspecified-high",
-    "git",
-    "browser-automation",
-  ]) assert.equal(engine.resolve(category).agent, "Implementer")
-})
-
-test("unsupported category fields are rejected instead of ignored", () => {
-  const engine = new CategoryEngine({ unsafe: { models: [], imaginary: true } })
-  assert.throws(() => engine.resolve("unsafe"), /unsupported category field/)
-})
-
-test("max prompt tokens is enforced before session execution", () => {
-  assert.doesNotThrow(() => ensurePromptBound("12345678", 2))
-  assert.throws(() => ensurePromptBound("123456789", 2), /exceeds max_prompt_tokens/)
 })

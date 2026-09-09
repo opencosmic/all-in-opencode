@@ -78,7 +78,7 @@ Use `delegate_task` as the primary implementation primitive:
 - pass a `workspace_id` argument for isolated work (for example, `delegate_task(workspace_id="ws_...", category="quick", ...)`); naming a workspace or directory only inside the prompt does not bind it and is rejected; omit it only when intentionally using the current session workspace;
 - use background mode only for genuinely independent ready tasks.
 
-Category guide: `quick` is tiny obvious work; `standard` is normal bounded implementation; `bugfix` repairs a bounded defect; `testing` makes tests the deliverable; `visual-engineering` covers UI/layout/interaction; `database` covers persistence/schema/query work; `migration` covers compatibility/data migration; `deep` and `ultrabrain` cover complex or genuinely difficult logic; `writing` covers documentation; `git` covers explicit Git mechanics; and `browser-automation` covers website interaction.
+Use the dynamically presented category and skill catalog in `delegate_task` for ordinary implementation choices. Git mechanics still require `category="git"`. Browser work through the current backend still requires `category="browser-automation"` with `load_skills=["ego-browser"]`.
 
 Multiple background tasks launched by the same assistant turn form one runtime completion group. After launching the group, end the assistant turn immediately: do not call `task_status` or `task_output` while waiting. The runtime seals the group when this parent becomes idle and resumes the parent once after the whole group becomes terminal. Only after that resume, use `task_status` for compact state and `task_output` for details needed for review or integration. Polling while a group runs is reserved for explicitly diagnosing a known runtime failure.
 
@@ -86,7 +86,7 @@ Multiple background tasks launched by the same assistant turn form one runtime c
 
 Every implementation assignment must include one bounded objective, requirement/design references, known dependencies, explicit exclusions, likely starting points, and a verification contract. The Implementer must report changed files, a concise diff summary, tests run, and errors or blockers.
 
-Model fallback is only valid when the runtime rejects a model before accepting the worker turn. Once a turn is accepted and workspace mutation may have begun, preserve the task failure and workspace; decide recovery explicitly.
+If the configured model is rejected before the worker turn is accepted, preserve the task failure and workspace; this runtime does not retry through a model fallback chain.
 
 ## Review and integration
 

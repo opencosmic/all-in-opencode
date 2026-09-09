@@ -9,6 +9,7 @@ import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
 import { SessionRunner } from "./session-runner.js"
+import { SkillResolver, discoverSkills } from "./skill-resolver.js"
 import { TaskRegistry, TERMINAL_STATUSES } from "./task-registry.js"
 import { WorkspaceManager } from "./workspace-manager.js"
 
@@ -35,7 +36,7 @@ function publicTask(task) {
     category: task.category,
     agent: task.agent,
     model: task.model,
-    unsupported_profile_fields: task.unsupported_profile_fields,
+    variant: task.variant,
     completion_group: task.completion_group,
     started_at: task.started_at,
     completed_at: task.completed_at,
@@ -49,6 +50,10 @@ export class DelegationRuntime {
     stateDirectory = defaultStateDirectory(),
     registryStorePath,
     categories,
+    categoryConfigPath,
+    directory,
+    skillEntries,
+    skillRoots,
     now,
   } = {}) {
     const resolvedState = resolve(stateDirectory)
@@ -90,6 +95,10 @@ export class DelegationRuntime {
       stateDirectory: resolvedState,
       hasActiveTasks: async (workspaceID) => registry.hasActiveWorkspace(workspaceID),
     })
+    const skills = skillEntries
+      ? new SkillResolver({ entries: skillEntries })
+      : new SkillResolver({ entries: directory ? await discoverSkills({ directory, roots: skillRoots }) : [] })
+    const categoryEngine = new CategoryEngine(categories, { configPath: categoryConfigPath })
     return new DelegationRuntime({
       client,
       registry,
@@ -97,13 +106,14 @@ export class DelegationRuntime {
       runner,
       coordinator,
       workspaces,
-      dispatcher: new AgentDispatcher(new CategoryEngine(categories)),
+      dispatcher: new AgentDispatcher(categoryEngine),
+      skills,
       profiles,
     })
   }
 
-  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles }) {
-    Object.assign(this, { client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles })
+  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills }) {
+    Object.assign(this, { client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills })
   }
 
   async workspacePrepare(args, context) {
@@ -112,6 +122,7 @@ export class DelegationRuntime {
 
   async delegate(args, context) {
     const route = this.dispatcher.resolve(args)
+    const skills = this.skills.resolve(args.load_skills ?? [])
     const referencedWorkspaces = `${args.description}\n${args.prompt}`.match(/\bws_[0-9a-f-]+\b/g) ?? []
     if (!args.workspace_id && referencedWorkspaces.length) {
       throw new Error("delegation prompt references a managed workspace but workspace_id was omitted")
@@ -131,9 +142,9 @@ export class DelegationRuntime {
       workspace_id: workspace.workspace_id,
       category: route.category,
       agent: route.agent,
+      variant: route.profile.variant ?? null,
       description: args.description,
       background: args.run_in_background,
-      unsupported_profile_fields: route.profile.unsupported_public_fields,
     })
     try {
       await this.runner.start({
@@ -144,6 +155,7 @@ export class DelegationRuntime {
         profile: route.profile,
         description: args.description,
         prompt: args.prompt,
+        skills,
       })
     } catch (error) {
       await this.terminalizeStartupFailure(task.task_id, error)
@@ -234,6 +246,18 @@ export class DelegationRuntime {
     return this.workspaces.release(workspaceID)
   }
 
+  delegateTaskDescription() {
+    const categories = this.dispatcher.categoryEngine.list()
+    const skills = this.skills.list()
+    const categoryList = categories.length
+      ? categories.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
+      : "- none"
+    const skillList = skills.length
+      ? skills.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
+      : "- none"
+    return `Delegate one scoped assignment through a category or an allowlisted named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. Git mechanics require category="git". Browser work through Implementer requires category="browser-automation" and, for the current backend, load_skills=["ego-browser"]. Pass workspace_id for a managed workspace.`
+  }
+
   async handleEvent(event) {
     await this.tracker.handleEvent(event)
     const properties = event?.properties ?? {}
@@ -247,11 +271,9 @@ export class DelegationRuntime {
   }
 
   applyChatParams(sessionID, output) {
-    const profile = this.profiles.get(sessionID)
-    if (!profile) return
-    if (profile.temperature !== undefined) output.temperature = profile.temperature
-    if (profile.top_p !== undefined) output.topP = profile.top_p
-    if (profile.max_tokens !== undefined) output.maxOutputTokens = profile.max_tokens
+    // Category V1 uses the public session model selector for model and variant.
+    // Keep the hook present for plugin compatibility; there are no legacy
+    // category request-parameter overrides to apply.
   }
 
   async applyPermission(input, output) {

@@ -25,7 +25,6 @@ export class AgentDispatcher {
       agent,
       profile: {
         description: `Read-only ${agent} specialist`,
-        models: [],
         tools: {
           workspace_prepare: false,
           delegate_task: false,
@@ -36,7 +35,6 @@ export class AgentDispatcher {
           task: false,
         },
         prompt_append: "",
-        unsupported_public_fields: [],
       },
     }
   }

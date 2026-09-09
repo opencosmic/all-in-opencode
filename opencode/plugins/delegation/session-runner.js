@@ -6,16 +6,8 @@ import {
 import { categorySessionPermission } from "./category-permissions.js"
 import { parseModel, sdkData, sessionStatusFor } from "./sdk.js"
 
-function promptText(description, prompt, append) {
-  return [`Assignment: ${description}`, prompt, append].filter(Boolean).join("\n\n")
-}
-
-function ensurePromptBound(text, maxPromptTokens) {
-  if (!maxPromptTokens) return
-  const conservativeTokens = Math.ceil(text.length / 4)
-  if (conservativeTokens > maxPromptTokens) {
-    throw new Error(`delegation prompt exceeds max_prompt_tokens (${conservativeTokens} > ${maxPromptTokens})`)
-  }
+function promptText(description, prompt) {
+  return [`Assignment: ${description}`, prompt].filter(Boolean).join("\n\n")
 }
 
 function toolsFor(agent, configured, category) {
@@ -35,11 +27,18 @@ function toolsFor(agent, configured, category) {
   return Object.keys(tools).length ? tools : undefined
 }
 
-function systemFor(agent, category) {
-  if (agent !== "Implementer") return undefined
-  if (category === "git") return GIT_IMPLEMENTER_CONTRACT
-  if (category === "browser-automation") return BROWSER_IMPLEMENTER_CONTRACT
-  return IMPLEMENTER_CONTRACT
+function systemFor(agent, category, profile = {}, skills = []) {
+  const base = agent !== "Implementer"
+    ? ""
+    : category === "git"
+      ? GIT_IMPLEMENTER_CONTRACT
+      : category === "browser-automation"
+        ? BROWSER_IMPLEMENTER_CONTRACT
+        : IMPLEMENTER_CONTRACT
+  const skillContent = skills
+    .map((skill) => `Selected skill: ${skill.name}\n\n${skill.content}`)
+    .join("\n\n")
+  return [base, skillContent, profile.prompt_append].filter(Boolean).join("\n\n") || undefined
 }
 
 export class SessionRunner {
@@ -51,9 +50,8 @@ export class SessionRunner {
     this.now = now
   }
 
-  async start({ task, directory, agent, category, profile, description, prompt }) {
-    const text = promptText(description, prompt, profile.prompt_append)
-    ensurePromptBound(text, profile.max_prompt_tokens)
+  async start({ task, directory, agent, category, profile, description, prompt, skills = [] }) {
+    const text = promptText(description, prompt)
     const created = sdkData(await this.client.session.create({
       body: {
         parentID: task.parent_session_id,
@@ -67,47 +65,28 @@ export class SessionRunner {
     await this.registry.start(task.task_id, { child_session_id: childSessionID })
     this.sessionProfiles.set(childSessionID, { ...profile, category, agent })
 
-    const models = profile.models?.length ? profile.models : [{ model: null }]
-    const failures = []
-    for (const candidate of models) {
-      const body = {
-        agent,
-        system: systemFor(agent, category),
-        tools: toolsFor(agent, profile.tools, category),
-        parts: [{ type: "text", text }],
-      }
-      try {
-        const model = parseModel(candidate.model)
-        if (model) body.model = model
-      } catch (error) {
-        failures.push(`${candidate.model ?? "default"}: ${error.message}`)
-        continue
-      }
-      await this.registry.selectModel(task.task_id, candidate.model)
-      let response
-      try {
-        response = await this.client.session.promptAsync({
-          path: { id: childSessionID },
-          query: { directory },
-          body,
-        })
-      } catch (error) {
-        const uncertain = new Error(`child prompt acceptance is uncertain; model fallback stopped: ${error.message}`)
-        await this.tracker.fail(task.task_id, uncertain)
-        throw uncertain
-      }
-      try {
-        sdkData(response, "session.promptAsync")
-      } catch (error) {
-        failures.push(`${candidate.model ?? "default"}: ${error.message}`)
-        continue
-      }
-      return { child_session_id: childSessionID, model: candidate.model }
+    const body = {
+      agent,
+      system: systemFor(agent, category, profile, skills),
+      tools: toolsFor(agent, profile.tools, category),
+      parts: [{ type: "text", text }],
     }
-
-    const failure = new Error(`all configured models were rejected before turn acceptance: ${failures.join(" | ")}`)
-    await this.tracker.fail(task.task_id, failure)
-    throw failure
+    const model = parseModel(profile.model, profile.variant)
+    if (model) body.model = model
+    await this.registry.selectModel(task.task_id, profile.model)
+    try {
+      const response = await this.client.session.promptAsync({
+        path: { id: childSessionID },
+        query: { directory },
+        body,
+      })
+      sdkData(response, "session.promptAsync")
+    } catch (error) {
+      const failure = new Error(`configured model ${profile.model ?? "default"} failed before child turn acceptance: ${error.message}`)
+      await this.tracker.fail(task.task_id, failure)
+      throw failure
+    }
+    return { child_session_id: childSessionID, model: profile.model, variant: profile.variant }
   }
 
   async observeTask(taskID) {
@@ -135,4 +114,4 @@ export class SessionRunner {
   }
 }
 
-export { ensurePromptBound, promptText, systemFor, toolsFor }
+export { promptText, systemFor, toolsFor }

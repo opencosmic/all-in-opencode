@@ -54,5 +54,6 @@ test("Assistant owns general routing without silently entering OpenSpec", async 
   assert.match(source, /^  skill: deny$/m)
   assert.match(source, /^    "ego-browser \*": deny$/m)
   assert.match(source, /Use `todowrite` for meaningful multi-step work, not one-step requests/)
-  assert.match(source, /Category guide: `quick`.*`browser-automation`/s)
+  assert.match(source, /dynamically presented category and skill catalog/)
+  assert.match(source, /load_skills=\["ego-browser"\]/)
 })

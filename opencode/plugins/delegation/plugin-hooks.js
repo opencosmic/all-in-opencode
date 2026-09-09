@@ -17,13 +17,14 @@ export function delegationPluginHooks(runtime) {
         execute: async (args, context) => json(await runtime.workspacePrepare(args, context)),
       }),
       delegate_task: tool({
-        description: "Delegate one scoped assignment through a category or an allowlisted named specialist. Pass workspace_id as an argument whenever the assignment targets a workspace returned by workspace_prepare; naming it only in the prompt is rejected.",
+        description: runtime.delegateTaskDescription(),
         args: {
           workspace_id: tool.schema.string().min(1).optional(),
           category: tool.schema.string().min(1).optional(),
           agent: tool.schema.string().min(1).optional(),
           description: tool.schema.string().min(1),
           prompt: tool.schema.string().min(1),
+          load_skills: tool.schema.array(tool.schema.string().min(1)).optional(),
           run_in_background: tool.schema.boolean().optional(),
         },
         execute: async (args, context) => json(await runtime.delegate(args, context)),

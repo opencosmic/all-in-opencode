@@ -62,5 +62,6 @@ test("effective Executor policy uses only workflow-owned delegation and Git inte
   assert.match(executor.prompt, /delegate_task\(agent="Plan Reviewer"\)/)
   assert.match(executor.prompt, /delegate_task\(category="git"\)/)
   assert.match(executor.prompt, /Never launch a normal implementation category merely to re-apply/)
-  assert.match(executor.prompt, /Category guide: `quick`.*`browser-automation`/s)
+  assert.match(executor.prompt, /dynamically presented category and skill catalog/)
+  assert.match(executor.prompt, /load_skills=\["ego-browser"\]/)
 })
