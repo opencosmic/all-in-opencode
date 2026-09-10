@@ -2,8 +2,8 @@
 
 | Path | Purpose |
 |---|---|
-| [`opencode/agents/`](../../opencode/agents/) | Assistant, Browser, Producer, formal lifecycle roles, specialists, and Implementer. |
-| [`opencode/commands/`](../../opencode/commands/) | `/spec`, `/plan`, `/execute`, `/verify`, `/ship`, `/browser`, and `/video`. |
+| [`opencode/agents/`](../../opencode/agents/) | Assistant, Browser, Producer, Searcher, formal lifecycle roles, specialists, and Implementer. |
+| [`opencode/commands/`](../../opencode/commands/) | `/spec`, `/plan`, `/execute`, `/verify`, `/ship`, `/browser`, `/video`, and `/search`. |
 | [`opencode/plugins/delegation-runtime.js`](../../opencode/plugins/delegation-runtime.js) | Loader-safe Delegation Runtime entrypoint. |
 | [`opencode/plugins/delegation/`](../../opencode/plugins/delegation/) | WorkspaceManager, dynamic CategoryEngine, selective SkillResolver, TaskRegistry, SessionRunner, CompletionTracker, ParentResumeCoordinator, dispatch, and category permissions. |
 | [`opencode/categories.json`](../../opencode/categories.json) | Repository-owned built-in category overrides, custom categories, and disable entries. |

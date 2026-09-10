@@ -13,7 +13,7 @@ Do not reset, clean, stash, force-remove worktrees, or delete broad runtime/inde
 
 ## Agent or command is missing
 
-Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are exactly `spec`, `plan`, `execute`, `verify`, `ship`, `browser`, and `video`. Restart OpenCode after authored agent, command, plugin, skill, or MCP changes.
+Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are exactly `spec`, `plan`, `execute`, `verify`, `ship`, `browser`, `video`, and `search`. Restart OpenCode after authored agent, command, plugin, skill, or MCP changes.
 
 ## Delegation tool is missing
 

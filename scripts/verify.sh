@@ -39,6 +39,8 @@ done < "$MANIFEST"
 [ -f "$REPO_ROOT/opencode/agents/producer.md" ] || fail "dedicated Producer agent is missing"
 [ ! -e "$REPO_ROOT/opencode/agents/video.md" ] || fail "retired Video agent definition still exists"
 [ -f "$REPO_ROOT/opencode/commands/video.md" ] || fail "dedicated /video command is missing"
+[ -f "$REPO_ROOT/opencode/agents/searcher.md" ] || fail "dedicated Searcher agent is missing"
+[ -f "$REPO_ROOT/opencode/commands/search.md" ] || fail "dedicated /search command is missing"
 [ ! -e "$REPO_ROOT/opencode/commands/ego.md" ] || fail "obsolete /ego command still exists"
 if [ -L "$HOME/.omo/omo.jsonc" ] && [ "$(readlink "$HOME/.omo/omo.jsonc")" = "$REPO_ROOT/omo/omo.jsonc" ]; then
   fail "obsolete repository-managed OMO symlink still exists"

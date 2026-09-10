@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { readFile, readdir } from "node:fs/promises"
 
-const root = "/Users/code/.config/opencode"
+const root = process.env.OPENCODE_DISCOVERY_ROOT ?? "/Users/code/.config/opencode"
 
 const commandTargets = new Map([
   ["spec.md", "Strategist"],
@@ -12,6 +12,7 @@ const commandTargets = new Map([
   ["ship.md", "Executor"],
   ["browser.md", "Browser"],
   ["video.md", "Producer"],
+  ["search.md", "Searcher"],
 ])
 
 const oldCommands = [
@@ -40,6 +41,7 @@ const agentNames = new Map([
   ["reviewer.md", "Reviewer"],
   ["qa.md", "QA"],
   ["verifier.md", "Verifier"],
+  ["searcher.md", "Searcher"],
 ])
 
 const oldAgents = [

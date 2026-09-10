@@ -4,7 +4,7 @@ This repository is the canonical authored source for a workflow-owned OpenCode/O
 
 ## Workflows
 
-`Assistant` handles ordinary work: explanations, investigation, bounded implementation, documentation, reviews, dependency research, Git mechanics, and browser interaction. It answers or edits directly when work is truly small, consults read-only specialists when evidence improves correctness, and routes non-trivial implementation through `delegate_task(category=...)` to `Implementer`.
+`Assistant` handles ordinary work: explanations, investigation, bounded implementation, documentation, reviews, dependency research, Git mechanics, and browser interaction. It answers or edits directly when work is truly small, consults read-only specialists when evidence improves correctness, and routes non-trivial implementation through `delegate_task(category=...)` to `Implementer`. `Searcher` and `/search` provide a separate user-facing normal web Search / Answer Engine route for grounded current answers.
 
 The formal lifecycle is:
 
@@ -20,7 +20,7 @@ OpenSpec `tasks.md` is the only durable execution-progress source of truth. Runt
 
 ## Agents
 
-Primary agents are `Assistant`, `Browser`, `Producer`, `Strategist`, `Planner`, and `Executor`. `Verifier` is the independent verification role used by the formal route. Read-only specialists are:
+Primary agents are `Assistant`, `Browser`, `Producer`, `Searcher`, `Strategist`, `Planner`, and `Executor`. `Verifier` is the independent verification role used by the formal route. Read-only specialists are:
 
 - `Explorer`: local source, symbols, architecture, and call/data-flow discovery.
 - `Librarian`: official external documentation, upstream source, APIs, releases, and version-specific behavior.
@@ -29,6 +29,8 @@ Primary agents are `Assistant`, `Browser`, `Producer`, `Strategist`, `Planner`, 
 - `Researcher`, `Validator`, `Reviewer`, and `QA`: bounded product evidence, falsification, code review, and runtime evidence.
 
 Named delegation is fail closed. Only the repository-owned specialist allowlist is accepted.
+
+`Searcher` is read-only and does bounded adaptive retrieval with native `websearch`/`websearch_*` and `webfetch`. It does not delegate, own OpenSpec, implement code, or replace the distinct `Researcher` and `Librarian` specialist roles. It is intentionally a normal-search route, not Deep Research.
 
 ## Delegation Runtime
 
