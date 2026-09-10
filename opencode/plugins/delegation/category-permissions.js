@@ -1,3 +1,6 @@
+import { dirname, relative, resolve } from "node:path"
+import { tmpdir } from "node:os"
+
 const SAFE_GIT = [
   /^git status(?:\s|$)/,
   /^git log(?:\s|$)/,
@@ -35,6 +38,99 @@ function isCategoryScopedGitMutation(command) {
   return /^git\s+(?:commit|cherry-pick)(?:\s|$)/.test(command.trim())
 }
 
+function skillLocation(skill) {
+  return skill?.path ?? skill?.location
+}
+
+function watchSkillRoot(path) {
+  const absolute = resolve(path)
+  return absolute.endsWith("/SKILL.md") ? dirname(absolute) : absolute
+}
+
+function watchSkillPaths(profile) {
+  const selected = profile?.selected_skills
+    ?? profile?.skills
+    ?? (profile?.skill_paths ?? []).map((path) => ({ name: "watch", path }))
+  return selected
+    .filter((skill) => skill?.name === "watch")
+    .map(skillLocation)
+    .filter(Boolean)
+    .map(watchSkillRoot)
+}
+
+function hasSelectedSkill(profile, name) {
+  return (profile?.skill_names ?? profile?.skills?.map((skill) => skill?.name) ?? []).includes(name)
+}
+
+function containsShellControl(command) {
+  let quote = ""
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]
+    if (quote) {
+      if (character === quote && command[index - 1] !== "\\") quote = ""
+      continue
+    }
+    if (character === "'" || character === '"') {
+      quote = character
+      continue
+    }
+    if (";&|<>`\r\n".includes(character) || (character === "$" && command[index + 1] === "(")) return true
+  }
+  return Boolean(quote)
+}
+
+export function isWatchRuntimeCommand(command, paths = []) {
+  if (typeof command !== "string" || containsShellControl(command)) return false
+  const trimmed = command.trim()
+  const match = trimmed.match(/^(python3|python)\s+("([^"]+)"|'([^']+)'|([^\s]+))(?:\s+|$)/)
+  if (!match) return false
+  const argumentsText = trimmed.slice(match[0].length)
+  if (/(?:^|\s)--out-dir(?:\s|=|$)/.test(argumentsText)) return false
+  const script = match[3] ?? match[4] ?? match[5]
+  const allowed = paths.map(watchSkillRoot).flatMap((root) => [
+    resolve(root, "scripts/watch.py"),
+    resolve(root, "scripts/setup.py"),
+  ])
+  return allowed.includes(resolve(script))
+}
+
+function watchTempPatterns() {
+  const root = resolve(tmpdir())
+  return [`${root}/watch-*`, `${root}/watch-*/*`]
+}
+
+function isWithin(candidate, root) {
+  const path = resolve(candidate)
+  const base = resolve(root)
+  const remainder = relative(base, path)
+  return remainder === "" || (!remainder.startsWith("..") && !remainder.startsWith("/"))
+}
+
+function isWatchTempPath(path) {
+  const candidate = resolve(path)
+  const remainder = relative(resolve(tmpdir()), candidate)
+  const [first] = remainder.split("/")
+  return Boolean(first && first.startsWith("watch-") && !remainder.startsWith(".."))
+}
+
+export function isWatchExternalPath(path, skillPaths = []) {
+  if (typeof path !== "string" || /(?:^|\/)\.env(?:$|[/.])/.test(path)) return false
+  if (skillPaths.map(watchSkillRoot).some((root) => isWithin(path, root))) return true
+  return isWatchTempPath(path)
+}
+
+function watchBashPatterns(skillPaths) {
+  return skillPaths.flatMap((root) => ["watch.py", "setup.py"].flatMap((script) => {
+    const path = resolve(root, "scripts", script)
+    return [
+      `python3 ${path} *`,
+      `python3 "${path}" *`,
+      `python ${path} *`,
+      `python "${path}" *`,
+    ]
+  }))
+}
+
 export function categoryPermission(profile, input) {
   if (!profile?.category) return null
   const value = permissionValue(input)
@@ -60,12 +156,31 @@ export function categoryPermission(profile, input) {
     }
   }
 
+  if (profile.category === "video-analysis") {
+    const skillPaths = watchSkillPaths(profile)
+    if (type === "skill") {
+      return profile.tools?.skill === false || value !== "watch" || !hasSelectedSkill(profile, "watch")
+        ? "deny"
+        : "allow"
+    }
+    if (type === "bash") {
+      return profile.tools?.bash === false || !hasSelectedSkill(profile, "watch") || !isWatchRuntimeCommand(value, skillPaths)
+        ? "deny"
+        : "allow"
+    }
+    if (type === "external_directory") {
+      return profile.tools?.skill === false || !hasSelectedSkill(profile, "watch") || !isWatchExternalPath(value, skillPaths)
+        ? "deny"
+        : "allow"
+    }
+  }
+
   if (type === "skill" || type === "external_directory") return "deny"
 
   return null
 }
 
-export function categorySessionPermission(category, tools = {}) {
+export function categorySessionPermission(category, tools = {}, skills = []) {
   if (category === "git") {
     const rules = [
       { permission: "edit", pattern: "*", action: "deny" },
@@ -108,6 +223,53 @@ export function categorySessionPermission(category, tools = {}) {
       { permission: "bash", pattern: "ego-browser", action: "allow" },
       { permission: "bash", pattern: "ego-browser *", action: "allow" },
     )
+    return rules
+  }
+  if (category === "video-analysis") {
+    const skillPaths = skills
+      .filter((skill) => skill?.name === "watch")
+      .map(skillLocation)
+      .filter(Boolean)
+      .map(watchSkillRoot)
+    const rules = [
+      { permission: "edit", pattern: "*", action: "deny" },
+      { permission: "write", pattern: "*", action: "deny" },
+      { permission: "skill", pattern: "*", action: "deny" },
+      { permission: "external_directory", pattern: "*", action: "deny" },
+      { permission: "bash", pattern: "*", action: "deny" },
+    ]
+    if (tools.skill !== false && skillPaths.length) {
+      rules.push({ permission: "skill", pattern: "watch", action: "allow" })
+      rules.push(...watchTempPatterns().map((pattern) => ({
+        permission: "external_directory",
+        pattern,
+        action: "allow",
+      })))
+      for (const root of skillPaths) rules.push(
+        { permission: "external_directory", pattern: root, action: "allow" },
+        { permission: "external_directory", pattern: `${root}/*`, action: "allow" },
+      )
+    }
+    if (tools.bash !== false && skillPaths.length) {
+      rules.push(...watchBashPatterns(skillPaths).map((pattern) => ({
+        permission: "bash",
+        pattern,
+        action: "allow",
+      })))
+      for (const root of skillPaths) for (const script of ["watch.py", "setup.py"]) {
+        const path = resolve(root, "scripts", script)
+        rules.push(...[
+          `python3 ${path} *--out-dir*`,
+          `python3 "${path}" *--out-dir*`,
+          `python ${path} *--out-dir*`,
+          `python "${path}" *--out-dir*`,
+        ].map((pattern) => ({
+          permission: "bash",
+          pattern,
+          action: "deny",
+        })))
+      }
+    }
     return rules
   }
   return undefined
