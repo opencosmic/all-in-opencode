@@ -18,6 +18,13 @@ function parseFrontmatter(source, fallbackName) {
   }
 }
 
+function skillLocationFields(skill) {
+  return {
+    ...(skill?.path ? { path: skill.path } : {}),
+    ...(skill?.location ? { location: skill.location } : {}),
+  }
+}
+
 async function skillFiles(root) {
   const result = []
   async function visit(directory) {
@@ -86,10 +93,10 @@ export class SkillResolver {
   }
 
   list() {
-    return this.entries.map(({ name, description, path }) => ({
-      name,
-      description,
-      ...(path ? { path } : {}),
+    return this.entries.map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+      ...skillLocationFields(skill),
     }))
   }
 
@@ -113,6 +120,7 @@ export class SkillResolver {
     return selected.map((skill) => ({
       name: skill.name,
       description: skill.description,
+      ...skillLocationFields(skill),
       content: skill.content,
     }))
   }

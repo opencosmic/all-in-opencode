@@ -1,8 +1,4 @@
-import {
-  BROWSER_IMPLEMENTER_CONTRACT,
-  GIT_IMPLEMENTER_CONTRACT,
-  IMPLEMENTER_CONTRACT,
-} from "./implementer-contract.js"
+import { IMPLEMENTER_CONTRACT } from "./implementer-contract.js"
 import { categorySessionPermission } from "./category-permissions.js"
 import { parseModel, sdkData, sessionStatusFor } from "./sdk.js"
 
@@ -11,7 +7,7 @@ function promptText(description, prompt) {
 }
 
 function toolsFor(agent, configured, category) {
-  if (agent === "Implementer" && ["git", "browser-automation"].includes(category)) return undefined
+  if (agent === "Implementer" && ["git", "browser-automation", "video-analysis"].includes(category)) return undefined
   const tools = { ...(configured ?? {}) }
   if (agent === "Implementer") {
     Object.assign(tools, {
@@ -28,17 +24,18 @@ function toolsFor(agent, configured, category) {
 }
 
 function systemFor(agent, category, profile = {}, skills = []) {
-  const base = agent !== "Implementer"
-    ? ""
-    : category === "git"
-      ? GIT_IMPLEMENTER_CONTRACT
-      : category === "browser-automation"
-        ? BROWSER_IMPLEMENTER_CONTRACT
-        : IMPLEMENTER_CONTRACT
+  const base = agent === "Implementer" ? IMPLEMENTER_CONTRACT : ""
   const skillContent = skills
-    .map((skill) => `Selected skill: ${skill.name}\n\n${skill.content}`)
+    .map((skill) => {
+      const location = skill.path ?? skill.location
+      return [
+        `Selected skill: ${skill.name}`,
+        location ? `Skill location: ${location}` : "",
+        skill.content,
+      ].filter(Boolean).join("\n\n")
+    })
     .join("\n\n")
-  return [base, skillContent, profile.prompt_append].filter(Boolean).join("\n\n") || undefined
+  return [base, profile.prompt_append, skillContent].filter(Boolean).join("\n\n") || undefined
 }
 
 export class SessionRunner {
@@ -56,14 +53,24 @@ export class SessionRunner {
       body: {
         parentID: task.parent_session_id,
         title: description,
-        permission: categorySessionPermission(category, profile.tools),
+        permission: categorySessionPermission(category, profile.tools, skills),
       },
       query: { directory },
     }), "session.create")
     const childSessionID = created.id
     this.tracker.track({ taskID: task.task_id, childSessionID, startedAt: this.now() })
     await this.registry.start(task.task_id, { child_session_id: childSessionID })
-    this.sessionProfiles.set(childSessionID, { ...profile, category, agent })
+    this.sessionProfiles.set(childSessionID, {
+      ...profile,
+      category,
+      agent,
+      skill_names: skills.map((skill) => skill.name),
+      skill_paths: skills.map((skill) => skill.path ?? skill.location).filter(Boolean),
+      selected_skills: skills.map((skill) => ({
+        name: skill.name,
+        path: skill.path ?? skill.location,
+      })),
+    })
 
     const body = {
       agent,

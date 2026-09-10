@@ -17,7 +17,22 @@ test("built-in categories resolve to Implementer with model, variant, descriptio
     assert.equal(result.profile.variant, expected.variant)
     assert.equal(result.profile.description, expected.description)
     assert.equal(result.profile.prompt_append, expected.prompt_append ?? "")
+    assert.match(result.profile.prompt_append, new RegExp(`<Category_Context name="${name}">`))
   }
+})
+
+test("category context meaningfully specializes the shared executor", () => {
+  const engine = new CategoryEngine()
+  const expected = new Map([
+    ["quick", /small, contained task/i],
+    ["deep", /root-cause fix/i],
+    ["visual-engineering", /design system/i],
+    ["testing", /discriminating tests/i],
+    ["git", /explicitly authorized Git operation/i],
+    ["browser-automation", /fresh browser state/i],
+    ["video-analysis", /actual video/i],
+  ])
+  for (const [name, pattern] of expected) assert.match(engine.resolve(name).profile.prompt_append, pattern)
 })
 
 test("user category fields override built-ins without recursive merging", () => {

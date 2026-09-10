@@ -24,8 +24,10 @@ test("browser automation is a neutral category routed to Implementer", () => {
   const tools = toolsFor(route.agent, route.profile.tools)
   assert.equal(tools.delegate_task, false)
   assert.equal(tools.task, false)
-  assert.match(systemFor(route.agent, route.category), /currently installed browser automation skill\/runtime/)
-  assert.match(systemFor(route.agent, route.category), /Do not mutate repository files/)
+  const system = systemFor(route.agent, route.category, route.profile)
+  assert.match(system, /<Category_Context name="browser-automation">/)
+  assert.match(system, /fresh browser state/)
+  assert.doesNotMatch(system, /operating under the browser-automation category/)
 })
 
 test("browser category permission hook exposes only the current backend", () => {
@@ -63,6 +65,8 @@ test("dedicated Browser route coexists with the neutral category", async () => {
 
   const assistant = await readFile(`${repository}/opencode/agents/assistant.md`, "utf8")
   assert.match(assistant, /category="browser-automation"/)
+  assert.match(assistant, /category="video-analysis".*load_skills=\["watch"\]/s)
+  assert.match(assistant, /Prefer this over browser automation when the website is only the container for the video/)
   assert.doesNotMatch(assistant, /dedicated Browser route is unavailable/i)
 
   const setup = await readFile(`${repository}/scripts/setup-ego-browser.sh`, "utf8")

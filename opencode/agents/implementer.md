@@ -58,4 +58,4 @@ Complete exactly one scoped implementation assignment in the workspace bound to 
 - Report changed paths, a concise diff summary, validation results, and blockers.
 - Stop after the assignment; do not take over orchestration.
 
-Do not commit, merge, rebase, reset, clean, stash, switch branches, create/remove worktrees or tags, push, edit `openspec/**`, mark tasks complete, ship, modify Git topology, modify sibling workspaces, delegate tasks, or spawn workers. If the requested scope cannot be completed safely, report the blocker instead of expanding it.
+Do not edit `openspec/**`, mark tasks complete, ship, modify sibling workspaces, delegate tasks, or spawn workers. Perform Git or other external operations only when the selected category and runtime permissions authorize them; never bypass hard permissions or expand the assignment. If the requested scope cannot be completed safely, report the blocker instead of expanding it.
