@@ -67,3 +67,27 @@ Provision and inspect the upstream skill with:
 ```
 
 The upstream skill's bundled preflight owns its current macOS/Linux/Windows dependency guidance for `ffmpeg`, `ffprobe`, `yt-dlp`, and optional Whisper API configuration. On macOS it may use Homebrew for the binaries; API keys belong in the upstream `~/.config/watch/.env` file and are never stored in this repository.
+
+## HyperFrames video production
+
+Use `/video <goal>` for creating, editing, animating, previewing, and rendering a HyperFrames project. The route is intentionally separate from Assistant's `video-analysis` -> `watch` path:
+
+```text
+Assistant / ordinary work
+Browser / /browser -> Ego Browser
+Producer / /video -> HyperFrames
+Assistant -> video-analysis -> Watch
+```
+
+`Producer` loads the official upstream `hyperframes` skill first. The upstream router then selects the current creation workflow or project operation and loads only the required HyperFrames domain skills. HyperFrames remains external: this repository owns the route, permissions, and provisioning scripts, but does not vendor its source or skill files.
+
+Provision the core skill family explicitly:
+
+```sh
+./scripts/setup-hyperframes.sh
+./scripts/check-hyperframes.sh
+```
+
+Setup uses the official `npx hyperframes skills update` command to refresh the core skill set and workflows that are already installed; it does not eagerly install every creation workflow. The check is read-only and confirms Node.js 22+, `npx`, FFmpeg, `ffprobe`, the `hyperframes` entry skill, OpenCode discovery, and the upstream `hyperframes skills check` result. If the upstream router selects a workflow that is missing or stale, it can request the named `npx hyperframes skills update <workflow-name>` refresh with user approval. Ordinary `/video` work must not update global skills silently. Use `HYPERFRAMES_SKIP_SKILLS=1` for normal initialization where appropriate.
+
+The route has normal active-project edit/write access and user-question access for brief choices, storyboard or preview review, and final render approval. Git/history mutation, protected `.env`-style files, unrelated skills, `delegate_task`, workspace lifecycle, and task-control tools remain outside its boundary. Native OpenCode task delegation is disabled because the current permission surface cannot bind a child to HyperFrames' frame-worker contract narrowly; use the upstream workflow's documented serial fallback when no delegation channel is available. No new orchestration runtime is added, and `video-production` remains outside CategoryEngine for this phase.

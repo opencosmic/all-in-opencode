@@ -1,6 +1,6 @@
 # OpenCode workflow
 
-This repository is the canonical authored source for a workflow-owned OpenCode/OpenSpec system. It uses stock OpenCode public plugin and SDK APIs, Git worktrees, an independent CodeGraph MCP server, and an external browser runtime. It has no Oh My OpenAgent runtime dependency.
+This repository is the canonical authored source for a workflow-owned OpenCode/OpenSpec system. It uses stock OpenCode public plugin and SDK APIs, Git worktrees, an independent CodeGraph MCP server, and external browser and video runtimes. It has no Oh My OpenAgent runtime dependency.
 
 ## Workflows
 
@@ -20,7 +20,7 @@ OpenSpec `tasks.md` is the only durable execution-progress source of truth. Runt
 
 ## Agents
 
-Primary agents are `Assistant`, `Browser`, `Strategist`, `Planner`, and `Executor`. `Verifier` is the independent verification role used by the formal route. Read-only specialists are:
+Primary agents are `Assistant`, `Browser`, `Producer`, `Strategist`, `Planner`, and `Executor`. `Verifier` is the independent verification role used by the formal route. Read-only specialists are:
 
 - `Explorer`: local source, symbols, architecture, and call/data-flow discovery.
 - `Librarian`: official external documentation, upstream source, APIs, releases, and version-specific behavior.
@@ -112,6 +112,27 @@ Provision the current backend explicitly, then verify it:
 
 The backend remains external. This repository does not vendor its skill, application, Task Spaces, browser state, or credentials.
 
+## HyperFrames video production
+
+Video production has its own primary route:
+
+```text
+User -> /video -> Producer -> /hyperframes -> HyperFrames workflows and domain skills
+```
+
+`Producer` is dedicated to HyperFrames-backed creation, editing, animation, composition, preview, and rendering. It is not a general coding agent, OpenSpec worker, CategoryEngine `Implementer`, Git worker, or video-content analysis route. It preserves the upstream brief, review, preview, and final-render approval gates and writes project artifacts in the active project.
+
+HyperFrames is an external upstream framework and skill set. The repository does not vendor or fork it. Run the explicit provisioning flow when the skill set is missing or needs an update:
+
+```sh
+./scripts/setup-hyperframes.sh
+./scripts/check-hyperframes.sh
+```
+
+The setup script uses the official `npx hyperframes skills update` path to refresh the core skill set and workflows that are already installed. It does not eagerly install every creation workflow. When `/hyperframes` selects a workflow that is not installed, the upstream router can request the named `npx hyperframes skills update <workflow-name>` refresh; Producer keeps that global mutation approval-gated. Ordinary `/video` work never silently updates global skills, and normal `init` work should use `HYPERFRAMES_SKIP_SKILLS=1` where appropriate. Workflow skills remain available on demand through the upstream router.
+
+HyperFrames is intentionally not a `video-production` CategoryEngine category in this phase. The shared CategoryEngine -> `Implementer` path remains for bounded execution profiles, while HyperFrames owns an interactive orchestration flow that may pause for brief, storyboard, preview, or render decisions. Video-content questions remain separate: `Assistant` -> `video-analysis` -> `watch`.
+
 ## Video analysis
 
 For questions that depend on the actual contents of a video, Assistant routes through the shared Implementer with `category="video-analysis"` and `load_skills=["watch"]`. This covers summaries, timestamped questions, hooks, editing structure, screen recordings, visual-versus-spoken comparisons, and on-screen UI evidence. A website-only task remains `browser-automation`; watching the video embedded on that website is `video-analysis`.
@@ -156,6 +177,7 @@ opencode debug config
 opencode agent list
 opencode debug agent Assistant
 opencode debug agent Browser
+opencode debug agent Producer
 opencode debug agent Executor
 ```
 

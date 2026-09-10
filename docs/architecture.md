@@ -9,6 +9,7 @@ User
  |                                            +-- browser-automation
  |                                            +-- video-analysis + watch
  |                      +-- /browser --> Browser --> ego-browser backend
+ |                      +-- /video --> Producer --> HyperFrames external skills/CLI
  |
  +-- formal work ----> /spec -> /plan -> /execute -> /verify -> /ship
                                       |
@@ -61,3 +62,19 @@ The public CodeGraph CLI is provisioned independently and connected through `cod
 ## Browser capability
 
 The dedicated `/browser` route launches the purpose-built `Browser` primary agent for direct navigation, interaction, visual inspection, Task Spaces, and browser evidence. Assistant independently routes website work to `browser-automation` with `load_skills=["ego-browser"]`; CategoryEngine launches an Implementer with editing disabled and a session-scoped permission for the installed browser skill/runtime only. Both use the current external Ego Lite backend, while the category remains backend-neutral. The two routes intentionally coexist.
+
+## HyperFrames video capability
+
+The dedicated `/video` route launches the `Producer` primary agent. Producer loads the official external `hyperframes` skill first, then follows its current intent, workflow, domain-skill, project, validation, preview, and render-approval contracts. The repository owns the route and the least-privilege boundary; it does not copy HyperFrames source, recreate its router, or vend its skills.
+
+```text
+User -> /video -> Producer -> /hyperframes -> selected workflow/domain skills -> HyperFrames CLI/project artifacts
+```
+
+Producer can edit and write active-project artifacts, ask the user at upstream interaction gates, and run the normal `npx hyperframes ...` path. It is denied access to protected `.env`-style files, Git history mutation, the workflow-owned Delegation Runtime, and unrelated global skills. External skill directories remain approval-gated because the official installer may place them under different supported global roots.
+
+Current OpenCode exposes native `task` as a broad flat permission rather than a target-scoped frame-worker channel. Producer therefore leaves native task/delegation disabled and follows HyperFrames' documented serial fallback when a workflow has no usable delegation channel. No HyperFrames-specific scheduler, worker pool, or CategoryEngine exception is introduced. `video-production` is intentionally not a CategoryEngine category in this phase: HyperFrames is an interactive primary route, not a bounded Implementer execution profile.
+
+## Video analysis boundary
+
+The existing `video-analysis` category remains separate from production. It uses the independent upstream `watch` skill for grounded inspection of existing video, while `/video` uses HyperFrames for creation, editing, composition, preview, and rendering. Watch provisioning and permissions are unchanged.

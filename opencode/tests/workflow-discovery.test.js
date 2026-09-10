@@ -11,6 +11,7 @@ const commandTargets = new Map([
   ["verify.md", "Verifier"],
   ["ship.md", "Executor"],
   ["browser.md", "Browser"],
+  ["video.md", "Producer"],
 ])
 
 const oldCommands = [
@@ -25,6 +26,7 @@ const oldCommands = [
 const agentNames = new Map([
   ["assistant.md", "Assistant"],
   ["browser.md", "Browser"],
+  ["producer.md", "Producer"],
   ["explorer.md", "Explorer"],
   ["librarian.md", "Librarian"],
   ["technical-advisor.md", "Technical Advisor"],
