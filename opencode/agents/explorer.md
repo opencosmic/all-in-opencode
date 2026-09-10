@@ -25,6 +25,7 @@ permission:
   edit: deny
   write: deny
   task: deny
+  consult_agent: deny
   todowrite: deny
   question: deny
   skill: deny

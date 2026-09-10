@@ -19,6 +19,8 @@ function toolsFor(agent, configured, category) {
       workspace_release: false,
       task: false,
     })
+  } else {
+    tools.consult_agent = false
   }
   return Object.keys(tools).length ? tools : undefined
 }
@@ -47,17 +49,16 @@ export class SessionRunner {
     this.now = now
   }
 
-  async start({ task, directory, agent, category, profile, description, prompt, skills = [] }) {
+  async start({ task, directory, agent, category, profile, description, prompt, skills = [], sessionID }) {
     const text = promptText(description, prompt)
-    const created = sdkData(await this.client.session.create({
+    const childSessionID = sessionID ?? sdkData(await this.client.session.create({
       body: {
         parentID: task.parent_session_id,
         title: description,
         permission: categorySessionPermission(category, profile.tools, skills),
       },
       query: { directory },
-    }), "session.create")
-    const childSessionID = created.id
+    }), "session.create").id
     this.tracker.track({ taskID: task.task_id, childSessionID, startedAt: this.now() })
     await this.registry.start(task.task_id, { child_session_id: childSessionID })
     this.sessionProfiles.set(childSessionID, {

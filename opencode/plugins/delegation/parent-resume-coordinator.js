@@ -5,6 +5,18 @@ function shortSummary(task) {
   return text.replace(/\s+/g, " ").trim().slice(0, 240)
 }
 
+function isConsultationTask(task) {
+  return task.parent_agent === "Implementer"
+    && task.category === null
+    && task.workspace_id === null
+    && ["Explorer", "Librarian"].includes(task.agent)
+}
+
+function consultationResult(task) {
+  const text = task.result?.text ?? task.error ?? null
+  return typeof text === "string" ? text.slice(0, 20_000) : text
+}
+
 export class ParentResumeCoordinator {
   constructor({ client, registry }) {
     this.client = client
@@ -53,7 +65,9 @@ export class ParentResumeCoordinator {
         status: task.status,
         workspace_id: task.workspace_id,
         summary: shortSummary(task),
-        detail: `task_output(task_id="${task.task_id}")`,
+        ...(isConsultationTask(task)
+          ? { result: consultationResult(task) }
+          : { detail: `task_output(task_id="${task.task_id}")` }),
       })),
     }
     try {

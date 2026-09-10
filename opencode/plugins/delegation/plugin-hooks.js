@@ -29,6 +29,17 @@ export function delegationPluginHooks(runtime) {
         },
         execute: async (args, context) => json(await runtime.delegate(args, context)),
       }),
+      consult_agent: tool({
+        description: "Ask Explorer or Librarian for bounded information. This is consultation only; Implementer remains responsible for implementation, decisions, edits, and validation.",
+        args: {
+          agent: tool.schema.enum(["Explorer", "Librarian"]),
+          prompt: tool.schema.string().min(1),
+          description: tool.schema.string().min(1).optional(),
+          run_in_background: tool.schema.boolean().optional(),
+          session_id: tool.schema.string().min(1).optional(),
+        },
+        execute: async (args, context) => json(await runtime.consult(args, context)),
+      }),
       task_status: tool({
         description: "Read deterministic delegation task status without invoking a model.",
         args: {

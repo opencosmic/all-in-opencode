@@ -33,6 +33,14 @@ test("Librarian owns external evidence and never mutates", async () => {
   assert.match(source, /exact current version/)
 })
 
+test("Implementer may consult bounded read-only specialists but cannot delegate", async () => {
+  const source = await agent("implementer")
+  assert.match(source, /^  consult_agent: allow$/m)
+  assert.match(source, /^  delegate_task: deny$/m)
+  assert.match(source, /consult_agent.*bounded information gathering/)
+  assert.match(source, /remain responsible for implementation, decisions, edits, testing, validation, and final reporting/)
+})
+
 test("Technical Advisor is trigger-only, read-only, and has no approval authority", async () => {
   const source = await agent("technical-advisor")
   assert.match(source, /^name: Technical Advisor$/m)

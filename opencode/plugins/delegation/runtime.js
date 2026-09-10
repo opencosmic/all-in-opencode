@@ -121,6 +121,9 @@ export class DelegationRuntime {
   }
 
   async delegate(args, context) {
+    if (context?.agent === "Implementer") {
+      throw new Error("Implementer cannot call delegate_task")
+    }
     const route = this.dispatcher.resolve(args)
     const skills = this.skills.resolve(args.load_skills ?? [])
     const referencedWorkspaces = `${args.description}\n${args.prompt}`.match(/\bws_[0-9a-f-]+\b/g) ?? []
@@ -146,26 +149,93 @@ export class DelegationRuntime {
       description: args.description,
       background: args.run_in_background,
     })
+    return this.launchTask(task, {
+      directory: workspace.directory,
+      route,
+      description: args.description,
+      prompt: args.prompt,
+      skills,
+      background: args.run_in_background,
+    })
+  }
+
+  async consult(args, context) {
+    if (context?.agent !== "Implementer") {
+      throw new Error("consult_agent may only be called by Implementer")
+    }
+    for (const field of ["category", "load_skills", "workspace_id"]) {
+      if (Object.hasOwn(args, field)) throw new Error(`consult_agent does not accept ${field}`)
+    }
+    const route = this.dispatcher.resolveConsultation(args.agent)
+    const currentDirectory = await realpath(context.directory)
+    const previous = args.session_id
+      ? this.findConsultationSession(args.session_id, args.agent, context, currentDirectory)
+      : null
+    const directory = previous?.execution_directory ?? currentDirectory
+    const description = args.description ?? `Consult ${args.agent}`
+    const task = await this.registry.register({
+      parent_session_id: context.sessionID,
+      parent_message_id: context.messageID,
+      parent_agent: context.agent,
+      parent_directory: currentDirectory,
+      execution_directory: directory,
+      workspace_id: null,
+      category: null,
+      agent: route.agent,
+      variant: route.profile.variant ?? null,
+      description,
+      background: args.run_in_background,
+    })
+    return this.launchTask(task, {
+      directory,
+      route,
+      description,
+      prompt: args.prompt,
+      background: args.run_in_background,
+      sessionID: previous?.child_session_id,
+    })
+  }
+
+  findConsultationSession(sessionID, agent, context, currentDirectory) {
+    const task = this.registry.list({ parent_session_id: context.sessionID })
+      .find((candidate) => candidate.child_session_id === sessionID)
+    if (!task || task.parent_agent !== "Implementer" || task.category !== null || task.workspace_id !== null) {
+      throw new Error("session_id must reference a consultation session owned by this Implementer")
+    }
+    if (task.agent !== agent) {
+      throw new Error(`session_id belongs to ${task.agent}; consultation target must remain ${agent}`)
+    }
+    if (task.status !== "completed") {
+      throw new Error("session_id can continue only a completed consultation")
+    }
+    if (task.execution_directory !== currentDirectory) {
+      throw new Error("session_id belongs to a different workspace")
+    }
+    return task
+  }
+
+  async launchTask(task, { directory, route, description, prompt, skills = [], background, sessionID }) {
     try {
       await this.runner.start({
         task,
-        directory: workspace.directory,
+        directory,
         agent: route.agent,
         category: route.category,
         profile: route.profile,
-        description: args.description,
-        prompt: args.prompt,
+        description,
+        prompt,
         skills,
+        sessionID,
       })
     } catch (error) {
       await this.terminalizeStartupFailure(task.task_id, error)
       throw error
     }
-    if (args.run_in_background) {
+    if (background) {
       return {
         task_id: task.task_id,
         status: "running",
-        workspace_id: workspace.workspace_id,
+        workspace_id: task.workspace_id,
         completion_group: task.completion_group,
         child_session_id: this.registry.get(task.task_id).child_session_id,
       }
