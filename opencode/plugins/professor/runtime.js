@@ -148,7 +148,7 @@ function questionCoverageSummary(question) {
 
 function extractReportUrls(report) {
   const urls = []
-  for (const match of report.matchAll(/https?:\/\/[^\s<>"'`]+/gi)) {
+  for (const match of report.matchAll(/https?:\/\/[^\s<>"'`\]]+/gi)) {
     let url = match[0].replace(/[.,;:!?]+$/g, "")
     while (url.endsWith(")") && (url.match(/\(/g)?.length ?? 0) < (url.match(/\)/g)?.length ?? 0)) {
       url = url.slice(0, -1)
@@ -416,10 +416,12 @@ export function createProfessorRuntime(options = {}) {
       if (canonicalizeUrl(citationUrl) !== source.canonicalUrl) {
         throw new Error(`evidence citationUrl must identify source ${source.sourceId}`)
       }
-      if (input.evidenceKey !== undefined) {
-        const key = assertNonEmptyString(input.evidenceKey, "evidence.evidenceKey", 200)
-        if (keyMap.has(key)) throw new Error(`duplicate evidenceKey: ${key}`)
-        keyMap.set(key, null)
+      const evidenceKey = input.evidenceKey === undefined
+        ? undefined
+        : assertNonEmptyString(input.evidenceKey, "evidence.evidenceKey", 200)
+      if (evidenceKey !== undefined) {
+        if (keyMap.has(evidenceKey)) throw new Error(`duplicate evidenceKey: ${evidenceKey}`)
+        keyMap.set(evidenceKey, null)
       }
       const evidence = {
         evidenceId: allocateId(state, "evidence", "evidence"),
@@ -435,7 +437,7 @@ export function createProfessorRuntime(options = {}) {
       state.evidence.push(evidence)
       state.counters.evidenceRecorded += 1
       newEvidenceIds.push(evidence.evidenceId)
-      if (input.evidenceKey !== undefined) keyMap.set(input.evidenceKey, evidence.evidenceId)
+      if (evidenceKey !== undefined) keyMap.set(evidenceKey, evidence.evidenceId)
       events.push(makeEvent(state, "evidence.added", {
         evidenceId: evidence.evidenceId,
         questionId: evidence.questionId,
@@ -921,12 +923,26 @@ export function createProfessorRuntime(options = {}) {
 
   function auditReportCitations(state, report) {
     const allowedCanonicalUrls = new Set()
-    for (const claim of state.claims.filter((candidate) => candidate.verification === "SUPPORTED")) {
-      for (const evidenceId of claim.evidenceIds) {
+    const addEvidenceSources = (evidenceIds) => {
+      for (const evidenceId of evidenceIds) {
         const evidence = evidenceById(state, evidenceId)
         const source = sourceById(state, evidence.sourceId)
         allowedCanonicalUrls.add(source.canonicalUrl)
       }
+    }
+    for (const claim of state.claims.filter((candidate) => VERIFICATION_RESULTS.includes(candidate.verification))) {
+      addEvidenceSources(claim.evidenceIds)
+    }
+    for (const contradiction of state.contradictions) {
+      const reportable = contradiction.status !== "open"
+        || !contradiction.critical
+        || state.budget.exhausted
+        || hasHardBudget(state)
+      if (!reportable) continue
+      addEvidenceSources([
+        ...contradiction.sideA.evidenceIds,
+        ...contradiction.sideB.evidenceIds,
+      ])
     }
     for (const url of extractReportUrls(report)) {
       const canonicalUrl = canonicalizeUrl(url)

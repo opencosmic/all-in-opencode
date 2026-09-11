@@ -348,7 +348,7 @@ test("same-commit evidence can back a completion criterion through its key", asy
     taskId: next.task.taskId,
     summary: "evidence-backed criterion",
     sources: [{ url: "https://example.com/criterion", sourceKey: "criterion-source" }],
-    evidence: [{ questionId: next.task.questionId, sourceKey: "criterion-source", evidenceKey: "criterion-evidence", fact: "Criterion fact", supportingSpan: "The source supports the criterion.", relation: "supports" }],
+    evidence: [{ questionId: next.task.questionId, sourceKey: "criterion-source", evidenceKey: " criterion-evidence ", fact: "Criterion fact", supportingSpan: "The source supports the criterion.", relation: "supports" }],
     questionUpdates: [{
       questionId: next.task.questionId,
       criteriaSatisfied: [{ criterionId: "question-0001-criterion-1", evidenceKeys: ["criterion-evidence"] }],
@@ -357,6 +357,20 @@ test("same-commit evidence can back a completion criterion through its key", asy
   const state = await runtime.load(started.runId)
   assert.deepEqual(state.questions[0].completionCriteria[0].evidenceIds, ["evidence-0001"])
   assert.equal(state.questions[0].completionCriteria[0].satisfied, true)
+})
+
+test("same-commit evidence keys normalize whitespace and reject logical duplicates", async (t) => {
+  const { runtime, started, next } = await startAndNext(t)
+  await assert.rejects(runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "duplicate evidence keys",
+    sources: [{ url: "https://example.com/duplicate-key", sourceKey: "duplicate-source" }],
+    evidence: [
+      { questionId: next.task.questionId, sourceKey: "duplicate-source", evidenceKey: "key", fact: "A", supportingSpan: "First key.", relation: "supports" },
+      { questionId: next.task.questionId, sourceKey: "duplicate-source", evidenceKey: " key ", fact: "B", supportingSpan: "Second key.", relation: "supports" },
+    ],
+  }), /duplicate evidenceKey: key/)
 })
 
 test("verification blocks critical weak claims and follows the loop back to research", async (t) => {
@@ -456,6 +470,113 @@ test("final report citations are limited to sources used by supported claims", a
     report: "Verified fact is supported by [Source B](https://example.com/source-b).",
   }), /not backed by a verified claim source/)
   assert.equal((await unused.runtime.load(unused.runId)).status, "writing")
+})
+
+test("final report citations accept supported Markdown URL forms", async (t) => {
+  const reports = [
+    "Plain https://example.com/source-a",
+    "[Source](https://example.com/source-a)",
+    "[https://example.com/source-a](https://example.com/source-a)",
+    "<https://example.com/source-a>",
+  ]
+  for (const report of reports) {
+    const ready = await verifiedRun(t)
+    const completed = await ready.runtime.complete({ runId: ready.runId, report })
+    assert.equal(completed.status, "completed")
+  }
+})
+
+async function uncertaintyReadyRun(t, { verification, critical = false, budget, contradictionStatus } = {}) {
+  const { runtime, started, next } = await startAndNext(t, 1, budget ? { start: { budget } } : {})
+  const hasContradiction = contradictionStatus !== undefined
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "structured uncertainty",
+    sources: [
+      { url: "https://example.com/uncertainty-a", sourceKey: "uncertainty-a" },
+      ...(hasContradiction ? [{ url: "https://example.com/uncertainty-b", sourceKey: "uncertainty-b" }] : []),
+    ],
+    evidence: [
+      { questionId: next.task.questionId, sourceKey: "uncertainty-a", fact: "Evidence A", supportingSpan: "Source A records the first result.", relation: "supports" },
+      ...(hasContradiction ? [{ questionId: next.task.questionId, sourceKey: "uncertainty-b", fact: "Evidence B", supportingSpan: "Source B records the conflicting result.", relation: "contradicts" }] : []),
+    ],
+    questionUpdates: [{
+      questionId: next.task.questionId,
+      criteriaSatisfied: [
+        { criterionId: "question-0001-criterion-1", evidenceIndexes: [0] },
+        { criterionId: "question-0001-criterion-2", evidenceIndexes: [0] },
+      ],
+    }],
+    contradictions: hasContradiction ? [{
+      questionId: next.task.questionId,
+      proposition: "The sources agree on the result.",
+      sideA: { evidenceIndexes: [0] },
+      sideB: { evidenceIndexes: [1] },
+      critical: contradictionStatus === "open",
+      status: contradictionStatus,
+      resolution: contradictionStatus === "open" ? undefined : "The disagreement remains documented for the report.",
+    }] : undefined,
+  })
+  await runtime.verify({
+    runId: started.runId,
+    claims: [{
+      statement: "The result remains uncertain.",
+      evidenceIds: ["evidence-0001"],
+      critical,
+      verification,
+    }],
+  })
+  return { runtime, runId: started.runId }
+}
+
+test("final reports may cite evidence behind partial, unsupported, and contradicted claims", async (t) => {
+  const partial = await uncertaintyReadyRun(t, { verification: "PARTIAL" })
+  assert.equal((await partial.runtime.complete({
+    runId: partial.runId,
+    report: "The evidence is partial: [Source A](https://example.com/uncertainty-a).",
+  })).status, "completed")
+
+  const unsupported = await uncertaintyReadyRun(t, {
+    verification: "UNSUPPORTED",
+    critical: true,
+    budget: { maxControllerRounds: 1, maxTasks: 2 },
+  })
+  assert.equal((await unsupported.runtime.complete({
+    runId: unsupported.runId,
+    report: "The budget left this claim unsupported: [Source A](https://example.com/uncertainty-a).",
+  })).status, "completed")
+
+  const contradicted = await uncertaintyReadyRun(t, { verification: "CONTRADICTED", contradictionStatus: "resolved" })
+  assert.equal((await contradicted.runtime.complete({
+    runId: contradicted.runId,
+    report: "The sources conflict: [Source A](https://example.com/uncertainty-a) and [Source B](https://example.com/uncertainty-b).",
+  })).status, "completed")
+})
+
+test("final reports may cite evidence from reportable contradictions but not unrelated sources", async (t) => {
+  const accepted = await uncertaintyReadyRun(t, { verification: "PARTIAL", contradictionStatus: "accepted_uncertainty" })
+  assert.equal((await accepted.runtime.complete({
+    runId: accepted.runId,
+    report: "The uncertainty is documented by [Source B](https://example.com/uncertainty-b).",
+  })).status, "completed")
+
+  const open = await uncertaintyReadyRun(t, {
+    verification: "UNSUPPORTED",
+    critical: true,
+    budget: { maxControllerRounds: 1, maxTasks: 2 },
+    contradictionStatus: "open",
+  })
+  assert.equal((await open.runtime.complete({
+    runId: open.runId,
+    report: "The exhausted budget leaves an open contradiction: [Source B](https://example.com/uncertainty-b).",
+  })).status, "completed")
+
+  const unused = await verifiedRun(t, { includeUnusedSource: true })
+  await assert.rejects(unused.runtime.complete({
+    runId: unused.runId,
+    report: "The report cites an unused source: [Source B](https://example.com/source-b).",
+  }), /not backed by a verified claim source/)
 })
 
 test("a sufficient question is not implicitly regressed by a verification follow-up", async (t) => {
