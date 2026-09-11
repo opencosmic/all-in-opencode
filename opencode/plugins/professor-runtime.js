@@ -78,7 +78,12 @@ const followUpTaskArgs = z.object({
 
 const questionUpdateArgs = z.object({
   questionId: z.string().describe("Exact questionId returned by research_start or research_state"),
-  criteriaSatisfied: z.array(z.string()).optional(),
+  criteriaSatisfied: z.array(z.object({
+    criterionId: z.string().describe("Exact criterionId returned by research_start or research_state"),
+    evidenceIds: z.array(z.string()).optional(),
+    evidenceIndexes: z.array(z.number().int().nonnegative()).optional(),
+    evidenceKeys: z.array(z.string()).optional(),
+  })).optional(),
   status: z.enum(["researching", "blocked"]).optional(),
 })
 
@@ -128,7 +133,7 @@ export default async function ProfessorRuntime(_input = {}, options = {}) {
         },
       }),
       research_commit: tool({
-        description: "Atomically record a bounded research task result: sources, evidence, findings, contradictions, question coverage updates, and adaptive follow-up tasks.",
+        description: "Atomically record a bounded research task result. A satisfied completion criterion must name at least one evidenceId, evidenceIndex, or evidenceKey for the same question; evidenceIndexes and evidenceKeys may refer to evidence declared in this commit.",
         args: {
           runId: z.string(),
           taskId: z.string(),
@@ -169,7 +174,7 @@ export default async function ProfessorRuntime(_input = {}, options = {}) {
         },
       }),
       research_complete: tool({
-        description: "Persist the final Professor report. Completion is allowed only after verification, or with an explicit budget-exhaustion disclosure for unresolved uncertainty.",
+        description: "Persist the final Professor report. Completion is allowed only after verification, or with an explicit budget-exhaustion disclosure for unresolved uncertainty. Every HTTP(S) URL in the report must identify a source used by a SUPPORTED claim.",
         args: {
           runId: z.string(),
           report: z.string(),

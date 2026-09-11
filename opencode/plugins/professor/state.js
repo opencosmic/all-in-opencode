@@ -99,6 +99,7 @@ function normalizeCriteria(raw, questionId) {
       label: normalized,
       required: typeof criterion === "object" && criterion !== null && criterion.required === false ? false : true,
       satisfied: false,
+      evidenceIds: [],
     }
   })
 }
@@ -132,7 +133,7 @@ function normalizeQuestionSpec(spec, questionId) {
 
 export function coverageForQuestion(question) {
   const required = question.completionCriteria.filter((criterion) => criterion.required)
-  const satisfied = required.filter((criterion) => criterion.satisfied)
+  const satisfied = required.filter((criterion) => criterion.satisfied && criterion.evidenceIds.length > 0)
   const total = required.length
   return {
     satisfied: satisfied.length,
@@ -279,6 +280,7 @@ export function makeStateDigest(state) {
         label: criterion.label,
         required: criterion.required,
         satisfied: criterion.satisfied,
+        evidenceIds: [...criterion.evidenceIds],
       })),
     })),
     currentTask: running ? summarizeTask(running) : null,
@@ -366,6 +368,8 @@ export function validateResearchState(state) {
   const questionIds = new Set(state.questions.map((question) => question.questionId))
   const sourceIds = new Set(state.sources.map((source) => source.sourceId))
   const evidenceIds = new Set(state.evidence.map((evidence) => evidence.evidenceId))
+  const sourcesById = new Map(state.sources.map((source) => [source.sourceId, source]))
+  const evidenceById = new Map(state.evidence.map((evidence) => [evidence.evidenceId, evidence]))
   const running = state.tasks.filter((task) => task.status === "running")
   if (running.length > 1) throw new Error("research state cannot have more than one running task")
 
@@ -376,6 +380,22 @@ export function validateResearchState(state) {
       throw new Error(`question ${question.questionId} has no completion criteria`)
     }
     assertUniqueIds(question.completionCriteria, "criterionId", `question ${question.questionId} criterion`)
+    for (const criterion of question.completionCriteria) {
+      assertNonEmptyString(criterion.label, `criterion ${criterion.criterionId} label`, 1_000)
+      if (typeof criterion.required !== "boolean") throw new Error(`criterion ${criterion.criterionId} required flag is invalid`)
+      if (typeof criterion.satisfied !== "boolean") throw new Error(`criterion ${criterion.criterionId} satisfied flag is invalid`)
+      if (!Array.isArray(criterion.evidenceIds)) throw new Error(`criterion ${criterion.criterionId} evidenceIds must be an array`)
+      for (const evidenceId of criterion.evidenceIds) {
+        if (!evidenceIds.has(evidenceId)) throw new Error(`criterion ${criterion.criterionId} references unknown evidence ${evidenceId}`)
+        const evidence = evidenceById.get(evidenceId)
+        if (evidence.questionId !== question.questionId) {
+          throw new Error(`criterion ${criterion.criterionId} references evidence from another question`)
+        }
+      }
+      if (criterion.satisfied && criterion.evidenceIds.length === 0) {
+        throw new Error(`criterion ${criterion.criterionId} cannot be satisfied without evidence`)
+      }
+    }
   }
   for (const task of state.tasks) {
     assertEnum(task.status, TASK_STATUSES, `task ${task.taskId} status`)
@@ -387,6 +407,10 @@ export function validateResearchState(state) {
     if (!questionIds.has(evidence.questionId)) throw new Error(`evidence ${evidence.evidenceId} references unknown question`)
     if (!sourceIds.has(evidence.sourceId)) throw new Error(`evidence ${evidence.evidenceId} references unknown source ${evidence.sourceId}`)
     if (!assertEnum(evidence.relation, ["supports", "contradicts", "context"], `evidence ${evidence.evidenceId} relation`)) return false
+    assertNonEmptyString(evidence.citationUrl, `evidence ${evidence.evidenceId} citationUrl`, 4_000)
+    if (canonicalizeUrl(evidence.citationUrl) !== sourcesById.get(evidence.sourceId).canonicalUrl) {
+      throw new Error(`evidence ${evidence.evidenceId} citationUrl must identify source ${evidence.sourceId}`)
+    }
   }
   for (const finding of state.findings) {
     if (!questionIds.has(finding.questionId)) throw new Error(`finding ${finding.findingId} references unknown question`)

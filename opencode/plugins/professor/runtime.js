@@ -146,10 +146,35 @@ function questionCoverageSummary(question) {
   }
 }
 
+function extractReportUrls(report) {
+  const urls = []
+  for (const match of report.matchAll(/https?:\/\/[^\s<>"'`]+/gi)) {
+    let url = match[0].replace(/[.,;:!?]+$/g, "")
+    while (url.endsWith(")") && (url.match(/\(/g)?.length ?? 0) < (url.match(/\)/g)?.length ?? 0)) {
+      url = url.slice(0, -1)
+    }
+    if (url) urls.push(url)
+  }
+  return [...new Set(urls)]
+}
+
 export function createProfessorRuntime(options = {}) {
   const clock = options.clock ?? (() => new Date())
   const store = options.store ?? createProfessorStore(resolveProfessorDataRoot(options))
   const generateRunId = options.generateRunId ?? createRunId
+  const mutationQueues = new Map()
+
+  async function serializeRunMutation(runId, operation) {
+    const safeRunId = assertSafeId(runId, "runId")
+    const previous = mutationQueues.get(safeRunId) ?? Promise.resolve()
+    const current = previous.catch(() => undefined).then(operation)
+    mutationQueues.set(safeRunId, current)
+    try {
+      return await current
+    } finally {
+      if (mutationQueues.get(safeRunId) === current) mutationQueues.delete(safeRunId)
+    }
+  }
 
   function timestamp() {
     return nowIso(clock)
@@ -274,32 +299,52 @@ export function createProfessorRuntime(options = {}) {
     throw new Error("evidence must reference a declared sourceIndex, sourceKey, sourceId, or sourceUrl")
   }
 
-  function resolveEvidenceReferences(state, input, newEvidenceIds) {
+  function resolveEvidenceReferences(state, input, newEvidenceIds, evidenceKeys = new Map()) {
     const evidenceIds = []
     for (const evidenceId of input.evidenceIds ?? []) evidenceIds.push(evidenceById(state, evidenceId).evidenceId)
     for (const index of input.evidenceIndexes ?? []) {
       if (!Number.isInteger(index) || index < 0 || !newEvidenceIds[index]) throw new Error(`evidence index is out of range: ${index}`)
       evidenceIds.push(newEvidenceIds[index])
     }
+    for (const evidenceKey of input.evidenceKeys ?? []) {
+      const key = assertNonEmptyString(evidenceKey, "evidenceKey", 200)
+      const evidenceId = evidenceKeys.get(key)
+      if (!evidenceId) throw new Error(`unknown evidenceKey: ${key}`)
+      evidenceIds.push(evidenceId)
+    }
     return [...new Set(evidenceIds)]
   }
 
-  function applyQuestionUpdates(state, updates, events) {
+  function applyQuestionUpdates(state, updates, evidenceContext, events) {
     for (const update of updates) {
+      if (!update || typeof update !== "object") throw new Error("each question update must be an object")
       const question = questionById(state, update.questionId)
       const satisfied = update.criteriaSatisfied ?? []
       if (!Array.isArray(satisfied)) throw new Error("criteriaSatisfied must be an array")
       for (const criterionRef of satisfied) {
-        const normalized = assertNonEmptyString(criterionRef, "criteriaSatisfied item", 1_000)
-        const criterion = question.completionCriteria.find(
-          (candidate) => candidate.criterionId === normalized || candidate.label.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
-        )
-        if (!criterion) throw new Error(`unknown completion criterion for ${question.questionId}: ${normalized}`)
+        if (!criterionRef || typeof criterionRef !== "object") {
+          throw new Error("criteriaSatisfied items must identify a criterion and its evidence")
+        }
+        const criterionId = assertNonEmptyString(criterionRef.criterionId, "criteriaSatisfied criterionId", 200)
+        const criterion = question.completionCriteria.find((candidate) => candidate.criterionId === criterionId)
+        if (!criterion) throw new Error(`unknown completion criterion for ${question.questionId}: ${criterionId}`)
+        const evidenceIds = resolveEvidenceReferences(state, criterionRef, evidenceContext.newEvidenceIds, evidenceContext.keyMap)
+        if (evidenceIds.length === 0) {
+          throw new Error(`completion criterion ${criterionId} must reference at least one evidence record`)
+        }
+        for (const evidenceId of evidenceIds) {
+          const evidence = evidenceById(state, evidenceId)
+          if (evidence.questionId !== question.questionId) {
+            throw new Error(`completion criterion ${criterionId} references evidence from another question`)
+          }
+        }
         criterion.satisfied = true
+        criterion.evidenceIds = evidenceIds
       }
+      if (update.status !== undefined) assertEnum(update.status, ["researching", "blocked"], "question update status")
       if (questionIsSufficient(question)) question.status = "sufficient"
       else if (update.status === "blocked") question.status = "blocked"
-      else question.status = "researching"
+      else if (update.status === "researching" || question.status === "pending" || question.status === "researching") question.status = "researching"
       events.push(makeEvent(state, "coverage.updated", questionCoverageSummary(question)))
     }
   }
@@ -368,7 +413,9 @@ export function createProfessorRuntime(options = {}) {
       const sourceId = resolveSourceReference(state, input, sourceContext.sourceRefs, sourceContext.sourceKeys, sourceContext.sourceUrls)
       const source = sourceById(state, sourceId)
       const citationUrl = input.citationUrl ? assertNonEmptyString(input.citationUrl, "evidence.citationUrl", 4_000) : source.url
-      canonicalizeUrl(citationUrl)
+      if (canonicalizeUrl(citationUrl) !== source.canonicalUrl) {
+        throw new Error(`evidence citationUrl must identify source ${source.sourceId}`)
+      }
       if (input.evidenceKey !== undefined) {
         const key = assertNonEmptyString(input.evidenceKey, "evidence.evidenceKey", 200)
         if (keyMap.has(key)) throw new Error(`duplicate evidenceKey: ${key}`)
@@ -528,6 +575,11 @@ export function createProfessorRuntime(options = {}) {
   }
 
   async function next(input = {}) {
+    const runId = assertSafeId(input.runId, "runId")
+    return serializeRunMutation(runId, () => nextUnsafe(input))
+  }
+
+  async function nextUnsafe(input = {}) {
     const state = await load(input.runId)
     const events = []
     if (state.status === "completed" || state.status === "writing") {
@@ -576,6 +628,16 @@ export function createProfessorRuntime(options = {}) {
     const task = pending[0]
     task.status = "running"
     task.startedAt = timestamp()
+    const question = questionById(state, task.questionId)
+    if (question.status === "pending") {
+      question.status = "researching"
+      events.push(makeEvent(state, "question.status.changed", {
+        questionId: question.questionId,
+        from: "pending",
+        to: "researching",
+        reason: "task started",
+      }))
+    }
     state.counters.controllerRounds += 1
     events.push(makeEvent(state, "task.started", {
       taskId: task.taskId,
@@ -593,6 +655,11 @@ export function createProfessorRuntime(options = {}) {
   }
 
   async function commit(input = {}) {
+    const runId = assertSafeId(input.runId, "runId")
+    return serializeRunMutation(runId, () => commitUnsafe(input))
+  }
+
+  async function commitUnsafe(input = {}) {
     const state = await load(input.runId)
     if (state.status !== "researching") throw new Error(`research_commit requires researching phase, got ${state.status}`)
     const task = taskById(state, input.taskId)
@@ -604,7 +671,7 @@ export function createProfessorRuntime(options = {}) {
     const findings = addFindings(state, input.findings, evidence.newEvidenceIds, events)
     const contradictions = addContradictions(state, input.contradictions, evidence.newEvidenceIds, events)
     updateContradictions(state, input.contradictionUpdates, events)
-    applyQuestionUpdates(state, safeArray(input.questionUpdates, "questionUpdates"), events)
+    applyQuestionUpdates(state, safeArray(input.questionUpdates, "questionUpdates"), evidence, events)
 
     const followUpInputs = safeArray(input.followUpTasks, "followUpTasks")
     const followUpTasks = []
@@ -711,6 +778,11 @@ export function createProfessorRuntime(options = {}) {
   }
 
   async function verify(input = {}) {
+    const runId = assertSafeId(input.runId, "runId")
+    return serializeRunMutation(runId, () => verifyUnsafe(input))
+  }
+
+  async function verifyUnsafe(input = {}) {
     const state = await load(input.runId)
     if (!["researching", "verifying"].includes(state.status)) throw new Error(`research_verify requires researching or verifying phase, got ${state.status}`)
     if (state.tasks.some((task) => task.status === "running")) throw new Error("research_verify cannot run while a task is running")
@@ -847,7 +919,29 @@ export function createProfessorRuntime(options = {}) {
     return lines
   }
 
+  function auditReportCitations(state, report) {
+    const allowedCanonicalUrls = new Set()
+    for (const claim of state.claims.filter((candidate) => candidate.verification === "SUPPORTED")) {
+      for (const evidenceId of claim.evidenceIds) {
+        const evidence = evidenceById(state, evidenceId)
+        const source = sourceById(state, evidence.sourceId)
+        allowedCanonicalUrls.add(source.canonicalUrl)
+      }
+    }
+    for (const url of extractReportUrls(report)) {
+      const canonicalUrl = canonicalizeUrl(url)
+      if (!allowedCanonicalUrls.has(canonicalUrl)) {
+        throw new Error(`report citation is not backed by a verified claim source: ${url}`)
+      }
+    }
+  }
+
   async function complete(input = {}) {
+    const runId = assertSafeId(input.runId, "runId")
+    return serializeRunMutation(runId, () => completeUnsafe(input))
+  }
+
+  async function completeUnsafe(input = {}) {
     const state = await load(input.runId)
     if (state.status !== "writing") throw new Error(`research_complete requires writing phase, got ${state.status}`)
     const report = assertNonEmptyString(input.report, "report", 200_000)
@@ -857,6 +951,7 @@ export function createProfessorRuntime(options = {}) {
     if (unresolved && !budgetExhausted) throw new Error("research_complete is blocked by unresolved critical evidence")
     const limitations = reportLimitations(state)
     const finalReport = limitations.length > 0 ? `${report}\n\n## Research limitations\n${limitations.join("\n")}` : report
+    auditReportCitations(state, finalReport)
     const reportPath = await store.writeReport(state.runId, finalReport)
     state.reportPath = reportPath
     transitionState(state, "completed")
