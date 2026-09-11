@@ -12,6 +12,7 @@ import {
   categorySessionPermission,
   hasOpenDesignCapability,
 } from "../plugins/delegation/category-permissions.js"
+import { delegationPluginHooks } from "../plugins/delegation/plugin-hooks.js"
 import { DelegationRuntime } from "../plugins/delegation/runtime.js"
 import { systemFor, toolsFor } from "../plugins/delegation/session-runner.js"
 import { SkillResolver, discoverSkills } from "../plugins/delegation/skill-resolver.js"
@@ -44,7 +45,7 @@ test("OpenDesign is an explicit visual-engineering skill and resource boundary",
   assert.equal(selected[0].name, "open-design")
   assert.match(selected[0].content, /generic\s+[`']?list_mcp_resources/i)
   assert.deepEqual(resolver.resolve([]), [])
-  assert.equal(hasOpenDesignCapability({ category: "visual-engineering", skill_names: ["open-design"] }), true)
+  assert.equal(hasOpenDesignCapability({ agent: "Implementer", category: "visual-engineering", skill_names: ["open-design"] }), true)
   assert.equal(hasOpenDesignCapability({ category: "visual-engineering" }), false)
   assert.equal(hasOpenDesignCapability({ category: "standard", skill_names: ["open-design"] }), false)
 
@@ -94,38 +95,109 @@ test("OpenDesign resource reads require the exact category and selected skill", 
   assert.equal(categorySessionPermission("visual-engineering", {}, []), undefined)
 })
 
+test("the registered tool-execution hook gates real MCP resource operations", async () => {
+  const profiles = new Map([
+    ["eligible", { agent: "Implementer", category: "visual-engineering", skill_names: ["open-design"], tools: {} }],
+    ["visual", { agent: "Implementer", category: "visual-engineering", skill_names: [], tools: {} }],
+    ["standard", { agent: "Implementer", category: "standard", skill_names: ["open-design"], tools: {} }],
+  ])
+  const runtime = new DelegationRuntime({
+    profiles,
+    dispatcher: { categoryEngine: { list: () => [] } },
+    skills: { list: () => [] },
+  })
+  const hooks = delegationPluginHooks(runtime)
+  const before = (sessionID, tool, args) => hooks["tool.execute.before"](
+    { sessionID, tool, callID: `${sessionID}-${tool}` },
+    { args },
+  )
+
+  await before("eligible", "read_mcp_resource", { server: "open-design", uri: "od://skills/example/SKILL.md" })
+  await before("eligible", "list_mcp_resources", { server: "open-design" })
+  await before("eligible", "list_mcp_resources", {})
+  await before("eligible", "list_mcp_resources", { server: "codegraph" })
+  for (const [sessionID, args] of [
+    ["visual", { server: "open-design", uri: "od://skills/example/SKILL.md" }],
+    ["standard", { server: "open-design", uri: "od://skills/example/SKILL.md" }],
+    ["missing", { server: "open-design", uri: "od://skills/example/SKILL.md" }],
+    ["visual", {}],
+    ["missing", {}],
+  ]) await assert.rejects(
+    before(sessionID, "read_mcp_resource", args),
+    /OpenDesign MCP resources require an Implementer child/,
+  )
+  await assert.rejects(
+    before("visual", "list_mcp_resources", {}),
+    /OpenDesign MCP resources require an Implementer child/,
+  )
+
+  const permission = { status: "ask" }
+  await hooks["permission.ask"]({
+    sessionID: "eligible",
+    permission: "open_design_start_run",
+    patterns: ["*"],
+    metadata: {},
+  }, permission)
+  assert.equal(permission.status, "deny")
+})
+
 test("OpenDesign setup and headless resource checks use an existing supported CLI", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "open-design-integration-test-"))
   const home = join(root, "home")
   const cli = join(root, "od")
+  const dataDirectory = join(root, "open-design-data")
+  const launchEnv = {
+    OD_DATA_DIR: dataDirectory,
+    OD_MCP_BOOTSTRAP_COMMAND: cli,
+    OD_MCP_BOOTSTRAP_ARGS: JSON.stringify(["mcp", "--headless"]),
+  }
   const fakeCli = `#!/usr/bin/env node
 const args = process.argv.slice(2)
 if (args.join(" ") === "mcp install --open-design-cli-probe") {
   console.log("open-design-cli:mcp-install:v1")
   process.exit(0)
 }
-if (args[0] !== "mcp") process.exit(1)
-let buffer = Buffer.alloc(0)
+if (args[0] === "mcp" && args[1] === "install" && args.includes("opencode") && args.includes("--print") && args.includes("--json")) {
+  console.log(JSON.stringify({ ok: true, agent: "opencode", kind: "json", launchSpec: {
+    command: ${JSON.stringify(cli)},
+    args: ["mcp", "--fixture-mcp"],
+    env: ${JSON.stringify(launchEnv)},
+  } }))
+  process.exit(0)
+}
+if (args[0] !== "mcp" || (!args.includes("--fixture-mcp") && !process.env.FAKE_MCP_MODE)) process.exit(1)
+if (args.includes("--fixture-mcp") && (process.env.OD_DATA_DIR !== ${JSON.stringify(dataDirectory)} || process.env.OD_MCP_BOOTSTRAP_COMMAND !== ${JSON.stringify(cli)} || process.env.OD_MCP_BOOTSTRAP_ARGS !== ${JSON.stringify(launchEnv.OD_MCP_BOOTSTRAP_ARGS)})) process.exit(11)
+if (process.env.EXPECTED_DAEMON_URL && (args[args.indexOf("--daemon-url") + 1] !== process.env.EXPECTED_DAEMON_URL)) process.exit(12)
+if (process.env.FAKE_MCP_MODE === "malformed") {
+  process.stdout.write("{not-json}\\n")
+  setTimeout(() => process.exit(0), 20)
+}
+if (process.env.FAKE_MCP_MODE === "exit") process.exit(0)
+if (process.env.FAKE_MCP_MODE === "timeout") process.stdin.resume()
+let buffer = ""
 function send(message) {
-  const body = JSON.stringify(message)
-  process.stdout.write("Content-Length: " + Buffer.byteLength(body) + "\\r\\n\\r\\n" + body)
+  process.stdout.write(JSON.stringify(message) + "\\n")
 }
 function parse() {
   while (true) {
-    const end = buffer.indexOf(Buffer.from("\\r\\n\\r\\n"))
-    if (end < 0) return
-    const length = Number(/^Content-Length:\\s*(\\d+)$/im.exec(buffer.subarray(0, end).toString())?.[1])
-    if (!Number.isSafeInteger(length) || buffer.length < end + 4 + length) return
-    const message = JSON.parse(buffer.subarray(end + 4, end + 4 + length).toString())
-    buffer = buffer.subarray(end + 4 + length)
+    const newline = buffer.indexOf("\\n")
+    if (newline < 0) return
+    const line = buffer.slice(0, newline).trim()
+    buffer = buffer.slice(newline + 1)
+    if (!line) continue
+    const message = JSON.parse(line)
     if (message.id === undefined) continue
-    if (message.method === "initialize") send({ jsonrpc: "2.0", id: message.id, result: { capabilities: { resources: {} }, serverInfo: { name: "fixture", version: "1" } } })
-    else if (message.method === "resources/list") send({ jsonrpc: "2.0", id: message.id, result: { resources: [{ uri: "od://skills/example/SKILL.md" }, { uri: "od://design-systems/example/DESIGN.md" }] } })
+    if (message.method === "initialize") {
+      const response = JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { capabilities: { resources: {} }, serverInfo: { name: "fixture", version: "1" } } }) + "\\n"
+      const split = Math.ceil(response.length / 2)
+      process.stdout.write(response.slice(0, split))
+      setTimeout(() => process.stdout.write(response.slice(split)), 5)
+    } else if (message.method === "resources/list") process.stdout.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/fixture" }) + "\\n" + JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { resources: [{ uri: "od://skills/example/SKILL.md" }, { uri: "od://design-systems/example/DESIGN.md" }] } }) + "\\n")
     else if (message.method === "resources/read") send({ jsonrpc: "2.0", id: message.id, result: { contents: [{ uri: message.params.uri, text: "fixture reference" }] } })
     else send({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "unknown method" } })
   }
 }
-process.stdin.on("data", (chunk) => { buffer = Buffer.concat([buffer, chunk]); parse() })
+if (process.env.FAKE_MCP_MODE !== "malformed" && process.env.FAKE_MCP_MODE !== "timeout") process.stdin.on("data", (chunk) => { buffer += chunk.toString(); parse() })
 `
   await writeFile(cli, fakeCli)
   await chmod(cli, 0o755)
@@ -137,6 +209,11 @@ process.stdin.on("data", (chunk) => { buffer = Buffer.concat([buffer, chunk]); p
   assert.match(setupResult.stdout, /does not install software/i)
   const secondSetup = await run(setup, [], { env })
   assert.equal(secondSetup.code, 0, secondSetup.stderr)
+  const specPath = join(home, ".config", "opencode", "open-design-mcp.json")
+  const spec = JSON.parse(await readFile(specPath, "utf8"))
+  assert.equal(spec.command, cli)
+  assert.deepEqual(spec.args, ["mcp", "--fixture-mcp"])
+  assert.deepEqual(spec.env, launchEnv)
   const installResult = await run(install, [], { env })
   assert.equal(installResult.code, 0, installResult.stderr)
 
@@ -146,6 +223,35 @@ process.stdin.on("data", (chunk) => { buffer = Buffer.concat([buffer, chunk]); p
   assert.match(checkResult.stdout, /Skill resources: 1/)
   assert.match(checkResult.stdout, /Design-system resources: 1/)
   assert.match(checkResult.stdout, /OpenDesign status: READY/)
+
+  const overrideUrl = "http://127.0.0.1:43123"
+  const overrideCheck = await run(check, [], {
+    env: { ...env, OPEN_DESIGN_MCP_DAEMON_URL: overrideUrl, EXPECTED_DAEMON_URL: overrideUrl },
+  })
+  assert.equal(overrideCheck.code, 0, `${overrideCheck.stdout}\n${overrideCheck.stderr}`)
+
+  const malformed = await run(process.execPath, [join(repository, "scripts/lib/check-open-design-mcp.mjs"), "--cli", cli, "--timeout-ms", "200"], {
+    env: { ...env, FAKE_MCP_MODE: "malformed" },
+  })
+  assert.notEqual(malformed.code, 0)
+  assert.match(`${malformed.stdout}\n${malformed.stderr}`, /newline-delimited JSON/)
+  const timeout = await run(process.execPath, [join(repository, "scripts/lib/check-open-design-mcp.mjs"), "--cli", cli, "--timeout-ms", "50"], {
+    env: { ...env, FAKE_MCP_MODE: "timeout" },
+  })
+  assert.notEqual(timeout.code, 0)
+  assert.match(`${timeout.stdout}\n${timeout.stderr}`, /timed out/)
+  const prematureExit = await run(process.execPath, [join(repository, "scripts/lib/check-open-design-mcp.mjs"), "--cli", cli, "--timeout-ms", "200"], {
+    env: { ...env, FAKE_MCP_MODE: "exit" },
+  })
+  assert.notEqual(prematureExit.code, 0)
+  assert.match(`${prematureExit.stdout}\n${prematureExit.stderr}`, /process exited before responding/)
+
+  await rm(specPath)
+  const stale = await run(check, [], { env })
+  assert.notEqual(stale.code, 0)
+  assert.match(stale.stdout, /launch spec: missing or invalid/)
+  const refreshed = await run(setup, [], { env })
+  assert.equal(refreshed.code, 0, refreshed.stderr)
 })
 
 test("OpenDesign provisioning rejects relative, missing, and unrelated od binaries", async (t) => {

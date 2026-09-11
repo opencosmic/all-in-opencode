@@ -68,7 +68,28 @@ if [ "${1:-}" = "--resolve-cli" ]; then
 fi
 
 cli=$(resolve_cli)
-if [ -n "${OPEN_DESIGN_MCP_DAEMON_URL:-}" ]; then
-  exec "$cli" mcp --daemon-url "$OPEN_DESIGN_MCP_DAEMON_URL" "$@"
+
+# The launcher is installed as an absolute symlink. Resolve that one hop so
+# the repository-owned runner remains available when this file is invoked from
+# ~/.config/opencode.
+source_path=$0
+if [ -L "$source_path" ]; then
+  target=$(readlink "$source_path")
+  case "$target" in
+    /*) source_path=$target ;;
+    *) source_path=$(dirname -- "$source_path")/$target ;;
+  esac
 fi
-exec "$cli" mcp "$@"
+repo_root=$(CDPATH= cd -- "$(dirname -- "$source_path")/.." && pwd -P)
+runner="$repo_root/scripts/lib/run-open-design-mcp.mjs"
+spec_path=${OPEN_DESIGN_MCP_SPEC:-"$HOME/.config/opencode/open-design-mcp.json"}
+[ -f "$runner" ] || fail "OpenDesign launcher runner is missing: $runner"
+[ -f "$spec_path" ] || fail "OpenDesign launch spec is missing: $spec_path. Run scripts/setup-open-design.sh first."
+[ -r "$spec_path" ] || fail "OpenDesign launch spec is not readable: $spec_path"
+command -v node >/dev/null 2>&1 || fail "Node.js is required to execute the provisioned OpenDesign launch spec"
+
+if [ -n "${OPEN_DESIGN_MCP_DAEMON_URL:-}" ]; then
+  exec node "$runner" --spec "$spec_path" --fallback-cli "$cli" \
+    --daemon-url "$OPEN_DESIGN_MCP_DAEMON_URL" -- "$@"
+fi
+exec node "$runner" --spec "$spec_path" --fallback-cli "$cli" -- "$@"

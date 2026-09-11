@@ -4,7 +4,7 @@ import { join, resolve } from "node:path"
 
 import { AgentDispatcher } from "./agent-dispatcher.js"
 import { CategoryEngine } from "./category-engine.js"
-import { categoryPermission } from "./category-permissions.js"
+import { categoryPermission, openDesignResourceDecision } from "./category-permissions.js"
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
@@ -451,6 +451,19 @@ export class DelegationRuntime {
     }
     const decision = categoryPermission(profile, input)
     if (decision) output.status = decision
+  }
+
+  async applyToolExecutionBefore(input, output) {
+    const decision = openDesignResourceDecision(
+      this.profiles.get(input.sessionID),
+      input.tool,
+      output?.args,
+    )
+    if (decision === "deny") {
+      throw new Error(
+        "OpenDesign MCP resources require an Implementer child in category=visual-engineering with load_skills=[open-design]",
+      )
+    }
   }
 }
 

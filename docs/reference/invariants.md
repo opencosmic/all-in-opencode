@@ -21,5 +21,5 @@
 | `/video` never silently updates global HyperFrames skills without approval; setup is explicit and the health check is read-only. | Producer-agent and HyperFrames provisioning tests |
 | Searcher is a read-only primary `/search` route using bounded native web retrieval, with no delegation or Deep Research infrastructure. | Searcher integration and discovery tests |
 | Video-content questions route to `video-analysis` plus the independent upstream `watch` skill; no video-production capability is included. | Video category, routing, and provisioning tests |
-| OpenDesign is optional read-only design context: only `visual-engineering` plus selected `open-design` may read `mcp:open-design:*`; raw sanitized OpenDesign tools remain denied and the current worktree remains authoritative. | OpenDesign integration and permission-boundary tests |
+| OpenDesign is optional read-only design context: only an Implementer in `visual-engineering` plus selected `open-design` may execute generic MCP resource operations for the exact `open-design` server; raw sanitized OpenDesign tools remain denied and the current worktree remains authoritative. | OpenDesign integration and permission-boundary tests |
 | The retired alternate runtime, config, command, agents, and continuation tools are absent. | Zero-dependency policy test |

@@ -161,14 +161,14 @@ category="visual-engineering", load_skills=["open-design"]
 
 The selected skill discovers and reads OpenDesign `DESIGN.md` and `SKILL.md` resources through OpenCode's generic MCP resource interface. OpenCode and `opencode-workflow` remain the control plane: the Implementer edits the current repository/worktree, which remains the source of truth, and the existing verification workflow remains authoritative. This integration intentionally does not call OpenDesign's nested agent-running `start_run` path or expose its raw MCP tools.
 
-Provisioning is explicit and uses an already-installed supported OpenDesign CLI or app; the UI is not required for normal headless MCP use when the installed upstream supports it:
+Provisioning is explicit and uses an already-installed supported OpenDesign CLI or app; the UI is not required for normal headless MCP use when the installed upstream supports it. Setup asks the upstream CLI for its print-only canonical payload (`od mcp install opencode --print --json`), preserves the generated command, arguments, and environment, and stores that machine-local launch metadata at `~/.config/opencode/open-design-mcp.json` (outside Git):
 
 ```sh
 ./scripts/setup-open-design.sh
 ./scripts/check-open-design.sh
 ```
 
-If `od` on `PATH` is ambiguous, set `OPEN_DESIGN_CLI` to the absolute path of the supported OpenDesign CLI. The setup and check scripts do not download software or mutate unrelated configuration.
+If `od` on `PATH` is ambiguous, set `OPEN_DESIGN_CLI` to the absolute path of the supported OpenDesign CLI. The repository launcher consumes the saved spec, including upstream headless-bootstrap metadata, and an `OPEN_DESIGN_MCP_DAEMON_URL` override remains available. The setup and check scripts do not download software, open the GUI, or mutate unrelated configuration.
 
 ## Installation
 

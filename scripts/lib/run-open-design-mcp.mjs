@@ -1,0 +1,85 @@
+import { access, constants, readFile } from "node:fs/promises"
+import { isAbsolute } from "node:path"
+import { spawn } from "node:child_process"
+
+function option(args, name) {
+  const index = args.indexOf(name)
+  return index >= 0 ? args[index + 1] : ""
+}
+
+const args = process.argv.slice(2)
+const passthroughIndex = args.indexOf("--")
+const options = passthroughIndex >= 0 ? args.slice(0, passthroughIndex) : args
+const passthrough = passthroughIndex >= 0 ? args.slice(passthroughIndex + 1) : []
+const specPath = option(options, "--spec")
+const fallbackCli = option(options, "--fallback-cli")
+const daemonUrl = option(options, "--daemon-url")
+
+function fail(message) {
+  console.error(`ERROR: ${message}`)
+  process.exitCode = 1
+}
+
+function parseSpec(raw) {
+  const spec = raw?.launchSpec && typeof raw.launchSpec === "object" ? raw.launchSpec : raw
+  if (!spec || typeof spec !== "object" || Array.isArray(spec)) throw new Error("launch spec must be a JSON object")
+  if (typeof spec.command !== "string" || !spec.command) throw new Error("launch spec command is missing")
+  if (!Array.isArray(spec.args) || spec.args.some((arg) => typeof arg !== "string")) throw new Error("launch spec args must be strings")
+  if (!spec.env || typeof spec.env !== "object" || Array.isArray(spec.env)) throw new Error("launch spec env must be an object")
+  if (Object.values(spec.env).some((value) => typeof value !== "string")) throw new Error("launch spec env values must be strings")
+  return { command: spec.command, args: [...spec.args], env: { ...spec.env } }
+}
+
+async function main() {
+  if (!specPath || !fallbackCli || !isAbsolute(fallbackCli)) {
+    fail("usage: run-open-design-mcp.mjs --spec ABSOLUTE_PATH --fallback-cli ABSOLUTE_PATH [--daemon-url URL] -- [ARGS]")
+    return
+  }
+  let spec
+  try {
+    spec = parseSpec(JSON.parse(await readFile(specPath, "utf8")))
+  } catch (error) {
+    fail(`invalid OpenDesign launch spec ${specPath}: ${error.message}`)
+    return
+  }
+
+  const command = spec.command === "od" ? fallbackCli : spec.command
+  if (!isAbsolute(command)) {
+    fail(`OpenDesign launch spec must use an absolute command path: ${spec.command}`)
+    return
+  }
+  try {
+    await access(command, constants.X_OK)
+  } catch {
+    fail(`OpenDesign launch command is unavailable: ${command}. Rerun scripts/setup-open-design.sh to refresh it.`)
+    return
+  }
+
+  const commandArgs = []
+  for (let index = 0; index < spec.args.length; index += 1) {
+    if (spec.args[index] === "--daemon-url") {
+      index += 1
+      continue
+    }
+    if (spec.args[index].startsWith("--daemon-url=")) continue
+    commandArgs.push(spec.args[index])
+  }
+  if (daemonUrl) commandArgs.push("--daemon-url", daemonUrl)
+  commandArgs.push(...passthrough)
+  const child = spawn(command, commandArgs, {
+    env: { ...process.env, ...spec.env },
+    stdio: "inherit",
+  })
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+    process.on(signal, () => child.kill(signal))
+  }
+  child.on("error", (error) => {
+    console.error(`ERROR: failed to start OpenDesign MCP: ${error.message}`)
+    process.exitCode = 1
+  })
+  child.on("exit", (code, signal) => {
+    process.exitCode = signal ? 1 : (code ?? 1)
+  })
+}
+
+await main()

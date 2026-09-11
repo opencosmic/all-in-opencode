@@ -3,19 +3,20 @@ import { spawn } from "node:child_process"
 const args = process.argv.slice(2)
 const cliIndex = args.indexOf("--cli")
 const cli = cliIndex >= 0 ? args[cliIndex + 1] : ""
+const launcherIndex = args.indexOf("--launcher")
+const launcher = launcherIndex >= 0 ? args[launcherIndex + 1] : ""
 const daemonIndex = args.indexOf("--daemon-url")
 const daemonUrl = daemonIndex >= 0 ? args[daemonIndex + 1] : ""
 const timeoutIndex = args.indexOf("--timeout-ms")
 const timeoutMs = timeoutIndex >= 0 ? Number(args[timeoutIndex + 1]) : 10_000
 
-if (!cli || !Number.isFinite(timeoutMs) || timeoutMs < 1) {
-  console.error("usage: check-open-design-mcp.mjs --cli ABSOLUTE_PATH [--daemon-url URL] [--timeout-ms N]")
+if ((!cli && !launcher) || (cli && launcher) || !Number.isFinite(timeoutMs) || timeoutMs < 1) {
+  console.error("usage: check-open-design-mcp.mjs (--cli | --launcher) ABSOLUTE_PATH [--daemon-url URL] [--timeout-ms N]")
   process.exit(2)
 }
 
 function frame(message) {
-  const body = JSON.stringify(message)
-  return `Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`
+  return `${JSON.stringify(message)}\n`
 }
 
 function errorMessage(response, operation) {
@@ -25,11 +26,15 @@ function errorMessage(response, operation) {
 }
 
 function createClient() {
-  const child = spawn(cli, ["mcp", ...(daemonUrl ? ["--daemon-url", daemonUrl] : [])], {
-    env: { ...process.env, OD_MCP_STDIO_IDLE_EXIT_MS: "0" },
+  const command = launcher || cli
+  const commandArgs = launcher ? [] : ["mcp", ...(daemonUrl ? ["--daemon-url", daemonUrl] : [])]
+  const childEnv = { ...process.env, OD_MCP_STDIO_IDLE_EXIT_MS: "0" }
+  if (launcher && daemonUrl) childEnv.OPEN_DESIGN_MCP_DAEMON_URL = daemonUrl
+  const child = spawn(command, commandArgs, {
+    env: childEnv,
     stdio: ["pipe", "pipe", "pipe"],
   })
-  let buffer = Buffer.alloc(0)
+  let buffer = ""
   let nextID = 1
   let stderr = ""
   const pending = new Map()
@@ -44,28 +49,16 @@ function createClient() {
 
   const parse = () => {
     while (true) {
-      const headerEnd = buffer.indexOf(Buffer.from("\r\n\r\n"))
-      if (headerEnd < 0) return
-      const header = buffer.subarray(0, headerEnd).toString("utf8")
-      const length = /^Content-Length:\s*(\d+)\s*$/im.exec(header)?.[1]
-      if (!length) {
-        buffer = buffer.subarray(headerEnd + 4)
-        continue
-      }
-      const bodyLength = Number(length)
-      const bodyStart = headerEnd + 4
-      if (!Number.isSafeInteger(bodyLength) || bodyLength < 0 || bodyLength > 10 * 1024 * 1024) {
-        rejectPending(new Error("MCP response has an invalid Content-Length"))
-        return
-      }
-      if (buffer.length < bodyStart + bodyLength) return
-      const body = buffer.subarray(bodyStart, bodyStart + bodyLength).toString("utf8")
-      buffer = buffer.subarray(bodyStart + bodyLength)
+      const newline = buffer.indexOf("\n")
+      if (newline < 0) return
+      const body = buffer.slice(0, newline).trim()
+      buffer = buffer.slice(newline + 1)
+      if (!body) continue
       let message
       try {
         message = JSON.parse(body)
       } catch {
-        rejectPending(new Error("MCP response was not valid JSON"))
+        rejectPending(new Error("MCP response was not valid newline-delimited JSON"))
         return
       }
       if (message?.id === undefined) continue
@@ -78,12 +71,13 @@ function createClient() {
   }
 
   child.stdout.on("data", (chunk) => {
-    buffer = Buffer.concat([buffer, chunk])
+    buffer += chunk.toString("utf8")
     parse()
   })
   child.stderr.on("data", (chunk) => {
     stderr += chunk.toString("utf8")
   })
+  child.stdin.on("error", () => {})
   child.on("error", (error) => rejectPending(error))
   child.on("exit", (code, signal) => {
     rejectPending(new Error(`MCP process exited before responding (code=${code ?? "?"}, signal=${signal ?? "?"})`))

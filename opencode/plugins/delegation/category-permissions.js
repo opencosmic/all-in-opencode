@@ -17,6 +17,11 @@ const OPEN_DESIGN_SERVER = "open-design"
 // OpenCode sanitizes the hyphen in the configured server name before joining
 // it with the MCP tool name: open-design -> open_design.
 const OPEN_DESIGN_RAW_TOOL_PREFIX = "open_design_"
+const OPEN_DESIGN_RESOURCE_TOOLS = new Set([
+  "list_mcp_resources",
+  "list_mcp_resource_templates",
+  "read_mcp_resource",
+])
 
 function permissionValue(input) {
   // OpenCode may split a compound shell command into separate permission
@@ -89,7 +94,18 @@ function isOpenDesignResourcePattern(pattern) {
 }
 
 export function hasOpenDesignCapability(profile) {
-  return profile?.category === "visual-engineering" && hasSelectedSkill(profile, "open-design")
+  return profile?.agent === "Implementer"
+    && profile?.category === "visual-engineering"
+    && hasSelectedSkill(profile, "open-design")
+}
+
+export function openDesignResourceDecision(profile, tool, args = {}) {
+  if (!OPEN_DESIGN_RESOURCE_TOOLS.has(tool)) return null
+  const server = typeof args?.server === "string" && args.server ? args.server : undefined
+  // An omitted server asks OpenCode to enumerate every resource-capable MCP
+  // server, so it must be gated as an OpenDesign-targeting operation too.
+  if (server !== undefined && server !== OPEN_DESIGN_SERVER) return null
+  return hasOpenDesignCapability(profile) && profile.tools?.read !== false ? "allow" : "deny"
 }
 
 export function requiresPreservedSessionPermissions(agent, category, skills = []) {

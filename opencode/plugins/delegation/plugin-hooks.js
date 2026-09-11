@@ -70,6 +70,7 @@ export function delegationPluginHooks(runtime) {
     },
     event: async ({ event }) => runtime.handleEvent(event),
     "chat.params": async (input, output) => runtime.applyChatParams(input.sessionID, output),
+    "tool.execute.before": async (input, output) => runtime.applyToolExecutionBefore(input, output),
     "permission.ask": async (input, output) => runtime.applyPermission(input, output),
   }
 }
