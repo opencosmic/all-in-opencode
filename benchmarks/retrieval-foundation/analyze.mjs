@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from "node:fs/promises"
-import { dirname, join, resolve } from "node:path"
+import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
   categorySummary,
@@ -10,34 +10,40 @@ import {
 } from "./lib.mjs"
 
 const benchmarkDir = dirname(fileURLToPath(import.meta.url))
-const resultsPath = join(benchmarkDir, "results/runs.jsonl")
-const summaryPath = join(benchmarkDir, "results/summary.json")
-const scoresPath = join(benchmarkDir, "results/scores.json")
 
 function readOption(name) {
   const index = process.argv.indexOf(name)
   return index >= 0 ? process.argv[index + 1] : undefined
 }
 
-async function readRecords() {
+async function readRecords(resultsPath) {
   const content = await readFile(resultsPath, "utf8")
   return content.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line))
 }
 
 async function main() {
-  const records = await readRecords()
-  const cases = await loadCases(join(benchmarkDir, "cases.json"))
+  const casesPath = resolveBenchmarkPath(benchmarkDir, readOption("--cases"), "cases.json")
+  const resultsPath = resolveBenchmarkPath(benchmarkDir, readOption("--runs"), "results/runs.jsonl")
+  const summaryPath = resolveBenchmarkPath(benchmarkDir, readOption("--out"), "results/summary.json")
+  const scoresPath = resolveBenchmarkPath(benchmarkDir, readOption("--scores"), "results/scores.json")
+  const records = await readRecords(resultsPath)
+  const cases = await loadCases(casesPath)
   let scores = []
   try {
     scores = validateScores(JSON.parse(await readFile(scoresPath, "utf8")), cases)
   } catch (error) {
     if (error.code !== "ENOENT") throw error
   }
+  const versions = [...new Set(records.map((record) => record.opencodeVersion).filter(Boolean))]
+  if (versions.length > 1) throw new Error(`multiple OpenCode versions in results: ${versions.join(", ")}`)
+  const benchmarkNames = [...new Set(records.map((record) => record.benchmarkName).filter(Boolean))]
+  if (benchmarkNames.length > 1) throw new Error(`multiple benchmark names in results: ${benchmarkNames.join(", ")}`)
   const summary = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     baselineCommit: "9e91fe032e7e48d4c440b0d7081c2a02f0819fac",
-    opencodeVersion: "1.18.30",
+    ...(benchmarkNames[0] ? { benchmarkName: benchmarkNames[0] } : {}),
+    opencodeVersion: versions[0] ?? null,
     plannedRuns: cases.reduce((sum, item) => sum + item.repeatRuns, 0),
     records: records.length,
     objective: objectiveMetrics(records),
@@ -59,9 +65,12 @@ async function main() {
       repeatAssessments: scores.filter((score) => score.repeatAssessment).map((score) => ({ caseId: score.caseId, assessment: score.repeatAssessment })),
     },
   }
-  const outputPath = readOption("--out") ?? summaryPath
-  await writeFile(outputPath, `${JSON.stringify(summary, null, 2)}\n`)
+  await writeFile(summaryPath, `${JSON.stringify(summary, null, 2)}\n`)
   console.log(JSON.stringify(summary, null, 2))
+}
+
+function resolveBenchmarkPath(baseDir, requested, fallback) {
+  return resolve(baseDir, requested ?? fallback)
 }
 
 function qualityPassForCase(score, cases) {

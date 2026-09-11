@@ -1,0 +1,5469 @@
+{
+  "schemaVersion": 1,
+  "benchmarkName": "retrieval-extraction-stress",
+  "generatedAt": "2026-09-11T18:43:36.344Z",
+  "baselineCommit": "9e91fe032e7e48d4c440b0d7081c2a02f0819fac",
+  "opencodeVersion": "1.18.30",
+  "cases": 8,
+  "plannedRuns": 24,
+  "records": 24,
+  "objective": {
+    "runs": 24,
+    "successfulRuns": 24,
+    "runtimeFailures": 0,
+    "successRate": 1,
+    "searchCalls": [
+      2,
+      2,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      3,
+      3,
+      3,
+      0,
+      1,
+      1
+    ],
+    "fetchCalls": [
+      2,
+      3,
+      4,
+      1,
+      2,
+      3,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      3,
+      4,
+      4,
+      4,
+      1,
+      1,
+      1
+    ],
+    "stepCounts": [
+      5,
+      6,
+      6,
+      3,
+      4,
+      5,
+      3,
+      2,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      4,
+      4,
+      5,
+      5,
+      6,
+      5,
+      2,
+      3,
+      3
+    ],
+    "stepCapBoundaryRuns": 3,
+    "totalSearchCalls": 30,
+    "totalFetchCalls": 47,
+    "totalSteps": 92,
+    "uniqueRetrievedUrls": 1499,
+    "uniqueRetrievedDomains": 98,
+    "duplicateUrlOccurrences": 1448,
+    "duplicateUrls": [
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc9110",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc2818",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc7230",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc7231",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc7232",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc7233",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc7235",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc7538",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc7615",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc7694",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc3864",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/info/rfc9110",
+        "count": 3
+      },
+      {
+        "url": "https://www.rfc-editor.org/info/rfc9110).[¶",
+        "count": 2
+      },
+      {
+        "url": "https://trustee.ietf.org/license-info",
+        "count": 3
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc5234#appendix-B.1",
+        "count": 2
+      },
+      {
+        "url": "https://datatracker.ietf.org/doc/html/rfc9110",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/info/rfc9110.¶",
+        "count": 3
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc9110.pdf",
+        "count": 2
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/416",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/info/rfc9110/",
+        "count": 2
+      },
+      {
+        "url": "https://www.potaroo.net/ietf/rfc/rfc9110.txt",
+        "count": 2
+      },
+      {
+        "url": "https://datatracker.ietf.org/doc/html/rfc9110#section-15.5.17",
+        "count": 3
+      },
+      {
+        "url": "https://www.iana.org/assignments/uri-schemes/>",
+        "count": 2
+      },
+      {
+        "url": "http://example.com:80/~smith/home.html",
+        "count": 2
+      },
+      {
+        "url": "http://EXAMPLE.com/%7Esmith/home.html",
+        "count": 2
+      },
+      {
+        "url": "http://EXAMPLE.com:/%7esmith/home.html",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+        "count": 3
+      },
+      {
+        "url": "https://httpwg.org/specs/rfc7233.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/latest/docs/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/api/http.md",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/v22.14.0/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest-jod/docs/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/download/release/v25.5.0/docs/api/http.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v19.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node",
+        "count": 6
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v26.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v25.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v24.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v23.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v22.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v21.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v20.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v18.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v17.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v16.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v15.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v14.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v13.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v12.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v11.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v10.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v9.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v8.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v7.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v6.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v5.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v4.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v0.12.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v0.10.x/api/http.html",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/edit/main/doc/api/http.md",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/main/lib/http.js",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/docs/Web/JavaScript/Data_structures#boolean_type",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/docs/Web/JavaScript/Data_structures#number_type",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/docs/Web/JavaScript/Data_structures#string_type",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/docs/Web/JavaScript/Data_structures#undefined_type",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Function",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Error",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/docs/Web/JavaScript/Data_structures#null_type",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59315",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/58980",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/36685",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/33617",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/33278",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/36409",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/41906",
+        "count": 2
+      },
+      {
+        "url": "http://${req.url}",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/20230",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/33155",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/18780",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/32789",
+        "count": 2
+      },
+      {
+        "url": "http://localhost:3000",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/8895",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/25605",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/17672",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/4557",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60016",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59824",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/19981",
+        "count": 2
+      },
+      {
+        "url": "https://www.postgresql.org/docs/17/sql-createindex.html",
+        "count": 3
+      },
+      {
+        "url": "https://manpages.debian.org/trixie/postgresql-client-17/CREATE_INDEX.7.en.html",
+        "count": 2
+      },
+      {
+        "url": "https://manpages.debian.org/unstable/postgresql-client-17/CREATE_INDEX.7.en.html",
+        "count": 2
+      },
+      {
+        "url": "https://access.crunchydata.com/documentation/postgresql17/17.10/sql-createindex.html",
+        "count": 2
+      },
+      {
+        "url": "https://postgrespro.com/docs/postgresql/17/sql-createindex",
+        "count": 2
+      },
+      {
+        "url": "https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml",
+        "count": 3
+      },
+      {
+        "url": "https://www.iana.org/assignments/http-status-codes",
+        "count": 2
+      },
+      {
+        "url": "https://www.iana.org/assignments/http-status-codes/http-status-codes.txt",
+        "count": 3
+      },
+      {
+        "url": "https://stackoverflow.com/questions/71448139/when-to-use-http-status-code-425-too-early",
+        "count": 2
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc8446#section-4.2.10",
+        "count": 2
+      },
+      {
+        "url": "https://datatracker.ietf.org/doc/html/rfc8470#section-1",
+        "count": 2
+      },
+      {
+        "url": "https://archive.ph/hWnQF",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
+        "count": 3
+      },
+      {
+        "url": "https://greenbytes.de/tech/specs/draft-reschke-http-status-registry-latest.html",
+        "count": 2
+      },
+      {
+        "url": "http://www.iana.org/assignments/http-status-codes>.¶",
+        "count": 2
+      },
+      {
+        "url": "https://github.laiyagushi.com/FerrowAI/http-status-catalog",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/tensorflow/tensor2tensor",
+        "count": 3
+      },
+      {
+        "url": "https://arxiv.org/abs/1706.03762",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/",
+        "count": 2
+      },
+      {
+        "url": "https://arxiv.org/pdf/1706.03762v2/__stdout.txt",
+        "count": 2
+      },
+      {
+        "url": "https://arxiv.org/html/1706.03762v7",
+        "count": 2
+      },
+      {
+        "url": "https://info.arxiv.org/about",
+        "count": 2
+      },
+      {
+        "url": "https://info.arxiv.org/about/accessible_HTML.html",
+        "count": 2
+      },
+      {
+        "url": "https://info.arxiv.org/help/license/index.html#licenses-available",
+        "count": 2
+      },
+      {
+        "url": "https://math.nist.gov/~BMiller/LaTeXML/",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/arXiv/html_feedback/issues",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/brucemiller/LaTeXML/wiki/Porting-LaTeX-packages-for-LaTeXML",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/brucemiller/LaTeXML/issues",
+        "count": 2
+      },
+      {
+        "url": "https://info.arxiv.org/about/ourmembers.html",
+        "count": 2
+      },
+      {
+        "url": "https://eur-lex.europa.eu/legal-content/en/TXT/?uri=CELEX%3A32016R0679",
+        "count": 3
+      },
+      {
+        "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng",
+        "count": 3
+      },
+      {
+        "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?from=EN&uri=CELEX%3A02016R0679-20160504",
+        "count": 3
+      },
+      {
+        "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX%3A02016R0679-20160504",
+        "count": 3
+      },
+      {
+        "url": "https://www.legislation.gov.uk/eur/2016/679/article/17/adopted",
+        "count": 3
+      },
+      {
+        "url": "https://www.legislation.gov.uk/eur/2016/679/article/17",
+        "count": 2
+      },
+      {
+        "url": "https://www.legislation.gov.uk/eur/2016/679/article/17?view=plain",
+        "count": 2
+      },
+      {
+        "url": "http://www.legislation.gov.uk/id/eur/2016/679",
+        "count": 2
+      },
+      {
+        "url": "https://www.legislation.gov.uk/eur/2016/679/article/17/data.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/en/blog/release/v22.5.0",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53752",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/issues/53264",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V22.md",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e742ab748c",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62256",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/bbcce09dc7",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62150",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v22.x/api/sqlite.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/v22.11.0/api/sqlite.html",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/v22.6.0/doc/changelogs/CHANGELOG_V22.md",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b31394920d",
+        "count": 3
+      },
+      {
+        "url": "https://raw.githubusercontent.com/nodejs/node/main/doc/changelogs/CHANGELOG_V22.md",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V22.md",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4b12ac38a1",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/935",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3fd0aa51d0",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/64714",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/22efc051a3",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/929",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c8525ac3a6",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/932",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/daa6d25e3d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/921",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/f14d78b9e0",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/63752",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/51123159fe",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/934",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/acaf4266b2",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/930",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/440329f624",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/911",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ed18b9cc07",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/926",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0566c3cccd",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/927",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0d072480c3",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/931",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/41d2ee13be",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/63940",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/eaa292549e",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/64004",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/38b4c5ed51",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/878",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ad8a10c1bb",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/890",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ca825a87cc",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/63711",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a1a5bb9683",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62891",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0f48583512",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/38c869fc05",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61136",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/290667c84f",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59790",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c9f3da76aa",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/58786",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/60890be563",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/57269",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5024c7d5d8",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/63820",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/7f4eb5af2e",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ebb4ec78a8",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62656",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5763d40826",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/63045",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c551a51d0c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/868",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0a22d40180",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/846",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c79968e108",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/855",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0c37bff2ff",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/58669",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ea5dc6b529",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/58293",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9b6af26132",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/867",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/28dcd38864",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/873",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2f62693801",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/870",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1662a3ea09",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/854",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/718d5d0e2c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/63836",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/041185b61f",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62238",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/fd890ba01d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/39d1d09684",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/857",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2197a47144",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/869",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4f780905c5",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61788",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4a09efb947",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62485",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e4c0d99839",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62164",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0226c8dd7a",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62382",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/73cac0571a",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62151",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ae5c162b93",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61730",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b819cb9977",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61603",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/22ff2d81ce",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61930",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/f49b51d75c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61928",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1a5cec0d49",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61925",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d339497688",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61879",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3ff8ffd459",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61834",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b8ddbc1e9a",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61827",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ffda97afd4",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62484",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/79aa32cf4f",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61927",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b6957e13b6",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62629",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3a27669063",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d568a1bb53",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62463",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ec11f3c1d5",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62783",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/08609712ed",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/dcc60d5ab2",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1d1f4451fb",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2268567237",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/92804cdbea",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/eae2c27a40",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a1799a49bb",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a2df2d8731",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e3d65c7dca",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5e7db133de",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d0c24a28af",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d358687824",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/67c8b2c349",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/71e5a59ffd",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/f0dbe81c7b",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d333f480c3",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/db722725bb",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/63012",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9b57979d9c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62423",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d8075585bf",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62355",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/6ec9a70204",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62208",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1fc86fcb6e",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62075",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/491be80bd9",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61876",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/18558293a3",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61992",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/8e20976522",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61986",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/70b8e6b4fb",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61942",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4045c76f6c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61505",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c54652f2aa",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61839",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9fad6cedf5",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61572",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2f1e5733fe",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61754",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a64bdb5068",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62206",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/02797de923",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62279",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/f22ebdc809",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62025",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9f4508062a",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61765",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3ea39ff135",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61735",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c22445079b",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61756",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/32831b5223",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61673",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/005508d509",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61785",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/45b3506eb8",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62745",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/37c2fd6f7d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62080",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1769d74613",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59679",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ee02966ffc",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61710",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2fdb5ce6cc",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61707",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/aa2c1eca04",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61990",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/785b00cbeb",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62777",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/447fb9a0b5",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61639",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5065a0acb3",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61529",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9a2e21305d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61479",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b9240bc063",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61088",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2e91b28aaf",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59929",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/39147c154e",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60072",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/12a2462b2c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59874",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/cf39566277",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61948",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/578a9a9230",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62621",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/57c3035fec",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61884",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/57fb008bb8",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/363f9a9d18",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62019",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/daaead342b",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ecfa766b41",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61900",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/17c0a610af",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62077",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/89ad7dc63b",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61672",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5f9bb8ef0c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62024",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/977ef80ac1",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62574",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ad8f518a81",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62325",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/6f14ee5101",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/809",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/52a52ef619",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/822",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/30a3ab11e2",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e3f4d6a42e",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/7dc00fa5f4",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/076acd052d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/963c60a951",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62344",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a688117d5d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62330",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/859c8c761b",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62285",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d5ed384a2f",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62215",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a2fe9fd81a",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/821",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/73deff77c1",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/57643",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/06fc3436f6",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/795",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/db48d9c675",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/794",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2a6105a63b",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/832",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/91b970886f",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/819",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/7b93a65f27",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59983",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/6063d888fe",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60956",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d950b151a2",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61419",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4f42f8c428",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60741",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b6ebf2cd53",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61115",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/35854f424d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61094",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5c6a076e5d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60714",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5f773488c2",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61076",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/feecbb0eab",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61388",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/096095b127",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61401",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b5fe481415",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60129",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/fa9faacacb",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ba8714ac21",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60841",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/53596de876",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60663",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e8930e9d7c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60603",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1155e412b1",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60574",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e01903d304",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60162",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/623a405747",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60205",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/7f5e7b9f7f",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60991",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/db132b85a8",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/58938",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/66aab9f987",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60503",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c3cf00c671",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60399",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/f6fad231e9",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61790",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2145f91f6b",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60369",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5b49759dd8",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61414",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/24724cde40",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61294",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c57a19934e",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61329",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/8659d7cd07",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60511",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/44f339b315",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61151",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d60a6cebd5",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61024",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/34ccf187f5",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61073",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/7b19e101a2",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60850",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9408c4459f",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59984",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2166ec7f0f",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60098",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/73ef70145d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60296",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/508ce6ec6c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59999",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c89d3cd570",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61321",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/40904a0591",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61431",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/6d6742e7db",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61344",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3d324a0f88",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60141",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/40a58709b4",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60422",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a87499ae25",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60662",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/8c65cc11e2",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59956",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/91dc00a2c1",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60464",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/bfc2b55c5a",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/62016",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/7d318a0ba8",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61830",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/87351a42b5",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61732",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0781bd3764",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61688",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0cf1f9c3e9",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61417",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/521b4b1f07",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61339",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/58b9d219a3",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60523",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/cbc1e4306d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61135",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/db59c35ed8",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61271",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c18518ee3c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61270",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/376df62d63",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61138",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/993e905302",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61056",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b72fd2a5d3",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61055",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d765147405",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60899",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/37abe2a7d2",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60898",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/97241fcb86",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60614",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3669c7b4f4",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60740",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9a056ec89c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60739",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b5803b3ea0",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60543",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5bf99f3d46",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60646",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/801f187357",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60644",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/03c16e5a4c",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60542",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2ebfc2ca56",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60541",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d24ba4fed6",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/59883",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9480a139bf",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60219",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/635e67379e",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61547",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c7b774047d",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5b324d7d7f",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61510",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/eef8ba0667",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60842",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/490f7c7fb1",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60643",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/66903ea3b3",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60550",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a2f0b69282",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60314",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c8044a48a6",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60654",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/642f518198",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61451",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/625f674487",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61495",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/029e32f8ba",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61064",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/68e33dfa89",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61553",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e016770d62",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61588",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ec63954657",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/60253",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c8e1563a98",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/61465",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/learn)[About",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest/api/)[Beta",
+        "count": 3
+      },
+      {
+        "url": "https://beta.docs.nodejs.org/)[Contribute",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/main/CONTRIBUTING.md)[Courses",
+        "count": 3
+      },
+      {
+        "url": "https://training.linuxfoundation.org/openjs/",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/aduh95",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1367c5558e)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53721",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b31394920d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/aa7df9551d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/52166",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/8743c4d65a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/52881",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/77936c3d24)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53239",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/82d88a83f8)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53462",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3a0fcbb17a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53553",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/22ca334090)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53682",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/eb4e370933)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4d4a8338db)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53612",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3d60b38afa)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53750",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a45c801048)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53686",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/40032eb623)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53685",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/082799debb)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53687",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b05394ea6a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53585",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/6237172eaf)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53734",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5697938cb7)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53683",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3cc01aa314)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53601",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/f82e20fdea)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53460",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ad1e5610ec)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53842",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d285d610a0)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53841",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/70f5209c9f)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53838",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4930e12a45)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53837",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d346833364)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53748",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ab8abb5367)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53799",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1ad664905a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53790",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a66f11e798)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53157",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9bf61d6a0d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/8542ace488)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53755",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/29a734c21d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c7624af44a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53753",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/bbcec9e129)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53646",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/76032fd980)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53722",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/26386046ad)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53760",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/362875bda0)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53769",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a1a5ad848d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53754",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/bb960c5471)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53784",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5dd3018eb4)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53312",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0f95ad3d7d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53647",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2d92ec2831)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53662",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/933359a786)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53731",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e17c2618e3)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53741",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/7f18a5f47a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53694",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/df3dcd1bd1)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53709",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/50987ea833)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53702",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/fa58d01497)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53664",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/28bf1e48ef)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53650",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1cc0b41f00)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53638",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d224e9eab5)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53637",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2cf60964e6)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53615",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/6df86ae056)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53608",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/42b9408f3e)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53607",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2d1ff91953)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53604",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/de99d69d75)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53523",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/519c328dcf)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53569",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c6166cdfe4)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53566",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9139ab2848)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53560",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/19b3718ee1)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53770",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/80c1f5ce8a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53542",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1a21e0f61e)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53711",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/262f2cb3b6)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53656",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e29c9453a9)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53558",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/8368555289)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53627",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/628a539810)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53632",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/076e82ca40)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53630",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/128e514d81)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53667",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/603c2c5c08)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53626",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/7debb6c36e)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53698",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/b13aea5698)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53623",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1397f5d9f4)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53696",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/f57d3cee2c)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53765",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0a01abbd45)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53817",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/afe7f4f819)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53729",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/cbe77b30ca)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53654",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0f146aac2c)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53649",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0540308bd7)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53603",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1a7c2dc5ea)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53783",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ac5d7b709d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53829",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/085ec5533c)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53797",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c68d873e99)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53758",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5ae8ea489d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53744",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ecd8fceb68)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53693",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/05058f9809)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53675",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e272ffa3d6)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53674",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a39407560c)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53673",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e4ce92ee31)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53672",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4cf98febe7)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53671",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c28af95bf5)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53670",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/dd2157bc83)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53599",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/508abfe178)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53513",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3c5ec839e3)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53564",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5e4ca9fbb6)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53832",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c22d9d5167)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53811",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d41ed44f49)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53658",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/dc99dd391f)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53767",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ab1e03e8cd)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53766",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9bde9b254d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53576",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/021e2cf40f)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53517",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/87121a17c4)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53759",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/94c7054c8d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53611",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c181940e83)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53563",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/8cda2db64c)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/81767f6089)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53724",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a9db553935)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53573",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/3ab8aba478)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53688",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/664bf6c28f)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53063",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/cc1f49751a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53540",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e43a4e07ec)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53539",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/19488fd4ce)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53820",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4bf62f6cbd)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53800",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/53a7dd7790)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53814",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/bc480902ab)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53720",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d13153d90f)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53692",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ac9c2e6bf2)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53057",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/bac28678e6)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53146",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/41e106c0c6)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53597",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/8aab680f66)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53503",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/6aa4f0f266)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53411",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/fbc5cbb617)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53834",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c590828ad8)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53833",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/e6a1eeb73d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53642",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/4d777de7d4)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53636",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/ab9adfc42a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53699",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/03d378ffb9)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53840",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/06377b1b11)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53839",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d6629a2d84)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53749",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/d3653fe8ac)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53645",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1e930e93d4)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53555",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/317a13b30f)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53544",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0e25faea0a)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53631",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/7637f291be)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53827",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/2c6548afd1)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53628",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/0f2b57d1bc)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/1300169f80)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53733",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/c55e72ed8b)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53089",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5aa216320e)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53655",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/9fd976b09d)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/5aecbefbd5)\\",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53596",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-x86.msi",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-x64.msi",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-arm64.msi",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/win-x86/node.exe",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/win-x64/node.exe",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/win-arm64/node.exe",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0.pkg",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-darwin-arm64.tar.gz",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-darwin-x64.tar.gz",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-linux-x64.tar.xz",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-linux-ppc64le.tar.xz",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-linux-s390x.tar.xz",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-aix-ppc64.tar.gz",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-linux-armv7l.tar.xz",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0-linux-arm64.tar.xz",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/node-v22.5.0.tar.gz",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/dist/v22.5.0/",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/v22.5.0/api/",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/nodejs.org/blob/main/apps/site/pages/en/blog/release/v22.5.0.md",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node)[",
+        "count": 3
+      },
+      {
+        "url": "https://discord.gg/nodejs)[",
+        "count": 3
+      },
+      {
+        "url": "https://bsky.app/profile/nodejs.org)[",
+        "count": 3
+      },
+      {
+        "url": "https://twitter.com/nodejs)[",
+        "count": 3
+      },
+      {
+        "url": "https://slack-invite.openjsf.org/)[",
+        "count": 3
+      },
+      {
+        "url": "https://www.linkedin.com/company/node-js",
+        "count": 3
+      },
+      {
+        "url": "https://openjsf.org/",
+        "count": 3
+      },
+      {
+        "url": "https://trademark-policy.openjsf.org/",
+        "count": 3
+      },
+      {
+        "url": "https://trademark-list.openjsf.org/",
+        "count": 3
+      },
+      {
+        "url": "https://openjsf.org/)[AI",
+        "count": 3
+      },
+      {
+        "url": "https://ai-coding-assistants-policy.openjsf.org/)[Bylaws",
+        "count": 3
+      },
+      {
+        "url": "https://bylaws.openjsf.org/)[Code",
+        "count": 3
+      },
+      {
+        "url": "https://code-of-conduct.openjsf.org/)[Cookie",
+        "count": 3
+      },
+      {
+        "url": "https://www.linuxfoundation.org/cookies/)[Privacy",
+        "count": 3
+      },
+      {
+        "url": "https://privacy-policy.openjsf.org/)[Security",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/security/policy)[Terms",
+        "count": 3
+      },
+      {
+        "url": "https://terms-of-use.openjsf.org/)[Trademark",
+        "count": 3
+      },
+      {
+        "url": "https://trademark-list.openjsf.org/)[Trademark",
+        "count": 3
+      },
+      {
+        "url": "https://social.lfx.dev/@nodejs",
+        "count": 3
+      },
+      {
+        "url": "https://r2.nodejs.org/dist/v22.5.0/docs/api/sqlite.html",
+        "count": 2
+      },
+      {
+        "url": "https://r2.nodejs.org/docs/v22.5.1/api/sqlite.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/download/release/v22.5.1/docs/api/sqlite.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/dist/latest-v22.x/docs/api/sqlite.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/v22.14.0/api/sqlite.html",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/releases/tag/v22.5.0",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/085ec5533c",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/compare/v22.4.1...v22.5.0",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53826",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/api/sqlite.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/v22.5.0/api/sqlite.html",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/edit/main/doc/api/sqlite.md",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/v22.5.0/lib/sqlite.js",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/c3ref/sqlite3.html",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#String_type",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/inmemorydb.html",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#Boolean_type",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/c3ref/close.html",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/c3ref/exec.html",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/c3ref/stmt.html",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/c3ref/prepare.html",
+        "count": 3
+      },
+      {
+        "url": "https://en.wikipedia.org/wiki/SQL_injection",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#Null_type",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#Number_type",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/c3ref/bind_blob.html",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/c3ref/expanded_sql.html",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#Undefined_type",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/c3ref/changes.html",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/c3ref/last_insert_rowid.html",
+        "count": 3
+      },
+      {
+        "url": "https://www.sqlite.org/datatype3.html",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/commit/a45c801048",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/522",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/584",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/596",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs-private/node-private/pull/581",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/52435",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53433",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53352",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53343",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53329",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53473",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/44340",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53107",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53431",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53455",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53519",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53228",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53181",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53364",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53554",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53468",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53467",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53470",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53466",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53156",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53416",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53412",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53521",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53499",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53510",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/52742",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53338",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/52801",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/52857",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53397",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53317",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53249",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53349",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53344",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53396",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53243",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53235",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/52135",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53452",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/51344",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53475",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/pull/53543",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/features/copilot",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/features/ai/github-app",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/mcp",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/features/actions",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/features/codespaces",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/features/issues",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/features/code-review",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/features/code-quality",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/security/advanced-security",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/security/advanced-security/code-security",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/security/advanced-security/secret-protection",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/why-github",
+        "count": 2
+      },
+      {
+        "url": "https://docs.github.com",
+        "count": 2
+      },
+      {
+        "url": "https://github.blog",
+        "count": 2
+      },
+      {
+        "url": "https://github.blog/changelog",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/marketplace",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/features",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/enterprise",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/team",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/enterprise/startups",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/industry/nonprofits",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/use-case/app-modernization",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/use-case/devsecops",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/use-case/devops",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/use-case/ci-cd",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/use-case",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/industry/healthcare",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/industry/financial-services",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/industry/manufacturing",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/industry/government",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/industry",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/resources/articles?topic=ai",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/resources/articles?topic=software-development",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/resources/articles?topic=devops",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/resources/articles?topic=security",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/resources/articles",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/customer-stories",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/resources/events",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/resources/whitepapers",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/solutions/executive-insights",
+        "count": 2
+      },
+      {
+        "url": "https://skills.github.com",
+        "count": 2
+      },
+      {
+        "url": "https://support.github.com",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/orgs/community/discussions",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/trust-center",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/partners",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/resources",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/open-source/sponsors",
+        "count": 2
+      },
+      {
+        "url": "https://securitylab.github.com",
+        "count": 2
+      },
+      {
+        "url": "https://maintainers.github.com",
+        "count": 2
+      },
+      {
+        "url": "https://stars.github.com",
+        "count": 2
+      },
+      {
+        "url": "https://archiveprogram.github.com",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/topics",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/trending",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/collections",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/features/copilot/copilot-business",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/enterprise/premium-support",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/pricing",
+        "count": 2
+      },
+      {
+        "url": "https://github.com)©",
+        "count": 2
+      },
+      {
+        "url": "https://docs.github.com/site-policy/github-terms/github-terms-of-service",
+        "count": 2
+      },
+      {
+        "url": "https://docs.github.com/site-policy/privacy-policies/github-privacy-statement",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/security",
+        "count": 2
+      },
+      {
+        "url": "https://www.githubstatus.com/",
+        "count": 2
+      },
+      {
+        "url": "https://github.community/",
+        "count": 2
+      },
+      {
+        "url": "https://docs.github.com/",
+        "count": 2
+      },
+      {
+        "url": "https://support.github.com?tags=dotcom-footer",
+        "count": 2
+      },
+      {
+        "url": "https://git-scm.com/docs/git-rebase",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/jnavila/git-manpages-l10n",
+        "count": 3
+      },
+      {
+        "url": "https://git-scm.com/docs/git-rebase/2.52.0",
+        "count": 2
+      },
+      {
+        "url": "https://code.googlesource.com/git/+/HEAD/Documentation/git-rebase.adoc",
+        "count": 2
+      },
+      {
+        "url": "https://www.kernel.org/pub/software/scm/git/docs/git-rebase.html",
+        "count": 2
+      },
+      {
+        "url": "https://www.man7.org/linux/man-pages/man1/git-rebase.1.html",
+        "count": 2
+      }
+    ],
+    "sameRunDuplicateSearchUrlOccurrences": 24,
+    "sameRunSearchRunsWithDuplicates": 5,
+    "sameRunDuplicateSearchUrlRate": 0.08791208791208792,
+    "perCaseSearchMetrics": {
+      "standard-rfc-01": {
+        "runs": 3,
+        "searchCalls": 5,
+        "fetchCalls": 9,
+        "duplicateSearchUrlOccurrences": 4,
+        "runsWithDuplicateSearchUrls": 2,
+        "duplicateSearchUrlRate": 0.14285714285714285,
+        "averageUniqueSearchDomains": 4.666666666666667,
+        "maxSearchDomainConcentration": 0.5
+      },
+      "api-node-http-01": {
+        "runs": 3,
+        "searchCalls": 3,
+        "fetchCalls": 6,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 1,
+        "maxSearchDomainConcentration": 1
+      },
+      "manual-postgres-17-01": {
+        "runs": 3,
+        "searchCalls": 2,
+        "fetchCalls": 3,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 3,
+        "maxSearchDomainConcentration": 0.4
+      },
+      "table-iana-status-01": {
+        "runs": 3,
+        "searchCalls": 3,
+        "fetchCalls": 3,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 7.666666666666667,
+        "maxSearchDomainConcentration": 0.36363636363636365
+      },
+      "paper-attention-01": {
+        "runs": 3,
+        "searchCalls": 3,
+        "fetchCalls": 4,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 4.333333333333333,
+        "maxSearchDomainConcentration": 0.6666666666666666
+      },
+      "policy-gdpr-17-01": {
+        "runs": 3,
+        "searchCalls": 3,
+        "fetchCalls": 7,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 2,
+        "maxSearchDomainConcentration": 0.8
+      },
+      "changelog-node-22-01": {
+        "runs": 3,
+        "searchCalls": 9,
+        "fetchCalls": 12,
+        "duplicateSearchUrlOccurrences": 20,
+        "runsWithDuplicateSearchUrls": 3,
+        "duplicateSearchUrlRate": 0.16393442622950818,
+        "averageUniqueSearchDomains": 5,
+        "maxSearchDomainConcentration": 0.6756756756756757
+      },
+      "negative-git-rebase-01": {
+        "runs": 3,
+        "searchCalls": 2,
+        "fetchCalls": 3,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 3.3333333333333335,
+        "maxSearchDomainConcentration": 0.4
+      }
+    },
+    "domainCounts": {
+      "github.com": 13,
+      "developer.mozilla.org": 11,
+      "datatracker.ietf.org": 6,
+      "nodejs.org": 6,
+      "rfc-editor.org": 5,
+      "iana.org": 5,
+      "httpwg.org": 4,
+      "raw.githubusercontent.com": 4,
+      "trustee.ietf.org": 3,
+      "postgresql.org": 3,
+      "archive.ph": 3,
+      "github.laiyagushi.com": 3,
+      "arxiv.org": 3,
+      "eur-lex.europa.eu": 3,
+      "legislation.gov.uk": 3,
+      "beta.docs.nodejs.org": 3,
+      "training.linuxfoundation.org": 3,
+      "discord.gg": 3,
+      "bsky.app": 3,
+      "twitter.com": 3,
+      "slack-invite.openjsf.org": 3,
+      "linkedin.com": 3,
+      "openjsf.org": 3,
+      "trademark-policy.openjsf.org": 3,
+      "trademark-list.openjsf.org": 3,
+      "ai-coding-assistants-policy.openjsf.org": 3,
+      "bylaws.openjsf.org": 3,
+      "code-of-conduct.openjsf.org": 3,
+      "linuxfoundation.org": 3,
+      "privacy-policy.openjsf.org": 3,
+      "terms-of-use.openjsf.org": 3,
+      "social.lfx.dev": 3,
+      "r2.nodejs.org": 3,
+      "sqlite.org": 3,
+      "en.wikipedia.org": 3,
+      "man7.org": 3,
+      "git-scm.com": 3,
+      "potaroo.net": 2,
+      "example.com": 2,
+      "${req.url}": 2,
+      "localhost": 2,
+      "manpages.debian.org": 2,
+      "access.crunchydata.com": 2,
+      "postgrespro.com": 2,
+      "stackoverflow.com": 2,
+      "greenbytes.de": 2,
+      "papers.neurips.cc": 2,
+      "proceedings.neurips.cc": 2,
+      "info.arxiv.org": 2,
+      "math.nist.gov": 2,
+      "docs.github.com": 2,
+      "github.blog": 2,
+      "skills.github.com": 2,
+      "support.github.com": 2,
+      "securitylab.github.com": 2,
+      "maintainers.github.com": 2,
+      "stars.github.com": 2,
+      "archiveprogram.github.com": 2,
+      "avatars.githubusercontent.com": 2,
+      "github.xn--com)-8fa": 2,
+      "githubstatus.com": 2,
+      "github.community": 2,
+      "code.googlesource.com": 2,
+      "kernel.org": 2,
+      "dashboard.exa.ai": 1,
+      "mcp.exa.ai": 1,
+      "lists.w3.org": 1,
+      "http.dev": 1,
+      "developers.google.com": 1,
+      "http.app": 1,
+      "fili.com": 1,
+      "httpcompression.com": 1,
+      "httpcaching.com": 1,
+      "http2test.com": 1,
+      "http3test.com": 1,
+      "http.codes": 1,
+      "urlparse.com": 1,
+      "contenttype.net": 1,
+      "manpages.opensuse.org": 1,
+      "web.archive.org": 1,
+      "pti.icann.org": 1,
+      "icann.org": 1,
+      "ar5iv.labs.arxiv.org": 1,
+      "artinte.github.io": 1,
+      "research.pitt.edu": 1,
+      "dlmf.nist.gov": 1,
+      "d6108366.hf-mirror.com": 1,
+      "european-union.europa.eu": 1,
+      "ecas.ec.europa.eu": 1,
+      "europa.eu": 1,
+      "data.europa.eu": 1,
+      "bhdouglass.com": 1,
+      "betterstack.com": 1,
+      "blog.dragansr.com": 1,
+      "tools.ietf.org": 1,
+      "w3.org": 1,
+      "v8.dev": 1,
+      "man.archlinux.org": 1
+    },
+    "maxDomainConcentration": 0.5416666666666666,
+    "fetchToSearchRatio": 1.5666666666666667
+  },
+  "extraction": {
+    "runs": 24,
+    "cleanRuns": 24,
+    "toolFailureRuns": 0,
+    "targetSourceFoundRuns": 24,
+    "targetFetchedRuns": 24,
+    "expectedEvidenceFoundRuns": 21,
+    "citationSupportsTargetRuns": 21,
+    "totalFetchCalls": 47,
+    "totalFetchOutputChars": 1667312,
+    "totalExtraSearchesAfterTargetFetch": 8,
+    "totalRepeatedFetches": 5,
+    "totalRepeatedTargetFetches": 5,
+    "stepCapBoundaryRuns": 3,
+    "fetchOutputSizeChars": {
+      "count": 47,
+      "min": 0,
+      "max": 51469,
+      "mean": 35474.72340425532,
+      "p50": 40801,
+      "p90": 51401
+    },
+    "byRun": [
+      {
+        "caseId": "standard-rfc-01",
+        "sourceClass": "standard-specification",
+        "runIndex": 1,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "Content-Range"
+        ],
+        "answerEvidenceMatches": [
+          "Content-Range",
+          "current length"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 2,
+        "fetchOutputChars": 91596,
+        "fetchOutputSizes": [
+          50795,
+          40801
+        ],
+        "extraSearchesAfterTargetFetch": 2,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 5,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 103011,
+          "input": 33850,
+          "output": 738,
+          "reasoning": 1682
+        }
+      },
+      {
+        "caseId": "standard-rfc-01",
+        "sourceClass": "standard-specification",
+        "runIndex": 2,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "Content-Range"
+        ],
+        "answerEvidenceMatches": [
+          "Content-Range",
+          "current length"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 3,
+        "fetchOutputChars": 142904,
+        "fetchOutputSizes": [
+          50795,
+          51308,
+          40801
+        ],
+        "extraSearchesAfterTargetFetch": 2,
+        "repeatedFetches": 1,
+        "repeatedTargetFetches": 1,
+        "stepCount": 6,
+        "stepCapAtBoundary": true,
+        "tokens": {
+          "total": 160189,
+          "input": 42189,
+          "output": 974,
+          "reasoning": 1020
+        }
+      },
+      {
+        "caseId": "standard-rfc-01",
+        "sourceClass": "standard-specification",
+        "runIndex": 3,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "Content-Range"
+        ],
+        "answerEvidenceMatches": [
+          "Content-Range",
+          "current length"
+        ],
+        "citationSupportsTarget": false,
+        "fetchCalls": 4,
+        "fetchOutputChars": 151774,
+        "fetchOutputSizes": [
+          50807,
+          49699,
+          26698,
+          24570
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 6,
+        "stepCapAtBoundary": true,
+        "tokens": {
+          "total": 145625,
+          "input": 49434,
+          "output": 1209,
+          "reasoning": 3168
+        }
+      },
+      {
+        "caseId": "api-node-http-01",
+        "sourceClass": "official-api-documentation",
+        "runIndex": 1,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "server.maxRequestsPerSocket",
+          "dropRequest"
+        ],
+        "answerEvidenceMatches": [
+          "server.maxRequestsPerSocket"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 51401,
+        "fetchOutputSizes": [
+          51401
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 23004,
+          "input": 16565,
+          "output": 434,
+          "reasoning": 418
+        }
+      },
+      {
+        "caseId": "api-node-http-01",
+        "sourceClass": "official-api-documentation",
+        "runIndex": 2,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "server.maxRequestsPerSocket",
+          "dropRequest"
+        ],
+        "answerEvidenceMatches": [
+          "server.maxRequestsPerSocket",
+          "dropRequest"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 2,
+        "fetchOutputChars": 102870,
+        "fetchOutputSizes": [
+          51401,
+          51469
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 1,
+        "repeatedTargetFetches": 1,
+        "stepCount": 4,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 53201,
+          "input": 29824,
+          "output": 593,
+          "reasoning": 956
+        }
+      },
+      {
+        "caseId": "api-node-http-01",
+        "sourceClass": "official-api-documentation",
+        "runIndex": 3,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "server.maxRequestsPerSocket",
+          "dropRequest"
+        ],
+        "answerEvidenceMatches": [
+          "server.maxRequestsPerSocket",
+          "Default: 0",
+          "dropRequest"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 3,
+        "fetchOutputChars": 154173,
+        "fetchOutputSizes": [
+          51401,
+          51303,
+          51469
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 1,
+        "repeatedTargetFetches": 1,
+        "stepCount": 5,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 92327,
+          "input": 41780,
+          "output": 742,
+          "reasoning": 728
+        }
+      },
+      {
+        "caseId": "manual-postgres-17-01",
+        "sourceClass": "versioned-technical-manual",
+        "runIndex": 1,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "two scans",
+          "INVALID"
+        ],
+        "answerEvidenceMatches": [
+          "two scans",
+          "INVALID"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 31277,
+        "fetchOutputSizes": [
+          31277
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 26501,
+          "input": 15169,
+          "output": 880,
+          "reasoning": 769
+        }
+      },
+      {
+        "caseId": "manual-postgres-17-01",
+        "sourceClass": "versioned-technical-manual",
+        "runIndex": 2,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "two scans",
+          "INVALID"
+        ],
+        "answerEvidenceMatches": [
+          "two scans",
+          "INVALID"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 31277,
+        "fetchOutputSizes": [
+          31277
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 2,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 12884,
+          "input": 9306,
+          "output": 753,
+          "reasoning": 807
+        }
+      },
+      {
+        "caseId": "manual-postgres-17-01",
+        "sourceClass": "versioned-technical-manual",
+        "runIndex": 3,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "two scans",
+          "INVALID"
+        ],
+        "answerEvidenceMatches": [
+          "two scans",
+          "INVALID"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 31277,
+        "fetchOutputSizes": [
+          31277
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 29772,
+          "input": 16953,
+          "output": 796,
+          "reasoning": 804
+        }
+      },
+      {
+        "caseId": "table-iana-status-01",
+        "sourceClass": "long-table",
+        "runIndex": 1,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "425",
+          "Too Early"
+        ],
+        "answerEvidenceMatches": [
+          "425",
+          "Too Early"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 8622,
+        "fetchOutputSizes": [
+          8622
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 13648,
+          "input": 6490,
+          "output": 263,
+          "reasoning": 156
+        }
+      },
+      {
+        "caseId": "table-iana-status-01",
+        "sourceClass": "long-table",
+        "runIndex": 2,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "425",
+          "Too Early"
+        ],
+        "answerEvidenceMatches": [
+          "425",
+          "Too Early"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 4562,
+        "fetchOutputSizes": [
+          4562
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 13737,
+          "input": 6464,
+          "output": 272,
+          "reasoning": 262
+        }
+      },
+      {
+        "caseId": "table-iana-status-01",
+        "sourceClass": "long-table",
+        "runIndex": 3,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "425",
+          "Too Early"
+        ],
+        "answerEvidenceMatches": [
+          "425",
+          "Too Early"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 8101,
+        "fetchOutputSizes": [
+          8101
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 12813,
+          "input": 6436,
+          "output": 267,
+          "reasoning": 523
+        }
+      },
+      {
+        "caseId": "paper-attention-01",
+        "sourceClass": "research-paper",
+        "runIndex": 1,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "more parallelizable",
+          "constant number of sequentially executed operations"
+        ],
+        "answerEvidenceMatches": [
+          "constant number of sequentially executed operations"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 45787,
+        "fetchOutputSizes": [
+          45787
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 42024,
+          "input": 25523,
+          "output": 672,
+          "reasoning": 1410
+        }
+      },
+      {
+        "caseId": "paper-attention-01",
+        "sourceClass": "research-paper",
+        "runIndex": 2,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "more parallelizable",
+          "constant number of sequentially executed operations"
+        ],
+        "answerEvidenceMatches": [
+          "more parallelizable",
+          "constant number of sequentially executed operations"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 50350,
+        "fetchOutputSizes": [
+          50350
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 36798,
+          "input": 23690,
+          "output": 642,
+          "reasoning": 1119
+        }
+      },
+      {
+        "caseId": "paper-attention-01",
+        "sourceClass": "research-paper",
+        "runIndex": 3,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "more parallelizable",
+          "constant number of sequentially executed operations"
+        ],
+        "answerEvidenceMatches": [
+          "constant number of sequentially executed operations"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 2,
+        "fetchOutputChars": 100700,
+        "fetchOutputSizes": [
+          50350,
+          50350
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 1,
+        "repeatedTargetFetches": 1,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 38325,
+          "input": 30839,
+          "output": 680,
+          "reasoning": 1603
+        }
+      },
+      {
+        "caseId": "policy-gdpr-17-01",
+        "sourceClass": "government-regulatory-policy",
+        "runIndex": 1,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "compliance with a legal obligation",
+          "public interest"
+        ],
+        "answerEvidenceMatches": [
+          "compliance with a legal obligation",
+          "public interest",
+          "Article 17"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 2,
+        "fetchOutputChars": 49338,
+        "fetchOutputSizes": [
+          49338,
+          0
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 4,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 40138,
+          "input": 16421,
+          "output": 649,
+          "reasoning": 728
+        }
+      },
+      {
+        "caseId": "policy-gdpr-17-01",
+        "sourceClass": "government-regulatory-policy",
+        "runIndex": 2,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": false,
+        "evidenceMatches": [],
+        "answerEvidenceMatches": [
+          "compliance with a legal obligation",
+          "public interest",
+          "Article 17"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 2,
+        "fetchOutputChars": 0,
+        "fetchOutputSizes": [
+          0,
+          0
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 4,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 16739,
+          "input": 4763,
+          "output": 657,
+          "reasoning": 499
+        }
+      },
+      {
+        "caseId": "policy-gdpr-17-01",
+        "sourceClass": "government-regulatory-policy",
+        "runIndex": 3,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": false,
+        "evidenceMatches": [],
+        "answerEvidenceMatches": [
+          "compliance with a legal obligation",
+          "public interest",
+          "Article 17"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 3,
+        "fetchOutputChars": 0,
+        "fetchOutputSizes": [
+          0,
+          0,
+          0
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 5,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 19195,
+          "input": 4519,
+          "output": 742,
+          "reasoning": 441
+        }
+      },
+      {
+        "caseId": "changelog-node-22-01",
+        "sourceClass": "long-changelog-release-history",
+        "runIndex": 1,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "node:sqlite",
+          "experimental"
+        ],
+        "answerEvidenceMatches": [
+          "node:sqlite",
+          "v22.5.0",
+          "experimental"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 4,
+        "fetchOutputChars": 162924,
+        "fetchOutputSizes": [
+          51224,
+          37879,
+          22462,
+          51359
+        ],
+        "extraSearchesAfterTargetFetch": 2,
+        "repeatedFetches": 1,
+        "repeatedTargetFetches": 1,
+        "stepCount": 5,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 149694,
+          "input": 63556,
+          "output": 1250,
+          "reasoning": 2388
+        }
+      },
+      {
+        "caseId": "changelog-node-22-01",
+        "sourceClass": "long-changelog-release-history",
+        "runIndex": 2,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": false,
+        "evidenceMatches": [],
+        "answerEvidenceMatches": [
+          "node:sqlite",
+          "v22.5.0",
+          "experimental"
+        ],
+        "citationSupportsTarget": false,
+        "fetchCalls": 4,
+        "fetchOutputChars": 144074,
+        "fetchOutputSizes": [
+          37879,
+          51303,
+          22462,
+          32430
+        ],
+        "extraSearchesAfterTargetFetch": 1,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 6,
+        "stepCapAtBoundary": true,
+        "tokens": {
+          "total": 165091,
+          "input": 56282,
+          "output": 1384,
+          "reasoning": 1915
+        }
+      },
+      {
+        "caseId": "changelog-node-22-01",
+        "sourceClass": "long-changelog-release-history",
+        "runIndex": 3,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "node:sqlite",
+          "v22.5.0",
+          "experimental"
+        ],
+        "answerEvidenceMatches": [
+          "node:sqlite",
+          "v22.5.0",
+          "experimental"
+        ],
+        "citationSupportsTarget": false,
+        "fetchCalls": 4,
+        "fetchOutputChars": 150420,
+        "fetchOutputSizes": [
+          51432,
+          37879,
+          38647,
+          22462
+        ],
+        "extraSearchesAfterTargetFetch": 1,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 5,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 144804,
+          "input": 58160,
+          "output": 1047,
+          "reasoning": 2344
+        }
+      },
+      {
+        "caseId": "negative-git-rebase-01",
+        "sourceClass": "long-document-negative-control",
+        "runIndex": 1,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "--onto",
+          "topic",
+          "next"
+        ],
+        "answerEvidenceMatches": [
+          "--onto",
+          "oldbase",
+          "topic",
+          "next"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 51295,
+        "fetchOutputSizes": [
+          51295
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 2,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 19385,
+          "input": 16066,
+          "output": 449,
+          "reasoning": 852
+        }
+      },
+      {
+        "caseId": "negative-git-rebase-01",
+        "sourceClass": "long-document-negative-control",
+        "runIndex": 2,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "--onto",
+          "topic",
+          "next"
+        ],
+        "answerEvidenceMatches": [
+          "--onto",
+          "oldbase",
+          "topic",
+          "next"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 51295,
+        "fetchOutputSizes": [
+          51295
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 30052,
+          "input": 20502,
+          "output": 720,
+          "reasoning": 683
+        }
+      },
+      {
+        "caseId": "negative-git-rebase-01",
+        "sourceClass": "long-document-negative-control",
+        "runIndex": 3,
+        "cleanRun": true,
+        "sourceFound": true,
+        "targetFetched": true,
+        "expectedEvidenceFound": true,
+        "evidenceMatches": [
+          "--onto",
+          "topic",
+          "next"
+        ],
+        "answerEvidenceMatches": [
+          "--onto",
+          "oldbase",
+          "topic",
+          "next"
+        ],
+        "citationSupportsTarget": true,
+        "fetchCalls": 1,
+        "fetchOutputChars": 51295,
+        "fetchOutputSizes": [
+          51295
+        ],
+        "extraSearchesAfterTargetFetch": 0,
+        "repeatedFetches": 0,
+        "repeatedTargetFetches": 0,
+        "stepCount": 3,
+        "stepCapAtBoundary": false,
+        "tokens": {
+          "total": 34464,
+          "input": 22522,
+          "output": 631,
+          "reasoning": 1116
+        }
+      }
+    ],
+    "runLevelExtractionIssueRuns": 2,
+    "runLevelExtractionIssueRate": 0.08333333333333333,
+    "caseLevelExtractionIssueCases": 1,
+    "caseLevelExtractionIssueRate": 0.125,
+    "reproducibleCaseCount": 1,
+    "independentSourceClasses": [
+      "standard-specification"
+    ],
+    "scoreAverages": {
+      "passageLocalization": 4.5,
+      "evidencePrecision": 4.625,
+      "extractionEfficiency": 3.5
+    }
+  },
+  "decision": {
+    "decision": "B",
+    "validCaseCount": 8,
+    "extractionFailureCases": 1,
+    "extractionFailureCaseRate": 0.125,
+    "reproducibleFailureCases": 1,
+    "independentSourceClasses": [
+      "standard-specification"
+    ],
+    "rationale": "Extraction inefficiency or a limited reproducible issue remains, but the independent-case threshold for a new shared capability is not met."
+  },
+  "caseResults": [
+    {
+      "caseId": "standard-rfc-01",
+      "sourceClass": "standard-specification",
+      "negativeControl": false,
+      "runs": 3,
+      "extractionIssueRuns": [
+        2,
+        3
+      ],
+      "extractionIssueRate": 0.6666666666666666,
+      "reproducibleIssue": true,
+      "materialImpact": true,
+      "passageLocalization": 3,
+      "evidencePrecision": 3,
+      "extractionEfficiency": 1,
+      "sourceFoundRuns": 3,
+      "targetFetchedRuns": 3,
+      "evidenceFoundRuns": 3,
+      "citationSupportRuns": 2,
+      "repeatedFetches": 1,
+      "extraSearchesAfterTargetFetch": 4,
+      "stepCapRuns": 2,
+      "primaryRootCause": "FETCH_EXTRACTION",
+      "evidenceNote": "The correct RFC was found and fetched in all runs, but two of three runs reached the six-step boundary after repeated large-document fetches. The third run weakened SHOULD to MUST and relied on secondary HTTP pages for the final formulation."
+    },
+    {
+      "caseId": "api-node-http-01",
+      "sourceClass": "official-api-documentation",
+      "negativeControl": false,
+      "runs": 3,
+      "extractionIssueRuns": [],
+      "extractionIssueRate": 0,
+      "reproducibleIssue": false,
+      "materialImpact": false,
+      "passageLocalization": 5,
+      "evidencePrecision": 5,
+      "extractionEfficiency": 3,
+      "sourceFoundRuns": 3,
+      "targetFetchedRuns": 3,
+      "evidenceFoundRuns": 3,
+      "citationSupportRuns": 3,
+      "repeatedFetches": 2,
+      "extraSearchesAfterTargetFetch": 0,
+      "stepCapRuns": 0,
+      "primaryRootCause": "OTHER",
+      "evidenceNote": "All three runs isolated server.maxRequestsPerSocket, its default, and the dropRequest/503 behavior. The 51K-character API page caused some equivalent-URL refetching but no step boundary or answer failure."
+    },
+    {
+      "caseId": "manual-postgres-17-01",
+      "sourceClass": "versioned-technical-manual",
+      "negativeControl": false,
+      "runs": 3,
+      "extractionIssueRuns": [],
+      "extractionIssueRate": 0,
+      "reproducibleIssue": false,
+      "materialImpact": false,
+      "passageLocalization": 5,
+      "evidencePrecision": 5,
+      "extractionEfficiency": 5,
+      "sourceFoundRuns": 3,
+      "targetFetchedRuns": 3,
+      "evidenceFoundRuns": 3,
+      "citationSupportRuns": 3,
+      "repeatedFetches": 0,
+      "extraSearchesAfterTargetFetch": 0,
+      "stepCapRuns": 0,
+      "primaryRootCause": "OTHER",
+      "evidenceNote": "All three runs fetched the PostgreSQL 17 page once and recovered the transaction restriction, two scans, waits, and invalid-index failure behavior without step pressure."
+    },
+    {
+      "caseId": "table-iana-status-01",
+      "sourceClass": "long-table",
+      "negativeControl": false,
+      "runs": 3,
+      "extractionIssueRuns": [],
+      "extractionIssueRate": 0,
+      "reproducibleIssue": false,
+      "materialImpact": false,
+      "passageLocalization": 5,
+      "evidencePrecision": 5,
+      "extractionEfficiency": 5,
+      "sourceFoundRuns": 3,
+      "targetFetchedRuns": 3,
+      "evidenceFoundRuns": 3,
+      "citationSupportRuns": 3,
+      "repeatedFetches": 0,
+      "extraSearchesAfterTargetFetch": 0,
+      "stepCapRuns": 0,
+      "primaryRootCause": "OTHER",
+      "evidenceNote": "All three runs located the exact 425 row and returned Too Early with RFC8470 from a small registry representation; no table-row confusion or extra retrieval occurred."
+    },
+    {
+      "caseId": "paper-attention-01",
+      "sourceClass": "research-paper",
+      "negativeControl": false,
+      "runs": 3,
+      "extractionIssueRuns": [],
+      "extractionIssueRate": 0,
+      "reproducibleIssue": false,
+      "materialImpact": false,
+      "passageLocalization": 5,
+      "evidencePrecision": 5,
+      "extractionEfficiency": 4,
+      "sourceFoundRuns": 3,
+      "targetFetchedRuns": 3,
+      "evidenceFoundRuns": 3,
+      "citationSupportRuns": 3,
+      "repeatedFetches": 1,
+      "extraSearchesAfterTargetFetch": 0,
+      "stepCapRuns": 0,
+      "primaryRootCause": "OTHER",
+      "evidenceNote": "All three runs located the paper's Section 4/Table 1 evidence and correctly reported parallelization, sequential operations, path length, and O(n^2 d) tradeoffs. One repeat fetched two equivalent paper URLs."
+    },
+    {
+      "caseId": "policy-gdpr-17-01",
+      "sourceClass": "government-regulatory-policy",
+      "negativeControl": false,
+      "runs": 3,
+      "extractionIssueRuns": [],
+      "extractionIssueRate": 0,
+      "reproducibleIssue": false,
+      "materialImpact": false,
+      "passageLocalization": 4,
+      "evidencePrecision": 5,
+      "extractionEfficiency": 3,
+      "sourceFoundRuns": 3,
+      "targetFetchedRuns": 3,
+      "evidenceFoundRuns": 1,
+      "citationSupportRuns": 3,
+      "repeatedFetches": 0,
+      "extraSearchesAfterTargetFetch": 0,
+      "stepCapRuns": 0,
+      "primaryRootCause": "OTHER",
+      "evidenceNote": "Run 1 fetched a 49K-character EUR-Lex document and all answers quoted Article 17(3)(b) precisely. Runs 2 and 3 reported completed webfetch calls with zero output characters, but the final answers remained correct; this is a tool-reliability observation, not a qualifying extraction failure."
+    },
+    {
+      "caseId": "changelog-node-22-01",
+      "sourceClass": "long-changelog-release-history",
+      "negativeControl": false,
+      "runs": 3,
+      "extractionIssueRuns": [],
+      "extractionIssueRate": 0,
+      "reproducibleIssue": false,
+      "materialImpact": false,
+      "passageLocalization": 4,
+      "evidencePrecision": 4,
+      "extractionEfficiency": 2,
+      "sourceFoundRuns": 3,
+      "targetFetchedRuns": 3,
+      "evidenceFoundRuns": 2,
+      "citationSupportRuns": 1,
+      "repeatedFetches": 1,
+      "extraSearchesAfterTargetFetch": 4,
+      "stepCapRuns": 1,
+      "primaryRootCause": "OTHER",
+      "evidenceNote": "All runs found v22.5.0, node:sqlite, and experimental/active-development status, but each used three searches and four fetches. One reached the six-step boundary; alternate official release/API pages supplied the exact evidence."
+    },
+    {
+      "caseId": "negative-git-rebase-01",
+      "sourceClass": "long-document-negative-control",
+      "negativeControl": true,
+      "runs": 3,
+      "extractionIssueRuns": [],
+      "extractionIssueRate": 0,
+      "reproducibleIssue": false,
+      "materialImpact": false,
+      "passageLocalization": 5,
+      "evidencePrecision": 5,
+      "extractionEfficiency": 5,
+      "sourceFoundRuns": 3,
+      "targetFetchedRuns": 3,
+      "evidenceFoundRuns": 3,
+      "citationSupportRuns": 3,
+      "repeatedFetches": 0,
+      "extraSearchesAfterTargetFetch": 0,
+      "stepCapRuns": 0,
+      "primaryRootCause": "OTHER",
+      "evidenceNote": "The negative control handled a 51K-character Git manual page in 2–3 steps with one fetch per run and precise commit-graph localization."
+    }
+  ]
+}

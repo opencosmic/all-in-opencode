@@ -107,6 +107,7 @@ FRESHNESS
 CITATION_GROUNDING
 MODEL_REASONING
 TOOL_RUNTIME
+BROWSER_ACCESS
 PROMPT_POLICY
 CASE_INVALID
 OTHER
@@ -135,3 +136,7 @@ These are pre-registered signals, not automatic rules:
   affect roughly 15–20% or more of fetch-requiring cases.
 - Browser fallback requires a recurring, high-value class of inaccessible or
   JavaScript-dependent sources; one blocked page is insufficient.
+
+The supplemental extraction benchmark and its extraction-specific dimensions
+are documented in `extraction/README.md`; its results are intentionally kept
+separate from the original quality rubric and normalized run set.

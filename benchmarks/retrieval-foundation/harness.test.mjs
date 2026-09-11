@@ -1,16 +1,25 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { readFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { tmpdir } from "node:os"
 import {
   buildRunPlan,
+  canonicalSourceKey,
   categorySummary,
+  evaluateExtractionDecision,
+  extractionMetrics,
+  loadExtractionCases,
   loadCases,
   normalizeEvents,
+  normalizeUrl,
   objectiveMetrics,
+  parseOpenCodeVersion,
   qualityPass,
+  resetResultsFile,
   validateCases,
+  validateExtractionScores,
   validateScores,
 } from "./lib.mjs"
 
@@ -88,7 +97,110 @@ test("quality pass and root-cause validation enforce pre-registered rules", asyn
     evidenceNote: "fixture evidence",
   }
   assert.equal(qualityPass(passing, current), true)
-  assert.throws(() => validateScores([{ ...passing, primaryRootCause: "MADE_UP" }], cases), /invalid primaryRootCause/)
+  assert.doesNotThrow(() => validateScores([passing], [current]))
+  assert.throws(() => validateScores([], [current]), /missing score case/)
+  assert.throws(() => validateScores([passing, { ...passing }], [current]), /duplicate score case/)
+  assert.throws(() => validateScores([{ ...passing, caseId: "unknown" }], [current]), /unknown score case/)
+  assert.throws(() => validateScores([{ ...passing, primaryRootCause: "MADE_UP" }], [current]), /invalid primaryRootCause/)
   assert.equal(categorySummary([], cases).simple.cases, 3)
   assert.equal(categorySummary([], cases).simple.runs, 0)
+})
+
+test("fresh output reset is scoped to the selected result file", async () => {
+  const root = await mkdtemp(join(tmpdir(), "retrieval-harness-"))
+  try {
+    const selected = join(root, "selected-runs.jsonl")
+    const unrelated = join(root, "baseline-runs.jsonl")
+    await writeFile(unrelated, "preserve\n")
+    await writeFile(selected, "old\n")
+    await resetResultsFile(selected)
+    assert.equal(await readFile(selected, "utf8"), "")
+    assert.equal(await readFile(unrelated, "utf8"), "preserve\n")
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("installed OpenCode version parsing is explicit and deterministic", () => {
+  assert.equal(parseOpenCodeVersion("opencode 1.18.30\n"), "1.18.30")
+  assert.equal(parseOpenCodeVersion("1.19.0-beta.2"), "1.19.0-beta.2")
+  assert.throws(() => parseOpenCodeVersion("OpenCode version unavailable"), /could not parse/)
+})
+
+test("citation URL normalization removes presentation punctuation without changing balanced URL syntax", () => {
+  for (const suffix of ["`", ")", "]", ",", ".", ";", ":"]) {
+    assert.equal(normalizeUrl(`https://example.test/path${suffix}`), "https://example.test/path")
+  }
+  assert.equal(normalizeUrl("https://example.test/a(b)"), "https://example.test/a(b)")
+  assert.equal(normalizeUrl("https://example.test/path?x=1,;"), "https://example.test/path?x=1")
+  assert.equal(canonicalSourceKey("https://www.iana.org/assignments/http-status-codes/http-status-codes.txt"), canonicalSourceKey("https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml"))
+  assert.equal(canonicalSourceKey("https://ar5iv.labs.arxiv.org/html/1706.03762"), canonicalSourceKey("https://arxiv.org/html/1706.03762v7"))
+})
+
+test("supplemental cases and extraction metrics remain deterministic", async () => {
+  const cases = await loadExtractionCases(join(here, "extraction/cases.json"))
+  assert.equal(cases.length, 8)
+  assert.equal(cases.every((item) => item.repeatRuns === 3), true)
+  const caseItem = cases[0]
+  const source = caseItem.expectedSourceUrls[0]
+  const records = [{
+    caseId: caseItem.id,
+    runIndex: 1,
+    processExitCode: 0,
+    timedOut: false,
+    errorEvents: 0,
+    toolErrors: 0,
+    stepCount: 6,
+    stepCapAtBoundary: true,
+    tokens: { total: 12 },
+    answer: "The target rule is supported by the RFC citation.",
+    citedUrls: [source],
+    retrieval: [
+      { sequence: 1, tool: "websearch", url: null, urls: [source], outputChars: 10, evidenceMatches: [] },
+      { sequence: 2, tool: "webfetch", url: source, urls: [source], outputChars: 12000, evidenceMatches: ["Content-Range"] },
+      { sequence: 3, tool: "webfetch", url: source, urls: [source], outputChars: 12000, evidenceMatches: ["Content-Range"] },
+      { sequence: 4, tool: "websearch", url: null, urls: [], outputChars: 10, evidenceMatches: [] },
+    ],
+  }]
+  const metrics = extractionMetrics(records, [caseItem])
+  assert.equal(metrics.targetFetchedRuns, 1)
+  assert.equal(metrics.expectedEvidenceFoundRuns, 1)
+  assert.equal(metrics.totalRepeatedTargetFetches, 1)
+  assert.equal(metrics.totalExtraSearchesAfterTargetFetch, 1)
+  assert.equal(metrics.stepCapBoundaryRuns, 1)
+})
+
+test("extraction score completeness and case-level decision rule are enforced", async () => {
+  const cases = await loadExtractionCases(join(here, "extraction/cases.json"))
+  const assessment = (extractionIssue) => [1, 2, 3].map((runIndex) => ({ runIndex, extractionIssue }))
+  const scores = cases.map((item) => ({
+    caseId: item.id,
+    passageLocalization: 5,
+    evidencePrecision: 5,
+    extractionEfficiency: 5,
+    failure: false,
+    reproducibleIssue: false,
+    materialImpact: false,
+    primaryRootCause: "OTHER",
+    evidenceNote: "fixture evidence",
+    runAssessments: assessment(false),
+  }))
+  scores[0] = { ...scores[0], failure: true, reproducibleIssue: true, materialImpact: true, primaryRootCause: "FETCH_EXTRACTION", runAssessments: [
+    { runIndex: 1, extractionIssue: true },
+    { runIndex: 2, extractionIssue: true },
+    { runIndex: 3, extractionIssue: false },
+  ] }
+  scores[1] = { ...scores[1], failure: true, reproducibleIssue: true, materialImpact: true, primaryRootCause: "FETCH_EXTRACTION", runAssessments: [
+    { runIndex: 1, extractionIssue: true },
+    { runIndex: 2, extractionIssue: false },
+    { runIndex: 3, extractionIssue: true },
+  ] }
+  assert.doesNotThrow(() => validateExtractionScores(scores, cases))
+  const decision = evaluateExtractionDecision(cases, scores)
+  assert.equal(decision.decision, "C")
+  assert.equal(decision.extractionFailureCases, 2)
+  assert.equal(decision.reproducibleFailureCases, 2)
+  assert.equal(decision.independentSourceClasses.length, 2)
+  assert.throws(() => validateExtractionScores(scores.slice(1), cases), /missing extraction score case/)
+  assert.throws(() => validateExtractionScores([...scores, { ...scores[0] }], cases), /duplicate extraction score case/)
 })

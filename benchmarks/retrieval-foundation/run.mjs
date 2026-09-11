@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 import { appendFile, mkdir, readFile } from "node:fs/promises"
 import { spawn } from "node:child_process"
-import { dirname, join, resolve } from "node:path"
+import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
   buildRunPlan,
   createIsolatedConfig,
+  detectOpenCodeVersion,
   loadCases,
   normalizeEvents,
+  resetResultsFile,
+  resolveBenchmarkPath,
 } from "./lib.mjs"
 
 const benchmarkDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(benchmarkDir, "../..")
-const casesPath = join(benchmarkDir, "cases.json")
-const resultsDir = join(benchmarkDir, "results")
-const resultsPath = join(resultsDir, "runs.jsonl")
 const timeoutMs = 180_000
 
 function option(name) {
@@ -26,7 +26,7 @@ function hasOption(name) {
   return process.argv.includes(name)
 }
 
-async function existingKeys() {
+async function existingKeys(resultsPath) {
   try {
     const content = await readFile(resultsPath, "utf8")
     return new Set(content.split(/\r?\n/).filter(Boolean).flatMap((line) => {
@@ -106,12 +106,17 @@ function executeOpenCode(caseItem, run) {
 }
 
 async function main() {
+  const casesPath = resolveBenchmarkPath(benchmarkDir, option("--cases"), "cases.json")
+  const resultsPath = resolveBenchmarkPath(benchmarkDir, option("--out"), "results/runs.jsonl")
+  const benchmarkName = option("--label") ?? "retrieval-foundation"
   const cases = await loadCases(casesPath)
   const selectedCase = option("--case")
   const plan = buildRunPlan(cases).filter((run) => !selectedCase || run.caseId === selectedCase)
   if (selectedCase && !cases.some((item) => item.id === selectedCase)) throw new Error(`unknown case: ${selectedCase}`)
-  await mkdir(resultsDir, { recursive: true })
-  const keys = hasOption("--fresh") ? new Set() : await existingKeys()
+  const opencodeVersion = await detectOpenCodeVersion()
+  await mkdir(dirname(resultsPath), { recursive: true })
+  if (hasOption("--fresh")) await resetResultsFile(resultsPath)
+  const keys = hasOption("--fresh") ? new Set() : await existingKeys(resultsPath)
   const isolated = await createIsolatedConfig(repoRoot)
   const caseById = new Map(cases.map((item) => [item.id, item]))
   const run = { config: isolated }
@@ -127,8 +132,9 @@ async function main() {
       }
       console.log(`run ${key}: ${caseById.get(item.caseId).query}`)
       const record = await executeOpenCode(caseById.get(item.caseId), { ...item, config: isolated })
+      record.benchmarkName = benchmarkName
       record.configIsolation = "temporary XDG_CONFIG_HOME plus OPENCODE_CONFIG"
-      record.opencodeVersion = "1.18.30"
+      record.opencodeVersion = opencodeVersion
       await appendFile(resultsPath, `${JSON.stringify(record)}\n`)
       console.log(`  exit=${record.processExitCode} searches=${record.searchCalls} fetches=${record.fetchCalls} steps=${record.stepCount} durationMs=${record.durationMs}`)
     }

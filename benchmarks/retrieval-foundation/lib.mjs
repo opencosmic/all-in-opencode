@@ -1,6 +1,10 @@
-import { mkdtemp, mkdir, readFile, symlink } from "node:fs/promises"
+import { execFile } from "node:child_process"
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
+import { promisify } from "node:util"
+
+const execFileAsync = promisify(execFile)
 
 export const ROOT_CAUSES = [
   "SEARCH_PROVIDER",
@@ -11,6 +15,7 @@ export const ROOT_CAUSES = [
   "CITATION_GROUNDING",
   "MODEL_REASONING",
   "TOOL_RUNTIME",
+  "BROWSER_ACCESS",
   "PROMPT_POLICY",
   "CASE_INVALID",
   "OTHER",
@@ -33,6 +38,12 @@ export const PASS_THRESHOLDS = {
   freshness: 4,
 }
 
+export const EXTRACTION_DIMENSIONS = [
+  "passageLocalization",
+  "evidencePrecision",
+  "extractionEfficiency",
+]
+
 const REQUIRED_CASE_FIELDS = [
   "id",
   "category",
@@ -43,6 +54,15 @@ const REQUIRED_CASE_FIELDS = [
   "evaluationNotes",
   "critical",
   "repeatRuns",
+]
+
+const REQUIRED_EXTRACTION_CASE_FIELDS = [
+  "sourceClass",
+  "expectedEvidenceTarget",
+  "whyExtractionSensitive",
+  "negativeControl",
+  "expectedSourceUrls",
+  "expectedEvidenceMatchers",
 ]
 
 export async function loadCases(path) {
@@ -72,6 +92,35 @@ export function validateCases(cases) {
   return cases
 }
 
+export async function loadExtractionCases(path) {
+  return validateExtractionCases(JSON.parse(await readFile(path, "utf8")))
+}
+
+export function validateExtractionCases(cases) {
+  validateCases(cases)
+  for (const item of cases) {
+    for (const field of REQUIRED_EXTRACTION_CASE_FIELDS) {
+      if (!(field in item)) throw new Error(`extraction case is missing ${field}`)
+    }
+    if (typeof item.sourceClass !== "string" || item.sourceClass.trim() === "") {
+      throw new Error(`${item.id}: sourceClass must be non-empty`)
+    }
+    for (const field of ["expectedEvidenceTarget", "whyExtractionSensitive"]) {
+      if (typeof item[field] !== "string" || item[field].trim() === "") {
+        throw new Error(`${item.id}: ${field} must be non-empty`)
+      }
+    }
+    if (typeof item.negativeControl !== "boolean") throw new Error(`${item.id}: negativeControl must be boolean`)
+    for (const field of ["expectedSourceUrls", "expectedEvidenceMatchers"]) {
+      if (!Array.isArray(item[field]) || item[field].length === 0 || item[field].some((value) => typeof value !== "string" || value.trim() === "")) {
+        throw new Error(`${item.id}: ${field} must be a non-empty string array`)
+      }
+    }
+    if (item.repeatRuns !== 3) throw new Error(`${item.id}: extraction cases must run exactly three times`)
+  }
+  return cases
+}
+
 export function buildRunPlan(cases) {
   return cases.flatMap((item) => Array.from({ length: item.repeatRuns }, (_, index) => ({
     caseId: item.id,
@@ -83,9 +132,12 @@ export function buildRunPlan(cases) {
 export function validateScores(scores, cases = []) {
   if (!Array.isArray(scores)) throw new Error("scores must be an array")
   const ids = new Set(cases.map((item) => item.id))
+  const seen = new Set()
   for (const score of scores) {
     if (!score || typeof score !== "object") throw new Error("each score must be an object")
     if (!score.caseId || (ids.size > 0 && !ids.has(score.caseId))) throw new Error(`unknown score case: ${score.caseId}`)
+    if (seen.has(score.caseId)) throw new Error(`duplicate score case: ${score.caseId}`)
+    seen.add(score.caseId)
     if (!score.primaryRootCause || !ROOT_CAUSES.includes(score.primaryRootCause)) throw new Error(`${score.caseId}: invalid primaryRootCause`)
     for (const dimension of QUALITY_DIMENSIONS) {
       if (dimension === "freshness" && score[dimension] === null) continue
@@ -95,7 +147,73 @@ export function validateScores(scores, cases = []) {
     }
     if (typeof score.evidenceNote !== "string" || score.evidenceNote.trim() === "") throw new Error(`${score.caseId}: evidenceNote is required`)
   }
+  if (ids.size > 0) {
+    const missing = [...ids].filter((caseId) => !seen.has(caseId))
+    if (missing.length > 0) throw new Error(`missing score case: ${missing.join(", ")}`)
+  }
   return scores
+}
+
+export function validateExtractionScores(scores, cases = []) {
+  if (!Array.isArray(scores)) throw new Error("extraction scores must be an array")
+  const expected = new Map(cases.map((item) => [item.id, item]))
+  const seen = new Set()
+  for (const score of scores) {
+    if (!score || typeof score !== "object") throw new Error("each extraction score must be an object")
+    if (!expected.has(score.caseId)) throw new Error(`unknown extraction score case: ${score.caseId}`)
+    if (seen.has(score.caseId)) throw new Error(`duplicate extraction score case: ${score.caseId}`)
+    seen.add(score.caseId)
+    for (const dimension of EXTRACTION_DIMENSIONS) {
+      if (!Number.isInteger(score[dimension]) || score[dimension] < 0 || score[dimension] > 5) {
+        throw new Error(`${score.caseId}: ${dimension} must be an integer from 0 to 5`)
+      }
+    }
+    if (typeof score.failure !== "boolean") throw new Error(`${score.caseId}: failure must be boolean`)
+    if (typeof score.reproducibleIssue !== "boolean") throw new Error(`${score.caseId}: reproducibleIssue must be boolean`)
+    if (typeof score.materialImpact !== "boolean") throw new Error(`${score.caseId}: materialImpact must be boolean`)
+    if (!ROOT_CAUSES.includes(score.primaryRootCause)) throw new Error(`${score.caseId}: invalid primaryRootCause`)
+    if (typeof score.evidenceNote !== "string" || score.evidenceNote.trim() === "") throw new Error(`${score.caseId}: evidenceNote is required`)
+    if (!Array.isArray(score.runAssessments) || score.runAssessments.length !== expected.get(score.caseId).repeatRuns) {
+      throw new Error(`${score.caseId}: runAssessments must contain one entry per run`)
+    }
+    const runIndexes = new Set()
+    for (const assessment of score.runAssessments) {
+      if (!Number.isInteger(assessment.runIndex) || assessment.runIndex < 1 || assessment.runIndex > expected.get(score.caseId).repeatRuns) {
+        throw new Error(`${score.caseId}: invalid run assessment index`)
+      }
+      if (runIndexes.has(assessment.runIndex)) throw new Error(`${score.caseId}: duplicate run assessment index`)
+      runIndexes.add(assessment.runIndex)
+      if (typeof assessment.extractionIssue !== "boolean") throw new Error(`${score.caseId}: run assessment extractionIssue must be boolean`)
+    }
+  }
+  const missing = [...expected.keys()].filter((caseId) => !seen.has(caseId))
+  if (missing.length > 0) throw new Error(`missing extraction score case: ${missing.join(", ")}`)
+  return scores
+}
+
+export function resolveBenchmarkPath(baseDir, requested, fallback) {
+  return resolve(baseDir, requested ?? fallback)
+}
+
+export async function resetResultsFile(path) {
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, "")
+}
+
+export function parseOpenCodeVersion(output) {
+  const match = String(output).match(/\b\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b/)
+  if (!match) throw new Error(`could not parse an OpenCode version from: ${String(output).trim()}`)
+  return match[0]
+}
+
+export async function detectOpenCodeVersion(command = "opencode") {
+  let result
+  try {
+    result = await execFileAsync(command, ["--version"], { encoding: "utf8" })
+  } catch (error) {
+    throw new Error(`could not resolve OpenCode version with ${command} --version: ${error.message}`)
+  }
+  return parseOpenCodeVersion(`${result.stdout}\n${result.stderr}`)
 }
 
 export async function createIsolatedConfig(repoRoot) {
@@ -148,9 +266,24 @@ function eventInput(event) {
   return firstDefined(state.input, eventPart(event)?.input, {})
 }
 
+export function normalizeUrl(value) {
+  if (typeof value !== "string") return null
+  let url = value.trim()
+  let previous
+  do {
+    previous = url
+    url = url.replace(/[`. ,;:]+$/g, "")
+    while (url.endsWith(")") && (url.match(/\(/g) ?? []).length < (url.match(/\)/g) ?? []).length) url = url.slice(0, -1)
+    while (url.endsWith("]") && (url.match(/\[/g) ?? []).length < (url.match(/\]/g) ?? []).length) url = url.slice(0, -1)
+  } while (url !== previous)
+  return url
+}
+
 function extractUrls(value) {
   if (typeof value !== "string") return []
-  return [...value.matchAll(/https?:\/\/[^\s)<\]"']+/g)].map((match) => match[0].replace(/[.,;:]+$/, ""))
+  return [...value.matchAll(/https?:\/\/[^\s<\]"']+/g)]
+    .map((match) => normalizeUrl(match[0]))
+    .filter(Boolean)
 }
 
 function domainOf(url) {
@@ -165,7 +298,7 @@ function extractSources(output) {
   const sources = []
   const pattern = /Title:\s*(.*?)\nURL:\s*(https?:\/\/[^\s]+)/g
   for (const match of output.matchAll(pattern)) {
-    const url = match[2].replace(/[.,;:]+$/, "")
+    const url = normalizeUrl(match[2])
     sources.push({ title: match[1].trim(), url, domain: domainOf(url) })
   }
   return sources
@@ -180,8 +313,26 @@ function extractProvider(output, event) {
 }
 
 function extractCitedUrls(answer) {
-  const markdown = [...answer.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)].map((match) => match[1])
+  const markdown = [...answer.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)]
+    .map((match) => normalizeUrl(match[1]))
+    .filter(Boolean)
   return [...new Set([...markdown, ...extractUrls(answer)])]
+}
+
+function extractEvidenceExcerpts(output, matchers = []) {
+  const matches = []
+  const excerpts = []
+  for (const matcher of matchers) {
+    const needle = String(matcher).trim()
+    if (!needle) continue
+    const index = output.toLocaleLowerCase().indexOf(needle.toLocaleLowerCase())
+    if (index < 0) continue
+    matches.push(needle)
+    const start = Math.max(0, index - 360)
+    const end = Math.min(output.length, index + needle.length + 840)
+    excerpts.push(output.slice(start, end).replace(/\s+/g, " ").trim())
+  }
+  return { matches: [...new Set(matches)], excerpts: excerpts.slice(0, 4) }
 }
 
 export function normalizeEvents({ caseItem, runIndex, runKind, stdout, stderr, exitCode, signal, durationMs, startedAt, endedAt, timedOut = false }) {
@@ -198,20 +349,29 @@ export function normalizeEvents({ caseItem, runIndex, runKind, stdout, stderr, e
   const toolEvents = events.filter((event) => event.type === "tool_use" || eventTool(event))
   const searches = toolEvents.filter((event) => String(eventTool(event) ?? "").toLowerCase().startsWith("websearch"))
   const fetches = toolEvents.filter((event) => String(eventTool(event) ?? "").toLowerCase() === "webfetch")
-  const retrieval = [...searches, ...fetches].map((event) => {
+  const retrieval = toolEvents.map((event, index) => ({ event, sequence: index + 1 }))
+    .filter(({ event }) => {
+      const tool = String(eventTool(event) ?? "").toLowerCase()
+      return tool.startsWith("websearch") || tool === "webfetch"
+    })
+    .map(({ event, sequence }) => {
     const input = eventInput(event)
     const output = outputText(event)
     const urls = [...new Set([...extractUrls(typeof input === "object" ? input.url : ""), ...extractUrls(output)])]
+    const evidence = extractEvidenceExcerpts(output, caseItem.expectedEvidenceMatchers)
     return {
+      sequence,
       tool: eventTool(event),
       status: eventState(event).status ?? null,
       query: typeof input === "object" ? input.query ?? null : null,
-      url: typeof input === "object" ? input.url ?? null : null,
+      url: typeof input === "object" ? normalizeUrl(input.url) : null,
       provider: extractProvider(output, event),
       outputChars: output.length,
       urls,
       domains: [...new Set(urls.map(domainOf).filter(Boolean))],
       sources: extractSources(output),
+      evidenceMatches: evidence.matches,
+      evidenceExcerpts: evidence.excerpts,
     }
   })
 
@@ -356,6 +516,167 @@ export function objectiveMetrics(records) {
     fetchToSearchRatio: records.reduce((sum, record) => sum + record.searchCalls, 0)
       ? records.reduce((sum, record) => sum + record.fetchCalls, 0) / records.reduce((sum, record) => sum + record.searchCalls, 0)
       : 0,
+  }
+}
+
+function itemUrls(item) {
+  return [...new Set([item.url, ...(item.urls ?? [])].map(normalizeUrl).filter(Boolean))]
+}
+
+export function canonicalSourceKey(value) {
+  const normalized = normalizeUrl(value)
+  if (!normalized) return null
+  try {
+    const parsed = new URL(normalized)
+    let hostname = parsed.hostname.toLowerCase().replace(/^www\./, "")
+    let pathname = parsed.pathname.replace(/\/+$/, "")
+    if (hostname === "ar5iv.labs.arxiv.org") hostname = "arxiv.org"
+    if (hostname === "raw.githubusercontent.com") hostname = "github.com"
+    if (hostname === "github.com") {
+      const parts = pathname.split("/").filter(Boolean)
+      if (parts[2] === "blob" && parts.length > 3) parts.splice(2, 2)
+      else if (parts.length > 3) parts.splice(2, 1)
+      pathname = `/${parts.join("/")}`
+    }
+    pathname = pathname.replace(/(\/html\/\d+\.\d+)v\d+$/, "$1")
+    pathname = pathname.replace(/\/eng$/, "")
+    pathname = pathname.replace(/\.(xhtml|txt|html|md)$/, "")
+    return `${hostname}${pathname}`
+  } catch {
+    return normalized
+  }
+}
+
+function matchesExpectedSource(url, caseItem) {
+  const normalized = normalizeUrl(url)
+  if (!normalized) return false
+  const sourceKey = canonicalSourceKey(normalized)
+  return caseItem.expectedSourceUrls.some((expected) => {
+    const target = normalizeUrl(expected)
+    return normalized === target
+      || normalized.startsWith(`${target}#`)
+      || normalized.startsWith(`${target}?`)
+      || sourceKey === canonicalSourceKey(target)
+  })
+}
+
+export function extractionRunMetrics(record, caseItem) {
+  const retrieval = Array.isArray(record.retrieval) ? record.retrieval : []
+  const searches = retrieval.filter((item) => String(item.tool ?? "").toLowerCase().startsWith("websearch"))
+  const fetches = retrieval.filter((item) => String(item.tool ?? "").toLowerCase() === "webfetch")
+  const targetSearches = searches.filter((item) => itemUrls(item).some((url) => matchesExpectedSource(url, caseItem)))
+  const targetFetches = fetches.filter((item) => itemUrls(item).some((url) => matchesExpectedSource(url, caseItem)))
+  const fetchUrlCounts = new Map()
+  for (const item of fetches) {
+    const key = canonicalSourceKey(item.url) ?? canonicalSourceKey(itemUrls(item)[0])
+    if (key) fetchUrlCounts.set(key, (fetchUrlCounts.get(key) ?? 0) + 1)
+  }
+  const firstTargetFetchSequence = targetFetches.length ? Math.min(...targetFetches.map((item) => item.sequence ?? 0)) : null
+  const fetchOutputSizes = fetches.map((item) => item.outputChars).filter((value) => Number.isFinite(value))
+  const evidenceMatches = [...new Set(targetFetches.flatMap((item) => item.evidenceMatches ?? []))]
+  const answer = String(record.answer ?? "").toLocaleLowerCase()
+  const answerEvidenceMatches = caseItem.expectedEvidenceMatchers.filter((matcher) => answer.includes(matcher.toLocaleLowerCase()))
+  return {
+    caseId: record.caseId,
+    sourceClass: caseItem.sourceClass,
+    runIndex: record.runIndex,
+    cleanRun: record.processExitCode === 0 && !record.timedOut && record.errorEvents === 0 && record.toolErrors === 0,
+    sourceFound: searches.some((item) => itemUrls(item).some((url) => matchesExpectedSource(url, caseItem))) || targetFetches.length > 0,
+    targetFetched: targetFetches.length > 0,
+    expectedEvidenceFound: evidenceMatches.length > 0,
+    evidenceMatches,
+    answerEvidenceMatches,
+    citationSupportsTarget: (record.citedUrls ?? []).some((url) => matchesExpectedSource(url, caseItem)),
+    fetchCalls: fetches.length,
+    fetchOutputChars: fetchOutputSizes.reduce((sum, value) => sum + value, 0),
+    fetchOutputSizes,
+    extraSearchesAfterTargetFetch: firstTargetFetchSequence === null
+      ? 0
+      : searches.filter((item) => (item.sequence ?? 0) > firstTargetFetchSequence).length,
+    repeatedFetches: [...fetchUrlCounts.values()].reduce((sum, count) => sum + Math.max(0, count - 1), 0),
+    repeatedTargetFetches: targetFetches.length > 0 ? Math.max(0, targetFetches.length - 1) : 0,
+    stepCount: record.stepCount,
+    stepCapAtBoundary: record.stepCapAtBoundary,
+    tokens: record.tokens,
+  }
+}
+
+function percentile(values, fraction) {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * fraction))]
+}
+
+export function extractionMetrics(records, cases) {
+  const caseById = new Map(cases.map((item) => [item.id, item]))
+  const byRun = records.map((record) => {
+    const caseItem = caseById.get(record.caseId)
+    if (!caseItem) throw new Error(`record references unknown extraction case: ${record.caseId}`)
+    return extractionRunMetrics(record, caseItem)
+  })
+  const fetchOutputSizes = byRun.flatMap((row) => row.fetchOutputSizes)
+  return {
+    runs: byRun.length,
+    cleanRuns: byRun.filter((row) => row.cleanRun).length,
+    toolFailureRuns: byRun.filter((row) => !row.cleanRun).length,
+    targetSourceFoundRuns: byRun.filter((row) => row.sourceFound).length,
+    targetFetchedRuns: byRun.filter((row) => row.targetFetched).length,
+    expectedEvidenceFoundRuns: byRun.filter((row) => row.expectedEvidenceFound).length,
+    citationSupportsTargetRuns: byRun.filter((row) => row.citationSupportsTarget).length,
+    totalFetchCalls: byRun.reduce((sum, row) => sum + row.fetchCalls, 0),
+    totalFetchOutputChars: byRun.reduce((sum, row) => sum + row.fetchOutputChars, 0),
+    totalExtraSearchesAfterTargetFetch: byRun.reduce((sum, row) => sum + row.extraSearchesAfterTargetFetch, 0),
+    totalRepeatedFetches: byRun.reduce((sum, row) => sum + row.repeatedFetches, 0),
+    totalRepeatedTargetFetches: byRun.reduce((sum, row) => sum + row.repeatedTargetFetches, 0),
+    stepCapBoundaryRuns: byRun.filter((row) => row.stepCapAtBoundary).length,
+    fetchOutputSizeChars: {
+      count: fetchOutputSizes.length,
+      min: fetchOutputSizes.length ? Math.min(...fetchOutputSizes) : null,
+      max: fetchOutputSizes.length ? Math.max(...fetchOutputSizes) : null,
+      mean: fetchOutputSizes.length ? fetchOutputSizes.reduce((sum, value) => sum + value, 0) / fetchOutputSizes.length : null,
+      p50: percentile(fetchOutputSizes, 0.5),
+      p90: percentile(fetchOutputSizes, 0.9),
+    },
+    byRun,
+  }
+}
+
+export function evaluateExtractionDecision(cases, scores) {
+  const validCases = cases.filter((item) => !scores.find((score) => score.caseId === item.id)?.caseInvalid)
+  const extractionFailures = scores.filter((score) => score.failure && score.primaryRootCause === "FETCH_EXTRACTION")
+  const reproducibleFailures = extractionFailures.filter((score) => score.reproducibleIssue)
+  const sourceClasses = new Set(reproducibleFailures.map((score) => cases.find((item) => item.id === score.caseId)?.sourceClass).filter(Boolean))
+  const caseRate = validCases.length ? extractionFailures.length / validCases.length : 0
+  if (reproducibleFailures.length >= 2 && sourceClasses.size >= 2 && caseRate >= 0.2) {
+    return {
+      decision: "C",
+      validCaseCount: validCases.length,
+      extractionFailureCases: extractionFailures.length,
+      extractionFailureCaseRate: caseRate,
+      reproducibleFailureCases: reproducibleFailures.length,
+      independentSourceClasses: [...sourceClasses],
+      rationale: "At least two valid cases from independent source classes have reproducible, material extraction failures and case-level prevalence meets the pre-registered threshold.",
+    }
+  }
+  if (reproducibleFailures.length > 0 || extractionFailures.some((score) => score.materialImpact)) {
+    return {
+      decision: "B",
+      validCaseCount: validCases.length,
+      extractionFailureCases: extractionFailures.length,
+      extractionFailureCaseRate: caseRate,
+      reproducibleFailureCases: reproducibleFailures.length,
+      independentSourceClasses: [...sourceClasses],
+      rationale: "Extraction inefficiency or a limited reproducible issue remains, but the independent-case threshold for a new shared capability is not met.",
+    }
+  }
+  return {
+    decision: "A",
+    validCaseCount: validCases.length,
+    extractionFailureCases: extractionFailures.length,
+    extractionFailureCaseRate: caseRate,
+    reproducibleFailureCases: reproducibleFailures.length,
+    independentSourceClasses: [...sourceClasses],
+    rationale: "No material, reproducible cross-source-class extraction failure was observed.",
   }
 }
 

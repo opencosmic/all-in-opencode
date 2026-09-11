@@ -7,13 +7,17 @@ future Deep Research agent.
 
 ## Runtime isolation
 
-The runner invokes the installed OpenCode CLI (`1.18.30`) with:
+The runner invokes the installed OpenCode CLI with the following isolation:
 
 - a temporary `XDG_CONFIG_HOME` containing symlinks to this worktree's
   `opencode/agents`, `commands`, `plugins`, `categories.json`, and `tui.json`;
 - `OPENCODE_CONFIG` set to this worktree's `opencode/opencode.jsonc`;
 - `--dir` set to this evaluation worktree;
 - `--agent Searcher --format json`.
+
+At startup it resolves the installed version through `opencode --version` and
+records that value in each run; the original committed result set was produced
+with `1.18.30`.
 
 This avoids repointing or mutating `~/.config/opencode`. OpenCode's normal data,
 authentication, cache, and log directories remain outside the repository; the
@@ -75,3 +79,11 @@ reasoning, prompt policy, source selection, fetch extraction, citation, runtime,
 and Deep Research orchestration/state requirements. This branch evaluates and
 documents the decision; it does not implement `search_batch`, `fetch_evidence`,
 Deep Research, or a production Search Core.
+
+## Supplemental extraction stress benchmark
+
+The separate [extraction benchmark](extraction/README.md) contains eight
+source classes run three times each. It writes only to `extraction/results/`
+and does not overwrite the original 24-case, 36-run result set. It adds
+passage-localization, evidence-precision, fetch-volume, repeat-fetch,
+post-fetch search, and case-level prevalence analysis.

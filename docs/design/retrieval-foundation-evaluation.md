@@ -1,6 +1,6 @@
 # Native OpenCode + Exa retrieval foundation evaluation
 
-## Decision
+## Original decision before supplemental stress evaluation
 
 **C — Add only `fetch_evidence` as the next shared-retrieval capability.**
 
@@ -16,6 +16,10 @@ capability is a thin `fetch_evidence` helper for future Deep Research, with a
 bounded passage/anchor request and normalized source metadata. It should not
 own research planning, state, gap analysis, stopping, synthesis, or a
 persistent knowledge store.
+
+This section preserves the original 24-case evaluation conclusion. The targeted
+supplemental extraction stress evaluation and its updated decision are recorded
+below; it does not rewrite the original run evidence.
 
 ## Repository and baseline
 
@@ -343,3 +347,151 @@ Based on the measured evidence, the next recommended implementation is:
 > Research; keep Searcher on native OpenCode + Exa and defer all other shared
 > retrieval infrastructure until a larger benchmark demonstrates a separate
 > need.
+
+## Supplemental Extraction Stress Evaluation
+
+### Purpose and scope
+
+The original evaluation found a reproducible long-ECMAScript-document problem,
+but its evidence did not establish the pre-registered prevalence signal for a
+new shared retrieval capability. This supplemental benchmark tests that narrow
+hypothesis across eight independent document/source patterns. It does not
+remeasure generic Searcher quality, change the Searcher prompt or six-step
+limit, add `search_batch`, or implement `fetch_evidence`.
+
+The frozen cases are in
+`benchmarks/retrieval-foundation/extraction/cases.json`; their result set is
+separate from the original `results/runs.jsonl`, `scores.json`, and
+`summary.json`.
+
+### Harness corrections made before the live run
+
+- `--fresh` now truncates only the selected `--out` JSONL result file. The
+  original baseline output is not touched when the supplemental output is
+  selected.
+- The runner resolves the installed runtime once with `opencode --version`,
+  fails if the version cannot be parsed, and records it per run. The 24-run
+  supplemental set used OpenCode `1.18.30`.
+- Citation and source URLs now remove presentation punctuation such as
+  backticks, unmatched Markdown delimiters, commas, periods, semicolons, and
+  colons without changing balanced URL characters. Source matching also
+  recognizes equivalent format/version/anchor variants for extraction metrics.
+- Score validation now requires exactly one score for every expected case and
+  rejects missing, duplicate, or unknown case IDs.
+- Normalized supplemental records preserve bounded matcher-based evidence
+  excerpts and tool sequence numbers, not raw page bodies or transcripts.
+
+The deterministic harness passed 9/9 tests, including version parsing,
+scoped fresh output, URL normalization, score completeness, supplemental case
+loading, extraction aggregation, and the case-level decision rule. Re-running
+the original analyzer against the preserved 36-run result set produced the
+same summary semantics; only its generated timestamp differed.
+
+### Frozen workload and decision rule
+
+The supplemental workload contains 8 cases × 3 runs = 24 runs:
+
+| Case | Source class | Extraction target |
+|---|---|---|
+| `standard-rfc-01` | Standard/specification | RFC 9110 §15.5.17 416/Content-Range rule |
+| `api-node-http-01` | Official API documentation | Node.js `server.maxRequestsPerSocket` |
+| `manual-postgres-17-01` | Versioned technical manual | PostgreSQL 17 concurrent-index restrictions |
+| `table-iana-status-01` | Long table | IANA status-code row 425 |
+| `paper-attention-01` | Research paper | *Attention Is All You Need* Section 4/Table 1 |
+| `policy-gdpr-17-01` | Government/regulatory policy | GDPR Article 17(3)(b) |
+| `changelog-node-22-01` | Long release history | Node.js v22.5.0 `node:sqlite` entry |
+| `negative-git-rebase-01` | Long-document negative control | Git `rebase --onto` graph example |
+
+The pre-registered rule counts a `FETCH_EXTRACTION` failure only when the
+expected source was found, native fetch retrieved it, the target evidence was
+present, and the workflow materially struggled to isolate or use it. Model
+reasoning mistakes, wrong search results, genuinely missing source content,
+and tool/runtime anomalies are kept separate. A case is reproducible when at
+least two of its three runs show the material extraction issue.
+
+`fetch_evidence` is justified only when at least 2 of 8 valid cases (the
+20%-or-more case-level signal) show reproducible material extraction failures
+from at least 2 independent source classes. Case-level prevalence is primary;
+run-level prevalence is reported separately.
+
+### Supplemental results
+
+All 24 runs exited cleanly with no recorded tool error. Objective extraction
+observations were:
+
+| Metric | Result |
+|---|---:|
+| Runs | 24 |
+| Clean/tool-error-free runs | 24 |
+| Native search calls | 30 |
+| Native fetch calls | 47 |
+| Fetch output characters | 1,667,312 |
+| Fetch output size (min / median / p90 / max) | 0 / 40,801 / 51,401 / 51,469 |
+| Searches after target fetch | 8 |
+| Repeated fetches of the same canonical document | 5 |
+| Six-step boundary runs | 3/24 (12.5%) |
+| Run-level extraction issues | 2/24 (8.3%) |
+| Case-level extraction issues | 1/8 (12.5%) |
+| Reproducible failing source classes | 1 |
+
+Mean extraction-specific scores were passage localization **4.50**, evidence
+precision **4.63**, and extraction efficiency **3.50**.
+
+| Case | Runs | Extraction issue | Reproducible | Key observation |
+|---|---:|---|---|---|
+| `standard-rfc-01` | 3 | Yes, 2/3 | Yes | 40–51K-character RFC fetches; repeated navigation; 2/3 step-boundary runs; one weakened `SHOULD` to `MUST`. |
+| `api-node-http-01` | 3 | No | No | Exact API entry recovered every run; equivalent-page refetches but no step pressure or answer harm. |
+| `manual-postgres-17-01` | 3 | No | No | One 31K-character versioned manual fetch per run; complete precise answers. |
+| `table-iana-status-01` | 3 | No | No | Exact table row recovered from XHTML/TXT variants in one fetch per run. |
+| `paper-attention-01` | 3 | No | No | Exact Section 4/Table 1 evidence recovered; one equivalent-paper refetch. |
+| `policy-gdpr-17-01` | 3 | No | No | Two runs had completed fetches with zero output characters, but final clauses remained exact; tracked as tool reliability, not extraction failure. |
+| `changelog-node-22-01` | 3 | No | No | Three searches/four fetches each; one step-boundary run, but alternate official release/API pages supplied the exact answer. |
+| `negative-git-rebase-01` | 3 | No | No | 51K-character page handled in 2–3 steps with one fetch and precise graph evidence each run. |
+
+The RFC result is a real, reproducible extraction problem, but it is one valid
+case from one source class. The changelog case demonstrates structural
+overhead and one step-boundary run without material answer failure. The GDPR
+empty-output runs are a separate tool-reliability observation. The negative
+control remained stable despite a similarly long page.
+
+### Root causes
+
+- `FETCH_EXTRACTION`: `standard-rfc-01` only. The correct source was found and
+  fetched, but large unbounded document output caused repeated fetch/navigation
+  work and step-boundary pressure in 2/3 runs.
+- `SEARCH_ORCHESTRATION`: observed overhead in the Node API, research-paper,
+  and changelog cases; it did not cause a qualifying case-level extraction
+  failure. The changelog used 3 searches and 4 fetches in each run.
+- `MODEL_REASONING`: one RFC repeat changed the normative `SHOULD` to `MUST`
+  after step pressure. This is recorded as a secondary observation, not as a
+  provider or new retrieval capability failure.
+- `TOOL_RUNTIME`: two GDPR runs returned zero-character completed fetches.
+  Because the final answers still quoted the exact clause and no process/tool
+  error was reported, this did not qualify as `FETCH_EXTRACTION`.
+- `BROWSER_ACCESS`: none observed.
+- `CASE_INVALID`: none observed.
+
+### Decision update
+
+The original **Decision C** is **downgraded** by this supplemental evidence;
+it is no longer a recommendation to implement the helper now.
+
+**Updated decision: B — keep native `webfetch` for Deep Research V1 and revisit
+later.**
+
+The measured case-level extraction failure rate was **1/8 = 12.5%**, below the
+pre-registered 20% threshold, and only **one independent source class** showed
+a reproducible material failure. The original ECMAScript result and this RFC
+result justify continued monitoring of long normative documents, but the API,
+versioned manual, table, research paper, policy, changelog, and negative-control
+cases do not establish a cross-source-class need for shared extraction
+infrastructure.
+
+Therefore no `fetch_evidence` implementation is justified yet. Revisit after a
+larger benchmark or when Deep Research produces a second independent source
+class with reproducible material extraction failures.
+
+No evidence from this supplemental run justifies `search_batch`, provider
+replacement, browser fallback, vector/embedding retrieval, persistent
+evidence storage, or multi-agent retrieval. Searcher production behavior and
+the original benchmark evidence remain unchanged.
