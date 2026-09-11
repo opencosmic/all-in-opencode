@@ -1,0 +1,2127 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-11T17:12:53.548Z",
+  "baselineCommit": "9e91fe032e7e48d4c440b0d7081c2a02f0819fac",
+  "opencodeVersion": "1.18.30",
+  "plannedRuns": 36,
+  "records": 36,
+  "objective": {
+    "runs": 36,
+    "successfulRuns": 35,
+    "runtimeFailures": 1,
+    "successRate": 0.9722222222222222,
+    "searchCalls": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      3,
+      1,
+      1,
+      1,
+      4,
+      4,
+      4,
+      3,
+      5,
+      4,
+      4,
+      3,
+      3,
+      3,
+      2,
+      2,
+      2,
+      2,
+      1,
+      3,
+      3,
+      1,
+      3,
+      2,
+      1,
+      3,
+      1
+    ],
+    "fetchCalls": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      2,
+      1,
+      1,
+      1,
+      3,
+      2,
+      3,
+      4,
+      2,
+      5,
+      2,
+      3,
+      3,
+      3,
+      3,
+      5,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      1,
+      3,
+      3,
+      4,
+      1,
+      1,
+      1
+    ],
+    "stepCounts": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      3,
+      4,
+      3,
+      3,
+      3,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      3,
+      3,
+      4,
+      2,
+      2,
+      2,
+      4,
+      2,
+      2,
+      3,
+      4,
+      6,
+      6,
+      3,
+      4,
+      3
+    ],
+    "stepCapBoundaryRuns": 2,
+    "totalSearchCalls": 78,
+    "totalFetchCalls": 61,
+    "totalSteps": 116,
+    "uniqueRetrievedUrls": 1810,
+    "uniqueRetrievedDomains": 228,
+    "duplicateUrlOccurrences": 610,
+    "duplicateUrls": [
+      {
+        "url": "https://www.britannica.com/question/What-is-the-capital-of-Japan",
+        "count": 3
+      },
+      {
+        "url": "https://en.wikipedia.org/wiki/Capital_of_Japan",
+        "count": 3
+      },
+      {
+        "url": "https://www.britannica.com/facts/Tokyo",
+        "count": 3
+      },
+      {
+        "url": "https://go.microsoft.com/fwlink/?LinkId=521839",
+        "count": 2
+      },
+      {
+        "url": "https://go.microsoft.com/fwlink/?LinkID=206977",
+        "count": 2
+      },
+      {
+        "url": "https://devblogs.microsoft.com/typescript/",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/microsoft/TypeScript/#readme",
+        "count": 2
+      },
+      {
+        "url": "https://discord.gg/typescript",
+        "count": 2
+      },
+      {
+        "url": "https://twitter.com/TypeScript",
+        "count": 2
+      },
+      {
+        "url": "https://fosstodon.org/@TypeScript",
+        "count": 2
+      },
+      {
+        "url": "https://stackoverflow.com/questions/tagged/typescript",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/microsoft/TypeScript-Website",
+        "count": 2
+      },
+      {
+        "url": "https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/run-job-variations",
+        "count": 2
+      },
+      {
+        "url": "https://docs.github.com/en/actions/reference/limits",
+        "count": 2
+      },
+      {
+        "url": "https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions",
+        "count": 2
+      },
+      {
+        "url": "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax",
+        "count": 3
+      },
+      {
+        "url": "https://support.github.com",
+        "count": 3
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/v12/commands/npm-ci/",
+        "count": 4
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/v12/commands/npm-install/",
+        "count": 2
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/v11/commands/npm-ci/",
+        "count": 4
+      },
+      {
+        "url": "https://npmjs.com/",
+        "count": 4
+      },
+      {
+        "url": "https://status.npmjs.com/",
+        "count": 4
+      },
+      {
+        "url": "https://npmjs.com/support/",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/npm/documentation",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/npm/cli/edit/release/v11/docs/lib/content/commands/npm-ci.md",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/jsoref.png?size=40",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/jsoref",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/lukekarrys.png?size=40",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/lukekarrys",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/npm/cli/commit/0469c5ebec7d4998f957d7c69702796af6797c57",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/nodejs/node/releases",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/en/about/previous-releases",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node",
+        "count": 8
+      },
+      {
+        "url": "https://github.com/nodejs/node/tree/v22.x",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest/",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest-hydrogen/",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/Release/blob/main/README.md",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest-v20.x/",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest-v21.x/",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest-v22.x/",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest-v23.x/",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest-v24.x/",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest-v25.x/",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/release/latest-v26.x/",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/en/blog/announcements/evolving-the-nodejs-release-schedule",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/42fd49a4/CHANGELOG.md",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/Release",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/nodejs/node/releases/tag/v26.0.0",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/learn",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/docs/latest/api/",
+        "count": 4
+      },
+      {
+        "url": "https://beta.docs.nodejs.org/",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/main/CONTRIBUTING.md",
+        "count": 4
+      },
+      {
+        "url": "https://training.linuxfoundation.org/openjs/",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/nodejs/admin/blob/main/CODE_OF_CONDUCT.md",
+        "count": 3
+      },
+      {
+        "url": "https://raw.githubusercontent.com/nodejs/Release/main/schedule.svg?sanitize=true",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/release#release-schedule",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/nodejs.org/blob/main/apps/site/pages/en/about/previous-releases.mdx",
+        "count": 3
+      },
+      {
+        "url": "https://discord.gg/nodejs",
+        "count": 4
+      },
+      {
+        "url": "https://bsky.app/profile/nodejs.org",
+        "count": 4
+      },
+      {
+        "url": "https://twitter.com/nodejs",
+        "count": 4
+      },
+      {
+        "url": "https://slack-invite.openjsf.org/",
+        "count": 4
+      },
+      {
+        "url": "https://www.linkedin.com/company/node-js",
+        "count": 4
+      },
+      {
+        "url": "https://openjsf.org/",
+        "count": 4
+      },
+      {
+        "url": "https://trademark-policy.openjsf.org/",
+        "count": 4
+      },
+      {
+        "url": "https://trademark-list.openjsf.org/",
+        "count": 4
+      },
+      {
+        "url": "https://ai-coding-assistants-policy.openjsf.org/",
+        "count": 4
+      },
+      {
+        "url": "https://bylaws.openjsf.org/",
+        "count": 4
+      },
+      {
+        "url": "https://code-of-conduct.openjsf.org/",
+        "count": 4
+      },
+      {
+        "url": "https://www.linuxfoundation.org/cookies/",
+        "count": 4
+      },
+      {
+        "url": "https://privacy-policy.openjsf.org/",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/nodejs/node/security/policy",
+        "count": 4
+      },
+      {
+        "url": "https://terms-of-use.openjsf.org/",
+        "count": 4
+      },
+      {
+        "url": "https://social.lfx.dev/@nodejs",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/en/download",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/en/blog/release",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/en/download/archive/current",
+        "count": 2
+      },
+      {
+        "url": "https://yarnpkg.com/",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/pricing",
+        "count": 2
+      },
+      {
+        "url": "https://docs.github.com/",
+        "count": 2
+      },
+      {
+        "url": "https://pnpm.io/cli/install",
+        "count": 3
+      },
+      {
+        "url": "https://pnpm.io/10.x/cli/install",
+        "count": 3
+      },
+      {
+        "url": "https://pnpm.io/settings/store",
+        "count": 3
+      },
+      {
+        "url": "https://pnpm.io/production",
+        "count": 3
+      },
+      {
+        "url": "https://stackoverflow.com/questions/70154568/pnpm-equivalent-command-for-npm-ci",
+        "count": 2
+      },
+      {
+        "url": "https://pnpm.io/settings#preferfrozenlockfile",
+        "count": 2
+      },
+      {
+        "url": "https://www.npmjs.com/package/is-ci",
+        "count": 2
+      },
+      {
+        "url": "https://pnpm.io/cli/ci",
+        "count": 2
+      },
+      {
+        "url": "https://pnpm.io/cli/clean",
+        "count": 2
+      },
+      {
+        "url": "https://pnpm.io/settings",
+        "count": 2
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/v9/commands/npm-ci/?v=true",
+        "count": 3
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/v8/commands/npm-ci/",
+        "count": 2
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/v7/commands/npm-ci/?v=true",
+        "count": 3
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/v12/using-npm/config/",
+        "count": 3
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/v11/using-npm/config/?v=true",
+        "count": 3
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/v9/using-npm/config/",
+        "count": 2
+      },
+      {
+        "url": "https://pnpm.io/supply-chain-security",
+        "count": 3
+      },
+      {
+        "url": "https://translate.pnpm.io",
+        "count": 3
+      },
+      {
+        "url": "https://opencollective.com/pnpm",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/sponsors/pnpm",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/pnpm/pnpm",
+        "count": 3
+      },
+      {
+        "url": "https://bit.cloud/pnpm",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/watson/ci-info#supported-ci-tools",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/watson/ci-info/blob/44e98cebcdf4403f162195fbcf90b1f69fc6e047/index.js#L54-L61",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/ndjson/ndjson-spec",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/pnpm/pnpm.io/edit/main/docs/cli/install.md",
+        "count": 3
+      },
+      {
+        "url": "https://x.com/pnpmjs",
+        "count": 3
+      },
+      {
+        "url": "https://www.youtube.com/@pnpmjs",
+        "count": 3
+      },
+      {
+        "url": "https://reddit.com/r/pnpm/",
+        "count": 3
+      },
+      {
+        "url": "https://bsky.app/profile/pnpm.io",
+        "count": 3
+      },
+      {
+        "url": "https://r.pnpm.io/chat",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/pnpm/pnpm.io/edit/main/docs/cli/ci.md",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/actions/upload-artifact",
+        "count": 2
+      },
+      {
+        "url": "https://example.com",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v24.x/api/permissions.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/download/release/v24.14.1/docs/api/permissions.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/en/blog/release/v24.0.0",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/main/doc/api/permissions.md",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/nightly/v24.0.0-nightly20250426b673c697a7/docs/api/permissions.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v24.x/api/test.html",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/download/nightly/v24.0.0-nightly2024122967b647edc7/docs/api/test.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/dist/latest-v24.x/docs/api/all.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v24.x/api/",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v26.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v25.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v24.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v23.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v22.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v21.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v20.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v19.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v18.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v17.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v16.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v15.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v14.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v13.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v12.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v11.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v10.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v9.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v8.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v7.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v6.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v5.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v4.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v0.12.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v0.10.x/api/index.html",
+        "count": 2
+      },
+      {
+        "url": "https://undici.nodejs.org/best-practices/undici-vs-builtin-fetch",
+        "count": 3
+      },
+      {
+        "url": "https://api.example.com/data",
+        "count": 3
+      },
+      {
+        "url": "https://undici.nodejs.org/api/Fetch",
+        "count": 3
+      },
+      {
+        "url": "https://undici.nodejs.org/",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v26.x/api/permissions.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v25.x/api/permissions.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v23.x/api/permissions.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v22.x/api/permissions.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v21.x/api/permissions.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v20.x/api/permissions.html",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/edit/main/doc/api/permissions.md",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/main/SECURITY.md",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#string_type",
+        "count": 3
+      },
+      {
+        "url": "https://docs.npmjs.com/cli/commands/npx",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v24.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v26.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v25.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v23.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v22.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v21.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v20.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v19.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v18.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v17.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v16.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v15.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v14.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v13.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v12.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v11.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v10.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v9.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v8.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v7.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v6.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v5.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v4.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v0.12.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v0.10.x/api/globals.html",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/node/edit/main/doc/api/globals.md",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#Data_types",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#number_type",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures#boolean_type",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/nodejs/userland-migrations/tree/main/recipes/buffer-atob-btoa",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/DOMException",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/EventSource",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/api/documentation.json",
+        "count": 3
+      },
+      {
+        "url": "https://undici.nodejs.org",
+        "count": 3
+      },
+      {
+        "url": "https://undici.nodejs.org/api/Dispatcher",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/FormData",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Headers",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/MessageEvent",
+        "count": 3
+      },
+      {
+        "url": "https://html.spec.whatwg.org/multipage/system-state.html#the-navigator-object",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/navigator",
+        "count": 3
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc5646.txt",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/LockManager",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Request",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Response",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Storage",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/structuredClone",
+        "count": 3
+      },
+      {
+        "url": "https://webassembly.org",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/WebAssembly",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/API/WebSocket",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v26.x/api/test.html",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v25.x/api/test.html",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v23.x/api/test.html",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v22.x/api/test.html",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v21.x/api/test.html",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v20.x/api/test.html",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v19.x/api/test.html",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v18.x/api/test.html",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/nodejs/node/edit/main/doc/api/test.md",
+        "count": 4
+      },
+      {
+        "url": "https://github.com/nodejs/node/blob/v24.21.0/lib/test.js",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error",
+        "count": 3
+      },
+      {
+        "url": "https://man7.org/linux/man-pages/man7/glob.7.html",
+        "count": 4
+      },
+      {
+        "url": "https://nodejs.org/download/nightly/v24.0.0-nightly2024122967b647edc7/docs/api/permissions.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/learn/test-runner/using-test-runner",
+        "count": 3
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v24.x/api/cli.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/api/test.html",
+        "count": 2
+      },
+      {
+        "url": "https://api.example",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/learn/getting-started/fetch",
+        "count": 2
+      },
+      {
+        "url": "https://undici.nodejs.org/api/GlobalInstallation",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/nightly/v24.0.0-nightly20250403657f818532/docs/api/globals.html",
+        "count": 2
+      },
+      {
+        "url": "https://react.dev/learn/creating-a-react-app",
+        "count": 3
+      },
+      {
+        "url": "https://nextjs.org/docs",
+        "count": 3
+      },
+      {
+        "url": "https://vercel.com/",
+        "count": 3
+      },
+      {
+        "url": "https://nextjs.org/docs/app/building-your-application/deploying",
+        "count": 3
+      },
+      {
+        "url": "https://nextjs.org/docs/app/building-your-application/deploying/static-exports",
+        "count": 3
+      },
+      {
+        "url": "https://reactrouter.com/start/framework/installation",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/remix-run/react-router-templates",
+        "count": 3
+      },
+      {
+        "url": "https://www.shopify.com",
+        "count": 3
+      },
+      {
+        "url": "https://expo.dev/",
+        "count": 3
+      },
+      {
+        "url": "https://reactnative.dev/",
+        "count": 3
+      },
+      {
+        "url": "https://docs.expo.dev/tutorial/introduction/",
+        "count": 3
+      },
+      {
+        "url": "https://vite.dev/",
+        "count": 3
+      },
+      {
+        "url": "https://parceljs.org/",
+        "count": 3
+      },
+      {
+        "url": "https://rsbuild.dev/",
+        "count": 3
+      },
+      {
+        "url": "https://react.dev/blog/2025/02/14/sunsetting-create-react-app",
+        "count": 3
+      },
+      {
+        "url": "https://create-react-app.dev/",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Glossary/CSR",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Glossary/SPA",
+        "count": 3
+      },
+      {
+        "url": "https://www.robinwieruch.de/vite-create-react-app/",
+        "count": 3
+      },
+      {
+        "url": "https://parceljs.org/migration/cra/",
+        "count": 3
+      },
+      {
+        "url": "https://rsbuild.dev/guide/migration/cra",
+        "count": 3
+      },
+      {
+        "url": "https://reactrouter.com/",
+        "count": 3
+      },
+      {
+        "url": "https://nextjs.org/",
+        "count": 3
+      },
+      {
+        "url": "https://create-react-app.dev/docs/getting-started/",
+        "count": 3
+      },
+      {
+        "url": "http://localhost:3000/",
+        "count": 3
+      },
+      {
+        "url": "http://localhost:3000",
+        "count": 3
+      },
+      {
+        "url": "https://react.dev/learn/build-a-react-app-from-scratch",
+        "count": 3
+      },
+      {
+        "url": "https://vite.dev/plugins/#vitejs-plugin-react",
+        "count": 3
+      },
+      {
+        "url": "https://vite.dev/plugins/#vitejs-plugin-react-swc",
+        "count": 3
+      },
+      {
+        "url": "https://vite.dev/guide/ssr.html#example-projects",
+        "count": 3
+      },
+      {
+        "url": "https://parceljs",
+        "count": 2
+      },
+      {
+        "url": "https://rsbuild.dev/guide/",
+        "count": 2
+      },
+      {
+        "url": "https://metrobundler.dev/",
+        "count": 3
+      },
+      {
+        "url": "https://az.react.dev/learn/start-a-new-react-project",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/blob/main/README.md",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/actions/workflows/build-and-test.yml/badge.svg?branch=main",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/actions/workflows/build-and-test.yml",
+        "count": 3
+      },
+      {
+        "url": "https://img.shields.io/badge/PRs-welcome-green.svg",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/blob/main/CONTRIBUTING.md",
+        "count": 3
+      },
+      {
+        "url": "https://react.dev/learn/start-a-new-react-project",
+        "count": 3
+      },
+      {
+        "url": "https://facebook.github.io/create-react-app/",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/blob/HEAD/README.md",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/blob/main/docusaurus/docs/getting-started.md",
+        "count": 2
+      },
+      {
+        "url": "https://docs.npmjs.com",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/react/create-react-app",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/react/create-react-app/issues/17004",
+        "count": 2
+      },
+      {
+        "url": "https://legacy.reactjs.org/docs/glossary.html#single-page-application",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/pull/17003",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/pull/17008",
+        "count": 2
+      },
+      {
+        "url": "https://docs.npmjs.com/policies/unpublish",
+        "count": 2
+      },
+      {
+        "url": "https://react.dev/learn/building-a-react-framework",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/react/create-react-app/blob/main/README.md",
+        "count": 3
+      },
+      {
+        "url": "https://facebook.github.io/create-react-app/docs/updating-to-new-releases",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/issues/11180#issuecomment-874748552",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/facebook/create-react-app/commit/b532a58792ea79ba7b0e85c1cb42b2a36dafe276",
+        "count": 2
+      },
+      {
+        "url": "https://nextjs.org/docs/app/building-your-application/upgrading/from-create-react-app",
+        "count": 2
+      },
+      {
+        "url": "https://reactrouter.com/upgrading/component-routes",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/docs/latest-v22.x/api/cli.html",
+        "count": 2
+      },
+      {
+        "url": "https://nodejs.org/download/release/v22.21.0/docs/api/cli.html",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/indexed-collections.html",
+        "count": 3
+      },
+      {
+        "url": "https://tc39.es/proposal-change-array-by-copy/",
+        "count": 3
+      },
+      {
+        "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/v8/v8/blob/ffdfdbb8/src/builtins/array-to-sorted.tq",
+        "count": 3
+      },
+      {
+        "url": "https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSorted",
+        "count": 3
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/",
+        "count": 3
+      },
+      {
+        "url": "https://github.com/tc39/ecma262/pull/3424",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/tc39/ecma262/issues/3422",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.sort",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.sort",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/indexed-collections.html#sec-sortindexedproperties",
+        "count": 2
+      },
+      {
+        "url": "https://github.com/tc39/ecma262/pull/2997",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.tosorted",
+        "count": 3
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.tosorted",
+        "count": 2
+      },
+      {
+        "url": "https://ecma-international.org/memento/codeofconduct.htm",
+        "count": 3
+      },
+      {
+        "url": "https://tc39.es/ecma262/2023/",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/fundamental-objects.html",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/multipage/overview.html",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-iscallable",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-toobject",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-lengthofarraylike",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-tonumber",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-call",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-tostring",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-set-o-p-v-throw",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#𝔽",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-deletepropertyorthrow",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#function-object",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-completion-record-specification-type",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#integer",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-list-and-record-specification-type",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-hasproperty",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-get-o-p",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-arraycreate",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-createdatapropertyorthrow",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#eqn-max",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#eqn-min",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-object-type",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-keywords-and-reserved-words",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#constructor",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#typedarray-species-create",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#assert",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#table-the-typedarray-constructors",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#typedarray-create",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-validatetypedarray",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-tobigint",
+        "count": 2
+      },
+      {
+        "url": "https://tc39.es/ecma262/#sec-isvalidintegerindex",
+        "count": 2
+      }
+    ],
+    "sameRunDuplicateSearchUrlOccurrences": 78,
+    "sameRunSearchRunsWithDuplicates": 15,
+    "sameRunDuplicateSearchUrlRate": 0.0769990128331688,
+    "perCaseSearchMetrics": {
+      "simple-01": {
+        "runs": 3,
+        "searchCalls": 3,
+        "fetchCalls": 0,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 2.6666666666666665,
+        "maxSearchDomainConcentration": 0.6666666666666666
+      },
+      "simple-02": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 0,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 3,
+        "maxSearchDomainConcentration": 0.6
+      },
+      "simple-03": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 0,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 4,
+        "maxSearchDomainConcentration": 0.5714285714285714
+      },
+      "first-party-01": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 1,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 6,
+        "maxSearchDomainConcentration": 0.375
+      },
+      "first-party-02": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 1,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 1,
+        "maxSearchDomainConcentration": 1
+      },
+      "first-party-03": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 2,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 1,
+        "maxSearchDomainConcentration": 1
+      },
+      "current-01": {
+        "runs": 3,
+        "searchCalls": 5,
+        "fetchCalls": 3,
+        "duplicateSearchUrlOccurrences": 3,
+        "runsWithDuplicateSearchUrls": 1,
+        "duplicateSearchUrlRate": 0.03333333333333333,
+        "averageUniqueSearchDomains": 3.3333333333333335,
+        "maxSearchDomainConcentration": 0.875
+      },
+      "current-02": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 3,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 13,
+        "maxSearchDomainConcentration": 0.3125
+      },
+      "current-03": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 2,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 2,
+        "maxSearchDomainConcentration": 0.875
+      },
+      "comparison-01": {
+        "runs": 3,
+        "searchCalls": 12,
+        "fetchCalls": 9,
+        "duplicateSearchUrlOccurrences": 15,
+        "runsWithDuplicateSearchUrls": 3,
+        "duplicateSearchUrlRate": 0.189873417721519,
+        "averageUniqueSearchDomains": 4.333333333333333,
+        "maxSearchDomainConcentration": 0.48148148148148145
+      },
+      "comparison-02": {
+        "runs": 1,
+        "searchCalls": 3,
+        "fetchCalls": 5,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 2,
+        "maxSearchDomainConcentration": 0.5333333333333333
+      },
+      "comparison-03": {
+        "runs": 1,
+        "searchCalls": 5,
+        "fetchCalls": 2,
+        "duplicateSearchUrlOccurrences": 6,
+        "runsWithDuplicateSearchUrls": 1,
+        "duplicateSearchUrlRate": 0.10909090909090909,
+        "averageUniqueSearchDomains": 17,
+        "maxSearchDomainConcentration": 0.3090909090909091
+      },
+      "multi-01": {
+        "runs": 3,
+        "searchCalls": 11,
+        "fetchCalls": 9,
+        "duplicateSearchUrlOccurrences": 3,
+        "runsWithDuplicateSearchUrls": 2,
+        "duplicateSearchUrlRate": 0.023255813953488372,
+        "averageUniqueSearchDomains": 6,
+        "maxSearchDomainConcentration": 0.8
+      },
+      "multi-02": {
+        "runs": 1,
+        "searchCalls": 3,
+        "fetchCalls": 3,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 3,
+        "maxSearchDomainConcentration": 0.68
+      },
+      "multi-03": {
+        "runs": 1,
+        "searchCalls": 3,
+        "fetchCalls": 5,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 5,
+        "maxSearchDomainConcentration": 0.7894736842105263
+      },
+      "conflict-01": {
+        "runs": 3,
+        "searchCalls": 6,
+        "fetchCalls": 0,
+        "duplicateSearchUrlOccurrences": 38,
+        "runsWithDuplicateSearchUrls": 3,
+        "duplicateSearchUrlRate": 0.17592592592592593,
+        "averageUniqueSearchDomains": 23.333333333333332,
+        "maxSearchDomainConcentration": 0.2835820895522388
+      },
+      "conflict-02": {
+        "runs": 1,
+        "searchCalls": 2,
+        "fetchCalls": 2,
+        "duplicateSearchUrlOccurrences": 1,
+        "runsWithDuplicateSearchUrls": 1,
+        "duplicateSearchUrlRate": 0.058823529411764705,
+        "averageUniqueSearchDomains": 5,
+        "maxSearchDomainConcentration": 0.7647058823529411
+      },
+      "conflict-03": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 0,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 5,
+        "maxSearchDomainConcentration": 0.4
+      },
+      "community-01": {
+        "runs": 1,
+        "searchCalls": 3,
+        "fetchCalls": 0,
+        "duplicateSearchUrlOccurrences": 3,
+        "runsWithDuplicateSearchUrls": 1,
+        "duplicateSearchUrlRate": 0.07142857142857142,
+        "averageUniqueSearchDomains": 15,
+        "maxSearchDomainConcentration": 0.30952380952380953
+      },
+      "community-02": {
+        "runs": 1,
+        "searchCalls": 3,
+        "fetchCalls": 1,
+        "duplicateSearchUrlOccurrences": 2,
+        "runsWithDuplicateSearchUrls": 1,
+        "duplicateSearchUrlRate": 0.023255813953488372,
+        "averageUniqueSearchDomains": 18,
+        "maxSearchDomainConcentration": 0.5232558139534884
+      },
+      "fetch-01": {
+        "runs": 3,
+        "searchCalls": 6,
+        "fetchCalls": 10,
+        "duplicateSearchUrlOccurrences": 3,
+        "runsWithDuplicateSearchUrls": 1,
+        "duplicateSearchUrlRate": 0.038461538461538464,
+        "averageUniqueSearchDomains": 4.666666666666667,
+        "maxSearchDomainConcentration": 0.7058823529411765
+      },
+      "fetch-02": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 1,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 2,
+        "maxSearchDomainConcentration": 0.8888888888888888
+      },
+      "ambiguous-01": {
+        "runs": 1,
+        "searchCalls": 3,
+        "fetchCalls": 1,
+        "duplicateSearchUrlOccurrences": 4,
+        "runsWithDuplicateSearchUrls": 1,
+        "duplicateSearchUrlRate": 0.13333333333333333,
+        "averageUniqueSearchDomains": 4,
+        "maxSearchDomainConcentration": 0.9
+      },
+      "robustness-01": {
+        "runs": 1,
+        "searchCalls": 1,
+        "fetchCalls": 1,
+        "duplicateSearchUrlOccurrences": 0,
+        "runsWithDuplicateSearchUrls": 0,
+        "duplicateSearchUrlRate": 0,
+        "averageUniqueSearchDomains": 5,
+        "maxSearchDomainConcentration": 0.375
+      }
+    },
+    "domainCounts": {
+      "github.com": 30,
+      "developer.mozilla.org": 10,
+      "docs.npmjs.com": 10,
+      "twitter.com": 9,
+      "nodejs.org": 9,
+      "bsky.app": 8,
+      "discord.gg": 7,
+      "linkedin.com": 7,
+      "npmjs.com": 6,
+      "en.wikipedia.org": 5,
+      "docs.github.com": 5,
+      "reddit.com": 5,
+      "localhost": 5,
+      "stackoverflow.com": 4,
+      "status.npmjs.com": 4,
+      "gitlab.com": 4,
+      "beta.docs.nodejs.org": 4,
+      "training.linuxfoundation.org": 4,
+      "raw.githubusercontent.com": 4,
+      "slack-invite.openjsf.org": 4,
+      "openjsf.org": 4,
+      "trademark-policy.openjsf.org": 4,
+      "trademark-list.openjsf.org": 4,
+      "ai-coding-assistants-policy.openjsf.org": 4,
+      "bylaws.openjsf.org": 4,
+      "code-of-conduct.openjsf.org": 4,
+      "linuxfoundation.org": 4,
+      "privacy-policy.openjsf.org": 4,
+      "terms-of-use.openjsf.org": 4,
+      "social.lfx.dev": 4,
+      "img.shields.io": 4,
+      "x.com": 4,
+      "youtube.com": 4,
+      "example.com": 4,
+      "man7.org": 4,
+      "vite.dev": 4,
+      "tc39.es": 4,
+      "britannica.com": 3,
+      "dev.to": 3,
+      "fosstodon.org": 3,
+      "support.github.com": 3,
+      "yarnpkg.com": 3,
+      "github.blog": 3,
+      "pnpm.io": 3,
+      "translate.pnpm.io": 3,
+      "opencollective.com": 3,
+      "bit.cloud": 3,
+      "r.pnpm.io": 3,
+      "undici.nodejs.org": 3,
+      "api.example.com": 3,
+      "html.spec.whatwg.org": 3,
+      "rfc-editor.org": 3,
+      "webassembly.org": 3,
+      "react.dev": 3,
+      "nextjs.org": 3,
+      "vercel.com": 3,
+      "reactrouter.com": 3,
+      "shopify.com": 3,
+      "expo.dev": 3,
+      "reactnative.dev": 3,
+      "docs.expo.dev": 3,
+      "parceljs.org": 3,
+      "rsbuild.dev": 3,
+      "create-react-app.dev": 3,
+      "robinwieruch.de": 3,
+      "metrobundler.dev": 3,
+      "az.react.dev": 3,
+      "facebook.github.io": 3,
+      "ecma-international.org": 3,
+      "python.org": 2,
+      "typescriptlang.org": 2,
+      "aka.ms": 2,
+      "go.microsoft.com": 2,
+      "devblogs.microsoft.com": 2,
+      "facebook.com": 2,
+      "learn.microsoft.com": 2,
+      "pypi.org": 2,
+      "deepwiki.com": 2,
+      "docs.redhat.com": 2,
+      "api.example": 2,
+      "parceljs": 2,
+      "legacy.reactjs.org": 2,
+      "r2.nodejs.org": 2,
+      "english.metro.tokyo.lg.jp": 1,
+      "metro.tokyo.lg.jp": 1,
+      "w3.org": 1,
+      "gvanrossum.github.io": 1,
+      "pythoninstitute.org": 1,
+      "runebook.dev": 1,
+      "microsoft-typescript.mintlify.app": 1,
+      "gist.github.com": 1,
+      "bitbucket.org": 1,
+      "nodejs": 1,
+      "compathub.com": 1,
+      "eosl.date": 1,
+      "badge.fury.io": 1,
+      "api.securityscorecards.dev": 1,
+      "securityscorecards.dev": 1,
+      "blogs.msdn.microsoft.com": 1,
+      "opensource.microsoft.com": 1,
+      "uhf.microsoft.com": 1,
+      "microsoft.com": 1,
+      "developer.microsoft.com": 1,
+      "blogs.windows.com": 1,
+      "azure.microsoft.com": 1,
+      "cloudblogs.microsoft.com": 1,
+      "marketplace.visualstudio.com": 1,
+      "code.visualstudio.com": 1,
+      "account.microsoft.com": 1,
+      "education.microsoft.com": 1,
+      "techcommunity.microsoft.com": 1,
+      "marketplace.microsoft.com": 1,
+      "visualstudio.microsoft.com": 1,
+      "careers.microsoft.com": 1,
+      "news.microsoft.com": 1,
+      "support.microsoft.com": 1,
+      "choice.microsoft.com": 1,
+      "pnpm.js.org": 1,
+      "babeljs.io": 1,
+      "swc-project.github.io": 1,
+      "skills.github.com": 1,
+      "securitylab.github.com": 1,
+      "maintainers.github.com": 1,
+      "stars.github.com": 1,
+      "archiveprogram.github.com": 1,
+      "avatars.githubusercontent.com": 1,
+      "githubstatus.com": 1,
+      "github.community": 1,
+      "devguide.python.org": 1,
+      "docs.python.org": 1,
+      "donate.python.org": 1,
+      "wiki.python.org": 1,
+      "translations.python.org": 1,
+      "peps.python.org": 1,
+      "pyfound.blogspot.com": 1,
+      "pycon.blogspot.com": 1,
+      "blog.python.org": 1,
+      "planetpython.org": 1,
+      "hg.python.org": 1,
+      "hugovk.dev": 1,
+      "apps.microsoft.com": 1,
+      "mail.python.org": 1,
+      "status.python.org": 1,
+      "policies.python.org": 1,
+      "get.pnpm.io": 1,
+      "appveyor.com": 1,
+      "semaphoreci.com": 1,
+      "travis-ci.org": 1,
+      "docs.gitlab.com": 1,
+      "about.gitlab.com": 1,
+      "gitlab.fra1.qualtrics.com": 1,
+      "gitlab.example.com": 1,
+      "creativecommons.org": 1,
+      "university.gitlab.com": 1,
+      "forum.gitlab.com": 1,
+      "dc.ads.linkedin.com": 1,
+      "cli.github.com": 1,
+      "rubygems.org": 1,
+      "opencode.ai": 1,
+      "dev.opencode.ai": 1,
+      "api.anthropic.com": 1,
+      "bedrock-runtime.us-east-1.vpce-xxxxx.amazonaws.com": 1,
+      "127.0.0.1": 1,
+      "ai-gateway.helicone.ai": 1,
+      "poolside": 1,
+      "api.myprovider.com": 1,
+      "aider.chat": 1,
+      "open-code.ai": 1,
+      "op": 1,
+      "opencode": 1,
+      "aitoolsguidebook.com": 1,
+      "pygments.org": 1,
+      "anoma.ly": 1,
+      "unpkg.com": 1,
+      "api": 1,
+      "postgresql.org": 1,
+      "endoflife.date": 1,
+      "endoflife.ai": 1,
+      "herodevs.com": 1,
+      "wiki.postgresql.org": 1,
+      "datatracker.ietf.org": 1,
+      "postgr.es": 1,
+      "docs": 1,
+      "blog.appsignal.com": 1,
+      "v8.dev": 1,
+      "linuxfoundation.surveymonkey.com": 1,
+      "developer.github.com": 1,
+      "desktop.github.com": 1,
+      "tailwindcss.com": 1,
+      "tailwindlabs-tailwindcss.mintlify.app": 1,
+      "mintlify.wiki": 1,
+      "v3.tailwindcss.com": 1,
+      "uicolors.app": 1,
+      "play.tailwindcss.com": 1,
+      "blog.7onic.design": 1,
+      "woyable.com": 1,
+      "abrarqasim.com": 1,
+      "devtoolbox.blog": 1,
+      "designrevision.com": 1,
+      "supabase.com": 1,
+      "example": 1,
+      "haproxy.com": 1,
+      "traefik.io": 1,
+      "nginxproxymanager.com": 1,
+      "letsencrypt.org": 1,
+      "starterpick.com": 1,
+      "supabase.link": 1,
+      "suparbase.com": 1,
+      "supascale.app": 1,
+      "queryglow.com": 1,
+      "selfhost.dev": 1,
+      "discord.supabase.com": 1,
+      "forms.supabase.com": 1,
+      "hendriklammers.com": 1,
+      "qmacro.org": 1,
+      "262.ecma-international.org": 1,
+      "read262.jedfox.com": 1,
+      "git-scm.com": 1,
+      "git-rebase.io": 1,
+      "devya.dev": 1,
+      "docs.astral.sh": 1,
+      "astral.sh": 1,
+      "ports.macports.org": 1,
+      "winstall.app": 1,
+      "scoop.sh": 1,
+      "crates.io": 1,
+      "squidfunk.github.io": 1,
+      "discord.com": 1
+    },
+    "maxDomainConcentration": 0.8333333333333334,
+    "fetchToSearchRatio": 0.782051282051282
+  },
+  "byCategory": {
+    "simple": {
+      "cases": 3,
+      "runs": 5,
+      "successfulRuns": 5,
+      "scoredCases": 3,
+      "qualityPasses": 3
+    },
+    "exact-first-party": {
+      "cases": 3,
+      "runs": 3,
+      "successfulRuns": 3,
+      "scoredCases": 3,
+      "qualityPasses": 3
+    },
+    "current": {
+      "cases": 3,
+      "runs": 5,
+      "successfulRuns": 5,
+      "scoredCases": 3,
+      "qualityPasses": 3
+    },
+    "comparison": {
+      "cases": 3,
+      "runs": 5,
+      "successfulRuns": 5,
+      "scoredCases": 3,
+      "qualityPasses": 3
+    },
+    "multi-aspect": {
+      "cases": 3,
+      "runs": 5,
+      "successfulRuns": 5,
+      "scoredCases": 3,
+      "qualityPasses": 3
+    },
+    "stale-conflicting": {
+      "cases": 3,
+      "runs": 5,
+      "successfulRuns": 5,
+      "scoredCases": 3,
+      "qualityPasses": 3
+    },
+    "community": {
+      "cases": 2,
+      "runs": 2,
+      "successfulRuns": 2,
+      "scoredCases": 2,
+      "qualityPasses": 2
+    },
+    "fetch-heavy": {
+      "cases": 2,
+      "runs": 4,
+      "successfulRuns": 3,
+      "scoredCases": 2,
+      "qualityPasses": 2
+    },
+    "ambiguous-context": {
+      "cases": 1,
+      "runs": 1,
+      "successfulRuns": 1,
+      "scoredCases": 1,
+      "qualityPasses": 1
+    },
+    "robustness": {
+      "cases": 1,
+      "runs": 1,
+      "successfulRuns": 1,
+      "scoredCases": 1,
+      "qualityPasses": 1
+    }
+  },
+  "scoredCases": 24,
+  "quality": {
+    "passingCases": 24,
+    "totalCases": 24,
+    "passRate": 1,
+    "averages": {
+      "correctness": 4.875,
+      "coverage": 5,
+      "citationGrounding": 4.833333333333333,
+      "sourceQuality": 4.791666666666667,
+      "freshness": 4.857142857142857,
+      "retrievalEfficiency": 3.75
+    },
+    "observedFailures": 3,
+    "rootCauses": {
+      "SEARCH_ORCHESTRATION": 2,
+      "FETCH_EXTRACTION": 1
+    },
+    "repeatAssessments": [
+      {
+        "caseId": "simple-01",
+        "assessment": "Stable: all three runs used one search, two steps, and a direct Tokyo answer with a Britannica citation."
+      },
+      {
+        "caseId": "current-01",
+        "assessment": "Minor variance: one repeat used three searches while the other two used one; all runs distinguished major first-release and last-update dates and stated the LTS caveat."
+      },
+      {
+        "caseId": "comparison-01",
+        "assessment": "Stable quality with repeated structural overhead: all three runs used four searches, and all three contained duplicate npm/pnpm result URLs across queries."
+      },
+      {
+        "caseId": "multi-01",
+        "assessment": "Stable: all three runs covered test runner, fetch, and permission model with official Node.js citations; search count varied from three to four."
+      },
+      {
+        "caseId": "conflict-01",
+        "assessment": "Stable: all three runs rejected CRA for new production apps, reconciled old tutorials, and cited current React guidance."
+      },
+      {
+        "caseId": "fetch-01",
+        "assessment": "Material variance: baseline was complete, but two of three runs reached all six steps; one ended with an incomplete answer and a webfetch error after 51K-character specification output."
+      }
+    ]
+  }
+}
