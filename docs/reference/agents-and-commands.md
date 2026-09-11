@@ -6,6 +6,7 @@
 |---|---|---|
 | Assistant | Ordinary questions, investigation, bounded work, and routing | Small direct edits or delegated implementation; no implicit OpenSpec state |
 | Browser | Direct browser navigation, interaction, visual inspection, and Task Spaces | Browser backend only; no application or workflow-file mutation |
+| Blender | Blender scene inspection, authoring, rendering, and visual verification through Blender MCP | Live Blender scene only; no repository, Git, OpenSpec, CategoryEngine, or Delegation Runtime ownership |
 | Producer | HyperFrames-backed video creation, editing, animation, preview, and rendering | Active-project artifacts; no Git/history or workflow-runtime ownership |
 | Searcher | Normal web Search / Answer Engine with grounded current answers | Read-only native web retrieval; no delegation or OpenSpec ownership |
 | Professor | Stateful evidence-first Deep Research with adaptive verification | Read-only native retrieval plus Professor ResearchState tools; no filesystem, Git, delegation, or browser access |
@@ -30,6 +31,7 @@ Implementer executes one bounded category assignment through one shared contract
 | `/verify <change>` | Verifier | Independent verification verdict |
 | `/ship <change>` | Executor | Explicitly selected integration/archive action |
 | `/browser <goal>` | Browser | Standalone browser workflow through the external browser backend |
+| `/blender <goal>` | Blender | Standalone Blender scene workflow through the external Blender MCP server and addon |
 | `/video <goal>` | Producer | Standalone HyperFrames video-production workflow |
 | `/search <question>` | Searcher | Bounded normal web Search / Answer Engine response with grounded citations |
 | `/research <question>` | Professor | Stateful Deep Research with persistent evidence, adaptive tasks, verification, and a final report |

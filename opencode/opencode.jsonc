@@ -13,6 +13,23 @@
         "--mcp"
       ],
       "enabled": true
+    },
+    "blender": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "--python",
+        "3.11",
+        "blender-mcp"
+      ],
+      "enabled": true,
+      "environment": {
+        "UV_PYTHON_PREFERENCE": "only-managed",
+        "BLENDER_HOST": "localhost",
+        "BLENDER_PORT": "9876",
+        "BLENDER_MCP_SAFE_MODE": "1",
+        "DISABLE_TELEMETRY": "true"
+      }
     }
   }
 }

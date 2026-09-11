@@ -20,7 +20,7 @@ OpenSpec `tasks.md` is the only durable execution-progress source of truth. Runt
 
 ## Agents
 
-Primary agents are `Assistant`, `Browser`, `Producer`, `Searcher`, `Professor`, `Strategist`, `Planner`, and `Executor`. `Verifier` is the independent verification role used by the formal route. Read-only specialists are:
+Primary agents are `Assistant`, `Browser`, `Blender`, `Producer`, `Searcher`, `Professor`, `Strategist`, `Planner`, and `Executor`. `Verifier` is the independent verification role used by the formal route. Read-only specialists are:
 
 - `Explorer`: local source, symbols, architecture, and call/data-flow discovery.
 - `Librarian`: official external documentation, upstream source, APIs, releases, and version-specific behavior.
@@ -140,6 +140,43 @@ The setup script uses the official `npx hyperframes skills update` path to refre
 
 HyperFrames is intentionally not a `video-production` CategoryEngine category in this phase. The shared CategoryEngine -> `Implementer` path remains for bounded execution profiles, while HyperFrames owns an interactive orchestration flow that may pause for brief, storyboard, preview, or render decisions. Video-content questions remain separate: `Assistant` -> `video-analysis` -> `watch`.
 
+## Blender scene work
+
+Blender has its own primary route:
+
+```text
+User -> /blender -> Blender -> Blender MCP -> Blender addon -> Blender scene
+```
+
+`Blender` is dedicated to scene inspection, modeling, materials, lighting,
+cameras, supported animation, rendering, requested saves/exports, and fresh
+visual verification. It is not a general coding agent, Implementer, OpenSpec,
+Git, CategoryEngine, or Delegation Runtime worker. Assistant routes Blender
+scene work to `/blender` and does not call Blender MCP directly.
+
+Blender MCP remains the external `ahujasid/blender-mcp` dependency. The
+repository owns only the route, MCP configuration, least-privilege agent
+policy, setup/check scripts, tests, and documentation. Provision the addon
+explicitly:
+
+```sh
+./scripts/setup-blender-mcp.sh
+./scripts/check-blender-mcp.sh
+```
+
+The setup command uses the upstream `uvx --python 3.11 blender-mcp
+install-addon` path and does not launch Blender or change GUI state. In Blender,
+enable `Interface: MCP for Blender` if needed, open the MCP for Blender panel,
+and start the server. The authored MCP configuration pins managed Python 3.11,
+keeps the socket on localhost:9876, enables Safe Mode, and disables telemetry.
+The read-only check does not require Blender to be running; it reports that
+addon/server connectivity must be confirmed in Blender.
+
+The Phase 1 agent allowlist is limited to addon status, scene info, object info,
+viewport screenshots, and Blender code execution, plus user questions. Future
+upstream tools and provider-backed asset or AI-generation integrations are not
+implicitly authorized.
+
 ## Video analysis
 
 For questions that depend on the actual contents of a video, Assistant routes through the shared Implementer with `category="video-analysis"` and `load_skills=["watch"]`. This covers summaries, timestamped questions, hooks, editing structure, screen recordings, visual-versus-spoken comparisons, and on-screen UI evidence. A website-only task remains `browser-automation`; watching the video embedded on that website is `video-analysis`.
@@ -184,6 +221,7 @@ opencode debug config
 opencode agent list
 opencode debug agent Assistant
 opencode debug agent Browser
+opencode debug agent Blender
 opencode debug agent Producer
 opencode debug agent Executor
 ```

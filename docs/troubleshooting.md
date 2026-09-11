@@ -13,7 +13,7 @@ Do not reset, clean, stash, force-remove worktrees, or delete broad runtime/inde
 
 ## Agent or command is missing
 
-Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are exactly `spec`, `plan`, `execute`, `verify`, `ship`, `browser`, `video`, `search`, and `research`. Restart OpenCode after authored agent, command, plugin, skill, or MCP changes.
+Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are exactly `spec`, `plan`, `execute`, `verify`, `ship`, `browser`, `blender`, `video`, `search`, and `research`. Restart OpenCode after authored agent, command, plugin, skill, or MCP changes.
 
 For `/research`, confirm the Professor plugin is discovered and that the configured workflow data root is writable. Research runs live under `<data-root>/professor/runs/<run-id>/`; they do not write state into the repository. Resume with the durable run ID through Professor's state tools rather than reconstructing the task from chat history.
 
@@ -38,6 +38,21 @@ Run `./scripts/check-codegraph.sh`. If the CLI is absent or the project is unind
 Run `./scripts/setup-ego-browser.sh`, finish the Ego Lite GUI onboarding, then run `./scripts/check-ego-browser.sh`. Ensure `~/.local/bin` is in the PATH inherited by OpenCode and restart it. Do not copy the external skill into this repository or broaden ordinary Implementer permissions.
 
 Use `/browser` for the dedicated Browser route, or ask Assistant to use `category="browser-automation"`; both routes require the same external backend health.
+
+## Blender MCP is unavailable
+
+Run `./scripts/check-blender-mcp.sh` for a read-only report. It checks `uv`/
+`uvx`, the authored OpenCode entry, managed Python 3.11, localhost:9876,
+Safe Mode, and telemetry-off defaults without requiring Blender to be open.
+For explicit addon installation or update, run `./scripts/setup-blender-mcp.sh`.
+Then open Blender, enable `Interface: MCP for Blender` if required, open the
+MCP for Blender panel, and start the server. Do not install or reconfigure the
+addon during ordinary `/blender` work, and do not expose its socket outside
+localhost.
+
+If the check passes but the route cannot connect, confirm that Blender is open,
+the addon is enabled, and the MCP server is started on port 9876. The
+`blender_get_addon_status` tool can then report addon/version compatibility.
 
 ## HyperFrames video production is unavailable
 

@@ -14,6 +14,7 @@ const commandTargets = new Map([
   ["video.md", "Producer"],
   ["search.md", "Searcher"],
   ["research.md", "Professor"],
+  ["blender.md", "Blender"],
 ])
 
 const oldCommands = [
@@ -44,6 +45,7 @@ const agentNames = new Map([
   ["verifier.md", "Verifier"],
   ["searcher.md", "Searcher"],
   ["professor.md", "Professor"],
+  ["blender.md", "Blender"],
 ])
 
 const oldAgents = [

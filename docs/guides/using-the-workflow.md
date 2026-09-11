@@ -59,6 +59,42 @@ Before first browser use, run:
 
 The dedicated user-facing route is `/browser` and the Assistant category route is `browser-automation`; Ego Lite is only the current backend. Login, CAPTCHA, MFA, payment, security confirmation, and user takeover remain human-control boundaries. Browser work must verify the resulting page state and must not mutate repository files.
 
+## Blender scene work
+
+Use `/blender <goal>` for interactive Blender scene inspection, creation,
+modeling, materials, lighting, cameras, supported animation, rendering,
+requested saves/exports, and visual verification:
+
+```text
+User -> /blender -> Blender -> Blender MCP -> Blender addon -> Blender scene
+```
+
+This is a standalone primary route, not a CategoryEngine category or an
+Implementer assignment. Normal Blender work does not own repository files,
+Git, OpenSpec, workspace lifecycle, or Delegation Runtime state. Assistant
+does not call Blender MCP directly; route scene work to `/blender`.
+
+Blender MCP is external. Set it up explicitly with:
+
+```sh
+./scripts/setup-blender-mcp.sh
+```
+
+That command runs the upstream `uvx --python 3.11 blender-mcp install-addon`
+path but does not launch Blender or manipulate its GUI. In Blender, enable
+`Interface: MCP for Blender` if required, open the MCP for Blender panel, and
+start the server. Check repository configuration and local tooling without
+mutating the installation with:
+
+```sh
+./scripts/check-blender-mcp.sh
+```
+
+The authored defaults select managed Python 3.11, connect only to
+`localhost:9876`, enable Safe Mode, and disable telemetry. The check remains
+valid when Blender is closed and reports that live addon/server connectivity
+still needs to be confirmed in Blender.
+
 ## Video analysis
 
 Ask about the video itself when the required evidence is spoken content, transcript, frames, motion, editing, composition, a screen recording, or on-screen UI state. Assistant should route that work as `category="video-analysis"` with `load_skills=["watch"]`. For example, “Analyze the first 15 seconds of this video and explain the visual and spoken hook.” The `watch` skill remains independent from CategoryEngine and is selected explicitly, but the current hard runtime permissions support its bundled execution only under `video-analysis`; selecting it with another category does not automatically authorize its runtime.

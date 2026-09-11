@@ -16,6 +16,7 @@
 | Technical Advisor advises and Plan Reviewer independently approves or rejects. | Agent policy tests |
 | CodeGraph is a direct public MCP integration and only structural evidence. | Config and role-policy tests |
 | Browser has a dedicated `/browser` route and Assistant's backend-neutral `browser-automation` route; both retain the external browser backend boundary. | Browser agent and category tests |
+| Blender has a dedicated `/blender` primary route backed by external Blender MCP; it is not a CategoryEngine category and uses an explicit five-tool MCP allowlist. | Blender agent, provisioning, and discovery tests |
 | Video production has a dedicated `Producer` + `/video` primary route backed by the external upstream HyperFrames skill family; it is not a CategoryEngine category. | Producer-agent, command, and provisioning tests |
 | Video-content questions remain separate: `video-analysis` uses the independent upstream `watch` skill, while `/video` owns HyperFrames production. | Producer-agent and existing watch/category tests |
 | `/video` never silently updates global HyperFrames skills without approval; setup is explicit and the health check is read-only. | Producer-agent and HyperFrames provisioning tests |
