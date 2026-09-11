@@ -95,8 +95,13 @@ test("check is read-only, reports configuration, and does not require Blender", 
   assert.match(result.stdout, /Telemetry: OFF/)
   assert.match(result.stdout, /connectivity: not probed/i)
 
+  const shellMutationPattern = /(^|[\s;])(?:rm|mv|cp|mkdir|touch)\s/
+  for (const command of ["rm file", "cp file", "touch file"]) assert.match(command, shellMutationPattern)
+  const blenderMutationPattern = /blender-mcp\s+(?:install|update)/i
+  assert.match("blender-mcp install-addon", blenderMutationPattern)
+
   const source = await readFile(check, "utf8")
   assert.doesNotMatch(source, /install-addon/)
-  assert.doesNotMatch(source, /(^|[[:space:];])(?:rm|mv|cp|mkdir|touch)[[:space:]]/)
-  assert.doesNotMatch(source, /blender-mcp[[:space:]]+(?:install|update)/i)
+  assert.doesNotMatch(source, shellMutationPattern)
+  assert.doesNotMatch(source, blenderMutationPattern)
 })
