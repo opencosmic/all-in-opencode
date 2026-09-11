@@ -37,8 +37,13 @@ else
   "$cli" mcp install opencode --print --json >"$raw_spec" \
     || fail "the supported OpenDesign CLI could not print its canonical MCP launch spec"
 fi
-node "$SPEC_WRITER" --input "$raw_spec" --output "$SPEC_PATH" --fallback-cli "$cli" \
-  || fail "the OpenDesign CLI returned an unsupported MCP launch spec"
+if [ -n "${OPEN_DESIGN_MCP_DAEMON_URL:-}" ] || [ -n "${OD_DAEMON_URL:-}" ]; then
+  node "$SPEC_WRITER" --input "$raw_spec" --output "$SPEC_PATH" --fallback-cli "$cli" --allow-minimal-direct \
+    || fail "the OpenDesign CLI returned an unsupported MCP launch spec"
+else
+  node "$SPEC_WRITER" --input "$raw_spec" --output "$SPEC_PATH" --fallback-cli "$cli" \
+    || fail "the OpenDesign CLI returned an unsupported MCP launch spec"
+fi
 
 printf '%s\n' "OpenDesign MCP launcher and canonical configuration are ready."
 printf '%s\n' "This setup does not install software or start the OpenDesign UI/daemon."

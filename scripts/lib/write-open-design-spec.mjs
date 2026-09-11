@@ -11,10 +11,27 @@ const input = option(args, "--input")
 const output = option(args, "--output")
 const fallbackCli = option(args, "--fallback-cli")
 const checkOnly = args.includes("--check")
+const allowMinimalDirect = args.includes("--allow-minimal-direct")
 
 function fail(message) {
   console.error(`ERROR: ${message}`)
   process.exit(1)
+}
+
+function isMinimalDirectFallback(spec) {
+  if (spec.command !== "od" || Object.keys(spec.env).length !== 0 || spec.args[0] !== "mcp") return false
+  const daemonUrl = spec.args.length === 3 && spec.args[1] === "--daemon-url"
+    ? spec.args[2]
+    : spec.args.length === 2 && spec.args[1].startsWith("--daemon-url=")
+      ? spec.args[1].slice("--daemon-url=".length)
+      : ""
+  return /^https?:\/\//.test(daemonUrl)
+}
+
+function launchMode(spec) {
+  if (spec.args.some((arg) => arg === "--daemon-url" || arg.startsWith("--daemon-url="))) return "direct-daemon"
+  if (spec.env.OD_MCP_BOOTSTRAP_COMMAND && spec.env.OD_MCP_BOOTSTRAP_ARGS) return "headless-bootstrap"
+  return "canonical"
 }
 
 function parseLaunchSpec(raw) {
@@ -24,18 +41,17 @@ function parseLaunchSpec(raw) {
   if (!Array.isArray(spec.args) || spec.args.some((arg) => typeof arg !== "string")) throw new Error("launch spec args must be strings")
   if (!spec.env || typeof spec.env !== "object" || Array.isArray(spec.env)) throw new Error("launch spec env must be an object")
   if (Object.values(spec.env).some((value) => typeof value !== "string")) throw new Error("launch spec env values must be strings")
+  if (isMinimalDirectFallback(spec) && !allowMinimalDirect) {
+    throw new Error(
+      "OpenDesign returned only its minimal direct-daemon fallback and no headless bootstrap metadata. Start a supported OpenDesign daemon/runtime once or provide OPEN_DESIGN_MCP_DAEMON_URL, then rerun setup.",
+    )
+  }
 
   let command = spec.command
   let commandArgs = [...spec.args]
   if (command === "od") {
     if (!fallbackCli || !isAbsolute(fallbackCli)) throw new Error("the fallback OpenDesign CLI must be an absolute path")
     command = fallbackCli
-    // Upstream's unreachable-daemon dry-run fallback contains an explicit
-    // daemon URL. Prefer the official CLI's no-URL mode so its own headless
-    // bootstrap/resolution path remains available at MCP startup.
-    if (commandArgs.length === 3 && commandArgs[0] === "mcp" && commandArgs[1] === "--daemon-url" && !Object.keys(spec.env).length) {
-      commandArgs = ["mcp"]
-    }
   }
   if (!isAbsolute(command)) throw new Error(`launch spec command must be absolute after provisioning: ${spec.command}`)
   return { version: 1, command, args: commandArgs, env: { ...spec.env }, source: "od mcp install opencode --print --json" }
@@ -43,7 +59,7 @@ function parseLaunchSpec(raw) {
 
 async function main() {
   if (!input || !fallbackCli || (!checkOnly && !output)) {
-    fail("usage: write-open-design-spec.mjs --input FILE --fallback-cli ABSOLUTE_PATH [--output FILE | --check]")
+    fail("usage: write-open-design-spec.mjs --input FILE --fallback-cli ABSOLUTE_PATH [--output FILE | --check] [--allow-minimal-direct]")
   }
   let spec
   try {
@@ -53,7 +69,7 @@ async function main() {
     fail(`invalid OpenDesign launch spec: ${error.message}`)
   }
   if (checkOnly) {
-    console.log(`OpenDesign launch spec: valid (${spec.command})`)
+    console.log(`OpenDesign launch spec: valid (${launchMode(spec)}; ${spec.command})`)
     return
   }
 
@@ -67,7 +83,7 @@ async function main() {
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true })
   }
-  console.log(`OpenDesign launch spec provisioned: ${output}`)
+  console.log(`OpenDesign launch spec provisioned: ${output} (${launchMode(spec)})`)
 }
 
 await main()

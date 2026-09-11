@@ -20,6 +20,7 @@ import { SkillResolver, discoverSkills } from "../plugins/delegation/skill-resol
 const execFileAsync = promisify(execFile)
 const repository = join(process.cwd())
 const launcher = join(repository, "opencode", "open-design-mcp.sh")
+const launchRunner = join(repository, "scripts", "lib", "run-open-design-mcp.mjs")
 const setup = join(repository, "scripts", "setup-open-design.sh")
 const check = join(repository, "scripts", "check-open-design.sh")
 const install = join(repository, "scripts", "install.sh")
@@ -141,6 +142,87 @@ test("the registered tool-execution hook gates real MCP resource operations", as
   assert.equal(permission.status, "deny")
 })
 
+test("the launch runner preserves canonical daemon URLs and replaces only explicit overrides", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "open-design-runner-test-"))
+  const capture = join(root, "capture")
+  const specPath = join(root, "launch.json")
+  await writeFile(capture, `#!/usr/bin/env node
+const { writeFileSync } = require("node:fs")
+writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({
+  args: process.argv.slice(2),
+  env: { CAPTURE_MARKER: process.env.CAPTURE_MARKER, OD_DATA_DIR: process.env.OD_DATA_DIR },
+}))
+`)
+  await chmod(capture, 0o755)
+  const specEnv = {
+    CAPTURE_MARKER: "preserve-this-env",
+    CAPTURE_PATH: join(root, "captured.json"),
+    OD_DATA_DIR: join(root, "open-design-data"),
+  }
+  const canonicalArgs = [
+    "/runtime/open-design-cli.js",
+    "mcp",
+    "--daemon-url",
+    "http://127.0.0.1:4567",
+    "--sidecar-flag",
+    "value",
+  ]
+  const writeSpec = (specArgs) => writeFile(specPath, `${JSON.stringify({ command: capture, args: specArgs, env: specEnv })}\n`)
+  const runRunner = (extra = []) => run(process.execPath, [launchRunner, "--spec", specPath, "--fallback-cli", capture, ...extra])
+  const captured = async () => JSON.parse(await readFile(specEnv.CAPTURE_PATH, "utf8"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+
+  await writeSpec(canonicalArgs)
+  let result = await runRunner()
+  assert.equal(result.code, 0, result.stderr)
+  assert.deepEqual((await captured()).args, canonicalArgs)
+  assert.deepEqual((await captured()).env, {
+    CAPTURE_MARKER: "preserve-this-env",
+    OD_DATA_DIR: join(root, "open-design-data"),
+  })
+
+  result = await runRunner(["--daemon-url", "http://127.0.0.1:9999"])
+  assert.equal(result.code, 0, result.stderr)
+  const overridden = await captured()
+  assert.deepEqual(overridden.args, [
+    "/runtime/open-design-cli.js",
+    "mcp",
+    "--sidecar-flag",
+    "value",
+    "--daemon-url",
+    "http://127.0.0.1:9999",
+  ])
+  assert.equal(overridden.args.filter((arg) => arg === "--daemon-url").length, 1)
+  assert.deepEqual(overridden.env, {
+    CAPTURE_MARKER: "preserve-this-env",
+    OD_DATA_DIR: join(root, "open-design-data"),
+  })
+
+  const equalsArgs = [
+    "/runtime/open-design-cli.js",
+    "mcp",
+    "--daemon-url=http://127.0.0.1:4567",
+    "--sidecar-flag",
+    "value",
+  ]
+  await writeSpec(equalsArgs)
+  result = await runRunner()
+  assert.equal(result.code, 0, result.stderr)
+  assert.deepEqual((await captured()).args, equalsArgs)
+  result = await runRunner(["--daemon-url", "http://127.0.0.1:9999"])
+  assert.equal(result.code, 0, result.stderr)
+  const equalsOverridden = await captured()
+  assert.deepEqual(equalsOverridden.args, [
+    "/runtime/open-design-cli.js",
+    "mcp",
+    "--sidecar-flag",
+    "value",
+    "--daemon-url",
+    "http://127.0.0.1:9999",
+  ])
+  assert.equal(equalsOverridden.args.filter((arg) => arg === "--daemon-url" || arg.startsWith("--daemon-url=")).length, 1)
+})
+
 test("OpenDesign setup and headless resource checks use an existing supported CLI", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "open-design-integration-test-"))
   const home = join(root, "home")
@@ -158,6 +240,22 @@ if (args.join(" ") === "mcp install --open-design-cli-probe") {
   process.exit(0)
 }
 if (args[0] === "mcp" && args[1] === "install" && args.includes("opencode") && args.includes("--print") && args.includes("--json")) {
+  if (process.env.FAKE_INSTALL_MODE === "minimal") {
+    console.log(JSON.stringify({ ok: true, agent: "opencode", kind: "json", launchSpec: {
+      command: "od",
+      args: ["mcp", "--daemon-url", "http://127.0.0.1:7456"],
+      env: {},
+    } }))
+    process.exit(0)
+  }
+  if (process.env.FAKE_INSTALL_MODE === "direct") {
+    console.log(JSON.stringify({ ok: true, agent: "opencode", kind: "json", launchSpec: {
+      command: ${JSON.stringify(cli)},
+      args: ["mcp", "--daemon-url", "http://127.0.0.1:4567", "--direct-flag", "value"],
+      env: ${JSON.stringify(launchEnv)},
+    } }))
+    process.exit(0)
+  }
   console.log(JSON.stringify({ ok: true, agent: "opencode", kind: "json", launchSpec: {
     command: ${JSON.stringify(cli)},
     args: ["mcp", "--fixture-mcp"],
@@ -214,6 +312,19 @@ if (process.env.FAKE_MCP_MODE !== "malformed" && process.env.FAKE_MCP_MODE !== "
   assert.equal(spec.command, cli)
   assert.deepEqual(spec.args, ["mcp", "--fixture-mcp"])
   assert.deepEqual(spec.env, launchEnv)
+  assert.match(setupResult.stdout, /headless-bootstrap/)
+
+  const directHome = join(root, "direct-home")
+  const directSetup = await run(setup, [], {
+    env: { ...env, HOME: directHome, FAKE_INSTALL_MODE: "direct" },
+  })
+  assert.equal(directSetup.code, 0, directSetup.stderr)
+  assert.match(directSetup.stdout, /direct-daemon/)
+  const directSpec = JSON.parse(await readFile(join(directHome, ".config", "opencode", "open-design-mcp.json"), "utf8"))
+  assert.equal(directSpec.command, cli)
+  assert.deepEqual(directSpec.args, ["mcp", "--daemon-url", "http://127.0.0.1:4567", "--direct-flag", "value"])
+  assert.deepEqual(directSpec.env, launchEnv)
+
   const installResult = await run(install, [], { env })
   assert.equal(installResult.code, 0, installResult.stderr)
 
@@ -252,6 +363,24 @@ if (process.env.FAKE_MCP_MODE !== "malformed" && process.env.FAKE_MCP_MODE !== "
   assert.match(stale.stdout, /launch spec: missing or invalid/)
   const refreshed = await run(setup, [], { env })
   assert.equal(refreshed.code, 0, refreshed.stderr)
+
+  const fallbackHome = join(root, "fallback-home")
+  const fallbackEnv = { ...env, HOME: fallbackHome, FAKE_INSTALL_MODE: "minimal" }
+  const fallback = await run(setup, [], { env: fallbackEnv })
+  assert.notEqual(fallback.code, 0)
+  assert.match(`${fallback.stdout}\n${fallback.stderr}`, /minimal direct-daemon fallback/)
+  assert.match(`${fallback.stdout}\n${fallback.stderr}`, /OPEN_DESIGN_MCP_DAEMON_URL/)
+  await assert.rejects(readFile(join(fallbackHome, ".config", "opencode", "open-design-mcp.json")))
+
+  const explicitDaemonUrl = "http://127.0.0.1:7456"
+  const acceptedFallback = await run(setup, [], {
+    env: { ...fallbackEnv, OPEN_DESIGN_MCP_DAEMON_URL: explicitDaemonUrl },
+  })
+  assert.equal(acceptedFallback.code, 0, acceptedFallback.stderr)
+  const fallbackSpec = JSON.parse(await readFile(join(fallbackHome, ".config", "opencode", "open-design-mcp.json"), "utf8"))
+  assert.equal(fallbackSpec.command, cli)
+  assert.deepEqual(fallbackSpec.args, ["mcp", "--daemon-url", explicitDaemonUrl])
+  assert.deepEqual(fallbackSpec.env, {})
 })
 
 test("OpenDesign provisioning rejects relative, missing, and unrelated od binaries", async (t) => {

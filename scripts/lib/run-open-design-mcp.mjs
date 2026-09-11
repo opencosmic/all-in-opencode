@@ -55,16 +55,9 @@ async function main() {
     return
   }
 
-  const commandArgs = []
-  for (let index = 0; index < spec.args.length; index += 1) {
-    if (spec.args[index] === "--daemon-url") {
-      index += 1
-      continue
-    }
-    if (spec.args[index].startsWith("--daemon-url=")) continue
-    commandArgs.push(spec.args[index])
-  }
-  if (daemonUrl) commandArgs.push("--daemon-url", daemonUrl)
+  const commandArgs = daemonUrl
+    ? replaceDaemonUrl(spec.args, daemonUrl)
+    : [...spec.args]
   commandArgs.push(...passthrough)
   const child = spawn(command, commandArgs, {
     env: { ...process.env, ...spec.env },
@@ -80,6 +73,20 @@ async function main() {
   child.on("exit", (code, signal) => {
     process.exitCode = signal ? 1 : (code ?? 1)
   })
+}
+
+function replaceDaemonUrl(args, daemonUrl) {
+  const replaced = []
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === "--daemon-url") {
+      index += 1
+      continue
+    }
+    if (args[index].startsWith("--daemon-url=")) continue
+    replaced.push(args[index])
+  }
+  replaced.push("--daemon-url", daemonUrl)
+  return replaced
 }
 
 await main()

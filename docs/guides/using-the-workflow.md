@@ -72,7 +72,7 @@ The skill reads OpenDesign MCP resources through OpenCode and applies them as gu
 ./scripts/check-open-design.sh
 ```
 
-Setup reuses a supported existing CLI/app installation and obtains the upstream print-only launch payload with `od mcp install opencode --print --json`; it stores the validated command, arguments, and environment in the user-local `~/.config/opencode/open-design-mcp.json` file. The repository launcher passes that metadata to the headless MCP process, without opening the GUI or downloading software. Set `OPEN_DESIGN_CLI` to an absolute CLI path if the system `od` command is unrelated; use `OPEN_DESIGN_MCP_DAEMON_URL` only when an explicit daemon endpoint is needed.
+Setup reuses a supported existing CLI/app installation and obtains the upstream print-only launch payload with `od mcp install opencode --print --json`; it stores the validated command, arguments, and environment in the user-local `~/.config/opencode/open-design-mcp.json` file. The repository launcher passes that metadata to the headless MCP process, without opening the GUI or downloading software. If upstream returns only its metadata-free direct-daemon fallback, setup requires an explicit `OPEN_DESIGN_MCP_DAEMON_URL` or a supported runtime/daemon context rather than converting it into fake bootstrap mode. Set `OPEN_DESIGN_CLI` to an absolute CLI path if the system `od` command is unrelated.
 
 ## Video analysis
 
