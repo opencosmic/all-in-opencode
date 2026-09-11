@@ -1,13 +1,13 @@
 import { IMPLEMENTER_CONTRACT } from "./implementer-contract.js"
-import { categorySessionPermission } from "./category-permissions.js"
+import { categorySessionPermission, requiresPreservedSessionPermissions } from "./category-permissions.js"
 import { parseModel, sdkData, sessionStatusFor } from "./sdk.js"
 
 function promptText(description, prompt) {
   return [`Assignment: ${description}`, prompt].filter(Boolean).join("\n\n")
 }
 
-function toolsFor(agent, configured, category) {
-  if (agent === "Implementer" && ["git", "browser-automation", "video-analysis"].includes(category)) return undefined
+function toolsFor(agent, configured, category, skills = []) {
+  if (requiresPreservedSessionPermissions(agent, category, skills)) return undefined
   const tools = { ...(configured ?? {}) }
   if (agent === "Implementer") {
     Object.assign(tools, {
@@ -76,7 +76,7 @@ export class SessionRunner {
     const body = {
       agent,
       system: systemFor(agent, category, profile, skills),
-      tools: toolsFor(agent, profile.tools, category),
+      tools: toolsFor(agent, profile.tools, category, skills),
       parts: [{ type: "text", text }],
     }
     const model = parseModel(profile.model)

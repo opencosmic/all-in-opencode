@@ -45,6 +45,12 @@ If a `/video` request stops at a skill-update requirement, do not patch the inst
 
 If frame workers are unavailable, let the current HyperFrames workflow use its serial fallback. The route intentionally does not expose the workflow-owned Delegation Runtime or a broad native task channel, and this repository does not add a scheduler or worker pool.
 
+## OpenDesign references are unavailable
+
+Run `./scripts/setup-open-design.sh` to validate an existing supported OpenDesign CLI or app, then `./scripts/check-open-design.sh` for a read-only headless MCP/resource check. If the check reports that the CLI is missing, install or enable the upstream-supported CLI/app yourself and set `OPEN_DESIGN_CLI` to its absolute path; setup never downloads it. On macOS, `/usr/bin/od` is the unrelated octal utility and is deliberately rejected. Restart OpenCode after installing the repository links or changing MCP configuration.
+
+OpenDesign is intentionally optional. A normal `visual-engineering` delegation remains valid without `load_skills=["open-design"]`, and the integration does not call OpenDesign's nested `start_run` path. If the selected skill cannot read resources, continue with the repository's existing design system and verification workflow.
+
 ## Video analysis is unavailable
 
 Run `./scripts/setup-watch.sh` and `./scripts/check-watch.sh`. The first script installs the upstream `bradautomates/claude-video` `watch` skill into a supported global skill directory and does not copy it into this repository. The upstream `scripts/setup.py` preflight reports or installs `ffmpeg`, `ffprobe`, and `yt-dlp` as appropriate for the platform, and optional Whisper keys remain in `~/.config/watch/.env`. Ask Assistant to use `category="video-analysis", load_skills=["watch"]` when the evidence must come from the video itself.

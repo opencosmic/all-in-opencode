@@ -151,6 +151,25 @@ Provision the upstream `bradautomates/claude-video` Agent Skill with:
 
 The setup script installs the self-contained `watch` skill into an existing supported global skill root. Its own bundled `scripts/setup.py` handles the current `ffmpeg`, `ffprobe`, and `yt-dlp` preflight and optional Whisper configuration. The project does not vendor those scripts or store API keys. The normal example is: “Analyze the first 15 seconds of this video and explain the visual and spoken hook.”
 
+## OpenDesign design references
+
+OpenDesign is an optional, read-only design resource capability. For frontend/UI/design work that benefits from its references, delegate with:
+
+```text
+category="visual-engineering", load_skills=["open-design"]
+```
+
+The selected skill discovers and reads OpenDesign `DESIGN.md` and `SKILL.md` resources through OpenCode's generic MCP resource interface. OpenCode and `opencode-workflow` remain the control plane: the Implementer edits the current repository/worktree, which remains the source of truth, and the existing verification workflow remains authoritative. This integration intentionally does not call OpenDesign's nested agent-running `start_run` path or expose its raw MCP tools.
+
+Provisioning is explicit and uses an already-installed supported OpenDesign CLI or app; the UI is not required for normal headless MCP use when the installed upstream supports it:
+
+```sh
+./scripts/setup-open-design.sh
+./scripts/check-open-design.sh
+```
+
+If `od` on `PATH` is ambiguous, set `OPEN_DESIGN_CLI` to the absolute path of the supported OpenDesign CLI. The setup and check scripts do not download software or mutate unrelated configuration.
+
 ## Installation
 
 The live OpenCode configuration is linked narrowly from this repository:

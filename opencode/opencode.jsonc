@@ -13,6 +13,18 @@
         "--mcp"
       ],
       "enabled": true
+    },
+    "open-design": {
+      "type": "local",
+      "command": [
+        "/bin/sh",
+        "-c",
+        "exec \"$HOME/.config/opencode/open-design-mcp.sh\""
+      ],
+      "enabled": true
     }
+  },
+  "permission": {
+    "open_design_*": "deny"
   }
 }

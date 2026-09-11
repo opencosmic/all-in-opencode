@@ -9,6 +9,7 @@ User
  |                                            +-- git
  |                                            +-- browser-automation
  |                                            +-- video-analysis + watch
+ |                                            +-- visual-engineering + open-design (optional resources)
  |                      +-- /browser --> Browser --> ego-browser backend
  |                      +-- /video --> Producer --> HyperFrames external skills/CLI
  |                      +-- /search --> Searcher --> websearch/webfetch
@@ -52,6 +53,8 @@ Executor obtains a fresh Plan Reviewer verdict, prepares one provenance-bound wo
 The Git category is session-scoped through OpenCode's public permission hook. Ordinary Implementers retain their restrictive Git policy. Only the exact Git category may receive bounded status/log/diff/show/rev-parse, staging, commit, and selected-SHA cherry-pick operations. Destructive operations, force operations, arbitrary history rewriting, and silent user-change disposal remain denied.
 
 The `video-analysis` category is also session-scoped. It disables repository mutation and admits the upstream `watch` skill only when the caller explicitly selects `load_skills=["watch"]`. Its permission boundary permits only the selected skill's `setup.py`/`watch.py`, the skill directory, and generated `watch-*` outputs beneath the system temp directory. The upstream skill owns video download, captions, frame extraction, timestamp filtering, and optional Whisper fallback; selecting `watch` with another category does not grant those runtime permissions.
+
+OpenDesign follows the same selective-capability pattern without adding a category or agent. Only an Implementer child in `visual-engineering` with explicitly selected `open-design` receives the session-scoped `mcp:open-design:*` resource-read permission. OpenCode's sanitized raw OpenDesign tool namespace remains denied, and `toolsFor()` preserves the session rules because prompt-level tool flags can replace them. OpenDesign supplies design context; the current worktree and existing verification remain authoritative.
 
 Workspace release is conservative: tasks must be terminal, identity and provenance must still match, the worktree must be clean, and unique changes must be integrated. Refusal preserves evidence.
 
