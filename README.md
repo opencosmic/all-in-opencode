@@ -36,7 +36,7 @@ The runtime exposes seven tools:
 
 - `workspace_prepare`
 - `delegate_task`
-- `consult_agent`
+- `consult_agents`
 - `task_status`
 - `task_output`
 - `task_cancel`
@@ -44,7 +44,7 @@ The runtime exposes seven tools:
 
 `CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are preserved in the registry, while `opencode/categories.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The `delegate_task` description presents the resolved catalog at startup.
 
-`delegate_task` delegates a real scoped assignment. `consult_agent` is separate: only `Implementer` can call it, and only for bounded information gathering from `Explorer` or `Librarian`. Explorer reports local repository evidence; Librarian reports external documentation and upstream evidence. Neither consultant can edit, delegate, or consult another agent, and `Implementer` remains responsible for all implementation decisions, edits, and validation. Background consultations use the normal task/completion lifecycle and return their bounded findings in the resumed completion notice. A `session_id` may continue a completed consultation only for the same target, parent Implementer, and directory; skills are not exposed by this tool.
+`delegate_task` delegates a real scoped assignment. `consult_agents` is separate: only `Implementer` can call it, and only for a bounded batch of information-gathering requests to `Explorer` or `Librarian`. The batch starts its requests concurrently, waits synchronously for every outcome, and returns results in input order. Explorer reports local repository evidence; Librarian reports external documentation and upstream evidence. Neither consultant can edit, delegate, or consult another agent, and `Implementer` remains responsible for all implementation decisions, edits, and validation. Consultation tasks are always foreground (`background: false`, `completion_group: null`) and never enter the parent-resume lifecycle. A `session_id` may continue a completed consultation only for the same target, parent Implementer, and directory; skills are not exposed by this tool.
 
 Category execution has three separate layers: the shared Implementer contract holds invariants for every delegated task, `category.prompt_append` supplies the selected execution mindset and completion bar, and `load_skills` injects only the explicitly selected capability instructions. Category choice and skill choice remain independent. Git and browser behavior still have hard session permissions; their category contexts do not replace those boundaries.
 

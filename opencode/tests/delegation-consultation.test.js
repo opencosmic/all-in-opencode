@@ -17,6 +17,7 @@ function fakeClient() {
     prompts: [],
     statuses: {},
     messages: {},
+    failAgents: new Set(),
   }
   return {
     state,
@@ -27,6 +28,9 @@ function fakeClient() {
       },
       promptAsync: async (request) => {
         state.prompts.push(request)
+        if (state.failAgents.has(request.body.agent)) {
+          return { error: { data: { message: "401 Unauthorized" } } }
+        }
         return { data: undefined }
       },
       abort: async () => ({ data: true }),
@@ -96,150 +100,193 @@ async function complete(runtime, client, sessionID, text) {
 }
 
 async function waitFor(predicate) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline) {
     if (predicate()) return
-    await new Promise((resolve) => setImmediate(resolve))
+    await new Promise((resolve) => setTimeout(resolve, 1))
   }
   throw new Error("test fixture did not reach the expected state")
 }
 
-test("Implementer can consult both read-only specialists through the shared background lifecycle", async (t) => {
+test("consult_agents launches the batch concurrently, waits synchronously, and preserves order", async (t) => {
   const { client, context, runtime } = await fixture(t)
-  const explorer = await runtime.consult({
-    agent: "Explorer",
-    description: "Find local registration patterns",
-    prompt: "Locate the existing OpenCode tool registration pattern and report the relevant files.",
-    run_in_background: true,
-  }, context)
-  const librarian = await runtime.consult({
-    agent: "Librarian",
-    prompt: "Check the official documentation for the current session prompt API.",
-    run_in_background: true,
-  }, context)
+  let settled = false
+  const pending = runtime.consultAgents({
+    requests: [
+      {
+        agent: "Explorer",
+        description: "Find local registration patterns",
+        prompt: "Locate the existing OpenCode tool registration pattern and report the relevant files.",
+      },
+      {
+        agent: "Librarian",
+        prompt: "Check the official documentation for the current session prompt API.",
+      },
+    ],
+  }, context).then((result) => {
+    settled = true
+    return result
+  })
 
+  await waitFor(() => client.state.prompts.length === 2)
+  assert.equal(settled, false)
   assert.deepEqual(client.state.prompts.map((request) => request.body.agent), ["Explorer", "Librarian"])
   assert.equal(client.state.creates.length, 2)
   assert.equal(client.state.creates[0].body.parentID, context.sessionID)
   assert.equal(client.state.creates[0].body.permission, undefined)
+  assert.equal(client.state.prompts.some((request) => request.path.id === context.sessionID), false)
+
+  for (const task of runtime.registry.list({ parent_session_id: context.sessionID })) {
+    assert.equal(task.status, "running")
+    assert.equal(task.background, false)
+    assert.equal(task.completion_group, null)
+    assert.equal(task.category, null)
+    assert.equal(task.workspace_id, null)
+  }
+  assert.equal(runtime.registry.list({ parent_session_id: context.sessionID }).length, 2)
+
+  const explorerSessionID = client.state.prompts.find((request) => request.body.agent === "Explorer").path.id
+  const librarianSessionID = client.state.prompts.find((request) => request.body.agent === "Librarian").path.id
   assert.equal(client.state.prompts[0].body.tools.delegate_task, false)
-  assert.equal(client.state.prompts[0].body.tools.consult_agent, false)
+  assert.equal(client.state.prompts[0].body.tools.consult_agents, false)
   assert.equal(client.state.prompts[0].body.tools.task, false)
   assert.equal(client.state.prompts[0].body.tools.edit, undefined)
   assert.equal(Object.hasOwn(client.state.prompts[0].body, "load_skills"), false)
-  assert.equal(explorer.workspace_id, null)
-  assert.equal(librarian.workspace_id, null)
 
-  await complete(runtime, client, explorer.child_session_id, "local findings")
-  await complete(runtime, client, librarian.child_session_id, "upstream findings")
-  assert.equal(runtime.taskOutput(explorer.task_id).result.text, "local findings")
-  assert.equal(runtime.taskOutput(librarian.task_id).result.text, "upstream findings")
+  await complete(runtime, client, explorerSessionID, "local findings")
+  assert.equal(settled, false)
+  await complete(runtime, client, librarianSessionID, "upstream findings")
+  const result = await pending
 
-  client.state.statuses[context.sessionID] = { type: "idle" }
-  await runtime.handleEvent({ type: "session.idle", properties: { sessionID: context.sessionID } })
-  const resume = client.state.prompts.find((request) => request.path.id === context.sessionID)
-  assert.match(resume.body.parts[0].text, /local findings/)
-  assert.match(resume.body.parts[0].text, /upstream findings/)
+  assert.deepEqual(result.results.map((outcome) => ({
+    agent: outcome.agent,
+    status: outcome.status,
+    text: outcome.result.text,
+  })), [
+    { agent: "Explorer", status: "completed", text: "local findings" },
+    { agent: "Librarian", status: "completed", text: "upstream findings" },
+  ])
+  assert.ok(result.results.every((outcome) => outcome.task_id && outcome.session_id))
+  assert.equal(client.state.prompts.some((request) => request.path.id === context.sessionID), false)
 })
 
-test("synchronous consultation returns the bounded child result", async (t) => {
+test("consult_agents isolates a child failure and does not retry or resume the parent", async (t) => {
   const { client, context, runtime } = await fixture(t)
-  const pending = runtime.consult({
-    agent: "Librarian",
-    prompt: "Return the relevant official API reference.",
+  client.state.failAgents.add("Explorer")
+  const pending = runtime.consultAgents({
+    requests: [
+      { agent: "Explorer", prompt: "This consultant should fail before accepting the turn." },
+      { agent: "Librarian", prompt: "Return the relevant official API reference." },
+    ],
+  }, context)
+
+  await waitFor(() => client.state.prompts.length === 2)
+  const librarianSessionID = client.state.prompts.find((request) => request.body.agent === "Librarian").path.id
+  await complete(runtime, client, librarianSessionID, "synchronous findings")
+  const result = await pending
+
+  assert.equal(client.state.prompts.length, 2)
+  assert.deepEqual(result.results.map((outcome) => outcome.agent), ["Explorer", "Librarian"])
+  assert.equal(result.results[0].status, "error")
+  assert.match(result.results[0].error, /401 Unauthorized/)
+  assert.equal(result.results[1].status, "completed")
+  assert.equal(result.results[1].result.text, "synchronous findings")
+  assert.deepEqual(runtime.registry.list({ parent_session_id: context.sessionID }).map((task) => task.status), ["error", "completed"])
+  assert.equal(client.state.prompts.some((request) => request.path.id === context.sessionID), false)
+})
+
+test("consult_agents continuation uses the latest completed owned session and rejects overlap or duplicate IDs", async (t) => {
+  const { client, context, directory, runtime } = await fixture(t)
+  const firstPending = runtime.consultAgents({
+    requests: [{ agent: "Explorer", prompt: "Find the closest existing implementation." }],
   }, context)
   await waitFor(() => client.state.prompts.length === 1)
   const childSessionID = client.state.prompts[0].path.id
-  await complete(runtime, client, childSessionID, "synchronous findings")
-  const result = await pending
-  assert.equal(result.status, "completed")
-  assert.equal(result.result.text, "synchronous findings")
-  assert.equal(result.completion_group, null)
-})
+  await complete(runtime, client, childSessionID, "first findings")
+  const first = await firstPending
 
-test("background consultation startup errors are registered and terminalized", async (t) => {
-  const { client, context, runtime } = await fixture(t)
-  client.session.promptAsync = async (request) => {
-    client.state.prompts.push(request)
-    return { error: { data: { message: "consultant unavailable" } } }
-  }
-  await assert.rejects(runtime.consult({
-    agent: "Explorer",
-    prompt: "This consultant will fail before accepting the turn.",
-    run_in_background: true,
-  }, context), /configured model default failed.*consultant unavailable/)
-  const [task] = runtime.registry.list({ parent_session_id: context.sessionID })
-  assert.equal(task.status, "error")
-  assert.equal(task.agent, "Explorer")
-  assert.match(task.error, /consultant unavailable/)
-})
-
-test("consultation continuation reuses only the completed owned specialist session", async (t) => {
-  const { client, context, directory, runtime } = await fixture(t)
-  const first = await runtime.consult({
-    agent: "Explorer",
-    prompt: "Find the closest existing implementation.",
-    run_in_background: true,
+  const secondPending = runtime.consultAgents({
+    requests: [{
+      agent: "Explorer",
+      prompt: "Now compare that pattern with its nearest sibling.",
+      session_id: first.results[0].session_id,
+    }],
   }, context)
-  await complete(runtime, client, first.child_session_id, "first findings")
-
-  const continued = await runtime.consult({
-    agent: "Explorer",
-    prompt: "Now compare that pattern with its nearest sibling.",
-    session_id: first.child_session_id,
-    run_in_background: true,
-  }, context)
+  await waitFor(() => client.state.prompts.length === 2)
   assert.equal(client.state.creates.length, 1)
-  assert.equal(client.state.prompts.length, 2)
-  assert.equal(client.state.prompts[1].path.id, first.child_session_id)
-  assert.equal(runtime.registry.get(continued.task_id).execution_directory, await realpath(directory))
-  await complete(runtime, client, first.child_session_id, "continued findings")
-  assert.equal(runtime.taskOutput(continued.task_id).result.text, "continued findings")
+  assert.equal(client.state.prompts[1].path.id, childSessionID)
+  const [firstTask, secondTask] = runtime.registry.list({ parent_session_id: context.sessionID })
+  assert.equal(firstTask.status, "completed")
+  assert.equal(secondTask.status, "running")
+  assert.equal(secondTask.background, false)
+  assert.equal(secondTask.completion_group, null)
+  assert.equal(secondTask.execution_directory, await realpath(directory))
 
-  await assert.rejects(runtime.consult({
-    agent: "Librarian",
-    prompt: "Use the wrong target for this session.",
-    session_id: first.child_session_id,
-  }, context), /consultation target must remain Librarian/)
-  await assert.rejects(runtime.consult({
-    agent: "Explorer",
-    prompt: "Use an unknown session.",
-    session_id: "not-a-consultation-session",
+  await assert.rejects(runtime.consultAgents({
+    requests: [{ agent: "Explorer", prompt: "Do not overlap turns.", session_id: childSessionID }],
+  }, context), /in-flight consultation|already being continued/)
+
+  await complete(runtime, client, childSessionID, "continued findings")
+  const second = await secondPending
+  assert.equal(second.results[0].result.text, "continued findings")
+  const latest = runtime.findConsultationSession(childSessionID, "Explorer", context, await realpath(directory))
+  assert.equal(latest.task_id, second.results[0].task_id)
+
+  await assert.rejects(runtime.consultAgents({
+    requests: [{ agent: "Librarian", prompt: "Use the wrong target for this session.", session_id: childSessionID }],
+  }, context), /session_id belongs to Explorer; cannot continue it as Librarian/)
+  await assert.rejects(runtime.consultAgents({
+    requests: [{ agent: "Explorer", prompt: "Use an unknown session.", session_id: "not-a-consultation-session" }],
   }, context), /must reference a consultation session owned by this Implementer/)
+  await assert.rejects(runtime.consultAgents({
+    requests: [
+      { agent: "Explorer", prompt: "Duplicate one.", session_id: childSessionID },
+      { agent: "Explorer", prompt: "Duplicate two.", session_id: childSessionID },
+    ],
+  }, context), /cannot repeat session_id/)
+
+  await assert.rejects(runtime.consultAgents({
+    requests: [{ agent: "Explorer", prompt: "Cross-parent lookup.", session_id: childSessionID }],
+  }, { ...context, sessionID: "another-parent-session" }), /owned by this Implementer/)
+  const otherDirectory = join(directory, "other")
+  await mkdir(otherDirectory)
+  await assert.rejects(runtime.consultAgents({
+    requests: [{ agent: "Explorer", prompt: "Cross-directory lookup.", session_id: childSessionID }],
+  }, { ...context, directory: otherDirectory }), /different workspace/)
 })
 
-test("consultation fails closed for invalid callers, targets, and in-flight continuation", async (t) => {
+test("consult_agents rejects unsupported fields, callers, targets, and limits before launching", async (t) => {
   const { client, context, runtime } = await fixture(t)
+  for (const field of ["category", "load_skills", "workspace_id", "run_in_background"]) {
+    await assert.rejects(runtime.consultAgents({
+      requests: [{ agent: "Explorer", prompt: "No delegated configuration." }],
+      [field]: field === "load_skills" ? [] : false,
+    }, context), /does not accept/)
+  }
+  for (const field of ["category", "load_skills", "workspace_id", "run_in_background"]) {
+    await assert.rejects(runtime.consultAgents({
+      requests: [{ agent: "Explorer", prompt: "No delegated configuration.", [field]: false }],
+    }, context), /does not accept/)
+  }
   for (const agent of ["QA", "Reviewer", "Implementer", "Technical Advisor", "custom-agent"]) {
-    await assert.rejects(runtime.consult({ agent, prompt: "Invalid target" }, context), /target is not allowed/)
+    await assert.rejects(runtime.consultAgents({
+      requests: [{ agent, prompt: "Invalid target" }],
+    }, context), /target is not allowed/)
   }
-  await assert.rejects(runtime.consult({
-    agent: "Explorer",
-    category: "deep",
-    prompt: "No category delegation through consultation.",
-  }, context), /does not accept category/)
-  await assert.rejects(runtime.consult({
-    agent: "Explorer",
-    load_skills: ["anything"],
-    prompt: "No skill loading through consultation.",
-  }, context), /does not accept load_skills/)
   for (const agent of ["Explorer", "Librarian", "Executor", "Assistant", undefined]) {
-    await assert.rejects(runtime.consult({ agent: "Explorer", prompt: "Invalid caller" }, {
-      ...context,
-      agent,
-    }), /may only be called by Implementer/)
+    await assert.rejects(runtime.consultAgents({
+      requests: [{ agent: "Explorer", prompt: "Invalid caller" }],
+    }, { ...context, agent }), /may only be called by Implementer/)
   }
+  await assert.rejects(runtime.consultAgents({ requests: [] }, context), /accepts 1-4 requests/)
+  await assert.rejects(runtime.consultAgents({
+    requests: Array.from({ length: 5 }, () => ({ agent: "Explorer", prompt: "Too many" })),
+  }, context), /accepts 1-4 requests/)
+  await assert.rejects(runtime.consultAgents({
+    requests: [{ agent: "Explorer", prompt: "   " }],
+  }, context), /non-empty prompt/)
   assert.equal(client.state.creates.length, 0)
 
-  const active = await runtime.consult({
-    agent: "Explorer",
-    prompt: "Keep this consultation running.",
-    run_in_background: true,
-  }, context)
-  await assert.rejects(runtime.consult({
-    agent: "Explorer",
-    prompt: "Do not overlap turns.",
-    session_id: active.child_session_id,
-  }, context), /can continue only a completed consultation/)
   await assert.rejects(runtime.delegate({
     category: "quick",
     description: "Implementer must not delegate",
@@ -258,10 +305,10 @@ test("consultation child profiles and agent config keep recursion disabled", asy
     return [name, JSON.parse(stdout)]
   }))
   const resolved = new Map(agents)
-  assert.equal(resolved.get("Implementer").tools.consult_agent, true)
+  assert.equal(resolved.get("Implementer").tools.consult_agents, true)
   assert.equal(resolved.get("Implementer").tools.delegate_task, false)
   for (const name of ["Explorer", "Librarian"]) {
-    assert.equal(resolved.get(name).tools.consult_agent, false)
+    assert.equal(resolved.get(name).tools.consult_agents, false)
     assert.equal(resolved.get(name).tools.delegate_task, false)
   }
 })

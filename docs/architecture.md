@@ -5,7 +5,7 @@ User
  +-- ordinary work --> Assistant
  |                      +-- Explorer / Librarian / Technical Advisor
  |                      +-- CategoryEngine --> Implementer
- |                                            +-- consult_agent --> Explorer / Librarian
+ |                                            +-- consult_agents --> Explorer / Librarian
  |                                            +-- git
  |                                            +-- browser-automation
  |                                            +-- video-analysis + watch
@@ -26,9 +26,9 @@ OpenCode owns model, variant, tool, permission, and session execution. Git owns 
 
 ## Delegation boundary
 
-`delegate_task` requires exactly one category or allowlisted named specialist. Categories route to the reusable Implementer. Named specialists are Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, and QA. Unknown names fail closed. `consult_agent` is a separate, runtime-guarded facade available only to `Implementer`; it accepts exactly `Explorer` or `Librarian`, carries no skills or category, and reuses the same child-session/task lifecycle for bounded information gathering. It never delegates implementation ownership.
+`delegate_task` requires exactly one category or allowlisted named specialist. Categories route to the reusable Implementer. Named specialists are Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, and QA. Unknown names fail closed. `consult_agents` is a separate, runtime-guarded facade available only to `Implementer`; it accepts one to four concurrent requests targeting exactly `Explorer` or `Librarian`, carries no skills or category, and reuses the same child-session/task lifecycle for bounded information gathering. It never delegates implementation ownership.
 
-The seven runtime tools are `workspace_prepare`, `delegate_task`, `consult_agent`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces.
+The seven runtime tools are `workspace_prepare`, `delegate_task`, `consult_agents`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces.
 
 The runtime also initializes outside Git repositories. In that case, ordinary delegation and task inspection use a stable directory-scoped control plane, while workspace preparation and release remain Git-only operations.
 
@@ -40,7 +40,7 @@ Workspace release accepts either ancestry or Git-proven patch equivalence. A che
 
 ## Background lifecycle
 
-Independent tasks launched by one parent turn share a completion group. The parent performs unrelated work or becomes idle. Child events are observed and terminal state is persisted. Once every member is terminal, ParentResumeCoordinator resumes an eligible idle parent once. A missing status requires a current-process idle witness; busy, running, or retry status suppresses resume and invalidates stale witnesses. The parent retrieves detailed stored output after resume. There is no model-driven polling loop. Background `consult_agent` calls use this same registration, completion, output, and parent-resume path; their bounded findings are included in the completion notice because Implementer does not receive the general `task_output` tool.
+Independent tasks launched by one parent turn share a completion group. The parent performs unrelated work or becomes idle. Child events are observed and terminal state is persisted. Once every member is terminal, ParentResumeCoordinator resumes an eligible idle parent once. A missing status requires a current-process idle witness; busy, running, or retry status suppresses resume and invalidates stale witnesses. The parent retrieves detailed stored output after resume. There is no model-driven polling loop. `consult_agents` is synchronous: every consultation task is registered with `background: false` and `completion_group: null`, all requests are launched concurrently, and the call waits for ordered outcomes. Consultation tasks never resume the parent.
 
 Consultation continuation is deliberately narrower than general delegation: `session_id` may refer only to a completed Explorer/Librarian consultation owned by the current Implementer and running in the same directory. The runtime sends the follow-up through the existing child session; in-flight, cross-parent, cross-directory, and target-changing continuations fail closed. Consultation does not expose `load_skills`.
 

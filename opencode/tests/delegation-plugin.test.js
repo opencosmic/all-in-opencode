@@ -33,7 +33,7 @@ test("plugin entrypoint is default-only and exposes the seven workflow-owned del
   assert.deepEqual(Object.keys(plugin.tool), [
     "workspace_prepare",
     "delegate_task",
-    "consult_agent",
+    "consult_agents",
     "task_status",
     "task_output",
     "task_cancel",
@@ -42,9 +42,12 @@ test("plugin entrypoint is default-only and exposes the seven workflow-owned del
   assert.match(plugin.tool.delegate_task.description, /Available categories:/)
   assert.match(plugin.tool.delegate_task.description, /browser-automation/)
   assert.ok(plugin.tool.delegate_task.args.load_skills)
-  assert.match(plugin.tool.consult_agent.description, /Explorer or Librarian/)
-  assert.ok(plugin.tool.consult_agent.args.session_id)
-  assert.equal(plugin.tool.consult_agent.args.load_skills, undefined)
+  assert.match(plugin.tool.consult_agents.description, /Explorer or Librarian/)
+  assert.ok(plugin.tool.consult_agents.args.requests)
+  assert.equal(plugin.tool.consult_agents.args.run_in_background, undefined)
+  assert.equal(plugin.tool.consult_agents.args.category, undefined)
+  assert.equal(plugin.tool.consult_agents.args.load_skills, undefined)
+  assert.equal(plugin.tool.consult_agents.args.workspace_id, undefined)
   assert.equal(typeof plugin.event, "function")
   assert.equal(typeof plugin["chat.params"], "function")
   assert.equal(typeof plugin["permission.ask"], "function")
@@ -71,7 +74,7 @@ test("plugin entrypoint initializes with the full tool set outside Git", async (
   assert.deepEqual(Object.keys(plugin.tool), [
     "workspace_prepare",
     "delegate_task",
-    "consult_agent",
+    "consult_agents",
     "task_status",
     "task_output",
     "task_cancel",

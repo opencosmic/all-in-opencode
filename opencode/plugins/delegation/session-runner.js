@@ -20,7 +20,7 @@ function toolsFor(agent, configured, category) {
       task: false,
     })
   } else {
-    tools.consult_agent = false
+    tools.consult_agents = false
   }
   return Object.keys(tools).length ? tools : undefined
 }

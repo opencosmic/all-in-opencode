@@ -14,6 +14,7 @@ import { TaskRegistry, TERMINAL_STATUSES } from "./task-registry.js"
 import { WorkspaceManager } from "./workspace-manager.js"
 
 const SESSION_PROFILES = Symbol.for("opencode-workflow.delegation.session-profiles")
+const MAX_CONSULTATION_REQUESTS = 4
 
 function sharedSessionProfiles() {
   globalThis[SESSION_PROFILES] ??= new Map()
@@ -114,6 +115,7 @@ export class DelegationRuntime {
 
   constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills }) {
     Object.assign(this, { client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills })
+    this.activeConsultationSessions = new Set()
   }
 
   async workspacePrepare(args, context) {
@@ -159,59 +161,151 @@ export class DelegationRuntime {
     })
   }
 
-  async consult(args, context) {
+  async consultAgents(args, context) {
     if (context?.agent !== "Implementer") {
-      throw new Error("consult_agent may only be called by Implementer")
+      throw new Error("consult_agents may only be called by Implementer")
     }
-    for (const field of ["category", "load_skills", "workspace_id"]) {
-      if (Object.hasOwn(args, field)) throw new Error(`consult_agent does not accept ${field}`)
+    if (!args || typeof args !== "object" || !Array.isArray(args.requests)) {
+      throw new Error("consult_agents requires a requests array")
     }
-    const route = this.dispatcher.resolveConsultation(args.agent)
+    if (args.requests.length < 1 || args.requests.length > MAX_CONSULTATION_REQUESTS) {
+      throw new Error(`consult_agents accepts 1-${MAX_CONSULTATION_REQUESTS} requests`)
+    }
+    for (const field of ["category", "load_skills", "workspace_id", "run_in_background"]) {
+      if (Object.hasOwn(args, field)) throw new Error(`consult_agents does not accept ${field}`)
+    }
     const currentDirectory = await realpath(context.directory)
-    const previous = args.session_id
-      ? this.findConsultationSession(args.session_id, args.agent, context, currentDirectory)
-      : null
-    const directory = previous?.execution_directory ?? currentDirectory
-    const description = args.description ?? `Consult ${args.agent}`
-    const task = await this.registry.register({
-      parent_session_id: context.sessionID,
-      parent_message_id: context.messageID,
-      parent_agent: context.agent,
-      parent_directory: currentDirectory,
-      execution_directory: directory,
-      workspace_id: null,
-      category: null,
-      agent: route.agent,
-      variant: route.profile.variant ?? null,
-      description,
-      background: args.run_in_background,
+    const seenSessions = new Set()
+    const plans = args.requests.map((request, index) => {
+      if (!request || typeof request !== "object") {
+        throw new Error(`consult_agents request ${index + 1} must be an object`)
+      }
+      for (const field of ["category", "load_skills", "workspace_id", "run_in_background"]) {
+        if (Object.hasOwn(request, field)) throw new Error(`consult_agents does not accept ${field} in request ${index + 1}`)
+      }
+      if (typeof request.prompt !== "string" || !request.prompt.trim()) {
+        throw new Error(`consult_agents request ${index + 1} requires a non-empty prompt`)
+      }
+      if (request.description !== undefined && (typeof request.description !== "string" || !request.description.trim())) {
+        throw new Error(`consult_agents request ${index + 1} description must be non-empty when provided`)
+      }
+      if (request.session_id !== undefined) {
+        if (typeof request.session_id !== "string" || !request.session_id.trim()) {
+          throw new Error(`consult_agents request ${index + 1} session_id must be non-empty when provided`)
+        }
+        if (seenSessions.has(request.session_id)) {
+          throw new Error(`consult_agents batch cannot repeat session_id: ${request.session_id}`)
+        }
+        seenSessions.add(request.session_id)
+      }
+      const route = this.dispatcher.resolveConsultation(request.agent)
+      const previous = request.session_id
+        ? this.findConsultationSession(request.session_id, request.agent, context, currentDirectory)
+        : null
+      if (previous && this.activeConsultationSessions.has(previous.child_session_id)) {
+        throw new Error("session_id is already being continued")
+      }
+      return { request, route, previous }
     })
-    return this.launchTask(task, {
-      directory,
-      route,
-      description,
-      prompt: args.prompt,
-      background: args.run_in_background,
-      sessionID: previous?.child_session_id,
-    })
+
+    const results = await Promise.all(plans.map((plan) => this.consultOne(plan, context, currentDirectory)))
+    return { results }
   }
 
   findConsultationSession(sessionID, agent, context, currentDirectory) {
-    const task = this.registry.list({ parent_session_id: context.sessionID })
-      .find((candidate) => candidate.child_session_id === sessionID)
-    if (!task || task.parent_agent !== "Implementer" || task.category !== null || task.workspace_id !== null) {
+    const tasks = this.registry.list({ parent_session_id: context.sessionID })
+      .filter((candidate) => candidate.child_session_id === sessionID)
+    if (tasks.some((candidate) => !TERMINAL_STATUSES.has(candidate.status))) {
+      throw new Error("session_id cannot continue an in-flight consultation")
+    }
+    const consultations = tasks.filter((candidate) =>
+      candidate.parent_agent === "Implementer"
+      && candidate.category === null
+      && candidate.workspace_id === null
+      && ["Explorer", "Librarian"].includes(candidate.agent))
+    if (!consultations.length) {
       throw new Error("session_id must reference a consultation session owned by this Implementer")
     }
-    if (task.agent !== agent) {
-      throw new Error(`session_id belongs to ${task.agent}; consultation target must remain ${agent}`)
-    }
-    if (task.status !== "completed") {
+    const task = [...consultations].reverse().find((candidate) => candidate.status === "completed")
+    if (!task) {
       throw new Error("session_id can continue only a completed consultation")
+    }
+    if (task.agent !== agent) {
+      throw new Error(`session_id belongs to ${task.agent}; cannot continue it as ${agent}`)
     }
     if (task.execution_directory !== currentDirectory) {
       throw new Error("session_id belongs to a different workspace")
     }
     return task
+  }
+
+  async consultOne({ request, route, previous }, context, currentDirectory) {
+    const sessionID = previous?.child_session_id
+    if (sessionID) {
+      if (this.activeConsultationSessions.has(sessionID)) {
+        return this.consultationError(request.agent, new Error("session_id is already being continued"))
+      }
+      this.activeConsultationSessions.add(sessionID)
+    }
+    let task
+    try {
+      const directory = previous?.execution_directory ?? currentDirectory
+      const description = request.description ?? `Consult ${request.agent}`
+      task = await this.registry.register({
+        parent_session_id: context.sessionID,
+        parent_message_id: context.messageID,
+        parent_agent: context.agent,
+        parent_directory: currentDirectory,
+        execution_directory: directory,
+        workspace_id: null,
+        category: null,
+        agent: route.agent,
+        variant: route.profile.variant ?? null,
+        description,
+        background: false,
+      })
+      const output = await this.launchTask(task, {
+        directory,
+        route,
+        description,
+        prompt: request.prompt,
+        background: false,
+        sessionID,
+      })
+      return this.consultationOutcome(request.agent, output)
+    } catch (error) {
+      if (task) {
+        try {
+          return this.consultationOutcome(request.agent, this.taskOutput(task.task_id), error)
+        } catch {
+          // Fall through to the bounded error outcome below.
+        }
+      }
+      return this.consultationError(request.agent, error, task)
+    } finally {
+      if (sessionID) this.activeConsultationSessions.delete(sessionID)
+    }
+  }
+
+  consultationOutcome(agent, output, fallbackError) {
+    return {
+      agent,
+      status: output.status,
+      task_id: output.task_id,
+      session_id: output.child_session_id ?? null,
+      ...(output.result ? { result: output.result } : {}),
+      ...(output.error || fallbackError ? { error: output.error ?? fallbackError?.message ?? String(fallbackError) } : {}),
+    }
+  }
+
+  consultationError(agent, error, task) {
+    return {
+      agent,
+      status: "error",
+      task_id: task?.task_id ?? null,
+      session_id: task?.child_session_id ?? null,
+      error: error?.message ?? String(error),
+    }
   }
 
   async launchTask(task, { directory, route, description, prompt, skills = [], background, sessionID }) {

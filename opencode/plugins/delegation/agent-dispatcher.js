@@ -20,7 +20,7 @@ function namedAgentRoute(agent) {
       tools: {
         workspace_prepare: false,
         delegate_task: false,
-        consult_agent: false,
+        consult_agents: false,
         task_status: false,
         task_output: false,
         task_cancel: false,
@@ -48,7 +48,7 @@ export class AgentDispatcher {
 
   resolveConsultation(agent) {
     if (!CONSULTATION_AGENTS.has(agent)) {
-      throw new Error(`consult_agent target is not allowed: ${agent}`)
+      throw new Error(`consult_agents target is not allowed: ${agent}`)
     }
     return namedAgentRoute(agent)
   }
