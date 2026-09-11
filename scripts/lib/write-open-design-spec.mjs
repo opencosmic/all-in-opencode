@@ -50,7 +50,8 @@ function parseLaunchSpec(raw) {
   let command = spec.command
   let commandArgs = [...spec.args]
   if (command === "od") {
-    if (!fallbackCli || !isAbsolute(fallbackCli)) throw new Error("the fallback OpenDesign CLI must be an absolute path")
+    if (!fallbackCli) throw new Error("persisted launch spec uses bare od; rerun scripts/setup-open-design.sh")
+    if (!isAbsolute(fallbackCli)) throw new Error("the fallback OpenDesign CLI must be an absolute path")
     command = fallbackCli
   }
   if (!isAbsolute(command)) throw new Error(`launch spec command must be absolute after provisioning: ${spec.command}`)
@@ -58,8 +59,8 @@ function parseLaunchSpec(raw) {
 }
 
 async function main() {
-  if (!input || !fallbackCli || (!checkOnly && !output)) {
-    fail("usage: write-open-design-spec.mjs --input FILE --fallback-cli ABSOLUTE_PATH [--output FILE | --check] [--allow-minimal-direct]")
+  if (!input || (!checkOnly && (!output || !fallbackCli))) {
+    fail("usage: write-open-design-spec.mjs --input FILE [--fallback-cli ABSOLUTE_PATH --output FILE | --check] [--allow-minimal-direct]")
   }
   let spec
   try {

@@ -10,7 +10,7 @@
 | [`opencode/plugins/workspace-inspector.js`](../../opencode/plugins/workspace-inspector.js) | Read-only workspace placement and provenance evidence. |
 | [`opencode/opencode.jsonc`](../../opencode/opencode.jsonc) | Public CodeGraph MCP configuration plus the bounded OpenDesign MCP launcher and raw-tool deny ceiling. |
 | [`opencode/skills/open-design/`](../../opencode/skills/open-design/) | Repository-owned optional OpenDesign resource capability instructions. |
-| [`opencode/open-design-mcp.sh`](../../opencode/open-design-mcp.sh), [`scripts/lib/run-open-design-mcp.mjs`](../../scripts/lib/run-open-design-mcp.mjs) | Machine-neutral launcher that positively identifies the supported OpenDesign CLI and consumes the user-local upstream launch spec. |
+| [`opencode/open-design-mcp.sh`](../../opencode/open-design-mcp.sh), [`scripts/lib/run-open-design-mcp.mjs`](../../scripts/lib/run-open-design-mcp.mjs) | Runtime launcher that consumes the validated user-local upstream launch spec; CLI identity discovery remains setup-only. |
 | [`opencode/tests/`](../../opencode/tests/) | Deterministic discovery, policy, runtime, workspace, completion, and host tests. |
 | [`scripts/links.tsv`](../../scripts/links.tsv) | Narrow canonical-to-live symlink manifest. |
 | [`scripts/setup-codegraph.sh`](../../scripts/setup-codegraph.sh), [`scripts/check-codegraph.sh`](../../scripts/check-codegraph.sh) | Independent CodeGraph setup and health. |

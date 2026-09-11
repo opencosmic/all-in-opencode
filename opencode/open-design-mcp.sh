@@ -67,8 +67,9 @@ if [ "${1:-}" = "--resolve-cli" ]; then
   exit 0
 fi
 
-cli=$(resolve_cli)
-
+# Normal runtime trusts the validated machine-local launch spec. CLI discovery
+# is deliberately setup-only so an installation remains usable after the
+# original `od` wrapper leaves PATH.
 # The launcher is installed as an absolute symlink. Resolve that one hop so
 # the repository-owned runner remains available when this file is invoked from
 # ~/.config/opencode.
@@ -89,7 +90,7 @@ spec_path=${OPEN_DESIGN_MCP_SPEC:-"$HOME/.config/opencode/open-design-mcp.json"}
 command -v node >/dev/null 2>&1 || fail "Node.js is required to execute the provisioned OpenDesign launch spec"
 
 if [ -n "${OPEN_DESIGN_MCP_DAEMON_URL:-}" ]; then
-  exec node "$runner" --spec "$spec_path" --fallback-cli "$cli" \
+  exec node "$runner" --spec "$spec_path" \
     --daemon-url "$OPEN_DESIGN_MCP_DAEMON_URL" -- "$@"
 fi
-exec node "$runner" --spec "$spec_path" --fallback-cli "$cli" -- "$@"
+exec node "$runner" --spec "$spec_path" -- "$@"

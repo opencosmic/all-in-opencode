@@ -168,7 +168,7 @@ Provisioning is explicit and uses an already-installed supported OpenDesign CLI 
 ./scripts/check-open-design.sh
 ```
 
-If `od` on `PATH` is ambiguous, set `OPEN_DESIGN_CLI` to the absolute path of the supported OpenDesign CLI. The repository launcher consumes the saved spec, including upstream headless-bootstrap metadata, and an `OPEN_DESIGN_MCP_DAEMON_URL` override remains available. If upstream can return only its metadata-free direct-daemon fallback while no daemon URL was supplied, setup fails clearly instead of pretending that `od mcp` can cold-start the packaged runtime. The setup and check scripts do not download software, open the GUI, or mutate unrelated configuration.
+If `od` on `PATH` is ambiguous, set `OPEN_DESIGN_CLI` to the absolute path of the supported OpenDesign CLI for setup. After provisioning, the persisted spec—not a rediscovered `od` wrapper—is the runtime source of truth. The repository launcher consumes the saved spec, including upstream headless-bootstrap metadata, and an `OPEN_DESIGN_MCP_DAEMON_URL` override remains available. If upstream can return only its metadata-free direct-daemon fallback while no daemon URL was supplied, setup fails clearly instead of pretending that `od mcp` can cold-start the packaged runtime. The setup and check scripts do not download software, open the GUI, or mutate unrelated configuration.
 
 ## Installation
 

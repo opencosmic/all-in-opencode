@@ -12,7 +12,6 @@ const passthroughIndex = args.indexOf("--")
 const options = passthroughIndex >= 0 ? args.slice(0, passthroughIndex) : args
 const passthrough = passthroughIndex >= 0 ? args.slice(passthroughIndex + 1) : []
 const specPath = option(options, "--spec")
-const fallbackCli = option(options, "--fallback-cli")
 const daemonUrl = option(options, "--daemon-url")
 
 function fail(message) {
@@ -31,8 +30,8 @@ function parseSpec(raw) {
 }
 
 async function main() {
-  if (!specPath || !fallbackCli || !isAbsolute(fallbackCli)) {
-    fail("usage: run-open-design-mcp.mjs --spec ABSOLUTE_PATH --fallback-cli ABSOLUTE_PATH [--daemon-url URL] -- [ARGS]")
+  if (!specPath) {
+    fail("usage: run-open-design-mcp.mjs --spec ABSOLUTE_PATH [--daemon-url URL] -- [ARGS]")
     return
   }
   let spec
@@ -43,15 +42,14 @@ async function main() {
     return
   }
 
-  const command = spec.command === "od" ? fallbackCli : spec.command
-  if (!isAbsolute(command)) {
-    fail(`OpenDesign launch spec must use an absolute command path: ${spec.command}`)
+  if (!isAbsolute(spec.command)) {
+    fail(`OpenDesign launch spec must use an absolute command path: ${spec.command}. Rerun scripts/setup-open-design.sh.`)
     return
   }
   try {
-    await access(command, constants.X_OK)
+    await access(spec.command, constants.X_OK)
   } catch {
-    fail(`OpenDesign launch command is unavailable: ${command}. Rerun scripts/setup-open-design.sh to refresh it.`)
+    fail(`OpenDesign launch command is unavailable: ${spec.command}. Rerun scripts/setup-open-design.sh to refresh it.`)
     return
   }
 
@@ -59,7 +57,7 @@ async function main() {
     ? replaceDaemonUrl(spec.args, daemonUrl)
     : [...spec.args]
   commandArgs.push(...passthrough)
-  const child = spawn(command, commandArgs, {
+  const child = spawn(spec.command, commandArgs, {
     env: { ...process.env, ...spec.env },
     stdio: "inherit",
   })

@@ -168,7 +168,7 @@ writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({
     "value",
   ]
   const writeSpec = (specArgs) => writeFile(specPath, `${JSON.stringify({ command: capture, args: specArgs, env: specEnv })}\n`)
-  const runRunner = (extra = []) => run(process.execPath, [launchRunner, "--spec", specPath, "--fallback-cli", capture, ...extra])
+  const runRunner = (extra = []) => run(process.execPath, [launchRunner, "--spec", specPath, ...extra])
   const captured = async () => JSON.parse(await readFile(specEnv.CAPTURE_PATH, "utf8"))
   t.after(() => rm(root, { recursive: true, force: true }))
 
@@ -328,6 +328,8 @@ if (process.env.FAKE_MCP_MODE !== "malformed" && process.env.FAKE_MCP_MODE !== "
   const installResult = await run(install, [], { env })
   assert.equal(installResult.code, 0, installResult.stderr)
 
+  const runtimeEnv = { ...env }
+  delete runtimeEnv.OPEN_DESIGN_CLI
   const checkResult = await run(check, [], { env })
   assert.equal(checkResult.code, 0, `${checkResult.stdout}\n${checkResult.stderr}`)
   assert.match(checkResult.stdout, /OpenDesign MCP probe: ready/)
@@ -335,9 +337,15 @@ if (process.env.FAKE_MCP_MODE !== "malformed" && process.env.FAKE_MCP_MODE !== "
   assert.match(checkResult.stdout, /Design-system resources: 1/)
   assert.match(checkResult.stdout, /OpenDesign status: READY/)
 
+  const runtimeCheck = await run(check, [], { env: runtimeEnv })
+  assert.equal(runtimeCheck.code, 0, `${runtimeCheck.stdout}\n${runtimeCheck.stderr}`)
+  assert.match(runtimeCheck.stdout, /OpenDesign setup CLI: not currently discoverable/)
+  assert.match(runtimeCheck.stdout, /OpenDesign MCP probe: ready/)
+  assert.match(runtimeCheck.stdout, /OpenDesign status: READY/)
+
   const overrideUrl = "http://127.0.0.1:43123"
   const overrideCheck = await run(check, [], {
-    env: { ...env, OPEN_DESIGN_MCP_DAEMON_URL: overrideUrl, EXPECTED_DAEMON_URL: overrideUrl },
+    env: { ...runtimeEnv, OPEN_DESIGN_MCP_DAEMON_URL: overrideUrl, EXPECTED_DAEMON_URL: overrideUrl },
   })
   assert.equal(overrideCheck.code, 0, `${overrideCheck.stdout}\n${overrideCheck.stderr}`)
 
@@ -358,11 +366,23 @@ if (process.env.FAKE_MCP_MODE !== "malformed" && process.env.FAKE_MCP_MODE !== "
   assert.match(`${prematureExit.stdout}\n${prematureExit.stderr}`, /process exited before responding/)
 
   await rm(specPath)
-  const stale = await run(check, [], { env })
+  const stale = await run(check, [], { env: runtimeEnv })
   assert.notEqual(stale.code, 0)
   assert.match(stale.stdout, /launch spec: missing or invalid/)
   const refreshed = await run(setup, [], { env })
   assert.equal(refreshed.code, 0, refreshed.stderr)
+
+  const brokenSpec = JSON.parse(await readFile(specPath, "utf8"))
+  brokenSpec.command = join(root, "removed-open-design-runtime")
+  await writeFile(specPath, `${JSON.stringify(brokenSpec)}\n`)
+  const brokenCheck = await run(check, [], { env: runtimeEnv })
+  assert.notEqual(brokenCheck.code, 0)
+  assert.match(brokenCheck.stdout, /launch spec: missing or invalid/)
+  const brokenLaunch = await run(launcher, [], { env: runtimeEnv })
+  assert.notEqual(brokenLaunch.code, 0)
+  assert.match(`${brokenLaunch.stdout}\n${brokenLaunch.stderr}`, /launch command is unavailable|Rerun scripts\/setup-open-design\.sh/)
+  const restored = await run(setup, [], { env })
+  assert.equal(restored.code, 0, restored.stderr)
 
   const fallbackHome = join(root, "fallback-home")
   const fallbackEnv = { ...env, HOME: fallbackHome, FAKE_INSTALL_MODE: "minimal" }

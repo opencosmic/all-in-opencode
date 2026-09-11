@@ -34,14 +34,13 @@ cli=""
 if [ -x "$LAUNCHER" ] && cli=$(/bin/sh "$LAUNCHER" --resolve-cli 2>/dev/null); then
   cli_status="detected ($cli)"
 else
-  cli_status="missing or not a supported OpenDesign CLI (set OPEN_DESIGN_CLI to an absolute path)"
-  ready=0
+  cli_status="not currently discoverable (informational; setup may need OPEN_DESIGN_CLI)"
 fi
 
 spec_path=${OPEN_DESIGN_MCP_SPEC:-"$HOME/.config/opencode/open-design-mcp.json"}
 spec_ready=0
-if [ -n "$cli" ] && [ -f "$spec_path" ] && command -v node >/dev/null 2>&1 \
-  && node "$SPEC_WRITER" --input "$spec_path" --fallback-cli "$cli" --check >/dev/null 2>&1
+if [ -f "$spec_path" ] && command -v node >/dev/null 2>&1 \
+  && node "$SPEC_WRITER" --input "$spec_path" --check >/dev/null 2>&1
 then
   spec_status="provisioned ($spec_path)"
   spec_ready=1
@@ -67,7 +66,7 @@ else
 fi
 
 mcp_status="not checked"
-if [ -n "$cli" ] && [ "$spec_ready" -eq 1 ]; then
+if [ "$spec_ready" -eq 1 ]; then
   if ! command -v node >/dev/null 2>&1; then
     mcp_status="not checked (Node.js is unavailable)"
     ready=0
@@ -96,7 +95,7 @@ else
 fi
 
 printf 'OpenDesign launcher: %s\n' "$launcher_status"
-printf 'OpenDesign CLI: %s\n' "$cli_status"
+printf 'OpenDesign setup CLI: %s\n' "$cli_status"
 printf 'OpenDesign launch spec: %s\n' "$spec_status"
 printf 'Canonical MCP config: %s\n' "$config_status"
 printf 'OpenCode config link: %s\n' "$config_link_status"
