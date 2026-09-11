@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import ProfessorRuntime from "../plugins/professor-runtime.js"
+
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 
 async function source(relative) {
@@ -44,6 +46,28 @@ test("/research is the canonical standalone Professor route and forwards argumen
   assert.match(content, /`\$ARGUMENTS`/)
   assert.match(content, /standalone stateful Deep Research/i)
   assert.doesNotMatch(content, /deep-research\.md|oh-my-openagent|call_omo_agent/i)
+})
+
+test("Professor citation instructions match the reportable-evidence runtime contract", async () => {
+  const prompt = await source("opencode/agents/professor.md")
+  const plugin = await ProfessorRuntime()
+  const description = plugin.tool.research_complete.description
+  for (const contract of [
+    /structured reportable evidence/i,
+    /verified claim/i,
+    /reportable contradiction/i,
+    /SUPPORTED.*PARTIAL.*UNSUPPORTED.*CONTRADICTED/i,
+    /discovered, fetched, or persisted/i,
+  ]) assert.match(prompt, contract)
+  for (const contract of [
+    /structured reportable evidence/i,
+    /verified claim/i,
+    /reportable contradiction/i,
+    /SUPPORTED.*PARTIAL.*UNSUPPORTED.*CONTRADICTED/i,
+    /unused research sources and unrelated URLs are rejected/i,
+  ]) assert.match(description, contract)
+  assert.doesNotMatch(prompt, /source used by a `?SUPPORTED claim/i)
+  assert.doesNotMatch(description, /source used by a SUPPORTED claim/i)
 })
 
 test("production Professor runtime has no benchmark or alternate retrieval dependency", async () => {
