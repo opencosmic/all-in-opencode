@@ -20,5 +20,6 @@
 | Video-content questions remain separate: `video-analysis` uses the independent upstream `watch` skill, while `/video` owns HyperFrames production. | Producer-agent and existing watch/category tests |
 | `/video` never silently updates global HyperFrames skills without approval; setup is explicit and the health check is read-only. | Producer-agent and HyperFrames provisioning tests |
 | Searcher is a read-only primary `/search` route using bounded native web retrieval, with no delegation or Deep Research infrastructure. | Searcher integration and discovery tests |
+| Professor is a separate read-only primary `/research` route; ResearchState owns IDs, frontier ordering, evidence, contradictions, verification, persistence, and reports while native web retrieval remains direct. | Professor agent, runtime, plugin, persistence, and command tests |
 | Video-content questions route to `video-analysis` plus the independent upstream `watch` skill; no video-production capability is included. | Video category, routing, and provisioning tests |
 | The retired alternate runtime, config, command, agents, and continuation tools are absent. | Zero-dependency policy test |

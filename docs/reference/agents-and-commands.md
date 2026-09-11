@@ -8,6 +8,7 @@
 | Browser | Direct browser navigation, interaction, visual inspection, and Task Spaces | Browser backend only; no application or workflow-file mutation |
 | Producer | HyperFrames-backed video creation, editing, animation, preview, and rendering | Active-project artifacts; no Git/history or workflow-runtime ownership |
 | Searcher | Normal web Search / Answer Engine with grounded current answers | Read-only native web retrieval; no delegation or OpenSpec ownership |
+| Professor | Stateful evidence-first Deep Research with adaptive verification | Read-only native retrieval plus Professor ResearchState tools; no filesystem, Git, delegation, or browser access |
 | Strategist | Product WHAT, WHY, WHO, behavior, and scope | Product strategy, proposal, and specs only |
 | Planner | Engineering HOW and executable tasks | Active change's `design.md` and `tasks.md` only |
 | Executor | Implementation orchestration, review, integration, task transitions | `tasks.md`; code changes occur through workers |
@@ -31,5 +32,6 @@ Implementer executes one bounded category assignment through one shared contract
 | `/browser <goal>` | Browser | Standalone browser workflow through the external browser backend |
 | `/video <goal>` | Producer | Standalone HyperFrames video-production workflow |
 | `/search <question>` | Searcher | Bounded normal web Search / Answer Engine response with grounded citations |
+| `/research <question>` | Professor | Stateful Deep Research with persistent evidence, adaptive tasks, verification, and a final report |
 
 Ordinary Assistant work needs no dedicated command. Video production deliberately does not use a `video-production` CategoryEngine category: HyperFrames' upstream router and review gates are interactive orchestration, not a bounded `Implementer` profile.

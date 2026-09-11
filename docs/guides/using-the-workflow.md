@@ -8,7 +8,9 @@ Use Assistant for normal questions and bounded work. It may answer directly, ins
 - Librarian for upstream documentation and version-specific behavior.
 - Technical Advisor for a difficult design decision with meaningful alternatives.
 
-Use `/search <question>` or select `Searcher` when you want a standalone normal web Search / Answer Engine response. Searcher uses bounded adaptive `websearch`/`websearch_*` and `webfetch` retrieval, checks freshness and source quality, and returns a concise grounded synthesis with citations. It is read-only, does not delegate, and is distinct from Researcher, Librarian, browser automation, OpenSpec, and future Deep Research.
+Use `/search <question>` or select `Searcher` when you want a standalone normal web Search / Answer Engine response. Searcher uses bounded adaptive `websearch`/`websearch_*` and `webfetch` retrieval, checks freshness and source quality, and returns a concise grounded synthesis with citations. It is read-only, does not delegate, and is distinct from Researcher, Librarian, browser automation, OpenSpec, and Deep Research.
+
+Use `/research <question>` or select `Professor` when the question needs a durable, multi-aspect investigation. Professor creates a ResearchState plan, works through one prioritized task at a time using native web retrieval, records explicit evidence and contradictions, adapts to gaps, verifies claims, and persists a final report under the configured workflow data root. The runtime state—not chat history—is the source of truth. `Researcher` remains the bounded internal product/market evidence specialist for Strategist.
 
 Non-trivial implementation flows through `delegate_task(category=...)` to Implementer. Use `load_skills=["skill-name"]` only for selected specialized instructions. Use `git` only when the Git operation and authority are explicit. For browser work, use `/browser` for the dedicated Browser agent or ask Assistant, which routes it through `browser-automation` with `load_skills=["ego-browser"]` to the currently installed browser backend. Both entry paths are intentionally retained.
 

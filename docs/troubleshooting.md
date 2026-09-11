@@ -13,7 +13,9 @@ Do not reset, clean, stash, force-remove worktrees, or delete broad runtime/inde
 
 ## Agent or command is missing
 
-Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are exactly `spec`, `plan`, `execute`, `verify`, `ship`, `browser`, `video`, and `search`. Restart OpenCode after authored agent, command, plugin, skill, or MCP changes.
+Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are exactly `spec`, `plan`, `execute`, `verify`, `ship`, `browser`, `video`, `search`, and `research`. Restart OpenCode after authored agent, command, plugin, skill, or MCP changes.
+
+For `/research`, confirm the Professor plugin is discovered and that the configured workflow data root is writable. Research runs live under `<data-root>/professor/runs/<run-id>/`; they do not write state into the repository. Resume with the durable run ID through Professor's state tools rather than reconstructing the task from chat history.
 
 ## Delegation tool is missing
 
