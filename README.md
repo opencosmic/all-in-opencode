@@ -32,7 +32,7 @@ Named delegation is fail closed. Only the repository-owned specialist allowlist 
 
 `Searcher` is read-only and does bounded adaptive retrieval with native `websearch`/`websearch_*` and `webfetch`. It does not delegate, own OpenSpec, implement code, or replace the distinct `Researcher` and `Librarian` specialist roles. It is intentionally a normal-search route, not Deep Research.
 
-`Professor` is read-only and owns the user-facing `/research` route. It uses native `websearch`/`websearch_*` and selective `webfetch` through a small persistent runtime. The runtime owns ResearchState, the priority frontier, evidence and claim IDs, budgets, contradictions, verification, events, and reports. `Researcher` remains a bounded product and market specialist for Strategist; `Librarian` remains a bounded external technical evidence specialist.
+`Professor` is read-only and owns the user-facing `/research` route. It uses native `websearch`/`websearch_*` and selective `webfetch` through a small persistent runtime. The runtime owns ResearchState, the priority frontier, evidence and claim IDs, budgets, contradictions, verification, events, and reports. The canonical report remains in the Professor run directory; completed runs expose a runtime-controlled symlink under `/Users/code/Documents/Research/`, and later follow-ups can reload a clearly identified completed report with `research_report`. Professor's final response is a concise localized handoff with runtime metrics and the report path, not a duplicate full report. `Researcher` remains a bounded product and market specialist for Strategist; `Librarian` remains a bounded external technical evidence specialist.
 
 ## Delegation Runtime
 

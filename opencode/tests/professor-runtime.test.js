@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { lstat, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -26,6 +26,7 @@ async function fixture(t, options = {}) {
   let runNumber = 0
   const runtime = createProfessorRuntime({
     stateDirectory: root,
+    libraryRoot: options.libraryRoot ?? join(root, "research-library"),
     generateRunId: () => `run-test-${++runNumber}`,
     ...options,
   })
@@ -67,6 +68,41 @@ async function verifiedRun(t, { includeUnusedSource = false } = {}) {
     claims: [{ statement: "Verified fact", evidenceIds: ["evidence-0001"], critical: true, verification: "SUPPORTED" }],
   })
   return { runtime, runId: started.runId }
+}
+
+async function prepareSupportedRun(runtime, {
+  objective = "Evaluate the research objective.",
+} = {}) {
+  const started = await runtime.start({ objective, questions: plan() })
+  const next = await runtime.next({ runId: started.runId })
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "verified source",
+    sources: [{ url: "https://example.com/source-a", sourceKey: "source-a" }],
+    evidence: [{ questionId: next.task.questionId, sourceKey: "source-a", fact: "Verified fact", supportingSpan: "Source A supports the verified fact.", relation: "supports" }],
+    questionUpdates: [{
+      questionId: next.task.questionId,
+      criteriaSatisfied: [
+        { criterionId: "question-0001-criterion-1", evidenceIndexes: [0] },
+        { criterionId: "question-0001-criterion-2", evidenceIndexes: [0] },
+      ],
+    }],
+  })
+  await runtime.verify({
+    runId: started.runId,
+    claims: [{ statement: "Verified fact", evidenceIds: ["evidence-0001"], critical: true, verification: "SUPPORTED" }],
+  })
+  return { started }
+}
+
+async function completeSupportedRun(runtime, {
+  objective = "Evaluate the research objective.",
+  report = "Fact is supported by [Source A](https://example.com/source-a).",
+} = {}) {
+  const { started } = await prepareSupportedRun(runtime, { objective })
+  const completed = await runtime.complete({ runId: started.runId, report })
+  return { started, completed }
 }
 
 test("run creation assigns internal IDs, persists state, and writes initial events", async (t) => {
@@ -447,6 +483,107 @@ test("supported claims become writing-eligible and complete persists a report", 
   assert.equal(completed.status, "completed")
   assert.match(await readFile(completed.reportPath, "utf8"), /official source/)
   assert.equal((await runtime.load(started.runId)).status, "completed")
+})
+
+test("completion keeps one canonical report and exposes an idempotent human-facing symlink", async (t) => {
+  const { root, runtime } = await fixture(t)
+  const { completed } = await completeSupportedRun(runtime, {
+    objective: "../../OpenCut: OpenCode integration?",
+  })
+  const libraryInfo = await lstat(completed.libraryPath)
+  assert.equal(libraryInfo.isSymbolicLink(), true)
+  assert.equal(await realpath(completed.libraryPath), await realpath(completed.reportPath))
+  assert.equal(completed.reportPath, join(root, "runs", completed.runId, "report.md"))
+  assert.notEqual(completed.libraryPath, completed.reportPath)
+  assert.match(completed.libraryPath, /\d{4}-\d{2}-\d{2}-opencut-opencode-integration\.md$/)
+  assert.equal((await lstat(completed.reportPath)).isFile(), true)
+
+  const reused = await runtime.store.ensureLibraryLink(await runtime.load(completed.runId))
+  assert.equal(reused.path, completed.libraryPath)
+  assert.equal(reused.created, false)
+  assert.equal(await realpath(reused.path), await realpath(completed.reportPath))
+})
+
+test("library collisions use suffixes without repointing unrelated links", async (t) => {
+  const { root, runtime } = await fixture(t)
+  const objective = "A repeatable collision-safe research topic"
+  const first = await completeSupportedRun(runtime, { objective })
+  const second = await completeSupportedRun(runtime, { objective })
+  const third = await completeSupportedRun(runtime, { objective })
+  assert.match(first.completed.libraryPath, /-a-repeatable-collision-safe-research-topic\.md$/)
+  assert.match(second.completed.libraryPath, /-a-repeatable-collision-safe-research-topic-2\.md$/)
+  assert.match(third.completed.libraryPath, /-a-repeatable-collision-safe-research-topic-3\.md$/)
+  for (const completed of [first.completed, second.completed, third.completed]) {
+    assert.equal(await realpath(completed.libraryPath), await realpath(completed.reportPath))
+    assert.equal(completed.reportPath, join(root, "runs", completed.runId, "report.md"))
+  }
+})
+
+test("library-link failure does not lose a completed canonical report", async (t) => {
+  const { root, runtime } = await fixture(t)
+  const libraryRoot = join(root, "library-root-file")
+  await writeFile(libraryRoot, "not a directory", "utf8")
+  const failedLinkRuntime = createProfessorRuntime({
+    stateDirectory: root,
+    libraryRoot,
+    generateRunId: () => "run-link-failure",
+  })
+  const { completed } = await completeSupportedRun(failedLinkRuntime, { objective: "A report with a safe link failure" })
+  assert.equal(completed.status, "completed")
+  assert.equal(completed.libraryPath, null)
+  assert.match(completed.libraryLinkError, /EEXIST|not a directory|directory/i)
+  assert.equal(await readFile(completed.reportPath, "utf8") !== "", true)
+  assert.equal((await failedLinkRuntime.load(completed.runId)).status, "completed")
+})
+
+test("research_report returns only the completed run's canonical report", async (t) => {
+  const { runtime } = await fixture(t)
+  const { completed } = await completeSupportedRun(runtime)
+  const loaded = await runtime.report({ runId: completed.runId })
+  assert.equal(loaded.runId, completed.runId)
+  assert.equal(loaded.status, "completed")
+  assert.equal(loaded.report, await readFile(completed.reportPath, "utf8"))
+  assert.equal(loaded.reportPath, completed.reportPath)
+  assert.equal(loaded.libraryPath, completed.libraryPath)
+
+  const statePath = runtime.store.paths(completed.runId).state
+  const tamperedState = JSON.parse(await readFile(statePath, "utf8"))
+  tamperedState.reportPath = "/etc/passwd"
+  await writeFile(statePath, `${JSON.stringify(tamperedState)}\n`, "utf8")
+  const stillCanonical = await runtime.report({ runId: completed.runId })
+  assert.equal(stillCanonical.reportPath, completed.reportPath)
+  assert.equal(stillCanonical.report, loaded.report)
+
+  const incomplete = await runtime.start({ objective: "An incomplete run.", questions: plan() })
+  await assert.rejects(runtime.report({ runId: incomplete.runId }), /requires a completed run/)
+  await assert.rejects(runtime.report({ runId: "missing-run" }), /run not found/)
+  await assert.rejects(runtime.report({ runId: "../../outside" }), /safe generated identifier/)
+})
+
+test("completion metrics use runtime timestamps and report URL occurrences", async (t) => {
+  let current = new Date("2026-09-12T00:00:00.000Z")
+  const { runtime } = await fixture(t, { clock: () => current })
+  const first = await prepareSupportedRun(runtime)
+  const completed = await runtime.complete({ runId: first.started.runId, report: [
+    "Claim A [Source A](https://example.com/source-a).",
+    "Claim B again cites [Source A](https://example.com/source-a).",
+    "Claim C repeats [Source A](https://example.com/source-a).",
+  ].join("\n\n") })
+  assert.equal(completed.durationMs, 0)
+  assert.equal(completed.citationCount, 3)
+  current = new Date("2026-09-12T00:05:07.000Z")
+
+  const later = await prepareSupportedRun(runtime, {
+    objective: "A second timed research run",
+  })
+  current = new Date("2026-09-12T00:10:14.000Z")
+  const laterCompleted = await runtime.complete({ runId: later.started.runId, report: "A timed fact [Source A](https://example.com/source-a)." })
+  assert.equal(laterCompleted.durationMs, 307000)
+  assert.equal(laterCompleted.citationCount, 1)
+  const persisted = await runtime.load(laterCompleted.runId)
+  assert.equal(persisted.startedAt, "2026-09-12T00:05:07.000Z")
+  assert.equal(persisted.completedAt, "2026-09-12T00:10:14.000Z")
+  assert.equal(persisted.metrics.durationMs, 307000)
 })
 
 test("final report citations are limited to sources used by supported claims", async (t) => {

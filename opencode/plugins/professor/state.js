@@ -20,6 +20,32 @@ const TRACKING_PARAMETERS = new Set([
   "mkt_tok",
 ])
 
+function emptyCompletionMetrics() {
+  return {
+    durationMs: null,
+    citationCount: null,
+    searchCount: 0,
+    questionsTotal: null,
+    questionsResolved: null,
+    sourcesDiscovered: null,
+    sourcesUsed: null,
+    remainingUncertainties: null,
+    contradictionCount: null,
+  }
+}
+
+export function normalizeResearchState(state) {
+  if (!state || typeof state !== "object") return state
+  if (state.startedAt === undefined) state.startedAt = state.createdAt ?? null
+  if (state.completedAt === undefined) state.completedAt = null
+  if (state.reportPath === undefined) state.reportPath = null
+  if (state.libraryPath === undefined) state.libraryPath = null
+  if (state.libraryLinkError === undefined) state.libraryLinkError = null
+  if (state.metrics === undefined || state.metrics === null) state.metrics = emptyCompletionMetrics()
+  else if (typeof state.metrics === "object" && !Array.isArray(state.metrics)) state.metrics = { ...emptyCompletionMetrics(), ...state.metrics }
+  return state
+}
+
 export function isSafeId(value) {
   return typeof value === "string" && SAFE_ID.test(value)
 }
@@ -201,6 +227,7 @@ export function createResearchState({ runId, objective, questions, budget, now, 
     return normalizeQuestionSpec(question, questionId, index)
   })
 
+  const startedAt = now()
   const state = {
     schemaVersion: 1,
     runId,
@@ -236,9 +263,14 @@ export function createResearchState({ runId, objective, questions, budget, now, 
         event: 0,
       },
     },
-    createdAt: now(),
-    updatedAt: now(),
+    createdAt: startedAt,
+    startedAt,
+    updatedAt: startedAt,
+    completedAt: null,
     reportPath: null,
+    libraryPath: null,
+    libraryLinkError: null,
+    metrics: emptyCompletionMetrics(),
   }
 
   for (const question of normalizedQuestions) {
@@ -321,6 +353,7 @@ export function makeStateDigest(state) {
       })),
     },
     budget: { ...state.budget },
+    metrics: { ...state.metrics },
     counters: { ...state.counters, nextIds: undefined },
   }
 }
@@ -348,9 +381,31 @@ function assertUniqueIds(items, key, label) {
 
 export function validateResearchState(state) {
   if (!state || typeof state !== "object") throw new Error("research state must be an object")
+  normalizeResearchState(state)
   assertSafeId(state.runId, "runId")
   assertEnum(state.status, PHASES, "status")
   assertNonEmptyString(state.objective, "objective", 20_000)
+  assertNonEmptyString(state.startedAt, "startedAt", 100)
+  if (state.completedAt !== null) assertNonEmptyString(state.completedAt, "completedAt", 100)
+  if (state.reportPath !== null) assertNonEmptyString(state.reportPath, "reportPath", 4_000)
+  if (state.libraryPath !== null) assertNonEmptyString(state.libraryPath, "libraryPath", 4_000)
+  if (state.libraryLinkError !== null) assertNonEmptyString(state.libraryLinkError, "libraryLinkError", 4_000)
+  if (!state.metrics || typeof state.metrics !== "object" || Array.isArray(state.metrics)) {
+    throw new Error("research state completion metrics are invalid")
+  }
+  if (!Number.isInteger(state.metrics.searchCount) || state.metrics.searchCount < 0) {
+    throw new Error("research state searchCount is invalid")
+  }
+  for (const key of ["durationMs", "citationCount", "questionsTotal", "questionsResolved", "sourcesDiscovered", "sourcesUsed", "contradictionCount"]) {
+    const value = state.metrics[key]
+    if (value !== null && (!Number.isInteger(value) || value < 0)) {
+      throw new Error(`research state ${key} is invalid`)
+    }
+  }
+  if (state.metrics.remainingUncertainties !== null) {
+    if (!Array.isArray(state.metrics.remainingUncertainties)) throw new Error("research state remainingUncertainties is invalid")
+    for (const uncertainty of state.metrics.remainingUncertainties) assertNonEmptyString(uncertainty, "remainingUncertainty", 4_000)
+  }
   if (!Array.isArray(state.questions) || state.questions.length === 0) throw new Error("research state must contain questions")
   if (!Array.isArray(state.tasks)) throw new Error("research state tasks must be an array")
   if (!Array.isArray(state.sources) || !Array.isArray(state.evidence) || !Array.isArray(state.findings)) {

@@ -29,6 +29,7 @@ test("Professor plugin entrypoint is default-only, model-free, and exposes only 
     "research_state",
     "research_verify",
     "research_complete",
+    "research_report",
   ])
   for (const name of Object.keys(plugin.tool)) {
     assert.equal(typeof plugin.tool[name].execute, "function")
@@ -61,6 +62,42 @@ test("Professor plugin uses the injected state directory and leaves report/state
   assert.equal(commit.runId, "run-plugin-001")
   const statePath = join(stateDirectory, "runs", "run-plugin-001", "state.json")
   assert.equal(JSON.parse(await readFile(statePath, "utf8")).runId, "run-plugin-001")
+})
+
+test("Professor search counting observes native search hooks by session and excludes webfetch or other sessions", async (t) => {
+  const stateDirectory = await mkdtemp(join(tmpdir(), "professor-plugin-search-count-"))
+  t.after(() => rm(stateDirectory, { recursive: true, force: true }))
+  const plugin = await ProfessorRuntime({}, {
+    stateDirectory,
+    libraryRoot: join(stateDirectory, "research-library"),
+    generateRunId: (() => {
+      let next = 0
+      return () => `run-search-${++next}`
+    })(),
+  })
+  const input = {
+    objective: "Count native Professor searches.",
+    questions: [{
+      question: "How many native searches were observed?",
+      priority: "critical",
+      evidenceNeeded: ["native search observations"],
+      completionCriteria: ["search hook count"],
+    }],
+  }
+  const first = JSON.parse(await plugin.tool.research_start.execute(input, { sessionID: "professor-session-a" }))
+  await plugin["tool.execute.before"]({ tool: "websearch", sessionID: "professor-session-a", callID: "a-1" })
+  await plugin["tool.execute.before"]({ tool: "websearch_native", sessionID: "professor-session-a", callID: "a-2" })
+  await plugin["tool.execute.before"]({ tool: "webfetch", sessionID: "professor-session-a", callID: "a-3" })
+  await plugin["tool.execute.before"]({ tool: "websearch", sessionID: "searcher-session", callID: "other-1" })
+  await plugin["chat.params"]({ sessionID: "professor-session-a", agent: "Searcher" }, {})
+  await plugin["tool.execute.before"]({ tool: "websearch", sessionID: "professor-session-a", callID: "a-other-agent" })
+
+  const second = JSON.parse(await plugin.tool.research_start.execute(input, { sessionID: "professor-session-b" }))
+  await plugin["tool.execute.before"]({ tool: "websearch", sessionID: "professor-session-b", callID: "b-1" })
+  const firstState = JSON.parse(await plugin.tool.research_state.execute({ runId: first.runId }, { sessionID: "professor-session-a" }))
+  const secondState = JSON.parse(await plugin.tool.research_state.execute({ runId: second.runId }, { sessionID: "professor-session-b" }))
+  assert.equal(firstState.digest.metrics.searchCount, 2)
+  assert.equal(secondState.digest.metrics.searchCount, 1)
 })
 
 test("Professor plugin entrypoint does not cross private OpenCode or shell boundaries", async () => {

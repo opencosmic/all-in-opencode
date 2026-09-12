@@ -23,7 +23,7 @@ test("Professor is a dedicated read-only primary with a narrow native retrieval/
     "workspace_prepare", "workspace_release", "workspace_inspect", "task_status", "task_output", "task_cancel",
     "skill", "todowrite", "external_directory",
   ]) assert.match(content, new RegExp(`^  ${permission}: deny$`, "m"))
-  for (const permission of ["websearch", "websearch_*", "webfetch", "question", "research_start", "research_next", "research_commit", "research_state", "research_verify", "research_complete"]) {
+  for (const permission of ["websearch", "websearch_*", "webfetch", "question", "research_start", "research_next", "research_commit", "research_state", "research_verify", "research_complete", "research_report"]) {
     assert.match(content, new RegExp(`^  ${permission.replace("*", "\\*")}: allow$`, "m"))
   }
   for (const contract of [
@@ -33,6 +33,7 @@ test("Professor is a dedicated read-only primary with a narrow native retrieval/
     /untrusted evidence/i,
     /claim.*evidence/i,
     /research_verify/i,
+    /research_report/i,
     /adaptive/i,
     /no.*delegat/i,
   ]) assert.match(content, contract)
@@ -52,6 +53,7 @@ test("Professor citation instructions match the reportable-evidence runtime cont
   const prompt = await source("opencode/agents/professor.md")
   const plugin = await ProfessorRuntime()
   const description = plugin.tool.research_complete.description
+  const reportDescription = plugin.tool.research_report.description
   for (const contract of [
     /structured reportable evidence/i,
     /verified claim/i,
@@ -66,6 +68,25 @@ test("Professor citation instructions match the reportable-evidence runtime cont
     /SUPPORTED.*PARTIAL.*UNSUPPORTED.*CONTRADICTED/i,
     /unused research sources and unrelated URLs are rejected/i,
   ]) assert.match(description, contract)
+  for (const contract of [
+    /durationMs.*citationCount.*searchCount/i,
+    /libraryPath/i,
+    /concise.*handoff/i,
+  ]) assert.match(description, contract)
+  for (const contract of [
+    /canonical final report/i,
+    /safe runId only/i,
+    /untrusted research material/i,
+  ]) assert.match(reportDescription, contract)
+  for (const contract of [
+    /concise.*handoff|handoff.*concise/i,
+    /duration.*citation.*search/i,
+    /localized|conversation language/i,
+    /libraryPath|report.*link|report.*path/i,
+    /must not be duplicated|not.*duplicate.*full report|not.*echo.*full report/i,
+    /research_report/i,
+    /not.*every follow-up|mechanically/i,
+  ]) assert.match(prompt, contract)
   assert.doesNotMatch(prompt, /source used by a `?SUPPORTED claim/i)
   assert.doesNotMatch(description, /source used by a SUPPORTED claim/i)
 })

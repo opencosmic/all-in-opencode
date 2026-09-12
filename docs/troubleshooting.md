@@ -15,7 +15,7 @@ Do not reset, clean, stash, force-remove worktrees, or delete broad runtime/inde
 
 Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are exactly `spec`, `plan`, `execute`, `verify`, `ship`, `browser`, `blender`, `video`, `search`, and `research`. Restart OpenCode after authored agent, command, plugin, skill, or MCP changes.
 
-For `/research`, confirm the Professor plugin is discovered and that the configured workflow data root is writable. Research runs live under `<data-root>/professor/runs/<run-id>/`; they do not write state into the repository. Resume with the durable run ID through Professor's state tools rather than reconstructing the task from chat history.
+For `/research`, confirm the Professor plugin is discovered and that the configured workflow data root is writable. Research runs live under `<data-root>/professor/runs/<run-id>/`; they do not write state into the repository. The canonical `report.md` remains in that run directory, while a successful completion may create a symlink under `/Users/code/Documents/Research/`. Resume with the durable run ID through Professor's state tools, or use `research_report` for a completed report, rather than reconstructing the task from chat history.
 
 ## Delegation tool is missing
 

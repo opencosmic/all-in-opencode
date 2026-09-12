@@ -146,7 +146,7 @@ function questionCoverageSummary(question) {
   }
 }
 
-function extractReportUrls(report) {
+function extractReportUrlOccurrences(report) {
   const urls = []
   for (const match of report.matchAll(/https?:\/\/[^\s<>"'`\]]+/gi)) {
     let url = match[0].replace(/[.,;:!?]+$/g, "")
@@ -155,14 +155,19 @@ function extractReportUrls(report) {
     }
     if (url) urls.push(url)
   }
-  return [...new Set(urls)]
+  return urls
+}
+
+function extractReportUrls(report) {
+  return [...new Set(extractReportUrlOccurrences(report))]
 }
 
 export function createProfessorRuntime(options = {}) {
   const clock = options.clock ?? (() => new Date())
-  const store = options.store ?? createProfessorStore(resolveProfessorDataRoot(options))
+  const store = options.store ?? createProfessorStore(resolveProfessorDataRoot(options), { libraryRoot: options.libraryRoot })
   const generateRunId = options.generateRunId ?? createRunId
   const mutationQueues = new Map()
+  const sessionRuns = new Map()
 
   async function serializeRunMutation(runId, operation) {
     const safeRunId = assertSafeId(runId, "runId")
@@ -196,6 +201,50 @@ export function createProfessorRuntime(options = {}) {
   async function load(runId) {
     assertSafeId(runId, "runId")
     return store.loadState(runId)
+  }
+
+  function bindSession(runId, sessionID) {
+    if (typeof sessionID !== "string" || !sessionID) return
+    sessionRuns.set(sessionID, assertSafeId(runId, "runId"))
+  }
+
+  function observeSessionAgent({ sessionID, agent } = {}) {
+    if (typeof sessionID !== "string" || !sessionID || typeof agent !== "string" || !agent) return
+    if (agent.toLowerCase() !== "professor") sessionRuns.delete(sessionID)
+  }
+
+  function unbindRun(runId) {
+    for (const [sessionID, mappedRunId] of sessionRuns) {
+      if (mappedRunId === runId) sessionRuns.delete(sessionID)
+    }
+  }
+
+  function isNativeSearchTool(toolName) {
+    return toolName === "websearch" || toolName.startsWith("websearch_")
+  }
+
+  async function recordNativeSearch({ tool, sessionID } = {}) {
+    if (typeof tool !== "string" || !isNativeSearchTool(tool) || typeof sessionID !== "string" || !sessionID) {
+      return { counted: false }
+    }
+    const runId = sessionRuns.get(sessionID)
+    if (!runId) return { counted: false }
+    return serializeRunMutation(runId, async () => {
+      let state
+      try {
+        state = await load(runId)
+      } catch {
+        sessionRuns.delete(sessionID)
+        return { counted: false }
+      }
+      if (state.status === "completed") {
+        sessionRuns.delete(sessionID)
+        return { counted: false }
+      }
+      state.metrics.searchCount += 1
+      await persist(state, [])
+      return { counted: true, runId, searchCount: state.metrics.searchCount }
+    })
   }
 
   function markBudgetExhausted(state, reason, events) {
@@ -538,7 +587,7 @@ export function createProfessorRuntime(options = {}) {
     if (state.counters.evidenceRecorded >= state.budget.maxEvidenceRecords) markBudgetExhausted(state, "max_evidence_records", events)
   }
 
-  async function start(input = {}) {
+  async function start(input = {}, context = {}) {
     const objective = assertNonEmptyString(input.objective, "objective", 20_000)
     if (!Array.isArray(input.questions) || input.questions.length === 0) throw new Error("research_start requires at least one question")
     const runId = assertSafeId(String(generateRunId()), "generated runId")
@@ -569,6 +618,7 @@ export function createProfessorRuntime(options = {}) {
     await store.ensureRoot()
     await store.createRun(state)
     await store.appendEvents(runId, events)
+    bindSession(runId, context.sessionID)
     return {
       runId,
       status: state.status,
@@ -576,8 +626,9 @@ export function createProfessorRuntime(options = {}) {
     }
   }
 
-  async function next(input = {}) {
+  async function next(input = {}, context = {}) {
     const runId = assertSafeId(input.runId, "runId")
+    bindSession(runId, context.sessionID)
     return serializeRunMutation(runId, () => nextUnsafe(input))
   }
 
@@ -656,8 +707,9 @@ export function createProfessorRuntime(options = {}) {
     }
   }
 
-  async function commit(input = {}) {
+  async function commit(input = {}, context = {}) {
     const runId = assertSafeId(input.runId, "runId")
+    bindSession(runId, context.sessionID)
     return serializeRunMutation(runId, () => commitUnsafe(input))
   }
 
@@ -724,7 +776,8 @@ export function createProfessorRuntime(options = {}) {
     }
   }
 
-  async function stateView(input = {}) {
+  async function stateView(input = {}, context = {}) {
+    bindSession(input.runId, context.sessionID)
     const state = await load(input.runId)
     const view = input.view ?? "digest"
     if (view === "digest") return { runId: state.runId, view, digest: makeStateDigest(state) }
@@ -779,8 +832,9 @@ export function createProfessorRuntime(options = {}) {
     }
   }
 
-  async function verify(input = {}) {
+  async function verify(input = {}, context = {}) {
     const runId = assertSafeId(input.runId, "runId")
+    bindSession(runId, context.sessionID)
     return serializeRunMutation(runId, () => verifyUnsafe(input))
   }
 
@@ -922,12 +976,11 @@ export function createProfessorRuntime(options = {}) {
   }
 
   function auditReportCitations(state, report) {
-    const allowedCanonicalUrls = new Set()
+    const allowedSourceIds = new Set()
     const addEvidenceSources = (evidenceIds) => {
       for (const evidenceId of evidenceIds) {
         const evidence = evidenceById(state, evidenceId)
-        const source = sourceById(state, evidence.sourceId)
-        allowedCanonicalUrls.add(source.canonicalUrl)
+        allowedSourceIds.add(evidence.sourceId)
       }
     }
     for (const claim of state.claims.filter((candidate) => VERIFICATION_RESULTS.includes(candidate.verification))) {
@@ -946,14 +999,19 @@ export function createProfessorRuntime(options = {}) {
     }
     for (const url of extractReportUrls(report)) {
       const canonicalUrl = canonicalizeUrl(url)
-      if (!allowedCanonicalUrls.has(canonicalUrl)) {
+      const backedBySource = [...allowedSourceIds]
+        .map((sourceId) => sourceById(state, sourceId).canonicalUrl)
+        .includes(canonicalUrl)
+      if (!backedBySource) {
         throw new Error(`report citation is not backed by a verified claim source: ${url}`)
       }
     }
+    return allowedSourceIds
   }
 
-  async function complete(input = {}) {
+  async function complete(input = {}, context = {}) {
     const runId = assertSafeId(input.runId, "runId")
+    bindSession(runId, context.sessionID)
     return serializeRunMutation(runId, () => completeUnsafe(input))
   }
 
@@ -967,21 +1025,97 @@ export function createProfessorRuntime(options = {}) {
     if (unresolved && !budgetExhausted) throw new Error("research_complete is blocked by unresolved critical evidence")
     const limitations = reportLimitations(state)
     const finalReport = limitations.length > 0 ? `${report}\n\n## Research limitations\n${limitations.join("\n")}` : report
-    auditReportCitations(state, finalReport)
+    const reportableSourceIds = auditReportCitations(state, finalReport)
     const reportPath = await store.writeReport(state.runId, finalReport)
     state.reportPath = reportPath
     transitionState(state, "completed")
+    state.completedAt = timestamp()
+    const startedAtMs = Date.parse(state.startedAt)
+    const completedAtMs = Date.parse(state.completedAt)
+    if (!Number.isFinite(startedAtMs) || !Number.isFinite(completedAtMs)) throw new Error("research run timestamps are invalid")
+    state.metrics = {
+      ...state.metrics,
+      durationMs: Math.max(0, completedAtMs - startedAtMs),
+      citationCount: extractReportUrlOccurrences(finalReport).length,
+      questionsTotal: state.questions.length,
+      questionsResolved: state.questions.filter(questionIsSufficient).length,
+      sourcesDiscovered: state.sources.length,
+      sourcesUsed: reportableSourceIds.size,
+      remainingUncertainties: limitations,
+      contradictionCount: state.contradictions.length,
+    }
+    state.libraryPath = null
+    state.libraryLinkError = null
+    try {
+      state.libraryPath = (await store.ensureLibraryLink(state)).path
+    } catch (error) {
+      state.libraryLinkError = error instanceof Error ? error.message : String(error)
+    }
     const events = [
-      makeEvent(state, "report.completed", { reportLength: finalReport.length, reportPath }),
-      makeEvent(state, "research.completed", { reportPath, limitations: limitations.length }),
+      makeEvent(state, "report.completed", {
+        reportLength: finalReport.length,
+        reportPath,
+        libraryPath: state.libraryPath,
+        libraryLinkError: state.libraryLinkError,
+        durationMs: state.metrics.durationMs,
+        citationCount: state.metrics.citationCount,
+        searchCount: state.metrics.searchCount,
+      }),
+      makeEvent(state, "research.completed", {
+        reportPath,
+        libraryPath: state.libraryPath,
+        libraryLinkError: state.libraryLinkError,
+        limitations: limitations.length,
+      }),
     ]
     await persist(state, events)
+    unbindRun(state.runId)
     return {
       runId: state.runId,
       status: state.status,
       reportPath,
+      libraryPath: state.libraryPath,
+      libraryLinkError: state.libraryLinkError,
       limitations,
+      durationMs: state.metrics.durationMs,
+      citationCount: state.metrics.citationCount,
+      searchCount: state.metrics.searchCount,
+      questionsTotal: state.metrics.questionsTotal,
+      questionsResolved: state.metrics.questionsResolved,
+      sourcesDiscovered: state.metrics.sourcesDiscovered,
+      sourcesUsed: state.metrics.sourcesUsed,
+      remainingUncertainties: state.metrics.remainingUncertainties,
+      contradictionCount: state.metrics.contradictionCount,
+      metrics: { ...state.metrics },
       digest: makeStateDigest(state),
+    }
+  }
+
+  async function report(input = {}) {
+    const runId = assertSafeId(input.runId, "runId")
+    let state
+    try {
+      state = await load(runId)
+    } catch (error) {
+      if (error?.code === "ENOENT") throw new Error(`research_report run not found: ${runId}`)
+      throw error
+    }
+    if (state.status !== "completed") throw new Error(`research_report requires a completed run, got ${state.status}`)
+    let reportContents
+    try {
+      reportContents = await store.readReport(runId)
+    } catch (error) {
+      if (error?.code === "ENOENT") throw new Error(`research_report canonical report is unavailable: ${runId}`)
+      throw error
+    }
+    return {
+      runId,
+      status: state.status,
+      report: reportContents,
+      reportPath: store.paths(runId).report,
+      libraryPath: state.libraryPath,
+      libraryLinkError: state.libraryLinkError,
+      metrics: { ...state.metrics },
     }
   }
 
@@ -993,6 +1127,9 @@ export function createProfessorRuntime(options = {}) {
     state: stateView,
     verify,
     complete,
+    report,
+    recordNativeSearch,
+    observeSessionAgent,
     load,
     store,
   }

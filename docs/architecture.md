@@ -65,7 +65,7 @@ Explorer answers questions about this codebase. Librarian answers questions abou
 
 Searcher is a primary user-facing normal web Search / Answer Engine. It uses bounded adaptive retrieval through native `websearch`/`websearch_*` and `webfetch`, remains read-only, and does not delegate or own OpenSpec. `/search` is the concise normal-search route.
 
-Professor is a separate primary `/research` route for long-horizon Deep Research. Professor uses the same native retrieval tools directly, while the Professor runtime persists ResearchState outside the repository: structured questions, a deterministic one-task frontier, sources, evidence, findings, contradictions, claims, budgets, events, and the final report. `Researcher` remains the bounded product/market specialist for Strategist; Professor is not a CategoryEngine category, delegation profile, skill, or wrapper around another agent.
+Professor is a separate primary `/research` route for long-horizon Deep Research. Professor uses the same native retrieval tools directly, while the Professor runtime persists ResearchState outside the repository: structured questions, a deterministic one-task frontier, sources, evidence, findings, contradictions, claims, budgets, events, and the final report. The report remains canonical in its run directory; completion adds a runtime-controlled symlink under `/Users/code/Documents/Research/` and returns metadata for a concise conversational handoff, while `research_report` provides safe lazy reload by run ID. `Researcher` remains the bounded product/market specialist for Strategist; Professor is not a CategoryEngine category, delegation profile, skill, or wrapper around another agent.
 
 ## CodeGraph
 
