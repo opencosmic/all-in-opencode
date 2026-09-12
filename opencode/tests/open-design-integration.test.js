@@ -1,9 +1,9 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, relative } from "node:path"
 import { promisify } from "node:util"
 
 import { CategoryEngine } from "../plugins/delegation/category-engine.js"
@@ -62,6 +62,67 @@ test("OpenDesign is an explicit visual-engineering skill and resource boundary",
     skills: { list: () => [{ name: "open-design", description: "references" }] },
   })
   assert.match(description, /category="visual-engineering" with load_skills=\["open-design"\]/)
+  assert.match(description, /selected skill is required.*instead of retrying the same assignment without it/)
+})
+
+test("delegate_task accepts OpenDesign from the installed symlink topology", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "open-design-skill-discovery-test-"))
+  const project = join(root, "project")
+  const canonicalSkill = join(root, "canonical", "open-design")
+  const installedRoot = join(root, "home", ".config", "opencode", "skills")
+  const installedSkill = join(installedRoot, "open-design")
+  const state = { creates: [], prompts: [] }
+  const client = {
+    state,
+    session: {
+      create: async (request) => {
+        state.creates.push(request)
+        return { data: { id: "child-open-design" } }
+      },
+      promptAsync: async (request) => {
+        state.prompts.push(request)
+        return { data: undefined }
+      },
+      status: async () => ({ data: {} }),
+      messages: async () => ({ data: [] }),
+      abort: async () => ({ data: true }),
+    },
+  }
+  t.after(() => rm(root, { recursive: true, force: true }))
+
+  await mkdir(project, { recursive: true })
+  await mkdir(canonicalSkill, { recursive: true })
+  await mkdir(installedRoot, { recursive: true })
+  await writeFile(join(canonicalSkill, "SKILL.md"), "---\nname: open-design\ndescription: Design references\n---\nOPEN DESIGN CONTENT\n")
+  await symlink(relative(installedRoot, canonicalSkill), installedSkill, "dir")
+
+  const runtime = await DelegationRuntime.create({
+    client,
+    stateDirectory: join(root, "state"),
+    directory: project,
+    skillRoots: [installedRoot],
+    categories: { "visual-engineering": { model: "example/primary" } },
+  })
+  const context = { sessionID: "parent", messageID: "turn", agent: "Assistant", directory: project }
+  const result = await runtime.delegate({
+    category: "visual-engineering",
+    load_skills: ["open-design"],
+    description: "Use OpenDesign references",
+    prompt: "Inspect the installed design references before implementation.",
+    run_in_background: true,
+  }, context)
+
+  assert.equal(result.status, "running")
+  assert.match(state.prompts[0].body.system, /Selected skill: open-design/)
+  assert.match(state.prompts[0].body.system, /OPEN DESIGN CONTENT/)
+  await assert.rejects(runtime.delegate({
+    category: "visual-engineering",
+    load_skills: ["definitely-does-not-exist"],
+    description: "Unknown skill",
+    prompt: "Fail closed",
+    run_in_background: true,
+  }, context), /unknown skill.*definitely-does-not-exist/)
+  assert.equal(state.creates.length, 1)
 })
 
 test("OpenDesign resource reads require the exact category and selected skill", () => {

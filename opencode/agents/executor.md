@@ -88,6 +88,8 @@ Every implementation assignment must include one bounded objective, requirement/
 
 If the configured model is rejected before the worker turn is accepted, preserve the task failure and workspace; this runtime does not retry through a model fallback chain.
 
+If an explicitly selected skill is unavailable, treat that as a capability or setup failure. When the assignment depends on that skill, surface the failure and do not retry the same assignment with `load_skills` omitted. Omit an unavailable skill only when it was explicitly optional and the caller has established that the fallback remains semantically valid. This rule does not prohibit retries for unrelated transient delegation failures.
+
 ## Review and integration
 
 After implementation:

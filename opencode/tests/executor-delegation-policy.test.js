@@ -64,4 +64,7 @@ test("effective Executor policy uses only workflow-owned delegation and Git inte
   assert.match(executor.prompt, /Never launch a normal implementation category merely to re-apply/)
   assert.match(executor.prompt, /dynamically presented category and skill catalog/)
   assert.match(executor.prompt, /load_skills=\["ego-browser"\]/)
+  assert.match(executor.prompt, /explicitly selected skill is unavailable/)
+  assert.match(executor.prompt, /do not retry the same assignment with `load_skills` omitted/)
+  assert.match(executor.prompt, /unrelated transient delegation failures/)
 })
