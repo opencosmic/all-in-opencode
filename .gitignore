@@ -18,6 +18,9 @@ coverage/
 /opencode/backups/
 /opencode/benchmarks/
 
+# Dynamic local workflow configuration
+/opencode/categories.json
+
 # Local backup and scratch material
 *.bak
 *.bak.*
