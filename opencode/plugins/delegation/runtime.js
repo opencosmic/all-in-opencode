@@ -4,7 +4,7 @@ import { join, resolve } from "node:path"
 
 import { AgentDispatcher } from "./agent-dispatcher.js"
 import { CategoryEngine } from "./category-engine.js"
-import { categoryPermission } from "./category-permissions.js"
+import { categoryPermission, openDesignResourceDecision } from "./category-permissions.js"
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
@@ -419,7 +419,7 @@ export class DelegationRuntime {
     const skillList = skills.length
       ? skills.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
       : "- none"
-    return `Delegate one scoped assignment through a category or an allowlisted named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. Git mechanics require category="git". Browser work through Implementer requires category="browser-automation" and, for the current backend, load_skills=["ego-browser"]. Video-content analysis normally requires category="video-analysis" with load_skills=["watch"]; use it when evidence must come from the video itself rather than the surrounding website. Pass workspace_id for a managed workspace.`
+    return `Delegate one scoped assignment through a category or an allowlisted named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. Git mechanics require category="git". Browser work through Implementer requires category="browser-automation" and, for the current backend, load_skills=["ego-browser"]. Video-content analysis normally requires category="video-analysis" with load_skills=["watch"]; use it when evidence must come from the video itself rather than the surrounding website. For frontend/UI/design work that benefits from OpenDesign design-system or design-skill references, use category="visual-engineering" with load_skills=["open-design"]. This optional skill provides read-only design context; OpenCode remains responsible for implementation. Pass workspace_id for a managed workspace.`
   }
 
   async handleEvent(event) {
@@ -451,6 +451,19 @@ export class DelegationRuntime {
     }
     const decision = categoryPermission(profile, input)
     if (decision) output.status = decision
+  }
+
+  async applyToolExecutionBefore(input, output) {
+    const decision = openDesignResourceDecision(
+      this.profiles.get(input.sessionID),
+      input.tool,
+      output?.args,
+    )
+    if (decision === "deny") {
+      throw new Error(
+        "OpenDesign MCP resources require an Implementer child in category=visual-engineering with load_skills=[open-design]",
+      )
+    }
   }
 }
 

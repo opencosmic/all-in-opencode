@@ -59,6 +59,23 @@ Before first browser use, run:
 
 The dedicated user-facing route is `/browser` and the Assistant category route is `browser-automation`; Ego Lite is only the current backend. Login, CAPTCHA, MFA, payment, security confirmation, and user takeover remain human-control boundaries. Browser work must verify the resulting page state and must not mutate repository files.
 
+## OpenDesign references
+
+When a UI task benefits from an existing OpenDesign design system or functional skill reference, use the shared Implementer route with the optional skill:
+
+```text
+delegate_task(category="visual-engineering", load_skills=["open-design"], ...)
+```
+
+The skill reads OpenDesign MCP resources through OpenCode and applies them as guidance while the current repository/worktree remains the source of truth. It does not use OpenDesign as an executor or call `start_run`. Prepare and verify the external prerequisite explicitly:
+
+```sh
+./scripts/setup-open-design.sh
+./scripts/check-open-design.sh
+```
+
+Setup reuses a supported existing CLI/app installation and obtains the upstream print-only launch payload with `od mcp install opencode --print --json`; it stores the validated command, arguments, and environment in the user-local `~/.config/opencode/open-design-mcp.json` file. The repository launcher passes that metadata to the headless MCP process and does not rediscover the setup CLI at runtime, without opening the GUI or downloading software. If upstream returns only its metadata-free direct-daemon fallback, setup requires an explicit `OPEN_DESIGN_MCP_DAEMON_URL` or a supported runtime/daemon context rather than converting it into fake bootstrap mode. Set `OPEN_DESIGN_CLI` to an absolute CLI path if the system `od` command is unrelated; this is a setup-time override.
+
 ## Blender scene work
 
 Use `/blender <goal>` for interactive Blender scene inspection, creation,

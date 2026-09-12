@@ -13,6 +13,16 @@ const SAFE_GIT = [
   /^git cherry-pick\s+(?:--no-commit\s+)?[0-9a-fA-F]{7,64}\s*$/,
 ]
 
+const OPEN_DESIGN_SERVER = "open-design"
+// OpenCode sanitizes the hyphen in the configured server name before joining
+// it with the MCP tool name: open-design -> open_design.
+const OPEN_DESIGN_RAW_TOOL_PREFIX = "open_design_"
+const OPEN_DESIGN_RESOURCE_TOOLS = new Set([
+  "list_mcp_resources",
+  "list_mcp_resource_templates",
+  "read_mcp_resource",
+])
+
 function permissionValue(input) {
   // OpenCode may split a compound shell command into separate permission
   // patterns. The metadata retains the original command, so inspect it first
@@ -59,7 +69,50 @@ function watchSkillPaths(profile) {
 }
 
 function hasSelectedSkill(profile, name) {
-  return (profile?.skill_names ?? profile?.skills?.map((skill) => skill?.name) ?? []).includes(name)
+  return (
+    profile?.skill_names
+    ?? profile?.selected_skills?.map((skill) => skill?.name)
+    ?? profile?.skills?.map((skill) => skill?.name)
+    ?? []
+  ).includes(name)
+}
+
+function hasSkill(skills, name) {
+  return Array.isArray(skills) && skills.some((skill) => skill?.name === name)
+}
+
+function isOpenDesignRawToolPermission(permission) {
+  return typeof permission === "string"
+    && permission.startsWith(OPEN_DESIGN_RAW_TOOL_PREFIX)
+    && permission.length > OPEN_DESIGN_RAW_TOOL_PREFIX.length
+}
+
+function isOpenDesignResourcePattern(pattern) {
+  if (typeof pattern !== "string" || /\s/.test(pattern)) return false
+  const prefix = `mcp:${OPEN_DESIGN_SERVER}:`
+  return pattern.startsWith(prefix) && pattern.length > prefix.length
+}
+
+export function hasOpenDesignCapability(profile) {
+  return profile?.agent === "Implementer"
+    && profile?.category === "visual-engineering"
+    && hasSelectedSkill(profile, "open-design")
+}
+
+export function openDesignResourceDecision(profile, tool, args = {}) {
+  if (!OPEN_DESIGN_RESOURCE_TOOLS.has(tool)) return null
+  const server = typeof args?.server === "string" && args.server ? args.server : undefined
+  // An omitted server asks OpenCode to enumerate every resource-capable MCP
+  // server, so it must be gated as an OpenDesign-targeting operation too.
+  if (server !== undefined && server !== OPEN_DESIGN_SERVER) return null
+  return hasOpenDesignCapability(profile) && profile.tools?.read !== false ? "allow" : "deny"
+}
+
+export function requiresPreservedSessionPermissions(agent, category, skills = []) {
+  return agent === "Implementer" && (
+    ["git", "browser-automation", "video-analysis"].includes(category)
+    || (category === "visual-engineering" && hasSkill(skills, "open-design"))
+  )
 }
 
 function containsShellControl(command) {
@@ -131,10 +184,20 @@ function watchBashPatterns(skillPaths) {
   }))
 }
 
-export function categoryPermission(profile, input) {
-  if (!profile?.category) return null
+export function categoryPermission(profile, input = {}) {
   const value = permissionValue(input)
   const type = input.type ?? input.permission
+
+  // OpenCode 1.18.29 names an MCP tool as sanitize(server) + "_" +
+  // sanitize(tool). Keep the entire OpenDesign tool namespace denied,
+  // including when a profile is unavailable during a parent or recovered
+  // session. Resource access is a separate generic `read` permission.
+  if (isOpenDesignRawToolPermission(type)) return "deny"
+  if (type === "read" && isOpenDesignResourcePattern(value)) {
+    return hasOpenDesignCapability(profile) && profile.tools?.read !== false ? "allow" : "deny"
+  }
+
+  if (!profile?.category) return null
 
   if (profile.category === "git" && type === "bash") {
     if (profile.tools?.bash === false) return "deny"
@@ -270,6 +333,20 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
         })))
       }
     }
+    return rules
+  }
+  if (category === "visual-engineering" && hasSkill(skills, "open-design")) {
+    const rules = Object.entries(tools ?? {}).map(([tool, enabled]) => ({
+      permission: ["write", "patch", "apply_patch"].includes(tool) ? "edit" : tool,
+      pattern: "*",
+      action: enabled ? "allow" : "deny",
+    }))
+    if (tools?.read !== false) {
+      rules.push({ permission: "read", pattern: `mcp:${OPEN_DESIGN_SERVER}:*`, action: "allow" })
+    }
+    // This final rule is the hard ceiling. Category tool overrides may narrow
+    // the session, but never broaden access to an OpenDesign raw tool.
+    rules.push({ permission: `${OPEN_DESIGN_RAW_TOOL_PREFIX}*`, pattern: "*", action: "deny" })
     return rules
   }
   return undefined

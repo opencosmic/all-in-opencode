@@ -14,6 +14,15 @@
       ],
       "enabled": true
     },
+    "open-design": {
+      "type": "local",
+      "command": [
+        "/bin/sh",
+        "-c",
+        "exec \"$HOME/.config/opencode/open-design-mcp.sh\""
+      ],
+      "enabled": true
+    },
     "blender": {
       "type": "local",
       "command": [
@@ -31,5 +40,8 @@
         "DISABLE_TELEMETRY": "true"
       }
     }
+  },
+  "permission": {
+    "open_design_*": "deny"
   }
 }
