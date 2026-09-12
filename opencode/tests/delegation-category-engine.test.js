@@ -8,7 +8,7 @@ import { AgentDispatcher } from "../plugins/delegation/agent-dispatcher.js"
 import { CategoryEngine, DEFAULT_CATEGORIES } from "../plugins/delegation/category-engine.js"
 
 test("built-in categories resolve to Implementer with model, variant, description, and prompt append", () => {
-  const engine = new CategoryEngine()
+  const engine = new CategoryEngine({})
   for (const [name, expected] of Object.entries(DEFAULT_CATEGORIES)) {
     const result = engine.resolve(name)
     assert.equal(result.agent, "Implementer")
@@ -22,7 +22,7 @@ test("built-in categories resolve to Implementer with model, variant, descriptio
 })
 
 test("category context meaningfully specializes the shared executor", () => {
-  const engine = new CategoryEngine()
+  const engine = new CategoryEngine({})
   const expected = new Map([
     ["quick", /small, contained task/i],
     ["deep", /root-cause fix/i],
@@ -104,7 +104,7 @@ test("category schema has one model and variant, with no fallback or reasoning f
 })
 
 test("dispatcher enforces category XOR named agent and allowlists specialists", () => {
-  const dispatcher = new AgentDispatcher(new CategoryEngine())
+  const dispatcher = new AgentDispatcher(new CategoryEngine({}))
   assert.throws(() => dispatcher.resolve({}), /exactly one/)
   assert.throws(() => dispatcher.resolve({ category: "quick", agent: "Reviewer" }), /exactly one/)
   assert.equal(dispatcher.resolve({ category: "quick" }).agent, "Implementer")

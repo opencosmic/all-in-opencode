@@ -50,7 +50,7 @@ test("OpenDesign is an explicit visual-engineering skill and resource boundary",
   assert.equal(hasOpenDesignCapability({ category: "visual-engineering" }), false)
   assert.equal(hasOpenDesignCapability({ category: "standard", skill_names: ["open-design"] }), false)
 
-  const visual = new CategoryEngine().resolve("visual-engineering")
+  const visual = new CategoryEngine({}).resolve("visual-engineering")
   assert.equal(visual.profile.model, "opencode-go/kimi-k3")
   assert.match(systemFor("Implementer", "visual-engineering", visual.profile, selected), /Selected skill: open-design/)
   assert.doesNotMatch(systemFor("Implementer", "visual-engineering", visual.profile, []), /Selected skill: open-design/)

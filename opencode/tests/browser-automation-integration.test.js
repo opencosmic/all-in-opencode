@@ -12,7 +12,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repository = resolve(here, "../..")
 
 test("browser automation is a neutral category routed to Implementer", () => {
-  const route = new CategoryEngine().resolve("browser-automation")
+  const route = new CategoryEngine({}).resolve("browser-automation")
   assert.equal(route.agent, "Implementer")
   assert.equal(route.category, "browser-automation")
   assert.equal(route.profile.tools.edit, false)
