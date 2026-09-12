@@ -14,6 +14,9 @@ User
  |                      +-- /blender --> Blender --> Blender MCP --> Blender addon
  |                      +-- /video --> Producer --> HyperFrames external skills/CLI
  |                      +-- /search --> Searcher --> websearch/webfetch
+ |                      +-- /research --> Professor --> ResearchState/runtime
+ |                                             +-- websearch/webfetch
+ |                                             +-- evidence -> verification -> report
  |
  +-- formal work ----> /spec -> /plan -> /execute -> /verify -> /ship
                                       |
@@ -63,7 +66,9 @@ Workspace release is conservative: tasks must be terminal, identity and provenan
 
 Explorer answers questions about this codebase. Librarian answers questions about external dependencies and platforms. Technical Advisor helps choose among genuinely difficult technical approaches but has no approval authority. Plan Reviewer independently audits a completed plan and returns `[APPROVED]` or `[REJECTED]` without repairing it.
 
-Searcher is a primary user-facing normal web Search / Answer Engine. It uses bounded adaptive retrieval through native `websearch`/`websearch_*` and `webfetch`, remains read-only, and does not delegate or own OpenSpec. It is distinct from Researcher and Librarian specialists and from any future Deep Research route.
+Searcher is a primary user-facing normal web Search / Answer Engine. It uses bounded adaptive retrieval through native `websearch`/`websearch_*` and `webfetch`, remains read-only, and does not delegate or own OpenSpec. `/search` is the concise normal-search route.
+
+Professor is a separate primary `/research` route for long-horizon Deep Research. Professor uses the same native retrieval tools directly, while the Professor runtime persists ResearchState outside the repository: structured questions, a deterministic one-task frontier, sources, evidence, findings, contradictions, claims, budgets, events, and the final report. The report remains canonical in its run directory; completion adds a runtime-controlled symlink under `/Users/code/Documents/Research/` and returns metadata for a concise conversational handoff, while `research_report` provides safe lazy reload by run ID. `Researcher` remains the bounded product/market specialist for Strategist; Professor is not a CategoryEngine category, delegation profile, skill, or wrapper around another agent.
 
 ## CodeGraph
 
