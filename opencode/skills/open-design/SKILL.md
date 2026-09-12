@@ -54,7 +54,12 @@ Treat resource selection as one deliberate pass:
    `read_mcp_resource` interface. Across this selection pass, read at most 2
    candidate `SKILL.md` resources and at most 2 candidate `DESIGN.md` resources.
    Read fewer when metadata is already decisive. Do not read dozens of resources
-   before implementation.
+   before implementation. A resource is eligible for final selection or
+   application only after its actual body has been read: a functional skill
+   requires reading its `SKILL.md`, and a design system requires reading its
+   `DESIGN.md`. Metadata alone may shortlist, exclude, or prioritize candidates;
+   it is never enough to report a resource as selected, apply its guidance, or
+   claim it was consulted. If a candidate is not read, leave it unselected.
 4. Apply a qualitative relevance gate. Select a candidate only when its metadata
    or content clearly matches at least one material task dimension: surface,
    audience, workflow, design intent, interaction model, information density, or
