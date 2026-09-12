@@ -23,6 +23,7 @@ const TRACKING_PARAMETERS = new Set([
 function emptyCompletionMetrics() {
   return {
     durationMs: null,
+    durationDisplay: null,
     citationCount: null,
     searchCount: 0,
     questionsTotal: null,
@@ -402,6 +403,7 @@ export function validateResearchState(state) {
       throw new Error(`research state ${key} is invalid`)
     }
   }
+  if (state.metrics.durationDisplay !== null) assertNonEmptyString(state.metrics.durationDisplay, "research state durationDisplay", 100)
   if (state.metrics.remainingUncertainties !== null) {
     if (!Array.isArray(state.metrics.remainingUncertainties)) throw new Error("research state remainingUncertainties is invalid")
     for (const uncertainty of state.metrics.remainingUncertainties) assertNonEmptyString(uncertainty, "remainingUncertainty", 4_000)

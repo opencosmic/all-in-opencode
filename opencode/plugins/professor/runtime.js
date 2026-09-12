@@ -27,6 +27,18 @@ const SOURCE_TYPES = ["official", "first-party", "reporting", "research", "speci
 const RELATIONS = ["supports", "contradicts", "context"]
 const MAX_COMMIT_ITEMS = 80
 
+export function formatDurationDisplay(durationMs) {
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1_000))
+  const hours = Math.floor(totalSeconds / 3_600)
+  const minutes = Math.floor((totalSeconds % 3_600) / 60)
+  const seconds = totalSeconds % 60
+  const parts = []
+  if (hours > 0) parts.push(`${hours}h`)
+  if (minutes > 0) parts.push(`${minutes}m`)
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`)
+  return parts.join(" ")
+}
+
 function nowIso(clock) {
   const value = clock()
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString()
@@ -1041,9 +1053,11 @@ export function createProfessorRuntime(options = {}) {
     const startedAtMs = Date.parse(state.startedAt)
     const completedAtMs = Date.parse(state.completedAt)
     if (!Number.isFinite(startedAtMs) || !Number.isFinite(completedAtMs)) throw new Error("research run timestamps are invalid")
+    const durationMs = Math.max(0, completedAtMs - startedAtMs)
     state.metrics = {
       ...state.metrics,
-      durationMs: Math.max(0, completedAtMs - startedAtMs),
+      durationMs,
+      durationDisplay: formatDurationDisplay(durationMs),
       citationCount: extractReportCitationOccurrences(finalReport).length,
       questionsTotal: state.questions.length,
       questionsResolved: state.questions.filter(questionIsSufficient).length,
@@ -1066,6 +1080,7 @@ export function createProfessorRuntime(options = {}) {
         libraryPath: state.libraryPath,
         libraryLinkError: state.libraryLinkError,
         durationMs: state.metrics.durationMs,
+        durationDisplay: state.metrics.durationDisplay,
         citationCount: state.metrics.citationCount,
         searchCount: state.metrics.searchCount,
       }),
@@ -1086,6 +1101,7 @@ export function createProfessorRuntime(options = {}) {
       libraryLinkError: state.libraryLinkError,
       limitations,
       durationMs: state.metrics.durationMs,
+      durationDisplay: state.metrics.durationDisplay,
       citationCount: state.metrics.citationCount,
       searchCount: state.metrics.searchCount,
       questionsTotal: state.metrics.questionsTotal,

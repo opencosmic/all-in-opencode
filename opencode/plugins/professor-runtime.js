@@ -174,7 +174,7 @@ export default async function ProfessorRuntime(_input = {}, options = {}) {
         },
       }),
       research_complete: tool({
-        description: "Persist the final Professor report and return runtime completion metadata (durationMs, citationCount, searchCount, reportPath, and libraryPath) for a concise localized handoff. Completion is allowed only after verification, or with an explicit budget-exhaustion disclosure for unresolved uncertainty. Every HTTP(S) URL in the report must identify a source backed by structured reportable evidence from a verified claim (SUPPORTED, PARTIAL, UNSUPPORTED, or CONTRADICTED) or a reportable contradiction. Unused research sources and unrelated URLs are rejected.",
+        description: "Persist the final Professor report and return runtime completion metadata (durationMs, durationDisplay, citationCount, searchCount, reportPath, and libraryPath) for a concise localized handoff. Completion is allowed only after verification, or with an explicit budget-exhaustion disclosure for unresolved uncertainty. Every HTTP(S) URL in the report must identify a source backed by structured reportable evidence from a verified claim (SUPPORTED, PARTIAL, UNSUPPORTED, or CONTRADICTED) or a reportable contradiction. Unused research sources and unrelated URLs are rejected.",
         args: {
           runId: z.string(),
           report: z.string(),

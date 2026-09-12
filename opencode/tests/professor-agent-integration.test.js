@@ -69,7 +69,7 @@ test("Professor citation instructions match the reportable-evidence runtime cont
     /unused research sources and unrelated URLs are rejected/i,
   ]) assert.match(description, contract)
   for (const contract of [
-    /durationMs.*citationCount.*searchCount/i,
+    /durationMs.*durationDisplay.*citationCount.*searchCount/i,
     /libraryPath/i,
     /concise.*handoff/i,
   ]) assert.match(description, contract)
@@ -81,12 +81,15 @@ test("Professor citation instructions match the reportable-evidence runtime cont
   for (const contract of [
     /concise.*handoff|handoff.*concise/i,
     /duration.*citation.*search/i,
+    /durationDisplay/i,
+    /raw.*durationMs/i,
     /localized|conversation language/i,
     /libraryPath|report.*link|report.*path/i,
     /must not be duplicated|not.*duplicate.*full report|not.*echo.*full report/i,
     /research_report/i,
     /not.*every follow-up|mechanically/i,
   ]) assert.match(prompt, contract)
+  assert.doesNotMatch(prompt, /native search count|native searches/i)
   assert.doesNotMatch(prompt, /source used by a `?SUPPORTED claim/i)
   assert.doesNotMatch(description, /source used by a SUPPORTED claim/i)
 })

@@ -8,7 +8,7 @@ import {
   canonicalizeUrl,
   transitionState,
 } from "../plugins/professor/state.js"
-import { createProfessorRuntime } from "../plugins/professor/runtime.js"
+import { createProfessorRuntime, formatDurationDisplay } from "../plugins/professor/runtime.js"
 import { createProfessorStore } from "../plugins/professor/store.js"
 
 function plan(questionCount = 1) {
@@ -570,6 +570,7 @@ test("completion metrics use runtime timestamps and report citation occurrences"
     "Claim C repeats [Source A](https://example.com/source-a).",
   ].join("\n\n") })
   assert.equal(completed.durationMs, 0)
+  assert.equal(completed.durationDisplay, "0s")
   assert.equal(completed.citationCount, 3)
   current = new Date("2026-09-12T00:05:07.000Z")
 
@@ -579,11 +580,26 @@ test("completion metrics use runtime timestamps and report citation occurrences"
   current = new Date("2026-09-12T00:10:14.000Z")
   const laterCompleted = await runtime.complete({ runId: later.started.runId, report: "A timed fact [Source A](https://example.com/source-a)." })
   assert.equal(laterCompleted.durationMs, 307000)
+  assert.equal(laterCompleted.durationDisplay, "5m 7s")
   assert.equal(laterCompleted.citationCount, 1)
   const persisted = await runtime.load(laterCompleted.runId)
   assert.equal(persisted.startedAt, "2026-09-12T00:05:07.000Z")
   assert.equal(persisted.completedAt, "2026-09-12T00:10:14.000Z")
   assert.equal(persisted.metrics.durationMs, 307000)
+  assert.equal(persisted.metrics.durationDisplay, "5m 7s")
+})
+
+test("formatDurationDisplay uses compact rounded whole-second units", () => {
+  const cases = [
+    [999, "1s"],
+    [12_000, "12s"],
+    [60_000, "1m"],
+    [61_000, "1m 1s"],
+    [201_267, "3m 21s"],
+    [3_600_000, "1h"],
+    [3_661_000, "1h 1m 1s"],
+  ]
+  for (const [durationMs, expected] of cases) assert.equal(formatDurationDisplay(durationMs), expected)
 })
 
 test("citationCount counts rendered citation occurrences rather than raw URL strings", async (t) => {
