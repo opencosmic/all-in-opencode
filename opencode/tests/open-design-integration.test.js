@@ -65,6 +65,30 @@ test("OpenDesign is an explicit visual-engineering skill and resource boundary",
   assert.match(description, /selected skill is required.*instead of retrying the same assignment without it/)
 })
 
+test("OpenDesign skill defines a bounded repository-first selection protocol", async () => {
+  const entries = await discoverSkills({ roots: [join(repository, "opencode", "skills")] })
+  const skill = entries.find((entry) => entry.name === "open-design")
+  assert.ok(skill)
+
+  assert.match(skill.content, /Before calling an OpenDesign resource tool, inspect the current task and enough of\s+the repository/i)
+  assert.match(skill.content, /1\. user requirements[\s\S]*2\. existing product behavior[\s\S]*3\. existing repository design system[\s\S]*4\. selected OpenDesign functional skill[\s\S]*5\. selected OpenDesign design system/i)
+  assert.match(skill.content, /(?:List|Discover) the OpenDesign catalog/i)
+  assert.match(skill.content, /list_mcp_resources\(server="open-design"\)/i)
+  assert.match(skill.content, /once per\s+selection pass/i)
+  assert.match(skill.content, /second listing/i)
+  assert.match(skill.content, /metadata-only shortlist before reading any resource body/i)
+  assert.match(skill.content, /at most\s+3 functional skill candidates[\s\S]*at most\s+3\s+design-system candidates/i)
+  assert.match(skill.content, /read at most\s+2[\s\S]*?candidate `SKILL\.md` resources/i)
+  assert.match(skill.content, /read at most\s+2[\s\S]*?candidate `DESIGN\.md` resources/i)
+  assert.match(skill.content, /functional skill answers:[\s\S]*design system answers:/i)
+  assert.match(skill.content, /at most one primary functional skill[\s\S]*at most one primary design system/i)
+  assert.match(skill.content, /Selecting neither is valid/i)
+  assert.match(skill.content, /Selected functional skill:[\s\S]*Selected design system:/i)
+  assert.match(skill.content, /stop catalog exploration/i)
+  assert.match(skill.content, /at most one\s+replacement selection round/i)
+  assert.match(skill.content, /generic OpenCode MCP resource operations[\s\S]*list_mcp_resources[\s\S]*read_mcp_resource/i)
+})
+
 test("delegate_task accepts OpenDesign from the installed symlink topology", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "open-design-skill-discovery-test-"))
   const project = join(root, "project")
