@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises"
+import { readdir, readFile, realpath, stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
@@ -25,20 +25,48 @@ function skillLocationFields(skill) {
   }
 }
 
+function isUnavailablePath(error) {
+  return ["ENOENT", "ENOTDIR", "ELOOP"].includes(error?.code)
+}
+
 async function skillFiles(root) {
   const result = []
+  const visitedDirectories = new Set()
+
   async function visit(directory) {
+    let identity
+    try {
+      identity = await realpath(directory)
+      if (!(await stat(identity)).isDirectory()) return
+    } catch (error) {
+      if (isUnavailablePath(error)) return
+      throw error
+    }
+    if (visitedDirectories.has(identity)) return
+    visitedDirectories.add(identity)
+
     let entries
     try {
       entries = await readdir(directory, { withFileTypes: true })
     } catch (error) {
-      if (error?.code === "ENOENT") return
+      if (isUnavailablePath(error)) return
       throw error
     }
     for (const entry of entries) {
       const path = join(directory, entry.name)
       if (entry.isDirectory()) await visit(path)
       else if (entry.isFile() && entry.name === "SKILL.md") result.push(path)
+      else if (entry.isSymbolicLink()) {
+        let target
+        try {
+          target = await stat(path)
+        } catch (error) {
+          if (isUnavailablePath(error)) continue
+          throw error
+        }
+        if (target.isDirectory()) await visit(path)
+        else if (target.isFile() && entry.name === "SKILL.md") result.push(path)
+      }
     }
   }
   await visit(root)
@@ -70,8 +98,15 @@ async function discoverSkills({ directory, home = homedir(), roots } = {}) {
   for (const root of candidates) {
     for (const path of await skillFiles(root)) {
       const absolute = resolve(path)
-      if (seen.has(absolute)) continue
-      seen.add(absolute)
+      let identity
+      try {
+        identity = await realpath(absolute)
+      } catch (error) {
+        if (isUnavailablePath(error)) continue
+        throw error
+      }
+      if (seen.has(identity)) continue
+      seen.add(identity)
       const source = await readFile(absolute, "utf8")
       const metadata = parseFrontmatter(source, dirname(absolute).split("/").at(-1))
       if (!metadata.name || !metadata.description) continue

@@ -1,8 +1,8 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, relative } from "node:path"
 
 import { SkillResolver, discoverSkills } from "../plugins/delegation/skill-resolver.js"
 
@@ -89,4 +89,79 @@ test("supported skill discovery keeps the watch directory alongside its skill", 
     path: join(skill, "SKILL.md"),
     content: "WATCH CONTENT",
   }])
+})
+
+test("discovers a project-owned skill through the installed symlink topology", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "skill-discovery-symlink-test-"))
+  const canonicalSkill = join(root, "canonical", "open-design")
+  const installedRoot = join(root, "home", ".config", "opencode", "skills")
+  const installedSkill = join(installedRoot, "open-design")
+  t.after(() => rm(root, { recursive: true, force: true }))
+
+  await mkdir(canonicalSkill, { recursive: true })
+  await mkdir(installedRoot, { recursive: true })
+  await writeFile(join(canonicalSkill, "SKILL.md"), "---\nname: open-design\ndescription: Design references\n---\nOPEN DESIGN CONTENT\n")
+  await symlink(relative(installedRoot, canonicalSkill), installedSkill, "dir")
+
+  const discovered = await discoverSkills({ roots: [installedRoot] })
+  assert.deepEqual(discovered, [{
+    name: "open-design",
+    description: "Design references",
+    path: join(installedSkill, "SKILL.md"),
+    content: "OPEN DESIGN CONTENT",
+  }])
+})
+
+test("preserves direct SKILL.md discovery through a file symlink", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "skill-discovery-file-link-test-"))
+  const canonical = join(root, "canonical", "SKILL.md")
+  const linked = join(root, "SKILL.md")
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await mkdir(join(root, "canonical"), { recursive: true })
+  await writeFile(canonical, "---\nname: linked-skill\ndescription: Linked instructions\n---\nLINKED CONTENT\n")
+  await symlink(canonical, linked, "file")
+
+  assert.deepEqual(await discoverSkills({ roots: [root] }), [{
+    name: "linked-skill",
+    description: "Linked instructions",
+    path: linked,
+    content: "LINKED CONTENT",
+  }])
+})
+
+test("ignores broken skill symlinks without failing discovery", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "skill-discovery-broken-link-test-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await symlink(join(root, "missing-skill"), join(root, "broken-skill"), "dir")
+
+  await assert.doesNotReject(discoverSkills({ roots: [root] }))
+  assert.deepEqual(await discoverSkills({ roots: [root] }), [])
+})
+
+test("terminates safely on symlink cycles", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "skill-discovery-cycle-test-"))
+  const directory = join(root, "a")
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await mkdir(directory)
+  await symlink("../a", join(directory, "cycle"), "dir")
+
+  await assert.doesNotReject(discoverSkills({ roots: [root] }))
+  assert.deepEqual(await discoverSkills({ roots: [root] }), [])
+})
+
+test("deduplicates a canonical skill reached through direct and symlinked paths", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "skill-discovery-duplicate-test-"))
+  const canonicalSkill = join(root, "canonical", "open-design")
+  const linkedRoot = join(root, "linked")
+  t.after(() => rm(root, { recursive: true, force: true }))
+
+  await mkdir(canonicalSkill, { recursive: true })
+  await mkdir(linkedRoot)
+  await writeFile(join(canonicalSkill, "SKILL.md"), "---\nname: open-design\ndescription: Design references\n---\nOPEN DESIGN CONTENT\n")
+  await symlink(canonicalSkill, join(linkedRoot, "open-design"), "dir")
+
+  const discovered = await discoverSkills({ roots: [join(root, "canonical"), linkedRoot] })
+  assert.equal(discovered.length, 1)
+  assert.equal(discovered[0].name, "open-design")
+  assert.equal(discovered[0].path, join(canonicalSkill, "SKILL.md"))
 })
