@@ -560,7 +560,7 @@ test("research_report returns only the completed run's canonical report", async 
   await assert.rejects(runtime.report({ runId: "../../outside" }), /safe generated identifier/)
 })
 
-test("completion metrics use runtime timestamps and report URL occurrences", async (t) => {
+test("completion metrics use runtime timestamps and report citation occurrences", async (t) => {
   let current = new Date("2026-09-12T00:00:00.000Z")
   const { runtime } = await fixture(t, { clock: () => current })
   const first = await prepareSupportedRun(runtime)
@@ -584,6 +584,56 @@ test("completion metrics use runtime timestamps and report URL occurrences", asy
   assert.equal(persisted.startedAt, "2026-09-12T00:05:07.000Z")
   assert.equal(persisted.completedAt, "2026-09-12T00:10:14.000Z")
   assert.equal(persisted.metrics.durationMs, 307000)
+})
+
+test("citationCount counts rendered citation occurrences rather than raw URL strings", async (t) => {
+  const cases = [
+    { report: "[Source](https://example.com/source-a)", expected: 1 },
+    { report: "[https://example.com/source-a](https://example.com/source-a)", expected: 1 },
+    { report: "[Source](https://example.com/source-a)\n\nLater [Source](https://example.com/source-a)", expected: 2 },
+    { report: "<https://example.com/source-a>", expected: 1 },
+    { report: "https://example.com/source-a", expected: 1 },
+  ]
+
+  for (const { report, expected } of cases) {
+    const ready = await verifiedRun(t)
+    const completed = await ready.runtime.complete({ runId: ready.runId, report })
+    assert.equal(completed.citationCount, expected, report)
+  }
+
+  const { runtime, started, next } = await startAndNext(t)
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "verified distinct sources",
+    sources: [
+      { url: "https://example.com/source-a", sourceKey: "source-a" },
+      { url: "https://example.com/source-b", sourceKey: "source-b" },
+    ],
+    evidence: [
+      { questionId: next.task.questionId, sourceKey: "source-a", fact: "Fact A", supportingSpan: "Source A supports fact A.", relation: "supports" },
+      { questionId: next.task.questionId, sourceKey: "source-b", fact: "Fact B", supportingSpan: "Source B supports fact B.", relation: "supports" },
+    ],
+    questionUpdates: [{
+      questionId: next.task.questionId,
+      criteriaSatisfied: [
+        { criterionId: "question-0001-criterion-1", evidenceIndexes: [0] },
+        { criterionId: "question-0001-criterion-2", evidenceIndexes: [1] },
+      ],
+    }],
+  })
+  await runtime.verify({
+    runId: started.runId,
+    claims: [
+      { statement: "Fact A", evidenceIds: ["evidence-0001"], critical: true, verification: "SUPPORTED" },
+      { statement: "Fact B", evidenceIds: ["evidence-0002"], critical: false, verification: "SUPPORTED" },
+    ],
+  })
+  const completed = await runtime.complete({
+    runId: started.runId,
+    report: "[Source A](https://example.com/source-a) and [Source B](https://example.com/source-b).",
+  })
+  assert.equal(completed.citationCount, 2)
 })
 
 test("final report citations are limited to sources used by supported claims", async (t) => {

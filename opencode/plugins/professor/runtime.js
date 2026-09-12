@@ -158,6 +158,14 @@ function extractReportUrlOccurrences(report) {
   return urls
 }
 
+function extractReportCitationOccurrences(report) {
+  const reportWithoutMarkdownLinkLabels = report.replace(
+    /\[[^\]\r\n]*\](?=\s*\(\s*https?:\/\/)/gi,
+    (label) => `[${" ".repeat(Math.max(0, label.length - 2))}]`,
+  )
+  return extractReportUrlOccurrences(reportWithoutMarkdownLinkLabels)
+}
+
 function extractReportUrls(report) {
   return [...new Set(extractReportUrlOccurrences(report))]
 }
@@ -1036,7 +1044,7 @@ export function createProfessorRuntime(options = {}) {
     state.metrics = {
       ...state.metrics,
       durationMs: Math.max(0, completedAtMs - startedAtMs),
-      citationCount: extractReportUrlOccurrences(finalReport).length,
+      citationCount: extractReportCitationOccurrences(finalReport).length,
       questionsTotal: state.questions.length,
       questionsResolved: state.questions.filter(questionIsSufficient).length,
       sourcesDiscovered: state.sources.length,
