@@ -1,5 +1,5 @@
 ---
-description: Execute an approved OpenSpec task list through the workflow-owned Delegation Runtime
+description: Execute an approved OpenSpec task list through the aio-owned Delegation Runtime
 agent: Executor
 subtask: false
 ---

@@ -35,7 +35,7 @@ CodeGraph is useful for mapping architecture, dependencies, callers/consumers, s
 
 Across the three roles, treatment had 62.5% fewer retrieval calls (64→24), 22.5% fewer total tokens (655,358→508,210), and 14.6% less wall time (262.678s→224.263s), with aggregate structural recall 20/22 in both arms, 100% precision, zero critical misses, and equal mean quality. The frozen overall verdict was **PASS WITH CONCERNS**: effective overall, but Planner repetition and a one-surface regression meant that Planner-only tightening was investigated rather than automatically promoted.
 
-Raw evidence is local under `$OPENCODE_WORKFLOW_DATA_ROOT/benchmarks/codegraph-ab/20260827T165722Z`; it is intentionally not linked from GitHub.
+Raw evidence is local under `$AIO_DATA_ROOT/benchmarks/codegraph-ab/20260827T165722Z`; existing installations may continue using `OPENCODE_WORKFLOW_DATA_ROOT`. It is intentionally not linked from GitHub.
 
 ## Invalid infrastructure attempt
 

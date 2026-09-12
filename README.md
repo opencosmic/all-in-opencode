@@ -1,6 +1,8 @@
-# OpenCode workflow
+# All-in OpenCode (aio)
 
-This repository is the canonical authored source for a workflow-owned OpenCode/OpenSpec system. It uses stock OpenCode public plugin and SDK APIs, Git worktrees, an independent CodeGraph MCP server, and external browser and video runtimes. It has no Oh My OpenAgent runtime dependency.
+**All-in OpenCode (aio)** is the canonical authored source for an aio-owned OpenCode/OpenSpec system. It extends and integrates with the upstream OpenCode coding agent through public plugin and SDK APIs, Git worktrees, an independent CodeGraph MCP server, and external browser and video runtimes. It has no Oh My OpenAgent runtime dependency.
+
+In this documentation, `OpenCode` means the upstream coding agent/runtime; `All-in OpenCode` or `aio` means this repository's extensions and workflow.
 
 ## Workflows
 
@@ -105,10 +107,10 @@ Check runtime, index, and OpenCode MCP health with:
 
 There are intentionally two browser entry paths for practical comparison:
 
-- `/browser` opens the dedicated workflow-owned `Browser` agent for direct browser workflows.
+- `/browser` opens the dedicated aio-owned `Browser` agent for direct browser workflows.
 - Assistant delegates `category="browser-automation", load_skills=["ego-browser"]` through CategoryEngine to Implementer for browser work requested as part of ordinary assistance.
 
-The dedicated `Browser` route is the workflow-facing browser agent. The `browser-automation` category is browser capability through the reusable Implementer, and `ego-browser` is the current external backend/skill identifier. Both paths use the external official `citrolabs/ego-lite` runtime.
+The dedicated `Browser` route is the All-in OpenCode-facing browser agent. The `browser-automation` category is browser capability through the reusable Implementer, and `ego-browser` is the current external backend/skill identifier. Both paths use the external official `citrolabs/ego-lite` runtime.
 
 Provision the current backend explicitly, then verify it:
 
@@ -198,7 +200,7 @@ OpenDesign is an optional, read-only design resource capability. For frontend/UI
 category="visual-engineering", load_skills=["open-design"]
 ```
 
-The selected skill discovers and reads OpenDesign `DESIGN.md` and `SKILL.md` resources through OpenCode's generic MCP resource interface. OpenCode and `opencode-workflow` remain the control plane: the Implementer edits the current repository/worktree, which remains the source of truth, and the existing verification workflow remains authoritative. This integration intentionally does not call OpenDesign's nested agent-running `start_run` path or expose its raw MCP tools.
+The selected skill discovers and reads OpenDesign `DESIGN.md` and `SKILL.md` resources through OpenCode's generic MCP resource interface. OpenCode and All-in OpenCode (`aio`) remain the control plane: the Implementer edits the current repository/worktree, which remains the source of truth, and the existing verification workflow remains authoritative. This integration intentionally does not call OpenDesign's nested agent-running `start_run` path or expose its raw MCP tools.
 
 Provisioning is explicit and uses an already-installed supported OpenDesign CLI or app; the UI is not required for normal headless MCP use when the installed upstream supports it. Setup asks the upstream CLI for its print-only canonical payload (`od mcp install opencode --print --json`), preserves the generated command, arguments, and environment, and stores that machine-local launch metadata at `~/.config/opencode/open-design-mcp.json` (outside Git):
 
@@ -219,6 +221,8 @@ The live OpenCode configuration is linked narrowly from this repository:
 ```
 
 The installer backs up pre-existing matching content before linking. During migration it removes the old `~/.omo/omo.jsonc` destination only when it is a symlink to this repository's former managed config. Any other file or symlink is preserved and reported.
+
+Project runtime data uses `AIO_DATA_ROOT` when set, otherwise `$XDG_DATA_HOME/all-in-opencode` or `~/.local/share/all-in-opencode`. Installer migration backups default to `~/Workspace/data/all-in-opencode`. Existing `OPENCODE_WORKFLOW_DATA_ROOT` configurations and legacy data under `opencode-workflow` remain supported for compatibility.
 
 Install the stock public JavaScript plugin dependency where OpenCode discovers it:
 

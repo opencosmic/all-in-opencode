@@ -26,7 +26,7 @@ This chronology records what happened in the Planner experiments. It does not re
 | `20260827T190106Z` | V4 consolidated probing | `ego-lite`, replicated | Can V3 coverage be retained without probe fan-out? | Median tokens −64.8%, wall −20.2%, but both treatments stabilized at 7/8; one had a silent drop. | `PLANNER_V4_REGRESSES`; not promoted. |
 | `20260827T195837Z` | V4 + unchanged Plan Reviewer | `ego-lite` and `codegraph` | Does the reviewed system generalize safely? | Better reviewed ego-lite coverage at materially higher cost; CodeGraph effective recall 100%→80% with two unrecovered critical omissions. | `V4_PIPELINE_REGRESSES`; retain production Planner. |
 
-Raw evidence convention: `$OPENCODE_WORKFLOW_DATA_ROOT/benchmarks/<experiment-id>`. Protocols, manifests, reports, and checksums are local forensic evidence; no raw sessions are committed here.
+Raw evidence convention: `$AIO_DATA_ROOT/benchmarks/<experiment-id>`. Existing installations may continue using `OPENCODE_WORKFLOW_DATA_ROOT`. Protocols, manifests, reports, and checksums are local forensic evidence; no raw sessions are committed here.
 
 ## What each candidate taught
 

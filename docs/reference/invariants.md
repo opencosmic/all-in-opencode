@@ -3,7 +3,7 @@
 | Invariant | Enforcement |
 |---|---|
 | Runtime code uses stock public OpenCode plugin and SDK APIs only. | Static dependency guard and loader test |
-| Seven workflow-owned delegation tools are exposed, including the restricted `consult_agents` facade. | Plugin test |
+| Seven aio-owned delegation tools are exposed, including the restricted `consult_agents` facade. | Plugin test |
 | Category selection is deterministic and implementation categories route to Implementer. | CategoryEngine tests |
 | Named delegation accepts only project-owned read-only specialists. | AgentDispatcher tests |
 | `consult_agents` is Implementer-only, accepts only bounded Explorer/Librarian requests, waits for all outcomes in input order, and consultation children cannot recurse. | Consultation runtime, profile, and effective-agent permission tests |

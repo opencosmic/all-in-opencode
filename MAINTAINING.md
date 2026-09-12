@@ -1,19 +1,19 @@
-# Maintaining OpenCode Workflow
+# Maintaining All-in OpenCode
 
-This guide is for anyone changing the canonical repository at `~/Workspace/repo/opencode-workflow`. It describes safe development of the configuration, not operation of a target project's workflow; for that, read [the user guide](docs/guides/using-the-workflow.md).
+This guide is for anyone changing the canonical All-in OpenCode repository at `~/Workspace/repo/all-in-opencode`. It describes safe development of the configuration, not operation of a target project's workflow; for that, read [the user guide](docs/guides/using-the-workflow.md).
 
 ## Ownership and source model
 
 - This repository is the canonical authored source for public-safe OpenCode agents, commands, plugins, tests, selected configuration, scripts, and documentation.
 - [`scripts/links.tsv`](scripts/links.tsv) is the executable manifest for narrow live symlinks. Never maintain a second authored copy under `~/.config/opencode`.
-- Local project data belongs under `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}`: `benchmarks/` for raw evidence and `backups/` for migration/configuration backups.
+- Local runtime and research data belongs under `AIO_DATA_ROOT`, defaulting to `$XDG_DATA_HOME/all-in-opencode` or `~/.local/share/all-in-opencode`: `benchmarks/` for raw evidence and `backups/` for migration/configuration backups. Installer migration backups use `~/Workspace/data/all-in-opencode` when `AIO_DATA_ROOT` is unset. Existing `OPENCODE_WORKFLOW_DATA_ROOT` configurations and legacy data directories remain supported.
 - `~/Workspace/repo/ego-lite` and `~/Workspace/repo/codegraph` are independent external benchmark targets. Do not copy them into this repository.
 - OpenCode packages, sessions, caches, credentials, independent CodeGraph indexes, browser state, and global OpenSpec telemetry remain application- or user-owned local state.
 
 ## Normal maintenance sequence
 
 ```text
-cd ~/Workspace/repo/opencode-workflow
+cd ~/Workspace/repo/all-in-opencode
   ↓
 inspect Git state and read the relevant architecture/reference/research/decision docs
   ↓
@@ -72,7 +72,7 @@ Do not benchmark routine documentation corrections, formatting-only edits, or de
 ## Research hygiene
 
 ```text
-raw evidence        -> $OPENCODE_WORKFLOW_DATA_ROOT/benchmarks/
+raw evidence        -> $AIO_DATA_ROOT/benchmarks/
 summarized learning -> docs/research/
 final decisions     -> docs/decisions/
 ```
@@ -81,6 +81,6 @@ Keep raw sessions, telemetry, indexes, benchmark worktrees, and checksums local.
 
 ## Recovery and upgrades
 
-Before a live-link repair, inspect the manifest, target, source, and relevant backup. `scripts/install.sh --dry-run` shows intended links; a real installation creates timestamped backups under `$OPENCODE_WORKFLOW_DATA_ROOT/backups/migrations`. Repair the smallest affected surface and rerun verification—do not delete broad runtime directories, package state, indexes, or backups casually.
+Before a live-link repair, inspect the manifest, target, source, and relevant backup. `scripts/install.sh --dry-run` shows intended links; a real installation creates timestamped backups under `$AIO_DATA_ROOT/backups/migrations`. Repair the smallest affected surface and rerun verification—do not delete broad runtime directories, package state, indexes, or backups casually. The installer still honors `OPENCODE_WORKFLOW_DATA_ROOT` for existing installations.
 
 For dependency upgrades, update only the intended canonical metadata/configuration, install validation dependencies as needed with `npm ci --prefix opencode`, then verify actual discovery and deterministic policy behavior. Treat OpenCode and CodeGraph version changes as behavior-sensitive: record what was validated and benchmark only if deterministic checks cannot answer a material trade-off.

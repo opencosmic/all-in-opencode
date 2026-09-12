@@ -1,6 +1,6 @@
 ---
 name: Implementer
-description: Focused implementation worker for one workflow-owned delegation assignment
+description: Focused implementation worker for one aio-owned delegation assignment
 mode: subagent
 color: "#7C3AED"
 permission:

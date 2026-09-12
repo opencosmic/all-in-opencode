@@ -7,7 +7,17 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 MANIFEST="$SCRIPT_DIR/links.tsv"
 CATEGORY_CONFIG_SOURCE="$REPO_ROOT/opencode/categories.json"
 CATEGORY_CONFIG_DEST="$HOME/.config/opencode/categories.json"
-DATA_ROOT=${OPENCODE_WORKFLOW_DATA_ROOT:-"$HOME/Workspace/data/opencode-workflow"}
+# AIO_DATA_ROOT is canonical. Keep the legacy variable and directory discoverable
+# so existing backup and migration state is not silently orphaned.
+if [ -n "${AIO_DATA_ROOT:-}" ]; then
+  DATA_ROOT=$AIO_DATA_ROOT
+elif [ -n "${OPENCODE_WORKFLOW_DATA_ROOT:-}" ]; then
+  DATA_ROOT=$OPENCODE_WORKFLOW_DATA_ROOT
+elif [ -e "$HOME/Workspace/data/opencode-workflow" ] && [ ! -e "$HOME/Workspace/data/all-in-opencode" ]; then
+  DATA_ROOT="$HOME/Workspace/data/opencode-workflow"
+else
+  DATA_ROOT="$HOME/Workspace/data/all-in-opencode"
+fi
 LEGACY_OMO_SOURCE="$REPO_ROOT/omo/omo.jsonc"
 LEGACY_OMO_DEST="$HOME/.omo/omo.jsonc"
 DRY_RUN=0

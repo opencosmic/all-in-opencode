@@ -5,7 +5,7 @@ import { resolve } from "node:path"
 import { DelegationRuntime, defaultStateDirectory } from "./runtime.js"
 import { isNotGitRepositoryError, WorkspaceManager } from "./workspace-manager.js"
 
-const CONTROL_PLANES = Symbol.for("opencode-workflow.delegation.control-planes.v1")
+const CONTROL_PLANES = Symbol.for("aio.delegation.control-planes.v1")
 
 function sharedControlPlanes() {
   if (!globalThis[CONTROL_PLANES]) {

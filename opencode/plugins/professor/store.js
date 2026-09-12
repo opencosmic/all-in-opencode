@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto"
 import { appendFile, lstat, mkdir, open, readFile, readlink, rename, symlink, writeFile } from "node:fs/promises"
-import { homedir } from "node:os"
 import { dirname, join, relative, resolve, sep } from "node:path"
 
+import { resolveProjectDataRoot } from "../project-data-root.js"
 import { assertSafeId, normalizeResearchState, validateResearchState } from "./state.js"
 
 export const DEFAULT_PROFESSOR_LIBRARY_ROOT = "/Users/code/Documents/Research"
@@ -10,10 +10,7 @@ export const DEFAULT_PROFESSOR_LIBRARY_ROOT = "/Users/code/Documents/Research"
 export function resolveProfessorDataRoot(options = {}) {
   const explicit = options.stateDirectory ?? options.dataRoot
   if (explicit) return resolve(String(explicit))
-  const configuredRoot = process.env.OPENCODE_WORKFLOW_DATA_ROOT
-  if (configuredRoot) return resolve(configuredRoot, "professor")
-  const xdgDataHome = process.env.XDG_DATA_HOME || join(homedir(), ".local", "share")
-  return resolve(xdgDataHome, "opencode-workflow", "professor")
+  return resolve(resolveProjectDataRoot(), "professor")
 }
 
 function runPaths(dataRoot, runId) {

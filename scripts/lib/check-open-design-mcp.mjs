@@ -122,7 +122,7 @@ async function main() {
     const initialize = await client.request("initialize", {
       protocolVersion: "2025-06-18",
       capabilities: {},
-      clientInfo: { name: "opencode-workflow-health-check", version: "1" },
+      clientInfo: { name: "aio-health-check", version: "1" },
     })
     const initializeError = errorMessage(initialize, "initialize")
     if (initializeError) throw new Error(initializeError)

@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from "node:crypto"
 import { execFile } from "node:child_process"
 import { mkdir, realpath, readdir } from "node:fs/promises"
-import { homedir } from "node:os"
 import { join, resolve } from "node:path"
 import { promisify } from "node:util"
 
 import { readJson, writeJson } from "./json-store.js"
+import { resolveProjectDataRoot } from "../project-data-root.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -58,9 +58,7 @@ function parseWorktrees(output) {
 
 export class WorkspaceManager {
   constructor({
-    stateDirectory = process.env.OPENCODE_WORKFLOW_DATA_ROOT
-      ? join(process.env.OPENCODE_WORKFLOW_DATA_ROOT, "delegation")
-      : join(homedir(), ".local", "share", "opencode-workflow", "delegation"),
+    stateDirectory = join(resolveProjectDataRoot(), "delegation"),
     git = defaultGit,
     hasActiveTasks = async () => false,
     now = () => new Date().toISOString(),

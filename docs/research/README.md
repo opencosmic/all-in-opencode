@@ -1,6 +1,6 @@
 # Research status
 
-Raw evidence remains local at `${OPENCODE_WORKFLOW_DATA_ROOT:-$HOME/Workspace/data/opencode-workflow}/benchmarks/<experiment-id>`. Superseded orchestration experiments are not part of the production architecture.
+Raw evidence remains local under `AIO_DATA_ROOT/benchmarks/<experiment-id>`, defaulting to `$XDG_DATA_HOME/all-in-opencode` or `~/.local/share/all-in-opencode`. Existing `OPENCODE_WORKFLOW_DATA_ROOT` configurations remain supported. Superseded orchestration experiments are not part of the production architecture.
 
 | Area | Status | Reference |
 |---|---|---|

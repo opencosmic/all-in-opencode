@@ -6,8 +6,9 @@ description: Read bounded, task-relevant OpenDesign design-system and functional
 # OpenDesign resource capability
 
 Use this skill only when it is explicitly selected for the assignment. OpenDesign
-is a read-only design-knowledge provider; OpenCode and `opencode-workflow` remain
-the orchestrator and the current repository/worktree remains the source of truth.
+is a read-only design-knowledge provider; OpenCode remains the upstream runtime,
+while All-in OpenCode (`aio`) is the repository-owned integration around it. The
+current repository/worktree remains the source of truth.
 
 ## Repository-first selection
 

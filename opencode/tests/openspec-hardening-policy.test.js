@@ -116,7 +116,7 @@ test("executor owns adaptive topology, baseline, worker workspace, and lifecycle
 test("delegation runtime owns isolation while Executor owns integration", async () => {
   const command = await text("commands/execute.md")
   const agent = await text("agents/executor.md")
-  assert.match(agent, /workflow-owned Delegation Runtime owns isolated workspace and child-session lifecycle/)
+  assert.match(agent, /aio-owned Delegation Runtime owns isolated workspace and child-session lifecycle/)
   assert.match(agent, /categories to `Implementer`/)
   assert.match(agent, /route read-only inspection to `Reviewer` or `QA`/)
   assert.match(agent, /The runtime never decides what to stage, commit, integrate, or check/)

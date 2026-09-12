@@ -121,7 +121,7 @@ test("permission decisions are scoped to the exact category session", () => {
 
 test("Git and browser categories use the shared contract plus category context", () => {
   const contract = systemFor("Implementer", "git")
-  assert.match(contract, /workflow-owned Implementer/)
+  assert.match(contract, /aio-owned Implementer/)
   assert.doesNotMatch(contract, /operating under the git category/)
   assert.match(systemFor("Implementer", "git", {
     prompt_append: "<Category_Context name=\"git\">caller owns integration-order</Category_Context>",
@@ -134,7 +134,7 @@ test("Git and browser categories use the shared contract plus category context",
   const browser = systemFor("Implementer", "browser-automation", {
     prompt_append: "<Category_Context name=\"browser-automation\">fresh browser state</Category_Context>",
   })
-  assert.match(browser, /workflow-owned Implementer/)
+  assert.match(browser, /aio-owned Implementer/)
   assert.match(browser, /fresh browser state/)
   assert.doesNotMatch(browser, /operating under the browser-automation category/)
 })

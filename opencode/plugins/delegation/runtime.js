@@ -1,5 +1,4 @@
 import { realpath } from "node:fs/promises"
-import { homedir } from "node:os"
 import { join, resolve } from "node:path"
 
 import { AgentDispatcher } from "./agent-dispatcher.js"
@@ -8,12 +7,13 @@ import { categoryPermission, openDesignResourceDecision } from "./category-permi
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
+import { resolveProjectDataRoot } from "../project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
 import { SkillResolver, discoverSkills } from "./skill-resolver.js"
 import { TaskRegistry, TERMINAL_STATUSES } from "./task-registry.js"
 import { WorkspaceManager } from "./workspace-manager.js"
 
-const SESSION_PROFILES = Symbol.for("opencode-workflow.delegation.session-profiles")
+const SESSION_PROFILES = Symbol.for("aio.delegation.session-profiles")
 const MAX_CONSULTATION_REQUESTS = 4
 
 function sharedSessionProfiles() {
@@ -22,9 +22,7 @@ function sharedSessionProfiles() {
 }
 
 function defaultStateDirectory() {
-  return process.env.OPENCODE_WORKFLOW_DATA_ROOT
-    ? join(process.env.OPENCODE_WORKFLOW_DATA_ROOT, "delegation")
-    : join(homedir(), ".local", "share", "opencode-workflow", "delegation")
+  return join(resolveProjectDataRoot(), "delegation")
 }
 
 function publicTask(task) {

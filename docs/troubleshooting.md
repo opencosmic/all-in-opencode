@@ -15,7 +15,7 @@ Do not reset, clean, stash, force-remove worktrees, or delete broad runtime/inde
 
 Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are exactly `spec`, `plan`, `execute`, `verify`, `ship`, `browser`, `blender`, `video`, `search`, and `research`. Restart OpenCode after authored agent, command, plugin, skill, or MCP changes.
 
-For `/research`, confirm the Professor plugin is discovered and that the configured workflow data root is writable. Research runs live under `<data-root>/professor/runs/<run-id>/`; they do not write state into the repository. The canonical `report.md` remains in that run directory, while a successful completion may create a symlink under `/Users/code/Documents/Research/`. Resume with the durable run ID through Professor's state tools, or use `research_report` for a completed report, rather than reconstructing the task from chat history.
+For `/research`, confirm the Professor plugin is discovered and that the configured All-in OpenCode data root is writable. Research runs live under `<data-root>/professor/runs/<run-id>/`; they do not write state into the repository. The canonical `report.md` remains in that run directory, while a successful completion may create a symlink under `/Users/code/Documents/Research/`. Resume with the durable run ID through Professor's state tools, or use `research_report` for a completed report, rather than reconstructing the task from chat history.
 
 ## Cache statistics dialog is missing
 
@@ -23,7 +23,7 @@ Run `./scripts/setup-cache-stats.sh` followed by `./scripts/check-cache-stats.sh
 
 ## Delegation tool is missing
 
-Run `opencode debug config` and confirm the local Delegation Runtime plugin is discovered. Run the loader and host integration tests. Executor must stop if a required workflow-owned tool is unavailable; manual worktree or alternate delegation fallback is not valid.
+Run `opencode debug config` and confirm the local Delegation Runtime plugin is discovered. Run the loader and host integration tests. Executor must stop if a required aio-owned tool is unavailable; manual worktree or alternate delegation fallback is not valid.
 
 ## Background group does not resume
 
@@ -64,7 +64,7 @@ Run `./scripts/check-hyperframes.sh` for a read-only report. It distinguishes mi
 
 If a `/video` request stops at a skill-update requirement, do not patch the installed `SKILL.md` or allow an implicit global refresh. Follow the upstream confirmation prompt or run the explicit setup script, then restart OpenCode so its skill index sees the installation. Project initialization can use the upstream-supported `HYPERFRAMES_SKIP_SKILLS=1` opt-out when a project operation must not check or mutate global skills; the current `--skip-skills` flag is not a substitute.
 
-If frame workers are unavailable, let the current HyperFrames workflow use its serial fallback. The route intentionally does not expose the workflow-owned Delegation Runtime or a broad native task channel, and this repository does not add a scheduler or worker pool.
+If frame workers are unavailable, let the current HyperFrames workflow use its serial fallback. The route intentionally does not expose the aio-owned Delegation Runtime or a broad native task channel, and this repository does not add a scheduler or worker pool.
 
 ## OpenDesign references are unavailable
 
