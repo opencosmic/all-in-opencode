@@ -6,5 +6,4 @@ opencode/tests|.config/opencode/tests|directory
 opencode/skills/open-design|.config/opencode/skills/open-design|directory
 opencode/open-design-mcp.sh|.config/opencode/open-design-mcp.sh|file
 opencode/opencode.jsonc|.config/opencode/opencode.jsonc|file
-opencode/categories.json|.config/opencode/categories.json|file
 opencode/tui.json|.config/opencode/tui.json|file

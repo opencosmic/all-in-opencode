@@ -46,7 +46,7 @@ The runtime exposes seven tools:
 - `task_cancel`
 - `workspace_release`
 
-`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are preserved in the registry, while `opencode/categories.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The `delegate_task` description presents the resolved catalog at startup.
+`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are repository-owned in the registry, while the optional user-local `~/.config/opencode/categories.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The file is not tracked by Git and may be absent; in that case only built-ins are used. The `delegate_task` description presents the resolved catalog at startup.
 
 `delegate_task` delegates a real scoped assignment. `consult_agents` is separate: only `Implementer` can call it, and only for a bounded batch of information-gathering requests to `Explorer` or `Librarian`. The batch starts its requests concurrently, waits synchronously for every outcome, and returns results in input order. Explorer reports local repository evidence; Librarian reports external documentation and upstream evidence. Neither consultant can edit, delegate, or consult another agent, and `Implementer` remains responsible for all implementation decisions, edits, and validation. Consultation tasks are always foreground (`background: false`, `completion_group: null`) and never enter the parent-resume lifecycle. A `session_id` may continue a completed consultation only for the same target, parent Implementer, and directory; skills are not exposed by this tool.
 

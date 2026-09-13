@@ -1,11 +1,11 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { AgentDispatcher } from "../plugins/delegation/agent-dispatcher.js"
-import { CategoryEngine, DEFAULT_CATEGORIES } from "../plugins/delegation/category-engine.js"
+import { CategoryEngine, DEFAULT_CATEGORIES, DEFAULT_CATEGORY_CONFIG_PATH } from "../plugins/delegation/category-engine.js"
 
 test("built-in categories resolve to Implementer with model, variant, description, and prompt append", () => {
   const engine = new CategoryEngine({})
@@ -19,6 +19,19 @@ test("built-in categories resolve to Implementer with model, variant, descriptio
     assert.equal(result.profile.prompt_append, expected.prompt_append ?? "")
     assert.match(result.profile.prompt_append, new RegExp(`<Category_Context name="${name}">`))
   }
+})
+
+test("missing user-local category config keeps built-ins available without creating a file", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "missing-category-config-test-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const missingPath = join(root, "missing", "categories.json")
+
+  assert.equal(DEFAULT_CATEGORY_CONFIG_PATH, join(homedir(), ".config", "opencode", "categories.json"))
+  assert.equal(DEFAULT_CATEGORY_CONFIG_PATH.includes("/opencode-workflow/opencode/categories.json"), false)
+  const engine = new CategoryEngine(undefined, { configPath: missingPath })
+  assert.equal(engine.has("quick"), true)
+  assert.equal(engine.resolve("quick").agent, "Implementer")
+  await assert.rejects(access(missingPath), { code: "ENOENT" })
 })
 
 test("category context meaningfully specializes the shared executor", () => {
@@ -52,7 +65,7 @@ test("user category fields override built-ins without recursive merging", () => 
   assert.equal(profile.description, DEFAULT_CATEGORIES.deep.description)
 })
 
-test("custom categories load from repository configuration without editing JavaScript", async (t) => {
+test("custom categories load from explicit local configuration without editing JavaScript", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "category-config-test-"))
   t.after(() => rm(root, { recursive: true, force: true }))
   const configPath = join(root, "categories.json")
@@ -101,6 +114,18 @@ test("category schema has one model and variant, with no fallback or reasoning f
   }
   assert.throws(() => new CategoryEngine({ bad: { models: [{ model: "provider/model" }] } }), /unsupported field "models"/)
   assert.throws(() => new CategoryEngine({ bad: { fallback_models: [] } }), /unsupported field "fallback_models"/)
+})
+
+test("invalid existing category config still fails clearly", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "invalid-category-config-test-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const configPath = join(root, "categories.json")
+  await writeFile(configPath, JSON.stringify({ categories: { broken: { model: 42 } } }))
+
+  assert.throws(
+    () => new CategoryEngine(undefined, { configPath }),
+    /invalid category config .*category "broken" field "model" must be a string/,
+  )
 })
 
 test("dispatcher enforces category XOR named agent and allowlists specialists", () => {
