@@ -8,6 +8,7 @@ import { promisify } from "node:util"
 import { fileURLToPath } from "node:url"
 
 import { DelegationRuntime } from "../plugins/delegation/runtime.js"
+import { isolatedOpenCodeEnv } from "./support/isolated-opencode.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -294,12 +295,14 @@ test("consult_agents rejects unsupported fields, callers, targets, and limits be
   }, context), /Implementer cannot call delegate_task/)
 })
 
-test("consultation child profiles and agent config keep recursion disabled", async () => {
+test("consultation child profiles and agent config keep recursion disabled", async (t) => {
   const repository = fileURLToPath(new URL("../..", import.meta.url))
   const names = ["Implementer", "Explorer", "Librarian"]
   const agents = await Promise.all(names.map(async (name) => {
+    const env = await isolatedOpenCodeEnv(t, repository)
     const { stdout } = await execFileAsync("opencode", ["debug", "agent", name], {
       cwd: repository,
+      env,
       encoding: "utf8",
     })
     return [name, JSON.parse(stdout)]

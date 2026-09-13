@@ -4,6 +4,8 @@ import { execFile } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 
+import { isolatedOpenCodeEnv } from "./support/isolated-opencode.js"
+
 const execFileAsync = promisify(execFile)
 const repository = fileURLToPath(new URL("../..", import.meta.url))
 
@@ -20,9 +22,11 @@ function decision(rules, command) {
   return rules.findLast((rule) => rule.permission === "bash" && wildcard(command, rule.pattern))?.action ?? "ask"
 }
 
-test("resolved Implementer permissions reserve commit mechanics for category mediation", async () => {
+test("resolved Implementer permissions reserve commit mechanics for category mediation", async (t) => {
+  const env = await isolatedOpenCodeEnv(t, repository)
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Implementer"], {
     cwd: repository,
+    env,
     encoding: "utf8",
     maxBuffer: 4 * 1024 * 1024,
   })

@@ -5,9 +5,10 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 
+import { isolatedOpenCodeEnv } from "./support/isolated-opencode.js"
+
 const execFileAsync = promisify(execFile)
 const testDirectory = dirname(fileURLToPath(import.meta.url))
-const configDirectory = join(testDirectory, "..")
 const repository = join(testDirectory, "../..")
 
 function matches(pattern, value) {
@@ -24,10 +25,11 @@ function effectiveAction(rules, permission, value) {
     .at(-1)?.action
 }
 
-test("effective Executor policy uses only project-owned delegation and Git integration", async () => {
+test("effective Executor policy uses only project-owned delegation and Git integration", async (t) => {
+  const env = await isolatedOpenCodeEnv(t, repository)
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Executor"], {
     cwd: repository,
-    env: { ...process.env, OPENCODE_CONFIG_DIR: configDirectory },
+    env,
     encoding: "utf8",
   })
   const executor = JSON.parse(stdout)

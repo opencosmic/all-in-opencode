@@ -6,11 +6,14 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 
+import { isolatedOpenCodeEnv } from "./support/isolated-opencode.js"
+
 const here = dirname(fileURLToPath(import.meta.url))
 const repository = resolve(here, "../..")
 const execFileAsync = promisify(execFile)
 
-test("Producer is a dedicated HyperFrames primary route", async () => {
+test("Producer is a dedicated HyperFrames primary route", async (t) => {
+  const env = await isolatedOpenCodeEnv(t, repository)
   const producer = await readFile(`${repository}/opencode/agents/producer.md`, "utf8")
   const command = await readFile(`${repository}/opencode/commands/video.md`, "utf8")
 
@@ -72,13 +75,14 @@ test("Producer is a dedicated HyperFrames primary route", async () => {
   assert.doesNotMatch(producer, /video-analysis\s*->\s*watch/i)
 
   await assert.rejects(access(`${repository}/opencode/agents/video.md`))
-  const agents = await execFileAsync("opencode", ["agent", "list"], { encoding: "utf8" })
+  const agents = await execFileAsync("opencode", ["agent", "list"], { env, encoding: "utf8" })
   assert.match(agents.stdout, /Producer/)
   assert.doesNotMatch(agents.stdout, /\bVideo\b/)
 })
 
-test("Producer's effective shell policy gates global HyperFrames updates", async () => {
-  const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Producer"], { encoding: "utf8" })
+test("Producer's effective shell policy gates global HyperFrames updates", async (t) => {
+  const env = await isolatedOpenCodeEnv(t, repository)
+  const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Producer"], { env, encoding: "utf8" })
   const agent = JSON.parse(stdout)
   assert.equal(agent.name, "Producer")
   assert.equal(agent.mode, "primary")
