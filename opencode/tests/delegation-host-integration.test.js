@@ -14,6 +14,10 @@ const execFileAsync = promisify(execFile)
 const testDirectory = dirname(fileURLToPath(import.meta.url))
 const pluginHooksEntry = pathToFileURL(join(testDirectory, "../plugins/delegation/plugin-hooks.js")).href
 const controlPlaneEntry = pathToFileURL(join(testDirectory, "../plugins/delegation/control-plane.js")).href
+// The real delegation plugin can announce its socket before its project route
+// is responsive; the default parallel runner has measured that gap above one minute.
+const HOST_READY_TIMEOUT_MS = 180_000
+const HOST_TEST_TIMEOUT_MS = 240_000
 
 async function git(directory, args) {
   return (await execFileAsync("git", args, { cwd: directory, encoding: "utf8" })).stdout.trim()
@@ -36,6 +40,34 @@ async function readJsonLines(path) {
     if (error?.code === "ENOENT") return []
     throw error
   }
+}
+
+function childExited(child) {
+  return child.exitCode !== null || child.signalCode !== null
+}
+
+async function waitForChildExit(child, timeoutMs) {
+  if (childExited(child)) return true
+  return new Promise((resolve) => {
+    let timer
+    const onExit = () => {
+      clearTimeout(timer)
+      resolve(true)
+    }
+    timer = setTimeout(() => {
+      child.off("exit", onExit)
+      resolve(false)
+    }, timeoutMs)
+    child.once("exit", onExit)
+  })
+}
+
+async function stopChild(child) {
+  if (childExited(child)) return
+  child.kill("SIGTERM")
+  if (await waitForChildExit(child, 2_000)) return
+  child.kill("SIGKILL")
+  await waitForChildExit(child, 2_000)
 }
 
 async function availablePort() {
@@ -221,15 +253,26 @@ async function startServer({ cwd, root, plugin, diagnostics, stateDirectory, can
   child.stdout.on("data", (chunk) => { stdout += chunk })
   child.stderr.on("data", (chunk) => { stderr += chunk })
 
-  const url = await waitFor(() => stdout.match(/listening on (http:\/\/[^\s]+)/)?.[1] ?? null)
-    .catch((error) => {
-      child.kill("SIGTERM")
+  const url = await waitFor(() => stdout.match(/listening on (http:\/\/[^\s]+)/)?.[1] ?? null, HOST_READY_TIMEOUT_MS)
+    .catch(async (error) => {
+      await stopChild(child)
       throw new Error(`${error.message}\nstdout:\n${stdout}\nstderr:\n${stderr}`)
     })
+  try {
+    const response = await fetch(
+      `${url}/path?directory=${encodeURIComponent(cwd)}`,
+      { signal: AbortSignal.timeout(HOST_READY_TIMEOUT_MS) },
+    )
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    await response.arrayBuffer()
+  } catch (error) {
+    await stopChild(child)
+    throw new Error(`OpenCode HTTP readiness failed: ${error.message}\nstdout:\n${stdout}\nstderr:\n${stderr}`)
+  }
   return { child, url, output: () => ({ stdout, stderr }) }
 }
 
-test("stock OpenCode host forwards two linked-worktree event streams into one delegation control plane", { timeout: 60_000 }, async (t) => {
+test("stock OpenCode host forwards two linked-worktree event streams into one delegation control plane", { timeout: HOST_TEST_TIMEOUT_MS }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "delegation-host-test-"))
   const repository = join(root, "repository")
   const t1 = join(root, "worktree-one")
@@ -261,11 +304,7 @@ test("stock OpenCode host forwards two linked-worktree event streams into one de
     t2: canonicalT2,
   })
   t.after(async () => {
-    server.child.kill("SIGTERM")
-    await Promise.race([
-      new Promise((resolve) => server.child.once("exit", resolve)),
-      new Promise((resolve) => setTimeout(resolve, 2_000)),
-    ])
+    await stopChild(server.child)
     await rm(root, { recursive: true })
   })
 
@@ -312,7 +351,12 @@ test("stock OpenCode host forwards two linked-worktree event streams into one de
   assert.ok(hostEvents.every((entry) => entry.observer_directory === entry.session_directory))
   assert.deepEqual(new Set(terminals.map((entry) => entry.directory)), new Set([canonicalT1, canonicalT2]))
   assert.deepEqual(new Set(terminals.map((entry) => entry.child_session_id)), new Set(sessions.map((session) => session.id)))
-  assert.ok(lifecycle.some((entry) => entry.event_type === "session.status" && entry.event_status === "idle"))
+  // OpenCode may emit the authoritative session.idle event without a matching
+  // session.status=idle event; require idle evidence for every terminal child.
+  assert.deepEqual(
+    new Set(lifecycle.filter((entry) => entry.event_type === "session.idle").map((entry) => entry.task_id)),
+    new Set(terminals.map((entry) => entry.task_id)),
+  )
   assert.ok(lifecycle.some((entry) => entry.event_type === "session.idle"))
   assert.ok(lifecycle.every((entry) => entry.status_entry_present === false))
   assert.ok(

@@ -437,12 +437,11 @@ if (process.env.FAKE_MCP_MODE !== "malformed" && process.env.FAKE_MCP_MODE !== "
   })
   assert.equal(overrideCheck.code, 0, `${overrideCheck.stdout}\n${overrideCheck.stderr}`)
 
-  // These assertions exercise response parsing and process-exit reporting
-  // after a freshly spawned Node child starts. Allow for the measured cold-start
-  // latency on this host; the explicit short-deadline case below covers genuine
-  // request timeouts.
-  const childLifecycleTimeoutMs = "1000"
-  const malformed = await run(process.execPath, [join(repository, "scripts/lib/check-open-design-mcp.mjs"), "--cli", cli, "--timeout-ms", childLifecycleTimeoutMs], {
+  // These assertions exercise response parsing and process-exit reporting after
+  // a freshly spawned Node child starts. Use the checker's normal deadline so
+  // load cannot turn a process-exit result into a request-timeout result. The
+  // explicit short-deadline case below covers genuine request timeouts.
+  const malformed = await run(process.execPath, [join(repository, "scripts/lib/check-open-design-mcp.mjs"), "--cli", cli], {
     env: { ...env, FAKE_MCP_MODE: "malformed" },
   })
   assert.notEqual(malformed.code, 0)
@@ -452,7 +451,7 @@ if (process.env.FAKE_MCP_MODE !== "malformed" && process.env.FAKE_MCP_MODE !== "
   })
   assert.notEqual(timeout.code, 0)
   assert.match(`${timeout.stdout}\n${timeout.stderr}`, /timed out/)
-  const prematureExit = await run(process.execPath, [join(repository, "scripts/lib/check-open-design-mcp.mjs"), "--cli", cli, "--timeout-ms", childLifecycleTimeoutMs], {
+  const prematureExit = await run(process.execPath, [join(repository, "scripts/lib/check-open-design-mcp.mjs"), "--cli", cli], {
     env: { ...env, FAKE_MCP_MODE: "exit" },
   })
   assert.notEqual(prematureExit.code, 0)
