@@ -274,6 +274,12 @@ async function startServer({ cwd, root, plugin, diagnostics, stateDirectory, can
 
 test("stock OpenCode host forwards two linked-worktree event streams into one delegation control plane", { timeout: HOST_TEST_TIMEOUT_MS }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), "delegation-host-test-"))
+  let server = null
+  t.after(async () => {
+    if (server?.child) await stopChild(server.child)
+    await rm(root, { recursive: true, force: true })
+  })
+
   const repository = join(root, "repository")
   const t1 = join(root, "worktree-one")
   const t2 = join(root, "worktree-two")
@@ -293,7 +299,7 @@ test("stock OpenCode host forwards two linked-worktree event streams into one de
   const canonicalT1 = await realpath(t1)
   const canonicalT2 = await realpath(t2)
 
-  const server = await startServer({
+  server = await startServer({
     cwd: canonicalRepository,
     root,
     plugin,
@@ -303,11 +309,6 @@ test("stock OpenCode host forwards two linked-worktree event streams into one de
     t1: canonicalT1,
     t2: canonicalT2,
   })
-  t.after(async () => {
-    await stopChild(server.child)
-    await rm(root, { recursive: true })
-  })
-
   const canonicalPath = await fetch(`${server.url}/path?directory=${encodeURIComponent(canonicalRepository)}`)
   assert.equal(canonicalPath.status, 200, JSON.stringify(server.output()))
   await waitFor(async () => (await readJsonLines(diagnostics)).some((entry) => entry.type === "seeded")).catch(async (error) => {
