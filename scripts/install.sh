@@ -5,6 +5,8 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 MANIFEST="$SCRIPT_DIR/links.tsv"
+CATEGORY_CONFIG_SOURCE="$REPO_ROOT/opencode/categories.json"
+CATEGORY_CONFIG_DEST="$HOME/.config/opencode/categories.json"
 DATA_ROOT=${OPENCODE_WORKFLOW_DATA_ROOT:-"$HOME/Workspace/data/opencode-workflow"}
 LEGACY_OMO_SOURCE="$REPO_ROOT/omo/omo.jsonc"
 LEGACY_OMO_DEST="$HOME/.omo/omo.jsonc"
@@ -118,6 +120,25 @@ done < "$MANIFEST"
 if [ "$DRY_RUN" -eq 1 ]; then
   printf '%s\n' "Dry run complete; no live paths changed."
   exit 0
+fi
+
+if [ -L "$CATEGORY_CONFIG_DEST" ] && [ "$(readlink "$CATEGORY_CONFIG_DEST")" = "$CATEGORY_CONFIG_SOURCE" ]; then
+  if [ -f "$CATEGORY_CONFIG_SOURCE" ]; then
+    category_config_temp=$(mktemp "$CATEGORY_CONFIG_DEST.migration.XXXXXX") ||
+      fail "could not create a temporary local category config"
+    if ! cp -p "$CATEGORY_CONFIG_DEST" "$category_config_temp"; then
+      rm "$category_config_temp"
+      fail "could not preserve the legacy local category config"
+    fi
+    if ! mv -f "$category_config_temp" "$CATEGORY_CONFIG_DEST"; then
+      rm "$category_config_temp"
+      fail "could not migrate the legacy local category config"
+    fi
+    printf '%s\n' "Migrated legacy repository-managed category config to $CATEGORY_CONFIG_DEST"
+  else
+    rm "$CATEGORY_CONFIG_DEST"
+    printf '%s\n' "Removed broken legacy repository-managed category config symlink"
+  fi
 fi
 
 if [ -L "$LEGACY_OMO_DEST" ] && [ "$(readlink "$LEGACY_OMO_DEST")" = "$LEGACY_OMO_SOURCE" ]; then

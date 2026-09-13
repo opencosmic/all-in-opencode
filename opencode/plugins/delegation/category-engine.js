@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
-import { fileURLToPath } from "node:url"
+import { homedir } from "node:os"
+import { join } from "node:path"
 
 import { DEFAULT_CATEGORIES } from "./categories.js"
 
@@ -12,7 +13,7 @@ const SUPPORTED_FIELDS = new Set([
   "disable",
 ])
 
-const DEFAULT_CATEGORY_CONFIG_PATH = fileURLToPath(new URL("../../categories.json", import.meta.url))
+const DEFAULT_CATEGORY_CONFIG_PATH = join(homedir(), ".config", "opencode", "categories.json")
 
 function categoryConfigError(configPath, message) {
   return new Error(`invalid category config ${configPath}: ${message}`)
