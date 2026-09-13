@@ -134,7 +134,13 @@ if [ -L "$CATEGORY_CONFIG_DEST" ] && [ "$(readlink "$CATEGORY_CONFIG_DEST")" = "
       rm "$category_config_temp"
       fail "could not migrate the legacy local category config"
     fi
-    printf '%s\n' "Migrated legacy repository-managed category config to $CATEGORY_CONFIG_DEST"
+    if [ -L "$CATEGORY_CONFIG_DEST" ] || [ ! -f "$CATEGORY_CONFIG_DEST" ]; then
+      fail "could not verify the migrated local category config"
+    fi
+    if ! rm "$CATEGORY_CONFIG_SOURCE"; then
+      fail "could not remove the legacy repository category config"
+    fi
+    printf '%s\n' "Migrated legacy repository-managed category config to $CATEGORY_CONFIG_DEST and removed the legacy repository source"
   else
     rm "$CATEGORY_CONFIG_DEST"
     printf '%s\n' "Removed broken legacy repository-managed category config symlink"
