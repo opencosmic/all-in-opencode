@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-export async function isolatedOpenCodeEnv(testContext, repository) {
+export async function isolatedOpenCodeEnv(testContext, repository, inheritedEnvironment = process.env) {
   // These checks exercise the installed CLI against aio-owned configuration,
   // not the user's persistent OpenCode database. A private root also keeps
   // concurrent CLI startups from racing on one migration history.
@@ -31,8 +31,14 @@ export async function isolatedOpenCodeEnv(testContext, repository) {
   )))
   testContext.after(() => rm(root, { recursive: true, force: true }))
 
-  const env = { ...process.env }
-  for (const key of ["OPENCODE_CONFIG", "OPENCODE_PURE"]) delete env[key]
+  const env = { ...inheritedEnvironment }
+  for (const key of [
+    "OPENCODE_CONFIG",
+    "OPENCODE_CONFIG_CONTENT",
+    "OPENCODE_PURE",
+    "AIO_DATA_ROOT",
+    "OPENCODE_WORKFLOW_DATA_ROOT",
+  ]) delete env[key]
   return {
     ...env,
     HOME: paths.home,
