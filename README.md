@@ -226,6 +226,15 @@ Install the stock public JavaScript plugin dependency where OpenCode discovers i
 npm install --prefix ~/.config/opencode @opencode-ai/plugin@1.18.29
 ```
 
+Install the external `/cache-stats` TUI plugin and verify the pinned upstream file:
+
+```sh
+./scripts/setup-cache-stats.sh
+./scripts/check-cache-stats.sh
+```
+
+The workflow registers `./tui-plugins/cache-stats.tsx` in its canonical `tui.json`, while the plugin source remains outside this repository under `~/.config/opencode/tui-plugins/`. Restart OpenCode after installation, then run `/cache-stats` inside a session.
+
 Final verification used OpenCode 1.18.30, `@opencode-ai/plugin` 1.18.29, CodeGraph 1.5.0, OpenSpec CLI, and Node.js 24.
 
 ## Verification

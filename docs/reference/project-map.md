@@ -12,6 +12,7 @@
 | [`opencode/opencode.jsonc`](../../opencode/opencode.jsonc) | Public CodeGraph MCP configuration plus the bounded OpenDesign MCP launcher and raw-tool deny ceiling. |
 | [`opencode/skills/open-design/`](../../opencode/skills/open-design/) | Repository-owned optional OpenDesign resource capability instructions. |
 | [`opencode/open-design-mcp.sh`](../../opencode/open-design-mcp.sh), [`scripts/lib/run-open-design-mcp.mjs`](../../scripts/lib/run-open-design-mcp.mjs) | Runtime launcher that consumes the validated user-local upstream launch spec; CLI identity discovery remains setup-only. |
+| [`scripts/setup-cache-stats.sh`](../../scripts/setup-cache-stats.sh), [`scripts/check-cache-stats.sh`](../../scripts/check-cache-stats.sh) | Pinned external `/cache-stats` TUI plugin provisioning and read-only readiness check. |
 | [`opencode/tests/`](../../opencode/tests/) | Deterministic discovery, policy, runtime, workspace, completion, and host tests. |
 | [`scripts/links.tsv`](../../scripts/links.tsv) | Narrow canonical-to-live symlink manifest. |
 | [`scripts/setup-codegraph.sh`](../../scripts/setup-codegraph.sh), [`scripts/check-codegraph.sh`](../../scripts/check-codegraph.sh) | Independent CodeGraph setup and health. |

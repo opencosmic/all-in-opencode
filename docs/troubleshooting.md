@@ -17,6 +17,10 @@ Run `./scripts/install.sh --dry-run` and inspect the live links. Commands are ex
 
 For `/research`, confirm the Professor plugin is discovered and that the configured workflow data root is writable. Research runs live under `<data-root>/professor/runs/<run-id>/`; they do not write state into the repository. The canonical `report.md` remains in that run directory, while a successful completion may create a symlink under `/Users/code/Documents/Research/`. Resume with the durable run ID through Professor's state tools, or use `research_report` for a completed report, rather than reconstructing the task from chat history.
 
+## Cache statistics dialog is missing
+
+Run `./scripts/setup-cache-stats.sh` followed by `./scripts/check-cache-stats.sh`. The workflow owns the `tui.json` registration, while the pinned upstream `cache-stats.tsx` file is installed at `~/.config/opencode/tui-plugins/cache-stats.tsx`. Restart OpenCode after installation, open a session, and run `/cache-stats`.
+
 ## Delegation tool is missing
 
 Run `opencode debug config` and confirm the local Delegation Runtime plugin is discovered. Run the loader and host integration tests. Executor must stop if a required workflow-owned tool is unavailable; manual worktree or alternate delegation fallback is not valid.
