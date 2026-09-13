@@ -21,7 +21,7 @@ function client() {
   }
 }
 
-test("plugin entrypoint is default-only and exposes the seven aio-owned delegation tools", async (t) => {
+test("plugin entrypoint is default-only and exposes the seven project-owned delegation tools", async (t) => {
   assert.deepEqual(Object.keys(DelegationRuntimeEntrypoint), ["default"])
   const stateDirectory = await mkdtemp(join(tmpdir(), "delegation-plugin-test-"))
   t.after(async () => rm(stateDirectory, { recursive: true }))

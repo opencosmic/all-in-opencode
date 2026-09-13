@@ -10,6 +10,7 @@ import { delegationPluginHooks } from "../plugins/delegation/plugin-hooks.js"
 import {
   acquireDelegationControlPlane,
   clearDelegationControlPlanesForTest,
+  CONTROL_PLANES,
 } from "../plugins/delegation/control-plane.js"
 
 const execFileAsync = promisify(execFile)
@@ -25,6 +26,10 @@ function fakeClient() {
     },
   }
 }
+
+test("delegation control-plane coordination uses the aio namespace", () => {
+  assert.equal(Symbol.keyFor(CONTROL_PLANES), "aio.delegation.control-planes.v1")
+})
 
 async function git(directory, args) {
   return (await execFileAsync("git", args, { cwd: directory, encoding: "utf8" })).stdout.trim()

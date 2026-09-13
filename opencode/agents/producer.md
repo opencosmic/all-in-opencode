@@ -127,7 +127,7 @@ The upstream `--skip-skills` flag is currently ignored and is not a substitute.
 
 ## HyperFrames workers
 
-Do not use the aio-owned `delegate_task`, workspace lifecycle, or task
+Do not use the project-owned `delegate_task`, workspace lifecycle, or task
 control tools for HyperFrames workers. OpenCode's native `task` permission is
 also intentionally disabled here because its target selection is not narrow
 enough to bind a child to the upstream frame-worker contract. The upstream

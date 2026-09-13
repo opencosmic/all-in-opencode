@@ -243,7 +243,7 @@ test("video analysis composes the shared Implementer, category context, and watc
   const created = client.state.creates[0]
   const prompt = client.state.prompts[0]
   assert.equal(prompt.body.agent, "Implementer")
-  assert.match(prompt.body.system, /aio-owned Implementer/)
+  assert.match(prompt.body.system, /project-owned Implementer/)
   assert.match(prompt.body.system, /<Category_Context name="video-analysis">/)
   assert.match(prompt.body.system, /WATCH SKILL CONTENT/)
   assert.match(prompt.body.system, new RegExp(skillPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))

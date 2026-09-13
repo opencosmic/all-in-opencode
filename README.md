@@ -1,6 +1,6 @@
 # All-in OpenCode (aio)
 
-**All-in OpenCode (aio)** is the canonical authored source for an aio-owned OpenCode/OpenSpec system. It extends and integrates with the upstream OpenCode coding agent through public plugin and SDK APIs, Git worktrees, an independent CodeGraph MCP server, and external browser and video runtimes. It has no Oh My OpenAgent runtime dependency.
+**All-in OpenCode (aio)** is the canonical authored source for an OpenCode/OpenSpec system. It extends and integrates with the upstream OpenCode coding agent through public plugin and SDK APIs, Git worktrees, an independent CodeGraph MCP server, and external browser and video runtimes. It has no Oh My OpenAgent runtime dependency.
 
 In this documentation, `OpenCode` means the upstream coding agent/runtime; `All-in OpenCode` or `aio` means this repository's extensions and workflow.
 
@@ -107,7 +107,7 @@ Check runtime, index, and OpenCode MCP health with:
 
 There are intentionally two browser entry paths for practical comparison:
 
-- `/browser` opens the dedicated aio-owned `Browser` agent for direct browser workflows.
+- `/browser` opens the dedicated `Browser` agent provided by All-in OpenCode for direct browser workflows.
 - Assistant delegates `category="browser-automation", load_skills=["ego-browser"]` through CategoryEngine to Implementer for browser work requested as part of ordinary assistance.
 
 The dedicated `Browser` route is the All-in OpenCode-facing browser agent. The `browser-automation` category is browser capability through the reusable Implementer, and `ego-browser` is the current external backend/skill identifier. Both paths use the external official `citrolabs/ego-lite` runtime.
@@ -237,7 +237,7 @@ Install the external `/cache-stats` TUI plugin and verify the pinned upstream fi
 ./scripts/check-cache-stats.sh
 ```
 
-The workflow registers `./tui-plugins/cache-stats.tsx` in its canonical `tui.json`, while the plugin source remains outside this repository under `~/.config/opencode/tui-plugins/`. Restart OpenCode after installation, then run `/cache-stats` inside a session.
+The workflow registers `./tui-plugins/cache-stats.tsx` in its canonical `tui.json`, while the plugin source remains outside this repository under `~/.config/opencode/tui-plugins/`. Restart OpenCode after installation or after this namespace migration, then run `/cache-stats` inside a session.
 
 Final verification used OpenCode 1.18.30, `@opencode-ai/plugin` 1.18.29, CodeGraph 1.5.0, OpenSpec CLI, and Node.js 24.
 

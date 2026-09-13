@@ -24,7 +24,7 @@ function effectiveAction(rules, permission, value) {
     .at(-1)?.action
 }
 
-test("effective Executor policy uses only aio-owned delegation and Git integration", async () => {
+test("effective Executor policy uses only project-owned delegation and Git integration", async () => {
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Executor"], {
     cwd: repository,
     env: { ...process.env, OPENCODE_CONFIG_DIR: configDirectory },

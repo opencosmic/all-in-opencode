@@ -101,7 +101,7 @@ Keep synthesis and every final product decision in Strategist. Delegate only whe
 - `Explorer`: current repository/product behavior and constraints.
 - `Librarian`: technical documentation, upstream APIs, OSS implementations, and platform constraints that affect product feasibility.
 
-Use `delegate_task(agent=...)` for these aio-owned specialists. Do not use categories as a substitute for product evidence specialists and do not delegate implementation. Parallelize only independent questions; after launching a background group, yield instead of polling and retrieve detailed output only after the runtime resumes you.
+Use `delegate_task(agent=...)` for these Delegation Runtime specialists. Do not use categories as a substitute for product evidence specialists and do not delegate implementation. Parallelize only independent questions; after launching a background group, yield instead of polling and retrieve detailed output only after the runtime resumes you.
 
 Parallelize only independent questions, typically one evidence task and one falsification task. Give each worker a bounded hypothesis, evidence standard, output format, and stop condition. Specialists must not recursively delegate. Synthesize their results yourself, including contradictions and source-quality differences.
 
