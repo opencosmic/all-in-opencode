@@ -3,7 +3,12 @@ import { join, resolve } from "node:path"
 
 import { AgentDispatcher } from "./agent-dispatcher.js"
 import { CategoryEngine } from "./category-engine.js"
-import { categoryPermission, openDesignResourceDecision } from "./category-permissions.js"
+import {
+  categoryPermission,
+  isGitMutationCommand,
+  openDesignResourceDecision,
+  permissionValue,
+} from "./category-permissions.js"
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
@@ -11,7 +16,7 @@ import { resolveProjectDataRoot } from "../project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
 import { SkillResolver, discoverSkills } from "./skill-resolver.js"
 import { TaskRegistry, TERMINAL_STATUSES } from "./task-registry.js"
-import { WorkspaceManager } from "./workspace-manager.js"
+import { isProtectedBranch, WorkspaceManager } from "./workspace-manager.js"
 
 const SESSION_PROFILES = Symbol.for("aio.delegation.session-profiles")
 const MAX_CONSULTATION_REQUESTS = 4
@@ -30,6 +35,7 @@ function publicTask(task) {
     task_id: task.task_id,
     status: task.status,
     workspace_id: task.workspace_id,
+    change_id: task.change_id ?? null,
     parent_agent: task.parent_agent ?? null,
     child_session_id: task.child_session_id,
     category: task.category,
@@ -93,6 +99,11 @@ export class DelegationRuntime {
     const workspaces = new WorkspaceManager({
       stateDirectory: resolvedState,
       hasActiveTasks: async (workspaceID) => registry.hasActiveWorkspace(workspaceID),
+      hasActiveDirectoryTasks: async (directory) => {
+        const currentDirectory = await realpath(directory)
+        return registry.list().some((task) =>
+          !TERMINAL_STATUSES.has(task.status) && task.execution_directory === currentDirectory)
+      },
     })
     const skills = skillEntries
       ? new SkillResolver({ entries: skillEntries })
@@ -114,9 +125,54 @@ export class DelegationRuntime {
   constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills }) {
     Object.assign(this, { client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills })
     this.activeConsultationSessions = new Set()
+    this.preflights = new Map()
+  }
+
+  async executionPreflight(args, context) {
+    if (context?.agent !== "Executor") {
+      throw new Error("execution_preflight may only be called by Executor")
+    }
+    const changeID = String(args?.change_id ?? "").trim()
+    if (!changeID) throw new Error("execution_preflight requires change_id")
+    const result = await this.workspaces.preflight({
+      ...args,
+      change_id: changeID,
+      persisted_tasks: this.registry.list({ change_id: changeID }),
+    }, context.directory)
+    this.preflights.set(context.sessionID, {
+      change_id: changeID,
+      preflight_id: result.preflight_id,
+      directory: result.repository.root,
+      input: structuredClone(args ?? {}),
+    })
+    return result
+  }
+
+  async ensureExecutionPreflight(args = {}, context, workspace) {
+    if (context?.agent !== "Executor") return null
+    const previous = this.preflights.get(context.sessionID)
+    let changeID = args.change_id ?? workspace?.change_id
+    if (!changeID) changeID = previous?.change_id
+    if (!changeID) changeID = args.task_id ?? "execution"
+    const currentDirectory = await realpath(context.directory)
+    const priorInput = previous?.change_id === String(changeID) && previous.directory === currentDirectory
+      ? previous.input ?? {}
+      : {}
+    return this.executionPreflight({
+      ...priorInput,
+      change_id: String(changeID),
+      ...Object.fromEntries([
+        "tasks",
+        "acceptance_criteria",
+        "verification",
+        "dirty_ownership",
+        "dirty_changes_belong_to_change",
+      ].filter((key) => Object.hasOwn(args, key)).map((key) => [key, args[key]])),
+    }, context)
   }
 
   async workspacePrepare(args, context) {
+    await this.ensureExecutionPreflight(args, context)
     return this.workspaces.prepare(args, context.directory)
   }
 
@@ -136,6 +192,26 @@ export class DelegationRuntime {
     const workspace = args.workspace_id
       ? await this.workspaces.get(args.workspace_id)
       : { workspace_id: null, directory: await realpath(context.directory) }
+    const implementationRoute = route.agent === "Implementer" || route.category === "git"
+    const preflight = await this.ensureExecutionPreflight(args, context, workspace)
+    if (context?.agent === "Executor" && implementationRoute) {
+      const branchFacts = await this.workspaces.branchFor(workspace.directory)
+      if (isProtectedBranch(branchFacts.branch)) {
+        throw new Error(`normal execution cannot delegate implementation or Git mutation on protected base branch ${branchFacts.branch}`)
+      }
+      if (!args.workspace_id && (
+        !preflight?.recommended_primary_workspace
+        || preflight.recommended_primary_workspace.directory !== workspace.directory
+      )) {
+        throw new Error("Executor must resolve the primary change workspace before delegating implementation")
+      }
+      const workspaceInUse = workspace.workspace_id
+        ? this.registry.hasActiveWorkspace(workspace.workspace_id)
+        : await this.workspaces.hasActiveDirectoryTasks(workspace.directory)
+      if (workspaceInUse) {
+        throw new Error("execution workspace already has an active task; serialize this work or use an explicitly isolated child workspace")
+      }
+    }
     const task = await this.registry.register({
       parent_session_id: context.sessionID,
       parent_message_id: context.messageID,
@@ -143,6 +219,7 @@ export class DelegationRuntime {
       parent_directory: await realpath(context.directory),
       execution_directory: workspace.directory,
       workspace_id: workspace.workspace_id,
+      change_id: args.change_id ?? workspace.change_id ?? this.preflights.get(context.sessionID)?.change_id ?? null,
       category: route.category,
       agent: route.agent,
       variant: route.profile.variant ?? null,
@@ -439,15 +516,29 @@ export class DelegationRuntime {
   }
 
   async applyPermission(input, output) {
-    let profile = this.profiles.get(input.sessionID)
-    if (!profile && this.registry.storePath) {
+    let profile = this.profiles?.get(input.sessionID)
+    let task
+    if (!profile && this.registry?.storePath) {
       const persisted = await readJson(this.registry.storePath, { tasks: {} })
-      const task = Object.values(persisted?.tasks ?? {}).find(
+      task = Object.values(persisted?.tasks ?? {}).find(
         (candidate) => candidate.child_session_id === input.sessionID,
       )
       if (task) profile = { category: task.category, agent: task.agent }
     }
-    const decision = categoryPermission(profile, input)
+    task ??= this.registry?.list?.().find((candidate) => candidate.child_session_id === input.sessionID)
+    let decision = categoryPermission(profile, input)
+    const type = input.type ?? input.permission
+    if (decision && profile?.category === "git" && type === "bash" && isGitMutationCommand(permissionValue(input))) {
+      try {
+        const branchFacts = task?.execution_directory
+          ? await this.workspaces?.branchFor(task.execution_directory)
+          : null
+        if (!branchFacts || isProtectedBranch(branchFacts.branch)) decision = "deny"
+      } catch {
+        // A Git mutation with an uninspectable target is unsafe; fail closed.
+        decision = "deny"
+      }
+    }
     if (decision) output.status = decision
   }
 

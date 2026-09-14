@@ -13,7 +13,7 @@ The formal lifecycle is:
 ```text
 /spec -> Strategist -> proposal.md + specs/**
 /plan -> Planner -> design.md + tasks.md -> Plan Reviewer
-/execute -> Executor -> Implementer -> Reviewer/QA -> git category
+/execute -> Executor preflight -> primary change workspace -> Implementer -> Reviewer/QA -> primary integration
 /verify -> Verifier
 /ship -> Executor
 ```
@@ -38,8 +38,9 @@ Named delegation is fail closed. Only the repository-owned specialist allowlist 
 
 ## Delegation Runtime
 
-The runtime exposes seven tools:
+The runtime exposes eight tools:
 
+- `execution_preflight`
 - `workspace_prepare`
 - `delegate_task`
 - `consult_agents`
@@ -79,7 +80,7 @@ Independent background launches in one parent turn form one completion group. Th
 
 Release is provenance-bound and non-destructive. The runtime accepts direct ancestry or Git-proven patch equivalence; after a cherry-pick it can remove the clean worktree while retaining the non-ancestor source branch instead of force-deleting it.
 
-Executor prepares isolated workspaces, launches ready independent implementation categories, inspects real diffs, obtains Reviewer/QA evidence, determines integration order, and uses `category="git"` for explicitly authorized Git mechanics. The Git category may stage, create task-local commits, inspect history, and integrate selected SHAs, but cannot reset, clean, force-remove, force-push, or silently discard user changes. A normal implementation category is never used to re-apply an isolated diff into canonical.
+Executor first reconciles each logical change with current Git/workspace and persisted task reality through mandatory `execution_preflight`. It reuses or creates one primary change branch/workspace, runs sequential tasks there by default, and uses child worktrees only when safe isolation or concurrency provides a concrete benefit. It inspects real diffs, obtains Reviewer/QA evidence, determines integration order, and uses `category="git"` for explicitly authorized mechanics into the primary change branch. The Git category may stage, create task-local commits, inspect history, and integrate selected SHAs, but cannot mutate protected `main`/`master`, reset, clean, force-remove, force-push, or silently discard user changes. Whole-change verification precedes `/ship`, the normal final boundary into the protected base, and a normal implementation category is never used to re-apply an isolated diff into canonical.
 
 ## CodeGraph
 

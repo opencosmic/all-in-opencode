@@ -12,6 +12,7 @@ function toolsFor(agent, configured, category, skills = []) {
   if (agent === "Implementer") {
     Object.assign(tools, {
       workspace_prepare: false,
+      execution_preflight: false,
       delegate_task: false,
       task_status: false,
       task_output: false,

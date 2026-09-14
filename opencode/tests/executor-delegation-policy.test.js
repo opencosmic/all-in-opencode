@@ -35,6 +35,7 @@ test("effective Executor policy uses only project-owned delegation and Git integ
   const executor = JSON.parse(stdout)
 
   for (const toolName of [
+    "execution_preflight",
     "workspace_prepare",
     "delegate_task",
     "task_status",
@@ -62,6 +63,11 @@ test("effective Executor policy uses only project-owned delegation and Git integ
   assert.match(executor.prompt, /manually constructed child sessions/)
   assert.match(executor.prompt, /another implementation framework/)
   assert.match(executor.prompt, /delegate_task\(agent="Plan Reviewer"\)/)
+  assert.match(executor.prompt, /execution_preflight/)
+  assert.match(executor.prompt, /Planner task boundaries do not imply branch, worktree, or agent boundaries/)
+  assert.match(executor.prompt, /Worktree is an isolation\/concurrency mechanism, not the default unit of work/)
+  assert.match(executor.prompt, /protected base branches such as `main` or `master`/)
+  assert.match(executor.prompt, /Prefer reuse and serialization by default/)
   assert.match(executor.prompt, /delegate_task\(category="git"\)/)
   assert.match(executor.prompt, /Never launch a normal implementation category merely to re-apply/)
   assert.match(executor.prompt, /dynamically presented category and skill catalog/)

@@ -86,7 +86,7 @@ async function fixture(t) {
       },
     },
   })
-  const context = { sessionID: "parent", messageID: "parent-turn", agent: "Executor", directory: repository }
+  const context = { sessionID: "parent", messageID: "parent-turn", agent: "Assistant", directory: repository }
   t.after(async () => {
     await new Promise((resolve) => setImmediate(resolve))
     await rm(root, { recursive: true })
@@ -103,7 +103,7 @@ test("category delegation routes to Implementer with parent and managed workspac
     description: "Implement fixture",
     prompt: "Change tracked.txt",
     run_in_background: true,
-  }, context)
+  }, { ...context, agent: "Executor" })
   assert.equal(result.status, "running")
   assert.equal((await runtime.taskStatus(result.task_id, context)).parent_agent, "Executor")
   assert.equal(client.state.creates[0].body.parentID, "parent")

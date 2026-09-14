@@ -3,7 +3,7 @@
 | Invariant | Enforcement |
 |---|---|
 | Runtime code uses stock public OpenCode plugin and SDK APIs only. | Static dependency guard and loader test |
-| Seven project-owned delegation tools are exposed, including the restricted `consult_agents` facade. | Plugin test |
+| Eight project-owned delegation tools are exposed, including the Executor-only `execution_preflight` and restricted `consult_agents` facades. | Plugin test |
 | Category selection is deterministic and implementation categories route to Implementer. | CategoryEngine tests |
 | Named delegation accepts only project-owned read-only specialists. | AgentDispatcher tests |
 | `consult_agents` is Implementer-only, accepts only bounded Explorer/Librarian requests, waits for all outcomes in input order, and consultation children cannot recurse. | Consultation runtime, profile, and effective-agent permission tests |
@@ -13,6 +13,10 @@
 | Background completion is durable and resumes an eligible parent once per terminal group. | Completion and host integration tests |
 | Missing parent status is resumable only with a current-process idle witness. | Parent resume tests |
 | OpenSpec `tasks.md` is the only durable formal-workflow progress source. | Prompt and command policy tests |
+| Executor performs a mandatory current-state execution preflight before topology or implementation delegation. | Execution preflight and Executor policy tests |
+| Planner task boundaries do not imply agent, branch, or worktree boundaries; one logical change reuses one primary workspace by default. | Change-centric workspace resolver tests |
+| Protected base branches such as `main` and `master` are never normal Executor implementation or Git-mutation targets. | Executor runtime and Git permission tests |
+| Child worktrees require a concrete isolation reason and integrate into the primary change branch, never directly into the protected base. | Child workspace and cleanup tests |
 | Technical Advisor advises and Plan Reviewer independently approves or rejects. | Agent policy tests |
 | CodeGraph is a direct public MCP integration and only structural evidence. | Config and role-policy tests |
 | Browser has a dedicated `/browser` route and Assistant's backend-neutral `browser-automation` route; both retain the external browser backend boundary. | Browser agent and category tests |

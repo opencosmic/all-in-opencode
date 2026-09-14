@@ -5,7 +5,7 @@
 | [`opencode/agents/`](../../opencode/agents/) | Assistant, Browser, Blender, Producer, Searcher, Professor, formal lifecycle roles, specialists, and Implementer. |
 | [`opencode/commands/`](../../opencode/commands/) | `/spec`, `/plan`, `/execute`, `/verify`, `/ship`, `/browser`, `/blender`, `/video`, `/search`, and `/research`. |
 | [`opencode/plugins/delegation-runtime.js`](../../opencode/plugins/delegation-runtime.js) | Loader-safe Delegation Runtime entrypoint. |
-| [`opencode/plugins/delegation/`](../../opencode/plugins/delegation/) | WorkspaceManager, dynamic CategoryEngine, selective SkillResolver, TaskRegistry, SessionRunner, CompletionTracker, ParentResumeCoordinator, dispatch, and category permissions. |
+| [`opencode/plugins/delegation/`](../../opencode/plugins/delegation/) | Execution preflight, change-centric WorkspaceManager, dynamic CategoryEngine, selective SkillResolver, TaskRegistry, SessionRunner, CompletionTracker, ParentResumeCoordinator, dispatch, and category permissions. |
 | [`opencode/plugins/workspace-inspector.js`](../../opencode/plugins/workspace-inspector.js) | Read-only workspace placement and provenance evidence. |
 | [`opencode/plugins/professor-runtime.js`](../../opencode/plugins/professor-runtime.js) | Default-only stateful Deep Research tool entrypoint. |
 | [`opencode/plugins/professor/`](../../opencode/plugins/professor/) | Deterministic ResearchState, persistence, frontier, evidence, verification, and report runtime. |

@@ -52,6 +52,7 @@ export class TaskRegistry {
         parent_directory: input.parent_directory,
         execution_directory: input.execution_directory,
         workspace_id: input.workspace_id ?? null,
+        change_id: input.change_id ?? null,
         category: input.category ?? null,
         agent: input.agent,
         variant: input.variant ?? null,
@@ -138,10 +139,11 @@ export class TaskRegistry {
     return structuredClone(this.require(taskID))
   }
 
-  list({ parent_session_id: parentSessionID, workspace_id: workspaceID } = {}) {
+  list({ parent_session_id: parentSessionID, workspace_id: workspaceID, change_id: changeID } = {}) {
     return Object.values(this.state.tasks)
       .filter((task) => !parentSessionID || task.parent_session_id === parentSessionID)
       .filter((task) => !workspaceID || task.workspace_id === workspaceID)
+      .filter((task) => changeID === undefined || task.change_id === changeID)
       .map((task) => structuredClone(task))
   }
 

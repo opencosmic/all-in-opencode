@@ -27,14 +27,31 @@ approved product strategy
   -> /plan <change>
   -> design.md + tasks.md + independent Plan Reviewer
   -> /execute <change>
-  -> isolated implementation + review + deterministic Git integration
+  -> Executor execution preflight
+  -> primary change branch/workspace + sequential implementation
+  -> optional isolated child worktrees + review + integration into primary
+  -> whole-change verification
   -> /verify <change>
   -> /ship <change>
 ```
 
 `/spec` owns product behavior, not engineering design. `/plan` owns engineering design and unchecked tasks, not implementation. Technical Advisor may advise Planner on a genuinely difficult choice; Plan Reviewer remains the separate mandatory approval gate.
 
-`/execute` treats `tasks.md` as the durable progress source. It prepares isolated workspaces only from sufficient committed baselines, launches independent ready tasks in one background group, yields, and resumes once when the group is terminal. It then retrieves outputs, inspects diffs, obtains Reviewer/QA evidence, uses `git` for authorized task-local commits and integration, runs combined checks, updates checkboxes, and releases clean integrated workspaces.
+`/execute` treats `tasks.md` as the durable progress source. Before any branch/worktree or implementation delegation, Executor runs `execution_preflight` to reconcile the logical change with current Git/workspace state, persisted tasks, unfinished work, dependencies, source overlap, contention, and verification. It reuses or resumes one primary change workspace by default, serializes dependent or overlapping tasks, and creates child worktrees only for concrete safe isolation/concurrency cases. It then launches ready work, yields, and resumes once when a background group is terminal; retrieves outputs, inspects diffs, obtains Reviewer/QA evidence, uses `git` for authorized task-local commits and integration into the primary branch, runs whole-change checks, updates checkboxes, and releases only clean integrated child workspaces. Normal `/execute` never integrates partial work into protected `main`/`master`.
+
+The intended topology is:
+
+```text
+logical change
+    -> primary change branch/workspace
+       -> sequential tasks in the same workspace
+       -> optional child worktrees for safe parallel/isolation cases
+    -> whole-change verification
+    -> /ship
+    -> main
+```
+
+Planner task boundaries do not imply separate agents, branches, or worktrees. Worktree is an isolation/concurrency mechanism, not the unit of work. If a child depends on another workspace's uncommitted changes, coordinate or make those changes shareable first; a new worktree from stale committed HEAD is not a valid resume.
 
 If commit authority is absent, Executor preserves the workspace and reports integration pending. It never fakes completion or uses a normal Implementer to duplicate reviewed changes in canonical.
 
@@ -42,7 +59,7 @@ If commit authority is absent, Executor preserves the workspace and reports inte
 
 ## Background work
 
-Launch independent tasks together only when dependencies and write scopes make that safe. After launch, do unrelated useful work or yield. Do not poll task state in a loop. The runtime records completion and wakes the idle parent exactly once for the terminal group. Use `task_output` after that wake. `task_cancel` aborts a child but preserves its workspace.
+Launch independent tasks together only when preflight shows dependencies, required state, write scopes, and integration risk make that safe and isolation provides a concrete benefit. After launch, do unrelated useful work or yield. Do not poll task state in a loop. The runtime records completion and wakes the idle parent exactly once for the terminal group. Use `task_output` after that wake. `task_cancel` aborts a child but preserves its workspace.
 
 ## CodeGraph
 

@@ -199,6 +199,7 @@ test("sensitive categories preserve session permissions instead of replacing the
   assert.deepEqual(toolsFor("Implementer", { edit: false }, "quick"), {
     edit: false,
     workspace_prepare: false,
+    execution_preflight: false,
     delegate_task: false,
     task_status: false,
     task_output: false,

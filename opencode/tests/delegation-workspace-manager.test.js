@@ -32,13 +32,14 @@ async function fixture(t) {
   }
 }
 
-test("prepare creates and registers an isolated linked worktree", async (t) => {
+test("prepare creates and registers a primary linked worktree", async (t) => {
   const { repository, manager } = await fixture(t)
   const baseline = await git(repository, ["rev-parse", "HEAD"])
   const prepared = await manager.prepare({ task_id: "task-1" }, repository)
   assert.equal(prepared.base_sha, baseline)
   assert.match(prepared.workspace_id, /^ws_/)
-  assert.match(prepared.branch, /^delegation\/task-1-/)
+  assert.equal(prepared.branch, "feat/task-1")
+  assert.equal(prepared.role, "primary")
   assert.equal(await git(prepared.directory, ["branch", "--show-current"]), prepared.branch)
   assert.equal(await git(prepared.directory, ["rev-parse", "HEAD"]), baseline)
   assert.equal(await git(prepared.directory, ["rev-parse", "--path-format=absolute", "--git-common-dir"]), prepared.git_common_dir)

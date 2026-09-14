@@ -7,12 +7,50 @@ function json(value) {
 export function delegationPluginHooks(runtime) {
   return {
     tool: {
-      workspace_prepare: tool({
-        description: "Create and register a provenance-bound linked Git worktree for one isolated task.",
+      execution_preflight: tool({
+        description: "Reconcile one logical change with current Git, managed workspace, persisted task, dependency, source-overlap, contention, and verification state before execution topology is chosen.",
         args: {
-          task_id: tool.schema.string().min(1),
+          change_id: tool.schema.string().min(1),
+          tasks: tool.schema.array(tool.schema.object({
+            task_id: tool.schema.string().min(1).optional(),
+            id: tool.schema.string().min(1).optional(),
+            description: tool.schema.string().min(1).optional(),
+            title: tool.schema.string().min(1).optional(),
+            dependencies: tool.schema.array(tool.schema.string().min(1)).optional(),
+            depends_on: tool.schema.array(tool.schema.string().min(1)).optional(),
+            write_scope: tool.schema.array(tool.schema.string().min(1)).optional(),
+            paths: tool.schema.array(tool.schema.string().min(1)).optional(),
+            files: tool.schema.array(tool.schema.string().min(1)).optional(),
+            acceptance_criteria: tool.schema.array(tool.schema.string().min(1)).optional(),
+            requires_uncommitted: tool.schema.boolean().optional(),
+            depends_on_uncommitted: tool.schema.boolean().optional(),
+            independent_from_uncommitted: tool.schema.boolean().optional(),
+          }).strict()).optional(),
+          acceptance_criteria: tool.schema.array(tool.schema.string().min(1)).optional(),
+          verification: tool.schema.array(tool.schema.string().min(1)).optional(),
+          dirty_ownership: tool.schema.enum(["same-change", "unrelated", "unknown"]).optional(),
+          dirty_changes_belong_to_change: tool.schema.boolean().optional(),
+        },
+        execute: async (args, context) => json(await runtime.executionPreflight(args, context)),
+      }),
+      workspace_prepare: tool({
+        description: "Resolve or create a provenance-bound primary workspace for a logical change; use a child worktree only with an explicit isolation reason and parent workspace.",
+        args: {
+          task_id: tool.schema.string().min(1).optional(),
           change_id: tool.schema.string().min(1).optional(),
           base_sha: tool.schema.string().min(1).optional(),
+          branch: tool.schema.string().min(1).optional(),
+          role: tool.schema.enum(["primary", "child"]).optional(),
+          parent_workspace_id: tool.schema.string().min(1).optional(),
+          primary_workspace_id: tool.schema.string().min(1).optional(),
+          isolation_reason: tool.schema.string().min(1).optional(),
+          reason: tool.schema.string().min(1).optional(),
+          reuse_current: tool.schema.boolean().optional(),
+          dirty_ownership: tool.schema.enum(["same-change", "unrelated", "unknown"]).optional(),
+          dirty_changes_belong_to_change: tool.schema.boolean().optional(),
+          independent_from_uncommitted: tool.schema.boolean().optional(),
+          depends_on_uncommitted: tool.schema.boolean().optional(),
+          requires_uncommitted: tool.schema.boolean().optional(),
         },
         execute: async (args, context) => json(await runtime.workspacePrepare(args, context)),
       }),
@@ -20,6 +58,7 @@ export function delegationPluginHooks(runtime) {
         description: runtime.delegateTaskDescription(),
         args: {
           workspace_id: tool.schema.string().min(1).optional(),
+          change_id: tool.schema.string().min(1).optional(),
           category: tool.schema.string().min(1).optional(),
           agent: tool.schema.string().min(1).optional(),
           description: tool.schema.string().min(1),

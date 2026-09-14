@@ -10,6 +10,8 @@ Finish this OpenSpec change safely:
 
 Every invocation is an independent shipping gate. Resolve exactly one current change, inspect the current git/worktree state and comparison basis, and ALWAYS dispatch a new `Verifier` against the current OpenSpec artifacts, repository tree, diff, and fresh evidence before presenting any archive or integration choice. A previous `/verify` result or `VERIFIED` message is advisory only and never satisfies this gate; any code, artifact, base, or worktree change after an earlier verdict makes that verdict stale by definition.
 
+`/execute` must leave the completed logical change on its primary change branch/workspace; `/ship` is the final normal boundary that may integrate that verified primary change into protected `main` or `master`. Confirm that child work has already been integrated into the primary workspace and that whole-change verification covers the primary tree before offering the menu. Never ship a partial child task directly.
+
 Handle the fresh result exactly:
 
 - `VERIFIED`: the fresh verdict is shipping authorization. Rerun the relevant final checks against the same current tree, inspect their output, then present the integration menu.

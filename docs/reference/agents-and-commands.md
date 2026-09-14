@@ -12,7 +12,7 @@
 | Professor | Stateful evidence-first Deep Research with adaptive verification | Read-only native retrieval plus Professor ResearchState tools; no filesystem, Git, delegation, or browser access |
 | Strategist | Product WHAT, WHY, WHO, behavior, and scope | Product strategy, proposal, and specs only |
 | Planner | Engineering HOW and executable tasks | Active change's `design.md` and `tasks.md` only |
-| Executor | Implementation orchestration, review, integration, task transitions | `tasks.md`; code changes occur through workers |
+| Executor | Execution preflight, change-workspace topology, implementation orchestration, review, integration, task transitions | `tasks.md` plus runtime workspace provenance; code changes occur through workers in the primary change workspace |
 | Verifier | Independent final proof | Read-only |
 
 ## Specialists
@@ -20,6 +20,8 @@
 Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, and QA are read-only. Technical Advisor has no approval authority. Plan Reviewer is the independent `[APPROVED]` / `[REJECTED]` gate. Named delegation accepts only this exact allowlist.
 
 Implementer executes one bounded category assignment through one shared contract. Category `prompt_append` supplies domain behavior and completion expectations; hard category permissions supply Git, browser, and video boundaries. It cannot create workspaces, delegate implementation, mutate OpenSpec state, ship, or own global integration. For each consultation step, it may use `consult_agents` to batch independent bounded questions for Explorer or Librarian into one synchronous call; later consultation or continuation remains allowed when genuinely needed. Those children remain read-only and cannot recurse. Ordinary Implementers cannot commit, merge, rebase, reset, clean, switch, modify worktrees, stash, mutate branches/tags, or push. The exact `git` category receives only the public-hook permission needed for its explicit bounded operation, and `video-analysis` can run only an explicitly selected upstream `watch` skill.
+
+Executor runs `execution_preflight` before creating topology or delegating implementation. The normal shape is one logical change -> one continuing primary branch/workspace -> sequential tasks, with optional child worktrees only for concrete safe isolation/concurrency. Child work integrates into the primary change workspace; `/ship` is the final normal boundary into protected `main`/`master`.
 
 ## Commands
 

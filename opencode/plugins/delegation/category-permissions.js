@@ -48,6 +48,10 @@ function isCategoryScopedGitMutation(command) {
   return /^git\s+(?:commit|cherry-pick)(?:\s|$)/.test(command.trim())
 }
 
+export function isGitMutationCommand(command) {
+  return /^git\s+(?:add|commit|cherry-pick)(?:\s|$)/.test(String(command ?? "").trim())
+}
+
 function skillLocation(skill) {
   return skill?.path ?? skill?.location
 }

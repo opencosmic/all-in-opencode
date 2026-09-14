@@ -1,13 +1,16 @@
 import { createHash, randomUUID } from "node:crypto"
 import { execFile } from "node:child_process"
-import { mkdir, realpath, readdir } from "node:fs/promises"
+import { access, mkdir, realpath, readdir } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { promisify } from "node:util"
 
+import { analyzeExecutionTasks } from "./execution-preflight.js"
 import { readJson, writeJson } from "./json-store.js"
 import { resolveProjectDataRoot } from "../project-data-root.js"
 
 const execFileAsync = promisify(execFile)
+
+export const PROTECTED_BASE_BRANCHES = Object.freeze(["main", "master"])
 
 async function defaultGit(directory, args) {
   try {
@@ -29,8 +32,45 @@ async function canonical(path) {
 
 function slug(value) {
   const normalized = String(value).toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "")
-  if (!normalized) throw new Error("task_id must contain at least one safe branch character")
+  if (!normalized) throw new Error("change or task identifier must contain at least one safe branch character")
   return normalized.slice(0, 48)
+}
+
+function branchName(changeID, requestedBranch) {
+  if (requestedBranch !== undefined && requestedBranch !== null) {
+    const branch = String(requestedBranch).trim().replace(/^refs\/heads\//, "")
+    if (!branch || branch.startsWith("-") || branch.includes("..") || branch.includes("//") || /[\s~^:?*[\\]/.test(branch)) {
+      throw new Error("change branch must be a safe Git branch name")
+    }
+    return branch
+  }
+  return `feat/${slug(changeID)}`
+}
+
+function primaryBranchCandidates(changeID, requestedBranch) {
+  if (requestedBranch !== undefined && requestedBranch !== null) return [branchName(changeID, requestedBranch)]
+  const safeChangeID = slug(changeID)
+  return [
+    `feat/${safeChangeID}`,
+    `feature/${safeChangeID}`,
+    `fix/${safeChangeID}`,
+    `refactor/${safeChangeID}`,
+    `change/${safeChangeID}`,
+  ]
+}
+
+function isProtectedBranch(branch, protectedBranches = PROTECTED_BASE_BRANCHES) {
+  const normalized = String(branch ?? "").replace(/^refs\/heads\//, "")
+  return protectedBranches.includes(normalized)
+}
+
+async function pathExists(path) {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function projectKey(commonDir) {
@@ -38,7 +78,7 @@ function projectKey(commonDir) {
 }
 
 function isNotGitRepositoryError(error) {
-  return /not a git repository|outside any repository/i.test(String(error?.message ?? error))
+  return /not a git repository|outside any repository|not inside a Git worktree/i.test(String(error?.message ?? error))
 }
 
 function parseWorktrees(output) {
@@ -61,12 +101,16 @@ export class WorkspaceManager {
     stateDirectory = join(resolveProjectDataRoot(), "delegation"),
     git = defaultGit,
     hasActiveTasks = async () => false,
+    hasActiveDirectoryTasks = async () => false,
     now = () => new Date().toISOString(),
+    protectedBranches = PROTECTED_BASE_BRANCHES,
   } = {}) {
     this.stateDirectory = resolve(stateDirectory)
     this.git = git
     this.hasActiveTasks = hasActiveTasks
+    this.hasActiveDirectoryTasks = hasActiveDirectoryTasks
     this.now = now
+    this.protectedBranches = [...protectedBranches]
   }
 
   async repositoryFacts(directory) {
@@ -88,43 +132,551 @@ export class WorkspaceManager {
     return join(this.stateDirectory, "manifests", project, `${workspaceID}.json`)
   }
 
-  async prepare({ task_id: taskID, change_id: changeID, base_sha: requestedBase } = {}, repositoryDirectory) {
-    if (!taskID) throw new Error("workspace_prepare requires task_id")
-    const repository = await this.requireRepositoryFacts(repositoryDirectory, "workspace_prepare")
-    const baseSha = await this.git(repository.root, [
-      "rev-parse",
-      "--verify",
-      "--end-of-options",
-      `${requestedBase ?? "HEAD"}^{commit}`,
+  async currentState(repository) {
+    const [branch, head, statusOutput, worktreeOutput] = await Promise.all([
+      this.git(repository.root, ["branch", "--show-current"]),
+      this.git(repository.root, ["rev-parse", "HEAD"]),
+      this.git(repository.root, ["status", "--porcelain=v1", "--untracked-files=all"]),
+      this.git(repository.root, ["worktree", "list", "--porcelain"]),
     ])
-    const nonce = randomUUID()
-    const workspaceID = `ws_${nonce}`
-    const branch = `delegation/${slug(taskID)}-${nonce.slice(0, 8)}`
-    const workspaceParent = join(this.stateDirectory, "workspaces", repository.projectKey)
-    const manifestPath = this.manifestPath(repository.projectKey, workspaceID)
-    await mkdir(join(this.stateDirectory, "manifests", repository.projectKey), { recursive: true })
-    await mkdir(workspaceParent, { recursive: true })
-    const directory = join(await canonical(workspaceParent), workspaceID)
-    const manifest = {
+    const worktrees = parseWorktrees(worktreeOutput)
+    return {
+      directory: repository.root,
+      branch: branch || null,
+      head,
+      status: statusOutput ? statusOutput.split("\n").filter(Boolean) : [],
+      clean: !statusOutput,
+      protected: isProtectedBranch(branch, this.protectedBranches),
+      worktrees,
+      current_worktree: worktrees.find((item) => resolve(item.directory) === repository.root) ?? null,
+    }
+  }
+
+  async branchFor(directory) {
+    const repository = await this.requireRepositoryFacts(directory, "workspace branch inspection")
+    return {
+      ...repository,
+      branch: (await this.git(repository.root, ["branch", "--show-current"])) || null,
+      head: await this.git(repository.root, ["rev-parse", "HEAD"]),
+    }
+  }
+
+  async projectManifests(project, { includeReleased = false, changeID, taskID } = {}) {
+    const directory = join(this.stateDirectory, "manifests", project)
+    let files
+    try {
+      files = await readdir(directory)
+    } catch (error) {
+      if (error?.code === "ENOENT") return []
+      throw error
+    }
+    const manifests = []
+    for (const file of files.filter((name) => name.endsWith(".json"))) {
+      const manifest = await readJson(join(directory, file))
+      if (!manifest) continue
+      if (!includeReleased && manifest.status === "released") continue
+      if (changeID !== undefined && manifest.change_id !== changeID && manifest.task_id !== taskID) continue
+      manifests.push(manifest)
+    }
+    return manifests
+  }
+
+  async listManifests(repositoryDirectory, options = {}) {
+    const repository = await this.requireRepositoryFacts(repositoryDirectory, "workspace manifest inspection")
+    return this.projectManifests(repository.projectKey, options)
+  }
+
+  async preflight({
+    change_id: changeID,
+    task_id: taskID,
+    branch: requestedBranch,
+    tasks = [],
+    acceptance_criteria: acceptanceCriteria = [],
+    verification = [],
+    persisted_tasks: persistedTasks = [],
+    dirty_ownership: dirtyOwnership = null,
+    dirty_changes_belong_to_change: dirtyChangesBelongToChange = null,
+  } = {}, repositoryDirectory) {
+    const repository = await this.requireRepositoryFacts(repositoryDirectory, "execution preflight")
+    const current = await this.currentState(repository)
+    const manifests = await this.projectManifests(repository.projectKey, { changeID, taskID })
+    const validWorkspaces = []
+    const invalidWorkspaces = []
+    for (const manifest of manifests) {
+      try {
+        const validated = await this.validateManifest(manifest)
+        const statusOutput = await this.git(validated.directory, ["status", "--porcelain=v1", "--untracked-files=all"])
+        validWorkspaces.push({
+          ...this.publicRecord({ ...manifest, ...validated }),
+          status: manifest.status,
+          valid: true,
+          clean: !statusOutput,
+          dirty_changes: statusOutput ? statusOutput.split("\n").filter(Boolean) : [],
+        })
+      } catch (error) {
+        invalidWorkspaces.push({
+          ...this.publicRecord(manifest),
+          status: manifest.status,
+          valid: false,
+          error: error.message,
+        })
+      }
+    }
+
+    const analysis = analyzeExecutionTasks(tasks)
+    const relevantPersistedTasks = (Array.isArray(persistedTasks) ? persistedTasks : [])
+      .filter((task) => task.change_id === changeID || validWorkspaces.some((workspace) => workspace.workspace_id === task.workspace_id))
+      .map((task) => ({
+        task_id: task.task_id,
+        change_id: task.change_id ?? null,
+        status: task.status,
+        workspace_id: task.workspace_id ?? null,
+        execution_directory: task.execution_directory ?? null,
+        agent: task.agent ?? null,
+        category: task.category ?? null,
+        description: task.description ?? null,
+        started_at: task.started_at ?? null,
+        completed_at: task.completed_at ?? null,
+        error: task.error ?? null,
+      }))
+    const activeTasks = relevantPersistedTasks.filter((task) => !["completed", "error", "cancelled"].includes(task.status))
+    const activeWorkspaceIDs = [...new Set(activeTasks.map((task) => task.workspace_id).filter(Boolean))]
+    const workspaceIsContended = (workspace) => Boolean(
+      workspace && (
+        activeWorkspaceIDs.includes(workspace.workspace_id)
+        || activeTasks.some((task) => task.execution_directory === workspace.directory)
+      ),
+    )
+    const desiredBranches = changeID ? primaryBranchCandidates(changeID, requestedBranch) : []
+    const existingPrimary = validWorkspaces.find((workspace) => workspace.role === "primary") ?? null
+    const dirtyOwnershipProven = dirtyOwnership === "same-change" || dirtyChangesBelongToChange === true
+    const existingPrimaryDirty = Boolean(existingPrimary?.dirty_changes?.length)
+    const currentMatchesChange = Boolean(
+      desiredBranches.length
+      && desiredBranches.includes(current.branch)
+      && !current.protected,
+    ) && (!current.status.length || dirtyOwnershipProven)
+    const protectedBase = current.protected
+      ? current.branch
+      : current.worktrees.find((worktree) => isProtectedBranch(worktree.branch, this.protectedBranches))?.branch
+        ?? this.protectedBranches[0]
+    const protectedBaseHead = protectedBase
+      ? await this.git(repository.root, ["rev-parse", "--verify", "--end-of-options", `${protectedBase}^{commit}`]).catch(() => null)
+      : null
+    const requestedVerification = Array.isArray(verification)
+      ? [...new Set(verification.map((item) => String(item ?? "").trim()).filter(Boolean))]
+      : verification && typeof verification === "object"
+        ? structuredClone(verification)
+        : []
+    const verificationStrategy = Array.isArray(requestedVerification) && requestedVerification.length === 0
+      ? [
+          "focused checks for affected paths",
+          "whole-change tests, lint, typecheck, or build as applicable",
+          "fresh Reviewer approval",
+          "QA or browser/runtime evidence when the change requires it",
+        ]
+      : requestedVerification
+    const criteria = [...new Set([
+      ...(Array.isArray(acceptanceCriteria) ? acceptanceCriteria : []),
+      ...analysis.tasks.flatMap((task) => task.acceptance_criteria),
+    ].map((item) => String(item ?? "").trim()).filter(Boolean))]
+    const workspaceStrategy = existingPrimary
+      ? workspaceIsContended(existingPrimary)
+        ? "primary-contended"
+        : existingPrimaryDirty && !dirtyOwnershipProven
+          ? dirtyOwnership === "unrelated" || dirtyChangesBelongToChange === false
+            ? "isolate-dirty-primary"
+            : "reconcile-dirty-primary"
+        : "reuse-existing-primary"
+      : currentMatchesChange
+        ? "reuse-current"
+        : "create-primary"
+    const parallelism = analysis.execution_mode
+    const logicalChange = {
+      change_id: changeID ?? null,
+      task_count: analysis.tasks.length,
+      acceptance_criteria: criteria,
+      likely_affected_subsystems: [...new Set([
+        ...analysis.tasks.flatMap((task) => task.write_scope.map((path) => path.split(/[\\/]/)[0])),
+        ...current.status.map((line) => line.slice(3).trim().split(/[\\/]/)[0]),
+      ].filter(Boolean))],
+    }
+    const repositoryReality = {
+      root: repository.root,
+      common_dir: repository.commonDir,
+      repository_id: repository.projectKey,
+      current,
+      protected_base_branch: protectedBase,
+      protected_base_head: protectedBaseHead,
+      worktrees: current.worktrees,
+      clean: current.clean,
+      dirty_changes: current.status,
+    }
+    const contention = {
+      active: activeTasks.length > 0,
+      active_tasks: activeTasks,
+      active_workspace_ids: activeWorkspaceIDs,
+      current_workspace_contended: activeTasks.some((task) => task.execution_directory === repository.root),
+    }
+    return {
       version: 1,
+      preflight_id: `preflight_${randomUUID()}`,
+      change_id: changeID ?? null,
+      logical_change: logicalChange,
+      repository: repositoryReality,
+      repository_reality: repositoryReality,
+      persisted: {
+        tasks: relevantPersistedTasks,
+        managed_workspaces: validWorkspaces,
+        invalid_workspaces: invalidWorkspaces,
+      },
+      tasks: analysis.tasks,
+      dependencies: {
+        edges: analysis.dependency_edges,
+        unknown: analysis.unknown_dependencies,
+        cycles: analysis.cycles,
+      },
+      source_overlap: {
+        pairs: analysis.overlap_pairs,
+        unknown_scope_tasks: analysis.unknown_scope_tasks,
+        required_uncommitted_tasks: analysis.uncommitted_tasks,
+      },
+      contention,
+      verification_strategy: verificationStrategy,
+      dirty_ownership: dirtyOwnership,
+      decisions: {
+        workspace_strategy: workspaceStrategy,
+        execution_mode: parallelism,
+        parallel_safe: analysis.parallel_safe,
+        must_serialize: analysis.must_serialize,
+        primary_branch_candidates: desiredBranches,
+        child_worktrees_require_reason: true,
+        implementation_on_protected_base: false,
+      },
+      recommended_primary_workspace: existingPrimary && (!existingPrimaryDirty || dirtyOwnershipProven)
+        ? existingPrimary
+        : currentMatchesChange
+        ? {
+            workspace_id: null,
+            directory: current.directory,
+            branch: current.branch,
+            base_sha: current.head,
+            role: "primary",
+            managed_worktree: false,
+          }
+        : null,
+    }
+  }
+
+  async prepare(input = {}, repositoryDirectory) {
+    const taskID = input.task_id ? String(input.task_id).trim() : null
+    const changeID = String(input.change_id ?? taskID ?? "").trim()
+    if (!changeID) throw new Error("workspace_prepare requires change_id or task_id")
+    const repository = await this.requireRepositoryFacts(repositoryDirectory, "workspace_prepare")
+    // Keep the read-only reconciliation immediately before every topology
+    // decision. A caller cannot create a branch from an uninspected tree.
+    const preflight = await this.preflight({
+      change_id: changeID,
+      task_id: taskID,
+      branch: input.branch,
+      dirty_ownership: input.dirty_ownership,
+      dirty_changes_belong_to_change: input.dirty_changes_belong_to_change,
+    }, repository.root)
+    const role = input.role ?? (input.isolation ? "child" : "primary")
+    if (!["primary", "child"].includes(role)) throw new Error("workspace_prepare role must be primary or child")
+    if (role === "child") return this.prepareChild(input, taskID, changeID, repository, preflight)
+    return this.preparePrimary(input, taskID, changeID, repository, preflight)
+  }
+
+  async reusablePrimary(changeID, taskID, preflight, input = {}) {
+    const candidate = preflight.persisted.managed_workspaces.find((workspace) =>
+      workspace.role === "primary" && workspace.valid && workspace.change_id === changeID)
+    if (!candidate) return null
+    const manifest = await this.get(candidate.workspace_id)
+    const status = await this.git(manifest.directory, ["status", "--porcelain=v1", "--untracked-files=all"])
+    const dirtyOwnershipProven = input.dirty_ownership === "same-change"
+      || input.dirty_changes_belong_to_change === true
+    if (status && !dirtyOwnershipProven) {
+      if (input.dirty_ownership === "unrelated" || input.dirty_changes_belong_to_change === false) return null
+      throw new Error(`primary workspace for change ${changeID} is dirty; declare dirty_ownership="same-change" after reconciling its ownership`)
+    }
+    if (await this.hasActiveTasks(manifest.workspace_id) && manifest.task_id !== taskID) {
+      throw new Error(`primary workspace for change ${changeID} is currently in use; request an explicit isolated child workspace`)
+    }
+    return { ...this.publicRecord(manifest), reused: true }
+  }
+
+  async preparePrimary(input, taskID, changeID, repository, preflight) {
+    const branchCandidates = primaryBranchCandidates(changeID, input.branch)
+    if (branchCandidates.some((branch) => isProtectedBranch(branch, this.protectedBranches))) {
+      throw new Error(`protected base branch ${branchCandidates.find((branch) => isProtectedBranch(branch, this.protectedBranches))} cannot be used as a change workspace`)
+    }
+    const existing = await this.reusablePrimary(changeID, taskID, preflight, input)
+    if (existing) return existing
+
+    const current = preflight.repository.current
+    const dirtyOwnershipProven = input.dirty_ownership === "same-change"
+      || input.dirty_changes_belong_to_change === true
+    const currentIsCandidate = (current.branch && (branchCandidates.includes(current.branch) || (input.reuse_current === true && !current.protected)))
+      && (!current.status.length || dirtyOwnershipProven)
+    const currentDirtyRequiresIsolation = current.branch
+      && branchCandidates.includes(current.branch)
+      && current.status.length
+      && !dirtyOwnershipProven
+      && (input.dirty_ownership === "unrelated" || input.dirty_changes_belong_to_change === false)
+    if (current.branch && branchCandidates.includes(current.branch) && current.status.length && !dirtyOwnershipProven && !currentDirtyRequiresIsolation) {
+      throw new Error(`current branch ${current.branch} is dirty; declare dirty_ownership="same-change" after reconciling its ownership`)
+    }
+    if (currentIsCandidate && !current.protected) {
+      if (await this.hasActiveDirectoryTasks(repository.root)) {
+        throw new Error(`primary workspace for change ${changeID} is currently in use; request an explicit isolated child workspace`)
+      }
+      return this.adoptWorkspace({
+        taskID,
+        changeID,
+        repository,
+        directory: repository.root,
+        branch: current.branch,
+        baseSha: await this.resolvePrimaryBase({
+          requestedBase: input.base_sha,
+          branch: current.branch,
+          branchExists: true,
+          repository,
+          preflight,
+        }),
+        role: "primary",
+        managedWorktree: false,
+        provenance: "current-worktree",
+      })
+    }
+
+    let requiresIsolatedBranch = Boolean(currentDirtyRequiresIsolation)
+    let registered = preflight.repository.worktrees.find((worktree) =>
+      branchCandidates.includes(worktree.branch)
+      && !(currentDirtyRequiresIsolation && resolve(worktree.directory) === repository.root))
+    if (registered) {
+      const registeredStatus = await this.git(registered.directory, ["status", "--porcelain=v1", "--untracked-files=all"])
+      if (registeredStatus && !dirtyOwnershipProven) {
+        if (input.dirty_ownership === "unrelated" || input.dirty_changes_belong_to_change === false) {
+          requiresIsolatedBranch = true
+          registered = null
+        } else {
+          throw new Error(`primary branch ${registered.branch} is dirty; declare dirty_ownership="same-change" after reconciling its ownership`)
+        }
+      }
+    }
+    if (registered) {
+      if (await this.hasActiveDirectoryTasks(registered.directory)) {
+        throw new Error(`primary workspace for change ${changeID} is currently in use; request an explicit isolated child workspace`)
+      }
+      return this.adoptWorkspace({
+        taskID,
+        changeID,
+        repository,
+        directory: await canonical(registered.directory),
+        branch: registered.branch,
+        baseSha: await this.resolvePrimaryBase({
+          requestedBase: input.base_sha,
+          branch: registered.branch,
+          branchExists: true,
+          repository,
+          preflight,
+        }),
+        role: "primary",
+        managedWorktree: this.isManagedDirectory(registered.directory),
+        provenance: "existing-worktree",
+      })
+    }
+
+    let branch = branchCandidates[0]
+    let branchExists = false
+    if (requiresIsolatedBranch) {
+      if (input.branch) throw new Error(`requested branch ${input.branch} is dirty and cannot be reused for an unrelated change`)
+      branch = `feat/${slug(changeID)}-isolated-${randomUUID().slice(0, 8)}`
+    } else {
+      for (const candidate of branchCandidates) {
+        if (await this.gitSucceeds(repository.root, [
+          "show-ref", "--verify", "--quiet", `refs/heads/${candidate}`,
+        ])) {
+          branch = candidate
+          branchExists = true
+          break
+        }
+      }
+    }
+    const baseSha = await this.resolvePrimaryBase({
+      requestedBase: input.base_sha,
+      branch,
+      branchExists,
+      repository,
+      preflight,
+    })
+    return this.createLinkedWorkspace({
+      taskID,
+      changeID,
+      repository,
+      branch,
+      baseSha,
+      role: "primary",
+      integrationTargetBranch: null,
+      managedWorktree: true,
+      provenance: "runtime-created-primary",
+    })
+  }
+
+  async prepareChild(input, taskID, changeID, repository, preflight) {
+    if (!taskID) throw new Error("child workspace preparation requires task_id")
+    const existing = preflight.persisted.managed_workspaces.find((workspace) =>
+      workspace.role === "child"
+      && workspace.valid
+      && workspace.change_id === changeID
+      && workspace.task_id === taskID)
+    if (existing) {
+      const manifest = await this.get(existing.workspace_id)
+      if (await this.hasActiveTasks(existing.workspace_id) && manifest.task_id !== taskID) {
+        throw new Error(`child workspace for task ${taskID} is currently in use`)
+      }
+      return { ...this.publicRecord(manifest), reused: true }
+    }
+    const parentID = input.parent_workspace_id ?? input.primary_workspace_id
+    if (!parentID) throw new Error("child workspace preparation requires parent_workspace_id")
+    const parent = await this.get(parentID)
+    if ((parent.role ?? "primary") !== "primary" && parent.primary_workspace_id !== parent.workspace_id) {
+      throw new Error("child workspace parent must be the primary change workspace")
+    }
+    const parentChangeID = parent.change_id ?? parent.task_id
+    if (parentChangeID && parentChangeID !== changeID) {
+      throw new Error(`child change_id ${changeID} does not match its primary workspace ${parentChangeID}`)
+    }
+    const reason = String(input.isolation_reason ?? input.reason ?? "").trim()
+    if (!reason) throw new Error("child workspace preparation requires a concrete isolation_reason")
+    const parentStatus = await this.git(parent.directory, ["status", "--porcelain=v1", "--untracked-files=all"])
+    if (parentStatus && (input.depends_on_uncommitted === true || input.requires_uncommitted === true)) {
+      throw new Error("required uncommitted changes are not shared between Git worktrees; coordinate or commit them first")
+    }
+    if (parentStatus && input.depends_on_uncommitted !== false && input.independent_from_uncommitted !== true) {
+      throw new Error("parent workspace is dirty; declare independent_from_uncommitted=true or coordinate the required changes before isolating")
+    }
+    const parentHead = await this.git(parent.directory, ["rev-parse", "HEAD"])
+    const nonce = randomUUID()
+    const branch = branchName(changeID, input.branch ?? `delegation/${slug(changeID)}/${slug(taskID)}-${nonce.slice(0, 8)}`)
+    if (isProtectedBranch(branch, this.protectedBranches)) {
+      throw new Error(`protected base branch ${branch} cannot be used as a child workspace`)
+    }
+    const baseSha = await this.resolveCommit(repository.root, input.base_sha ?? parentHead)
+    if (!await this.gitSucceeds(parent.directory, ["merge-base", "--is-ancestor", baseSha, parentHead])) {
+      throw new Error("child workspace base must be an ancestor of the current primary HEAD")
+    }
+    return this.createLinkedWorkspace({
+      taskID,
+      changeID,
+      repository,
+      branch,
+      baseSha,
+      role: "child",
+      primaryWorkspaceID: parent.primary_workspace_id ?? parent.workspace_id,
+      parentWorkspaceID: parent.workspace_id,
+      integrationTargetBranch: parent.branch,
+      managedWorktree: true,
+      isolationReason: reason,
+      provenance: "runtime-created-child",
+    })
+  }
+
+  async resolvePrimaryBase({ requestedBase, branch, branchExists, repository, preflight }) {
+    if (requestedBase) return this.resolveCommit(repository.root, requestedBase)
+    if (branchExists) {
+      if (preflight.repository.protected_base_head) {
+        return this.git(repository.root, ["merge-base", branch, preflight.repository.protected_base_head])
+          .catch(() => this.resolveCommit(repository.root, branch))
+      }
+      return this.resolveCommit(repository.root, branch)
+    }
+    if (preflight.repository.protected_base_head) return preflight.repository.protected_base_head
+    return preflight.repository.current.head
+  }
+
+  async resolveCommit(directory, ref) {
+    return this.git(directory, [
+      "rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`,
+    ])
+  }
+
+  async gitSucceeds(directory, args) {
+    try {
+      await this.git(directory, args)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async workspaceDirectory(repository, role, changeID, workspaceID) {
+    const parent = join(this.stateDirectory, "workspaces", repository.projectKey, role === "primary" ? "primary" : "children")
+    await mkdir(parent, { recursive: true })
+    const root = await canonical(parent)
+    const baseName = role === "primary" ? slug(changeID) : workspaceID
+    const preferred = join(root, baseName)
+    return (await pathExists(preferred)) ? join(root, `${baseName}-${randomUUID().slice(0, 8)}`) : preferred
+  }
+
+  isManagedDirectory(directory) {
+    const root = resolve(this.stateDirectory, "workspaces")
+    const candidate = resolve(directory)
+    return candidate === root || candidate.startsWith(`${root}/`)
+  }
+
+  async createLinkedWorkspace({
+    taskID,
+    changeID,
+    repository,
+    branch,
+    baseSha,
+    role,
+    primaryWorkspaceID = null,
+    parentWorkspaceID = null,
+    integrationTargetBranch = null,
+    managedWorktree,
+    isolationReason = null,
+    provenance,
+  }) {
+    const workspaceID = `ws_${randomUUID()}`
+    const directory = await this.workspaceDirectory(repository, role, changeID, workspaceID)
+    const manifestPath = this.manifestPath(repository.projectKey, workspaceID)
+    const manifest = {
+      version: 2,
       status: "preparing",
       workspace_id: workspaceID,
       task_id: taskID,
-      change_id: changeID ?? null,
+      change_id: changeID,
+      role,
+      primary_workspace_id: primaryWorkspaceID ?? (role === "primary" ? workspaceID : null),
+      parent_workspace_id: parentWorkspaceID,
+      managed_worktree: managedWorktree,
+      provenance,
+      isolation_reason: isolationReason,
       directory,
       branch,
       base_sha: baseSha,
+      integration_target_branch: integrationTargetBranch,
       repository_root: repository.root,
       repository_id: repository.projectKey,
       git_common_dir: repository.commonDir,
       created_at: this.now(),
     }
-
+    await mkdir(join(this.stateDirectory, "manifests", repository.projectKey), { recursive: true })
     await writeJson(manifestPath, manifest)
     try {
-      await this.git(repository.root, ["worktree", "add", "-b", branch, directory, baseSha])
+      const branchExists = await this.gitSucceeds(repository.root, [
+        "show-ref", "--verify", "--quiet", `refs/heads/${branch}`,
+      ])
+      if (branchExists) {
+        await this.git(repository.root, ["worktree", "add", directory, branch])
+      } else {
+        await this.git(repository.root, ["worktree", "add", "-b", branch, directory, baseSha])
+      }
       const validated = await this.validateManifest({ ...manifest, status: "active" })
-      const active = { ...manifest, ...validated, status: "active" }
+      const active = { ...manifest, ...validated, status: "active", reused: false }
       await writeJson(manifestPath, active)
       return this.publicRecord(active)
     } catch (error) {
@@ -135,6 +687,48 @@ export class WorkspaceManager {
       })
       throw new Error(`workspace preparation failed; any created Git state was preserved: ${error.message}`)
     }
+  }
+
+  async adoptWorkspace({
+    taskID,
+    changeID,
+    repository,
+    directory,
+    branch,
+    baseSha,
+    role,
+    managedWorktree,
+    provenance,
+  }) {
+    const workspaceID = `ws_${randomUUID()}`
+    const manifestPath = this.manifestPath(repository.projectKey, workspaceID)
+    const manifest = {
+      version: 2,
+      status: "active",
+      workspace_id: workspaceID,
+      task_id: taskID,
+      change_id: changeID,
+      role,
+      primary_workspace_id: workspaceID,
+      parent_workspace_id: null,
+      managed_worktree: managedWorktree,
+      provenance,
+      isolation_reason: null,
+      directory: await canonical(directory),
+      branch,
+      base_sha: baseSha,
+      integration_target_branch: null,
+      repository_root: repository.root,
+      repository_id: repository.projectKey,
+      git_common_dir: repository.commonDir,
+      created_at: this.now(),
+      reused: false,
+    }
+    await mkdir(join(this.stateDirectory, "manifests", repository.projectKey), { recursive: true })
+    const validated = await this.validateManifest(manifest)
+    const active = { ...manifest, ...validated }
+    await writeJson(manifestPath, active)
+    return this.publicRecord(active)
   }
 
   async findManifest(workspaceID) {
@@ -164,6 +758,9 @@ export class WorkspaceManager {
     if (!["active", "preparing"].includes(manifest.status)) {
       throw new Error(`workspace is not active: ${manifest.workspace_id} (${manifest.status})`)
     }
+    if (isProtectedBranch(manifest.branch, this.protectedBranches)) {
+      throw new Error(`workspace branch ${manifest.branch} is a protected base branch`)
+    }
     const actualDirectory = await canonical(manifest.directory)
     if (actualDirectory !== manifest.directory) throw new Error("workspace directory does not match its canonical manifest path")
     const facts = await this.repositoryFacts(actualDirectory)
@@ -181,54 +778,60 @@ export class WorkspaceManager {
   }
 
   publicRecord(manifest) {
+    const legacyPrimary = manifest.role === undefined || manifest.role === null
     return {
       workspace_id: manifest.workspace_id,
+      task_id: manifest.task_id ?? null,
       directory: manifest.directory,
       branch: manifest.branch,
       base_sha: manifest.base_sha,
       git_common_dir: manifest.git_common_dir,
+      // Version-one manifests represented one isolated task, so treat an
+      // unfinished legacy record as that task's resumable primary workspace.
+      change_id: manifest.change_id ?? (legacyPrimary ? manifest.task_id ?? null : null),
+      role: manifest.role ?? "primary",
+      primary_workspace_id: manifest.primary_workspace_id ?? (legacyPrimary ? manifest.workspace_id : null),
+      parent_workspace_id: manifest.parent_workspace_id ?? null,
+      managed_worktree: manifest.managed_worktree !== false,
+      integration_target_branch: manifest.integration_target_branch ?? null,
+      isolation_reason: manifest.isolation_reason ?? null,
+      reused: Boolean(manifest.reused),
     }
   }
 
   async listPreserved(repositoryDirectory) {
-    let repository
     try {
-      repository = await this.repositoryFacts(repositoryDirectory)
+      return await this.listManifests(repositoryDirectory)
     } catch (error) {
       if (isNotGitRepositoryError(error)) return []
       throw error
     }
-    const directory = join(this.stateDirectory, "manifests", repository.projectKey)
-    let files
-    try {
-      files = await readdir(directory)
-    } catch (error) {
-      if (error?.code === "ENOENT") return []
-      throw error
-    }
-    const records = []
-    for (const file of files.filter((name) => name.endsWith(".json"))) {
-      const manifest = await readJson(join(directory, file))
-      if (manifest?.status !== "released") records.push(manifest)
-    }
-    return records
   }
 
   async release(workspaceID, repositoryDirectory) {
     if (repositoryDirectory) await this.requireRepositoryFacts(repositoryDirectory, "workspace_release")
     const { manifest, path } = await this.findManifest(workspaceID)
     const validated = await this.get(workspaceID)
+    if (manifest.managed_worktree === false) {
+      throw new Error("primary workspace is the current or externally-owned worktree; preserving it")
+    }
     if (await this.hasActiveTasks(workspaceID)) {
       throw new Error("workspace has a pending or running task; cancellation does not imply release")
     }
     const status = await this.git(validated.directory, ["status", "--porcelain=v1", "--untracked-files=all"])
     if (status) throw new Error("workspace is dirty; preserving it")
+    const integrationTarget = manifest.integration_target_branch
+      ?? (manifest.role === "child" ? manifest.primary_branch : null)
+      ?? "HEAD"
+    if (manifest.role === "child" && isProtectedBranch(integrationTarget, this.protectedBranches)) {
+      throw new Error("child workspace cannot be released against a protected base branch; preserving it")
+    }
     let integration = "ancestor"
     try {
-      await this.git(manifest.repository_root, ["merge-base", "--is-ancestor", manifest.branch, "HEAD"])
+      await this.git(manifest.repository_root, ["merge-base", "--is-ancestor", manifest.branch, integrationTarget])
     } catch {
       const cherry = await this.git(manifest.repository_root, [
-        "cherry", "HEAD", manifest.branch, manifest.base_sha,
+        "cherry", integrationTarget, manifest.branch, manifest.base_sha,
       ])
       const commits = cherry.split("\n").map((line) => line.trim()).filter(Boolean)
       if (!commits.length || commits.some((line) => !line.startsWith("- "))) {
@@ -241,7 +844,12 @@ export class WorkspaceManager {
     try {
       await this.git(manifest.repository_root, ["branch", "-d", manifest.branch])
     } catch (error) {
-      if (integration !== "patch-equivalent") {
+      // A child can be proven integrated into the primary branch while the
+      // canonical checkout still points at the protected base. Normal branch
+      // deletion evaluates the current checkout, so retain that branch rather
+      // than force-deleting it or treating successful child integration as a
+      // release failure.
+      if (integration !== "patch-equivalent" && integrationTarget === "HEAD") {
         await writeJson(path, { ...manifest, status: "worktree_released_branch_preserved", error: error.message })
         throw new Error(`worktree was normally removed but safe branch deletion refused: ${error.message}`)
       }
@@ -266,4 +874,4 @@ export class WorkspaceManager {
   }
 }
 
-export { isNotGitRepositoryError, parseWorktrees }
+export { branchName, isNotGitRepositoryError, isProtectedBranch, parseWorktrees, slug }

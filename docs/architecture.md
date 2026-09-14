@@ -21,6 +21,7 @@ User
  +-- formal work ----> /spec -> /plan -> /execute -> /verify -> /ship
                                       |
                                       +-- Delegation Runtime
+                                          +-- ExecutionPreflight
                                           +-- WorkspaceManager
                                           +-- TaskRegistry
                                           +-- SessionRunner
@@ -34,7 +35,7 @@ OpenCode owns model, variant, tool, permission, and session execution. Git owns 
 
 `delegate_task` requires exactly one category or allowlisted named specialist. Categories route to the reusable Implementer. Named specialists are Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, and QA. Unknown names fail closed. `consult_agents` is a separate, runtime-guarded facade available only to `Implementer`; it accepts one to four concurrent requests targeting exactly `Explorer` or `Librarian`, carries no skills or category, and reuses the same child-session/task lifecycle for bounded information gathering. It never delegates implementation ownership.
 
-The seven runtime tools are `workspace_prepare`, `delegate_task`, `consult_agents`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces.
+The eight runtime tools are `execution_preflight`, `workspace_prepare`, `delegate_task`, `consult_agents`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces. `execution_preflight` is read-only and Executor-only; it reconciles the logical change with current repository, workspace, task, dependency, source-overlap, contention, and verification facts before topology or delegation.
 
 The runtime also initializes outside Git repositories. In that case, ordinary delegation and task inspection use a stable directory-scoped control plane, while workspace preparation and release remain Git-only operations.
 
@@ -52,7 +53,27 @@ Consultation continuation is deliberately narrower than general delegation: `ses
 
 ## Workspace and integration lifecycle
 
-Executor obtains a fresh Plan Reviewer verdict, prepares one provenance-bound workspace per eligible task, launches implementation, inspects each real diff, and delegates Reviewer/QA into that same workspace. After approval, Executor selects a deterministic integration order and delegates explicit Git mechanics through the `git` category. Task-scoped commits become source-derived integration inputs. A normal implementation category never re-applies reviewed changes in canonical.
+Executor obtains a fresh Plan Reviewer verdict and runs mandatory `execution_preflight` for the logical change before creating topology or delegating implementation. The preflight reconciles Planner intent with the current branch/HEAD/dirty state, registered worktrees, managed workspace manifests, persisted task state, unfinished work, dependencies, write-scope overlap, active contention, acceptance criteria, and the verification strategy. Planner task boundaries do not imply separate agents, branches, or worktrees.
+
+The normal topology is:
+
+```text
+logical change
+    |
+primary change branch/workspace
+    |-- sequential tasks in the same workspace
+    |-- optional child worktrees for safe parallel/isolation cases
+    |
+whole-change verification
+    |
+/ship
+    |
+main
+```
+
+`workspace_prepare` resolves a stable primary workspace by `change_id`, reusing the current safe workspace, an existing managed primary, or a valid resumed change branch before creating anything. It defaults to primary work and is idempotent for the same logical change. A child worktree requires an explicit parent workspace and concrete isolation reason. Worktrees are isolation/concurrency mechanisms, not the unit of work.
+
+Executor launches implementation only in a non-protected change workspace, inspects each real diff, and delegates Reviewer/QA into the relevant primary or child workspace. After approval, Executor selects a deterministic integration order and delegates explicit Git mechanics through the `git` category into the primary change workspace. Task-scoped commits become source-derived integration inputs. A normal implementation category never re-applies reviewed changes in canonical, and no partial task integrates directly into `main`.
 
 The Git category is session-scoped through OpenCode's public permission hook. Ordinary Implementers retain their restrictive Git policy. Only the exact Git category may receive bounded status/log/diff/show/rev-parse, staging, commit, and selected-SHA cherry-pick operations. Destructive operations, force operations, arbitrary history rewriting, and silent user-change disposal remain denied.
 

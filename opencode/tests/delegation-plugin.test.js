@@ -21,7 +21,7 @@ function client() {
   }
 }
 
-test("plugin entrypoint is default-only and exposes the seven project-owned delegation tools", async (t) => {
+test("plugin entrypoint is default-only and exposes the project-owned delegation tools", async (t) => {
   assert.deepEqual(Object.keys(DelegationRuntimeEntrypoint), ["default"])
   const stateDirectory = await mkdtemp(join(tmpdir(), "delegation-plugin-test-"))
   t.after(async () => rm(stateDirectory, { recursive: true }))
@@ -31,6 +31,7 @@ test("plugin entrypoint is default-only and exposes the seven project-owned dele
     serverUrl: new URL("http://127.0.0.1:40200"),
   }, { stateDirectory })
   assert.deepEqual(Object.keys(plugin.tool), [
+    "execution_preflight",
     "workspace_prepare",
     "delegate_task",
     "consult_agents",
@@ -39,6 +40,8 @@ test("plugin entrypoint is default-only and exposes the seven project-owned dele
     "task_cancel",
     "workspace_release",
   ])
+  assert.match(plugin.tool.execution_preflight.description, /current Git.*persisted task.*source-overlap/i)
+  assert.ok(plugin.tool.execution_preflight.args.change_id)
   assert.match(plugin.tool.delegate_task.description, /Available categories:/)
   assert.match(plugin.tool.delegate_task.description, /browser-automation/)
   assert.ok(plugin.tool.delegate_task.args.load_skills)
@@ -72,6 +75,7 @@ test("plugin entrypoint initializes with the full tool set outside Git", async (
   }, { stateDirectory, skillRoots: [] })
 
   assert.deepEqual(Object.keys(plugin.tool), [
+    "execution_preflight",
     "workspace_prepare",
     "delegate_task",
     "consult_agents",
