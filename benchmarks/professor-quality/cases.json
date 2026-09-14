@@ -1,0 +1,116 @@
+[
+  {
+    "id": "B1",
+    "category": "temporal-version",
+    "query": "Research the current recommended Next.js architecture for a new production application. Distinguish current guidance from legacy or version-specific guidance.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["current", "legacy", "version"],
+    "critical": true,
+    "repeatRuns": 1
+  },
+  {
+    "id": "B2",
+    "category": "negative-claim",
+    "query": "Research what official automation interfaces OpenCut currently provides. Distinguish released interfaces, roadmap or proposal material, third-party interfaces, and not-found evidence.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["official", "released", "roadmap"],
+    "critical": true,
+    "repeatRuns": 1
+  },
+  {
+    "id": "B3",
+    "category": "source-authority",
+    "query": "Research whether I can install a usable official OpenCut desktop application on macOS today. Distinguish first-party availability from third-party or community packaging claims.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["official", "macOS", "install"],
+    "critical": true,
+    "repeatRuns": 1
+  },
+  {
+    "id": "B4",
+    "category": "contradiction-version",
+    "query": "Research OpenCut's current architecture and technology stack. Separate classic, rewrite, current, and roadmap generations when sources disagree.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["architecture", "rewrite", "current"],
+    "critical": true,
+    "repeatRuns": 1
+  },
+  {
+    "id": "B5",
+    "category": "multi-aspect-correctness",
+    "query": "Research the current Node.js 24 status of the built-in test runner, built-in fetch API, and permission model. Use official evidence and keep version-specific caveats separate.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["test runner", "fetch", "permission"],
+    "critical": true,
+    "repeatRuns": 1
+  },
+  {
+    "id": "B6",
+    "category": "bounded-deep-retrieval",
+    "query": "Research OpenCut's repository architecture and technology stack using official project documentation and only the smallest relevant set of source files. Report the current architecture, identify version-specific or roadmap material, and cite the evidence.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["architecture", "technology", "repository"],
+    "critical": true,
+    "repeatRuns": 1
+  },
+  {
+    "id": "B7",
+    "category": "frontier-supersession",
+    "query": "Research OpenCut's current architecture and technology stack, covering repository structure, runtime, and user interface. Stop investigating a dimension when the existing evidence is already sufficient and surface any remaining uncertainty.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["repository", "runtime", "interface"],
+    "critical": true,
+    "repeatRuns": 1
+  },
+  {
+    "id": "B1b",
+    "category": "blind-temporal-version",
+    "query": "Research the current recommended Next.js architecture for a new production application.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["Next.js", "current"],
+    "critical": true,
+    "repeatRuns": 1,
+    "blind": true
+  },
+  {
+    "id": "B2b",
+    "category": "blind-negative-claim",
+    "query": "Research what official automation interfaces OpenCut currently provides.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["OpenCut", "official"],
+    "critical": true,
+    "repeatRuns": 1,
+    "blind": true
+  },
+  {
+    "id": "B3b",
+    "category": "blind-source-authority",
+    "query": "Research whether I can install a usable official OpenCut desktop application on macOS today.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["OpenCut", "macOS"],
+    "critical": true,
+    "repeatRuns": 1,
+    "blind": true
+  },
+  {
+    "id": "B4b",
+    "category": "blind-contradiction-version",
+    "query": "Research OpenCut's current architecture and technology stack.",
+    "requiresFreshness": true,
+    "requiresPrimarySource": true,
+    "expectedEvidenceMatchers": ["architecture", "technology"],
+    "critical": true,
+    "repeatRuns": 1,
+    "blind": true
+  }
+]
