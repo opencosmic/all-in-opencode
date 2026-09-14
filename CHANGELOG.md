@@ -8,7 +8,13 @@ than generated from every commit.
 
 ### Added
 
+- Preserved the retrieval-foundation benchmark evidence and added deterministic
+  benchmark validation.
+
 ### Changed
+
+- Hardened benchmark reruns against inherited aio/OpenCode configuration and
+  data-root overrides.
 
 ### Fixed
 

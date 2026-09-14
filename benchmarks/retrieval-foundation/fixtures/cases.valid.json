@@ -1,0 +1,13 @@
+[
+  {
+    "id": "fixture-01",
+    "category": "simple",
+    "query": "fixture query",
+    "requiresFreshness": false,
+    "requiresPrimarySource": false,
+    "expectedRetrievalPattern": "search-only",
+    "evaluationNotes": "fixture",
+    "critical": false,
+    "repeatRuns": 1
+  }
+]

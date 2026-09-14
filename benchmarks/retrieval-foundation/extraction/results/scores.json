@@ -1,0 +1,135 @@
+[
+  {
+    "caseId": "standard-rfc-01",
+    "passageLocalization": 3,
+    "evidencePrecision": 3,
+    "extractionEfficiency": 1,
+    "failure": true,
+    "reproducibleIssue": true,
+    "materialImpact": true,
+    "primaryRootCause": "FETCH_EXTRACTION",
+    "observedRootCauses": ["FETCH_EXTRACTION", "MODEL_REASONING"],
+    "evidenceNote": "The correct RFC was found and fetched in all runs, but two of three runs reached the six-step boundary after repeated large-document fetches. The third run weakened SHOULD to MUST and relied on secondary HTTP pages for the final formulation.",
+    "runAssessments": [
+      {"runIndex": 1, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 2, "note": "Exact section and Content-Range semantics recovered; two large authoritative fetches."},
+      {"runIndex": 2, "extractionIssue": true, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": true, "repeatedFetches": 1, "extraSearchesAfterTargetFetch": 2, "note": "Correct evidence was summarized, but the agent reached the six-step boundary after refetching the RFC."},
+      {"runIndex": 3, "extractionIssue": true, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": false, "stepCap": true, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "The final answer was truncated at the step boundary and overclaimed MUST while using secondary corroboration."}
+    ]
+  },
+  {
+    "caseId": "api-node-http-01",
+    "passageLocalization": 5,
+    "evidencePrecision": 5,
+    "extractionEfficiency": 3,
+    "failure": false,
+    "reproducibleIssue": false,
+    "materialImpact": false,
+    "primaryRootCause": "OTHER",
+    "observedRootCauses": ["SEARCH_ORCHESTRATION"],
+    "evidenceNote": "All three runs isolated server.maxRequestsPerSocket, its default, and the dropRequest/503 behavior. The 51K-character API page caused some equivalent-URL refetching but no step boundary or answer failure.",
+    "runAssessments": [
+      {"runIndex": 1, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "One fetch localized the exact API entry."},
+      {"runIndex": 2, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 1, "extraSearchesAfterTargetFetch": 0, "note": "Fetched equivalent HTML and Markdown documentation; answer remained precise."},
+      {"runIndex": 3, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 1, "extraSearchesAfterTargetFetch": 0, "note": "Fetched three equivalent API representations without material answer impact."}
+    ]
+  },
+  {
+    "caseId": "manual-postgres-17-01",
+    "passageLocalization": 5,
+    "evidencePrecision": 5,
+    "extractionEfficiency": 5,
+    "failure": false,
+    "reproducibleIssue": false,
+    "materialImpact": false,
+    "primaryRootCause": "OTHER",
+    "evidenceNote": "All three runs fetched the PostgreSQL 17 page once and recovered the transaction restriction, two scans, waits, and invalid-index failure behavior without step pressure.",
+    "runAssessments": [
+      {"runIndex": 1, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Complete version-scoped answer from one fetch."},
+      {"runIndex": 2, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Direct fetch and complete answer without a search call."},
+      {"runIndex": 3, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Complete answer from one fetch."}
+    ]
+  },
+  {
+    "caseId": "table-iana-status-01",
+    "passageLocalization": 5,
+    "evidencePrecision": 5,
+    "extractionEfficiency": 5,
+    "failure": false,
+    "reproducibleIssue": false,
+    "materialImpact": false,
+    "primaryRootCause": "OTHER",
+    "evidenceNote": "All three runs located the exact 425 row and returned Too Early with RFC8470 from a small registry representation; no table-row confusion or extra retrieval occurred.",
+    "runAssessments": [
+      {"runIndex": 1, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "TXT registry variant contained the exact row."},
+      {"runIndex": 2, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Exact XHTML registry row recovered."},
+      {"runIndex": 3, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Exact XHTML registry row recovered."}
+    ]
+  },
+  {
+    "caseId": "paper-attention-01",
+    "passageLocalization": 5,
+    "evidencePrecision": 5,
+    "extractionEfficiency": 4,
+    "failure": false,
+    "reproducibleIssue": false,
+    "materialImpact": false,
+    "primaryRootCause": "OTHER",
+    "observedRootCauses": ["SEARCH_ORCHESTRATION"],
+    "evidenceNote": "All three runs located the paper's Section 4/Table 1 evidence and correctly reported parallelization, sequential operations, path length, and O(n^2 d) tradeoffs. One repeat fetched two equivalent paper URLs.",
+    "runAssessments": [
+      {"runIndex": 1, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Exact paper section recovered from one HTML fetch."},
+      {"runIndex": 2, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Exact Table 1 and Section 4 evidence recovered."},
+      {"runIndex": 3, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 1, "extraSearchesAfterTargetFetch": 0, "note": "Equivalent arXiv HTML variants were fetched; answer remained precise."}
+    ]
+  },
+  {
+    "caseId": "policy-gdpr-17-01",
+    "passageLocalization": 4,
+    "evidencePrecision": 5,
+    "extractionEfficiency": 3,
+    "failure": false,
+    "reproducibleIssue": false,
+    "materialImpact": false,
+    "primaryRootCause": "OTHER",
+    "observedRootCauses": ["TOOL_RUNTIME"],
+    "evidenceNote": "Run 1 fetched a 49K-character EUR-Lex document and all answers quoted Article 17(3)(b) precisely. Runs 2 and 3 reported completed webfetch calls with zero output characters, but the final answers remained correct; this is a tool-reliability observation, not a qualifying extraction failure.",
+    "runAssessments": [
+      {"runIndex": 1, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Exact official clause recovered from EUR-Lex output."},
+      {"runIndex": 2, "extractionIssue": false, "toolIssue": true, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": false, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Both official fetches completed with zero output characters; answer still quoted the exact clause."},
+      {"runIndex": 3, "extractionIssue": false, "toolIssue": true, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": false, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Three completed fetches returned zero output characters; answer still quoted the exact clause."}
+    ]
+  },
+  {
+    "caseId": "changelog-node-22-01",
+    "passageLocalization": 4,
+    "evidencePrecision": 4,
+    "extractionEfficiency": 2,
+    "failure": false,
+    "reproducibleIssue": false,
+    "materialImpact": false,
+    "primaryRootCause": "OTHER",
+    "observedRootCauses": ["SEARCH_ORCHESTRATION"],
+    "evidenceNote": "All runs found v22.5.0, node:sqlite, and experimental/active-development status, but each used three searches and four fetches. One reached the six-step boundary; alternate official release/API pages supplied the exact evidence.",
+    "runAssessments": [
+      {"runIndex": 1, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 1, "extraSearchesAfterTargetFetch": 2, "note": "Exact v22.5.0 changelog/release entry and status recovered after broad fan-out."},
+      {"runIndex": 2, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": false, "citationSupportsTarget": false, "stepCap": true, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 1, "note": "Reached the step boundary, but final answer still contained the exact release and stability evidence from alternate official pages."},
+      {"runIndex": 3, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": false, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 1, "note": "Correct answer from release/changelog variants, with citation pointing to alternate official pages."}
+    ]
+  },
+  {
+    "caseId": "negative-git-rebase-01",
+    "passageLocalization": 5,
+    "evidencePrecision": 5,
+    "extractionEfficiency": 5,
+    "failure": false,
+    "reproducibleIssue": false,
+    "materialImpact": false,
+    "primaryRootCause": "OTHER",
+    "evidenceNote": "The negative control handled a 51K-character Git manual page in 2–3 steps with one fetch per run and precise commit-graph localization.",
+    "runAssessments": [
+      {"runIndex": 1, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "Direct fetch and complete graph explanation."},
+      {"runIndex": 2, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "One search, one fetch, complete graph explanation."},
+      {"runIndex": 3, "extractionIssue": false, "toolIssue": false, "sourceFound": true, "targetFetched": true, "expectedEvidenceFound": true, "citationSupportsTarget": true, "stepCap": false, "repeatedFetches": 0, "extraSearchesAfterTargetFetch": 0, "note": "One search, one fetch, complete graph explanation."}
+    ]
+  }
+]

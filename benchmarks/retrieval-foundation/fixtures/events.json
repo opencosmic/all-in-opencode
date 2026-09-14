@@ -1,0 +1,7 @@
+[
+  {"type":"step_start","sessionID":"ses_fixture"},
+  {"type":"tool_use","sessionID":"ses_fixture","part":{"tool":"websearch","state":{"status":"completed","input":{"query":"fixture query"},"output":"Title: Official result\nURL: https://docs.example.test/guide\nHighlights:\nUseful evidence."}}},
+  {"type":"tool_use","sessionID":"ses_fixture","part":{"tool":"webfetch","sessionID":"ses_fixture","state":{"status":"completed","input":{"url":"https://docs.example.test/guide"},"output":"Title: Official result\nURL: https://docs.example.test/guide\nRelevant section."}}},
+  {"type":"text","sessionID":"ses_fixture","part":{"text":"The answer is supported https://docs.example.test/guide`, https://docs.example.test/guide).","metadata":{"openai":{"itemId":"msg_fixture"}}}},
+  {"type":"step_finish","sessionID":"ses_fixture","part":{"reason":"stop","tokens":{"total":42,"input":30,"output":10,"reasoning":2}}}
+]
