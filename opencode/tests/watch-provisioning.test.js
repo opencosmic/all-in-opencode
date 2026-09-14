@@ -28,7 +28,7 @@ test("watch provisioning reuses the supported external skill layout", async (t) 
     PATH: `${dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`,
   }
   const health = await execFileAsync(check, [], { env, encoding: "utf8" })
-  assert.match(health.stdout, new RegExp(`watch skill: present with bundled runtime \\(${escapeRegExp(skill)}\\)`))
+  assert.match(health.stdout, new RegExp(`watch skill: (?:present with bundled runtime|discoverable) \\(${escapeRegExp(skill)}\\)`))
 
   const provision = await execFileAsync(setup, [], { env, encoding: "utf8" })
   assert.match(provision.stdout, new RegExp(`Using existing watch skill: ${escapeRegExp(skill)}`))

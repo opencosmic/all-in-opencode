@@ -43,7 +43,9 @@ jobs:
           test "$(opencode --version)" = "1.18.30"
 
       - name: Install aio configuration
-        run: ./scripts/install.sh
+        run: |
+          ./scripts/install.sh
+          echo "OPENCODE_DISCOVERY_ROOT=$HOME/.config/opencode" >> "$GITHUB_ENV"
 
       - name: Install and index CodeGraph
         run: |
@@ -55,7 +57,7 @@ jobs:
         run: git diff --check
 
       - name: Run default-parallel test suite
-        run: OPENCODE_DISCOVERY_ROOT="$HOME/.config/opencode" node --test opencode/tests/*.test.js
+        run: node --test opencode/tests/*.test.js
 
       - name: Verify installed repository state
         run: ./scripts/verify.sh
