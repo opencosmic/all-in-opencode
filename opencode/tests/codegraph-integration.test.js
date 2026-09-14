@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { readFile, readdir } from "node:fs/promises"
 
-const root = "/Users/code/.config/opencode"
+const root = process.env.OPENCODE_DISCOVERY_ROOT ?? "/Users/code/.config/opencode"
 const enabled = [
   "assistant.md",
   "explorer.md",
