@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v7.0.0
@@ -53,8 +55,38 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           ./scripts/setup-codegraph.sh "$GITHUB_WORKSPACE"
 
-      - name: Check patch formatting
-        run: git diff --check
+      - name: Check committed patch formatting
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.event.after }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          zero_sha=0000000000000000000000000000000000000000
+
+          case "$EVENT_NAME" in
+            pull_request)
+              printf 'Checking pull-request range %s...%s\n' "$PR_BASE_SHA" "$PR_HEAD_SHA"
+              git diff --check "$PR_BASE_SHA...$PR_HEAD_SHA"
+              ;;
+            push)
+              current_sha=${PUSH_AFTER_SHA:-$CURRENT_SHA}
+              if [ -z "$PUSH_BEFORE_SHA" ] || [ "$PUSH_BEFORE_SHA" = "$zero_sha" ]; then
+                printf 'Checking initial pushed commit %s\n' "$current_sha"
+                git show --check --format= "$current_sha"
+              else
+                printf 'Checking pushed range %s..%s\n' "$PUSH_BEFORE_SHA" "$current_sha"
+                git diff --check "$PUSH_BEFORE_SHA..$current_sha"
+              fi
+              ;;
+            *)
+              printf 'Unsupported event for committed patch checking: %s\n' "$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Run default-parallel test suite
         run: node --test opencode/tests/*.test.js
