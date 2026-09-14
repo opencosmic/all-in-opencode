@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: opencode/package-lock.json
+
+      - name: Install project dependencies
+        run: npm ci --prefix opencode
+
+      - name: Install OpenCode
+        run: npm install --global --no-fund --no-audit opencode-ai@1.18.30
+
+      - name: Verify toolchain
+        run: |
+          node --version
+          npm --version
+          test "$(opencode --version)" = "1.18.30"
+
+      - name: Install aio configuration
+        run: ./scripts/install.sh
+
+      - name: Install and index CodeGraph
+        run: |
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          ./scripts/setup-codegraph.sh "$GITHUB_WORKSPACE"
+
+      - name: Check patch formatting
+        run: git diff --check
+
+      - name: Run default-parallel test suite
+        run: OPENCODE_DISCOVERY_ROOT="$HOME/.config/opencode" node --test opencode/tests/*.test.js
+
+      - name: Verify installed repository state
+        run: ./scripts/verify.sh
