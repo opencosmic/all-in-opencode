@@ -6,6 +6,11 @@ runtime, state, or prompt changes. Runs used the isolated Professor harness;
 the structured records are in [`runs.jsonl`](runs.jsonl) and the objective
 summary is in [`summary.json`](summary.json).
 
+The frozen runner did not pass or record a model or model variant. Its resolved
+model is therefore unknown; the OpenCode version alone is not a model-control
+record. All post-change runs pass `opencode/muse-spark-1.3-contributor-free`
+with variant `xhigh` explicitly.
+
 | Case | Result | Evidence from the frozen run |
 | --- | --- | --- |
 | B1b | PARTIAL | The report used current official Next.js guidance and identified Cache Components as an opt-in, but did not consistently separate current guidance from legacy/version-specific behavior; it ended with a version-specific research branch that could not be persisted after a source-budget limit. |

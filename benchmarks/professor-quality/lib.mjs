@@ -11,6 +11,8 @@ import {
 export { createIsolatedConfig, detectOpenCodeVersion, normalizeEvents, resetResultsFile }
 
 export const OUTER_STEP_LIMIT = 32
+export const PROFESSOR_BENCHMARK_MODEL = "opencode/muse-spark-1.3-contributor-free"
+export const PROFESSOR_BENCHMARK_VARIANT = "xhigh"
 export const PROFESSOR_TOOL_NAMES = [
   "research_start",
   "research_next",
@@ -84,6 +86,26 @@ function eventState(event) {
 
 function eventOutput(event) {
   return typeof eventState(event).output === "string" ? eventState(event).output : ""
+}
+
+function summarizeTaskLifecycle(events) {
+  return events.flatMap((event) => {
+    const part = eventPart(event)
+    if (!part || !["task.completed", "task.failed", "task.superseded"].includes(part.type)) return []
+    const data = part.data && typeof part.data === "object" ? part.data : {}
+    return [{
+      type: part.type,
+      taskId: data.taskId ?? part.taskId ?? null,
+      questionId: data.questionId ?? part.questionId ?? null,
+      sources: Number(data.sources ?? 0),
+      evidence: Number(data.evidence ?? 0),
+      findings: Number(data.findings ?? 0),
+      contradictions: Number(data.contradictions ?? 0),
+      followUps: Number(data.followUps ?? 0),
+      canonicalResult: data.canonicalResult ?? null,
+      reason: data.reason ?? null,
+    }]
+  })
 }
 
 export function parseJsonOutput(value) {
@@ -182,12 +204,19 @@ async function readProfessorState(config, runId) {
   try {
     const state = JSON.parse(await readFile(join(runDirectory, "state.json"), "utf8"))
     let report = null
+    let events = []
     try {
       report = await readFile(join(runDirectory, "report.md"), "utf8")
     } catch (error) {
       if (error.code !== "ENOENT") throw error
     }
-    return { state, report }
+    try {
+      const eventLines = await readFile(join(runDirectory, "events.jsonl"), "utf8")
+      events = eventLines.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line))
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error
+    }
+    return { state, report, events }
   } catch (error) {
     if (error.code === "ENOENT") return { state: null, report: null }
     throw error
@@ -229,6 +258,13 @@ export async function normalizeProfessorRun({ caseItem, runIndex, runKind, stdou
     fetchCount: base.fetchCalls,
     retrievalCount: base.retrieval.length,
   })
+  const taskLifecycle = summarizeTaskLifecycle([...events, ...(loaded.events ?? [])])
+  const zeroValueCompletedTasks = taskLifecycle.filter((item) => item.type === "task.completed"
+    && item.sources === 0
+    && item.evidence === 0
+    && item.findings === 0
+    && item.contradictions === 0
+    && item.followUps === 0)
   const completionOutput = [...toolOutputs].reverse().find((item) => item.tool === "research_complete")?.output ?? null
   const errors = events.filter((event) => event.type === "error").map((event) => eventPart(event)?.error ?? eventPart(event)?.message ?? "runtime error")
   const failureReason = stateSummary.finalStatus === "completed"
@@ -262,6 +298,8 @@ export async function normalizeProfessorRun({ caseItem, runIndex, runKind, stdou
     controllerRounds: stateSummary.controllerRounds,
     taskStatusCounts: stateSummary.taskStatusCounts,
     taskStatuses: stateSummary.taskStatuses,
+    taskLifecycle,
+    zeroValueCompletedTasks,
     sourceCount: stateSummary.sourceCount,
     evidenceCount: stateSummary.evidenceCount,
     findingCount: stateSummary.findingCount,
@@ -322,6 +360,7 @@ export function objectiveMetrics(records) {
     findings: records.reduce((sum, record) => sum + (record.findingCount ?? 0), 0),
     claims: records.reduce((sum, record) => sum + (record.claimCount ?? 0), 0),
     claimStatusCounts,
+    zeroValueCompletedTasks: records.reduce((sum, record) => sum + (record.zeroValueCompletedTasks?.length ?? 0), 0),
     searchCalls: records.reduce((sum, record) => sum + (record.searchCount ?? 0), 0),
     fetchCalls: records.reduce((sum, record) => sum + (record.fetchCount ?? 0), 0),
     retrievalCalls: records.reduce((sum, record) => sum + (record.retrievalCount ?? 0), 0),
@@ -334,6 +373,7 @@ export function objectiveMetrics(records) {
         completedRuns: rows.filter((record) => record.completed).length,
         controllerRounds: rows.map((record) => record.controllerRounds),
         supersededTasks: rows.reduce((sum, record) => sum + (record.taskStatusCounts?.superseded ?? 0), 0),
+        zeroValueCompletedTasks: rows.reduce((sum, record) => sum + (record.zeroValueCompletedTasks?.length ?? 0), 0),
         sources: rows.reduce((sum, record) => sum + (record.sourceCount ?? 0), 0),
         evidence: rows.reduce((sum, record) => sum + (record.evidenceCount ?? 0), 0),
         claims: rows.reduce((sum, record) => sum + (record.claimCount ?? 0), 0),

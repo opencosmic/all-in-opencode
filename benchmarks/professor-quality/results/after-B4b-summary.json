@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "benchmarkName": "professor-quality",
+  "generatedAt": "2026-09-14T22:12:28.985Z",
+  "cases": [
+    {
+      "id": "B1",
+      "category": "temporal-version",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B2",
+      "category": "negative-claim",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B3",
+      "category": "source-authority",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B4",
+      "category": "contradiction-version",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B5",
+      "category": "multi-aspect-correctness",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B6",
+      "category": "bounded-deep-retrieval",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B7",
+      "category": "frontier-supersession",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B1b",
+      "category": "blind-temporal-version",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B2b",
+      "category": "blind-negative-claim",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B3b",
+      "category": "blind-source-authority",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B4b",
+      "category": "blind-contradiction-version",
+      "blind": true,
+      "repeatRuns": 1
+    }
+  ],
+  "records": 1,
+  "objective": {
+    "runs": 1,
+    "completedRuns": 1,
+    "incompleteRuns": 0,
+    "completionRate": 1,
+    "controllerRounds": [
+      5
+    ],
+    "taskStatusCounts": {
+      "pending": 0,
+      "running": 0,
+      "completed": 5,
+      "failed": 0,
+      "superseded": 1
+    },
+    "sources": 5,
+    "evidence": 14,
+    "findings": 4,
+    "claims": 4,
+    "claimStatusCounts": {
+      "supported": 4,
+      "partial": 0,
+      "unsupported": 0,
+      "contradicted": 0
+    },
+    "zeroValueCompletedTasks": 0,
+    "searchCalls": 5,
+    "fetchCalls": 1,
+    "retrievalCalls": 6,
+    "stepCapBoundaryRuns": 0,
+    "failureReasons": [],
+    "byCase": {
+      "B4b": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          5
+        ],
+        "supersededTasks": 1,
+        "zeroValueCompletedTasks": 0,
+        "sources": 5,
+        "evidence": 14,
+        "claims": 4,
+        "claimStatusCounts": {
+          "supported": 4,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 5,
+        "fetchCalls": 1,
+        "durationsMs": [
+          157099
+        ]
+      }
+    }
+  },
+  "evaluation": {
+    "qualityJudgments": "not assigned by the runner; assess final reports against the frozen case prompts and rubric",
+    "blindAssessments": "B1b-B4b require manual PASS/PARTIAL/FAIL assessment with concise evidence"
+  }
+}

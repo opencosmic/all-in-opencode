@@ -58,6 +58,7 @@ test("Professor plugin uses the injected state directory and leaves report/state
     runId: start.runId,
     taskId: next.task.taskId,
     summary: "state persisted",
+    sources: [{ url: "https://example.com/plugin-state" }],
   }, {}))
   assert.equal(commit.runId, "run-plugin-001")
   const statePath = join(stateDirectory, "runs", "run-plugin-001", "state.json")

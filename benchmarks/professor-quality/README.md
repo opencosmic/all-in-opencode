@@ -63,3 +63,10 @@ Score each main case against the frozen prompt on a 0–5 scale for:
 The runner does not convert these judgments into a synthetic pass. Keep the
 before/after records and evaluator notes together so fewer retrieval calls do
 not hide a quality regression.
+
+All post-change benchmark runs explicitly pass the fixed model
+`opencode/muse-spark-1.3-contributor-free` with its `xhigh` variant to
+OpenCode. The frozen historical
+baseline was captured before this pin was added and its resolved model was not
+recorded, so comparisons must identify that model-control limitation rather
+than treating the baseline as an apples-to-apples model match.

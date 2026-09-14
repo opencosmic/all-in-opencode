@@ -1,11 +1,13 @@
 import { tool } from "@opencode-ai/plugin"
 
 import { createProfessorRuntime } from "./professor/runtime.js"
+import { SAFE_CONTROLLER_ROUND_LIMIT } from "./professor/state.js"
 
 const z = tool.schema
 
 const budgetArgs = z.object({
-  maxControllerRounds: z.number().int().min(1).max(500).optional(),
+  maxControllerRounds: z.number().int().min(1).max(SAFE_CONTROLLER_ROUND_LIMIT).optional().describe("Normal research rounds; the runtime reserves closure capacity from the Professor outer-step budget"),
+  completionReserve: z.number().int().min(0).max(500).optional().describe("Controller rounds retained for verification and report completion"),
   maxTasks: z.number().int().min(1).max(500).optional(),
   maxSources: z.number().int().min(1).max(500).optional(),
   maxEvidenceRecords: z.number().int().min(1).max(500).optional(),
@@ -126,14 +128,14 @@ export default async function ProfessorRuntime(_input = {}, options = {}) {
         },
       }),
       research_next: tool({
-        description: "Select the deterministic highest-priority pending research task, enforcing one running task and the configured research budget.",
+        description: "Select the deterministic highest-priority pending research task. The runtime marks redundant work as superseded when its question is already sufficient, enforces one running task, and returns closure-aware remaining capacity before selecting more research.",
         args: { runId: z.string() },
         async execute(args, context) {
           return json(await runtime.next(args, context))
         },
       }),
       research_commit: tool({
-        description: "Atomically record a bounded research task result. A satisfied completion criterion must name at least one evidenceId, evidenceIndex, or evidenceKey for the same question; evidenceIndexes and evidenceKeys may refer to evidence declared in this commit.",
+        description: "Atomically record a bounded research task result. A summary alone cannot complete an unresolved task: provide a canonical research result through source/evidence/finding/contradiction/coverage output, or set failed:true with a failure summary. If the linked question is already sufficient and there is no new result, the task is recorded as superseded. A satisfied completion criterion must name at least one evidenceId, evidenceIndex, or evidenceKey for the same question; evidenceIndexes and evidenceKeys may refer to evidence declared in this commit. Each evidence record must bind one bounded proposition to one declared source, canonical citation URL, fact, and supporting span.",
         args: {
           runId: z.string(),
           taskId: z.string(),
@@ -163,7 +165,7 @@ export default async function ProfessorRuntime(_input = {}, options = {}) {
         },
       }),
       research_verify: tool({
-        description: "Bind claims to known evidence and record coarse verification results. Critical unsupported, partial, or contradicted claims and open critical contradictions trigger bounded follow-up research.",
+        description: "Bind claims to known evidence and record coarse verification results, including deterministic counts for SUPPORTED, PARTIAL, UNSUPPORTED, and CONTRADICTED claims. Critical unsupported, partial, or contradicted claims and open critical contradictions trigger bounded follow-up research; weaker noncritical claims remain reportable uncertainty.",
         args: {
           runId: z.string(),
           claims: z.array(claimArgs).min(1),
@@ -174,7 +176,7 @@ export default async function ProfessorRuntime(_input = {}, options = {}) {
         },
       }),
       research_complete: tool({
-        description: "Persist the final Professor report and return runtime completion metadata (durationMs, durationDisplay, citationCount, searchCount, reportPath, and libraryPath) for a concise localized handoff. Completion is allowed only after verification, or with an explicit budget-exhaustion disclosure for unresolved uncertainty. Every HTTP(S) URL in the report must identify a source backed by structured reportable evidence from a verified claim (SUPPORTED, PARTIAL, UNSUPPORTED, or CONTRADICTED) or a reportable contradiction. Unused research sources and unrelated URLs are rejected.",
+        description: "Persist the final Professor report and return runtime completion metadata (durationMs, durationDisplay, citationCount, searchCount, claimStatusCounts, reportPath, and libraryPath) for a concise localized handoff. Completion is allowed only after verification, or with an explicit budget-exhaustion disclosure for unresolved uncertainty. Every HTTP(S) URL in the report must identify a source backed by structured reportable evidence from a verified claim (SUPPORTED, PARTIAL, UNSUPPORTED, or CONTRADICTED) or a reportable contradiction. Unused research sources and unrelated URLs are rejected; noncritical weak claims are included in remainingUncertainties.",
         args: {
           runId: z.string(),
           report: z.string(),

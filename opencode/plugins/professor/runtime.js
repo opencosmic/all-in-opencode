@@ -10,6 +10,7 @@ import {
   assertNonEmptyString,
   assertSafeId,
   canonicalizeUrl,
+  claimStatusCounts,
   createResearchState,
   criticalQuestionsIncomplete,
   hasHardBudget,
@@ -17,6 +18,7 @@ import {
   normalizeBudget,
   openCriticalContradictions,
   questionIsSufficient,
+  researchCapacity,
   sortFrontier,
   transitionState,
   validateResearchState,
@@ -143,6 +145,8 @@ function taskPayload(task) {
     priority: task.priority,
     reason: task.reason,
     status: task.status,
+    supersededAt: task.supersededAt ?? null,
+    supersededReason: task.supersededReason ?? null,
   }
 }
 
@@ -278,6 +282,34 @@ export function createProfessorRuntime(options = {}) {
     return state.counters.tasksCreated < state.budget.maxTasks
   }
 
+  function markTaskSuperseded(state, task, reason, events) {
+    if (task.status !== "pending" && task.status !== "running") return false
+    const at = timestamp()
+    task.status = "superseded"
+    task.supersededAt = at
+    task.supersededReason = assertNonEmptyString(reason, "superseded task reason", 2_000)
+    task.completedAt = at
+    state.counters.tasksSuperseded += 1
+    events.push(makeEvent(state, "task.superseded", {
+      taskId: task.taskId,
+      questionId: task.questionId,
+      reason: task.supersededReason,
+    }))
+    return true
+  }
+
+  function supersedeSufficientPendingTasks(state, events) {
+    let count = 0
+    for (const task of state.tasks) {
+      if (task.status !== "pending" || task.supersedeWhenSufficient === false) continue
+      const question = questionById(state, task.questionId)
+      if (!questionIsSufficient(question)) continue
+      if (question.status !== "sufficient") question.status = "sufficient"
+      if (markTaskSuperseded(state, task, "linked question already has sufficient evidence", events)) count += 1
+    }
+    return count
+  }
+
   function addTask(state, input, events) {
     if (!canCreateTask(state)) {
       markBudgetExhausted(state, "max_tasks", events)
@@ -300,6 +332,9 @@ export function createProfessorRuntime(options = {}) {
       createdAt: timestamp(),
       startedAt: null,
       completedAt: null,
+      supersededAt: null,
+      supersededReason: null,
+      supersedeWhenSufficient: input.supersedeWhenSufficient !== false,
     }
     state.tasks.push(task)
     state.counters.tasksCreated += 1
@@ -310,6 +345,9 @@ export function createProfessorRuntime(options = {}) {
       priority: task.priority,
       reason: task.reason,
     }))
+    if (task.supersedeWhenSufficient && questionIsSufficient(question)) {
+      markTaskSuperseded(state, task, "linked question already has sufficient evidence", events)
+    }
     return task
   }
 
@@ -336,6 +374,7 @@ export function createProfessorRuntime(options = {}) {
       type: "conflict-resolution",
       priority: "critical",
       reason: "critical contradiction remains open",
+      supersedeWhenSufficient: false,
     }, events)
   }
 
@@ -642,6 +681,7 @@ export function createProfessorRuntime(options = {}) {
     return {
       runId,
       status: state.status,
+      capacity: researchCapacity(state),
       digest: makeStateDigest(state),
     }
   }
@@ -656,46 +696,74 @@ export function createProfessorRuntime(options = {}) {
     const state = await load(input.runId)
     const events = []
     if (state.status === "completed" || state.status === "writing") {
-      return { runId: state.runId, status: state.status, task: null, digest: makeStateDigest(state) }
+      return { runId: state.runId, status: state.status, task: null, capacity: researchCapacity(state), digest: makeStateDigest(state) }
     }
-    if (state.status === "verifying") return { runId: state.runId, status: state.status, task: null, digest: makeStateDigest(state) }
+    if (state.status === "verifying") return { runId: state.runId, status: state.status, task: null, capacity: researchCapacity(state), digest: makeStateDigest(state) }
     if (state.status === "planning") transitionState(state, "researching")
 
     const running = state.tasks.find((task) => task.status === "running")
-    if (running) return { runId: state.runId, status: state.status, task: taskPayload(running), reused: true, digest: makeStateDigest(state) }
+    if (running) return { runId: state.runId, status: state.status, task: taskPayload(running), reused: true, capacity: researchCapacity(state), digest: makeStateDigest(state) }
 
-    if (state.counters.controllerRounds >= state.budget.maxControllerRounds) {
-      markBudgetExhausted(state, "max_controller_rounds", events)
-      beginVerification(state, events, "controller round budget reached")
+    supersedeSufficientPendingTasks(state, events)
+
+    const capacity = researchCapacity(state)
+    const hardBudgetReason = state.budget.exhausted
+      ? state.budget.exhaustionReason ?? "configured_limit"
+      : state.counters.controllerRounds >= state.budget.maxControllerRounds
+        ? "max_controller_rounds"
+        : state.counters.sourcesRecorded >= state.budget.maxSources
+          ? "max_sources"
+          : state.counters.evidenceRecorded >= state.budget.maxEvidenceRecords
+            ? "max_evidence_records"
+            : null
+
+    if (hardBudgetReason) {
+      markBudgetExhausted(state, hardBudgetReason, events)
+      const reason = hardBudgetReason === "max_controller_rounds"
+        ? "controller round budget reached"
+        : hardBudgetReason === "max_sources" || hardBudgetReason === "max_evidence_records"
+          ? "research record budget reached"
+          : "research budget was already exhausted"
+      beginVerification(state, events, reason)
       await persist(state, events)
-      return { runId: state.runId, status: state.status, task: null, budgetExhausted: true, digest: makeStateDigest(state) }
-    }
-    if (state.counters.sourcesRecorded >= state.budget.maxSources || state.counters.evidenceRecorded >= state.budget.maxEvidenceRecords) {
-      markBudgetExhausted(state, state.counters.sourcesRecorded >= state.budget.maxSources ? "max_sources" : "max_evidence_records", events)
-      beginVerification(state, events, "research record budget reached")
-      await persist(state, events)
-      return { runId: state.runId, status: state.status, task: null, budgetExhausted: true, digest: makeStateDigest(state) }
+      return { runId: state.runId, status: state.status, task: null, budgetExhausted: true, capacity: researchCapacity(state), digest: makeStateDigest(state) }
     }
 
     let pending = sortFrontier(state.tasks)
+    let incomplete = criticalQuestionsIncomplete(state).sort((left, right) => right.priority.localeCompare(left.priority))
+    let openContradictions = openCriticalContradictions(state)
+
+    if (pending.length === 0 && incomplete.length === 0 && openContradictions.length === 0) {
+      beginVerification(state, events, "frontier is complete")
+      await persist(state, events)
+      return { runId: state.runId, status: state.status, task: null, budgetExhausted: state.budget.exhausted, capacity: researchCapacity(state), digest: makeStateDigest(state) }
+    }
+
+    if (capacity.researchRoundsRemaining <= 0) {
+      markBudgetExhausted(state, "completion_reserve", events)
+      beginVerification(state, events, "normal research capacity reached; completion reserve retained")
+      await persist(state, events)
+      return { runId: state.runId, status: state.status, task: null, budgetExhausted: true, capacity: researchCapacity(state), digest: makeStateDigest(state) }
+    }
+
     if (pending.length === 0) {
-      const incomplete = criticalQuestionsIncomplete(state).sort((left, right) => right.priority.localeCompare(left.priority))
-      const openContradictions = openCriticalContradictions(state)
       let followUp = null
       if (openContradictions.length > 0) followUp = addConflictTask(state, openContradictions[0], events)
       else if (incomplete.length > 0) followUp = addVerificationTaskForGap(state, incomplete[0], events)
       if (followUp) pending = sortFrontier(state.tasks)
-      else if (openContradictions.length > 0 || incomplete.length > 0) {
+      incomplete = criticalQuestionsIncomplete(state).sort((left, right) => right.priority.localeCompare(left.priority))
+      openContradictions = openCriticalContradictions(state)
+      if (pending.length === 0 && (openContradictions.length > 0 || incomplete.length > 0)) {
         markBudgetExhausted(state, "max_tasks", events)
         beginVerification(state, events, "no task capacity remains for a critical gap")
-      } else {
+      } else if (pending.length === 0) {
         beginVerification(state, events, "frontier is complete")
       }
     }
 
     if (state.status === "verifying") {
       await persist(state, events)
-      return { runId: state.runId, status: state.status, task: null, budgetExhausted: state.budget.exhausted, digest: makeStateDigest(state) }
+      return { runId: state.runId, status: state.status, task: null, budgetExhausted: state.budget.exhausted, capacity: researchCapacity(state), digest: makeStateDigest(state) }
     }
 
     const task = pending[0]
@@ -723,6 +791,7 @@ export function createProfessorRuntime(options = {}) {
       status: state.status,
       task: taskPayload(task),
       controllerRound: state.counters.controllerRounds,
+      capacity: researchCapacity(state),
       digest: makeStateDigest(state),
     }
   }
@@ -739,15 +808,57 @@ export function createProfessorRuntime(options = {}) {
     const task = taskById(state, input.taskId)
     if (task.status !== "running") throw new Error(`task ${task.taskId} is not running`)
 
-    const events = []
-    const sources = normalizeSourceRecords(state, input.sources, events)
-    const evidence = addEvidenceRecords(state, input.evidence, sources, events)
-    const findings = addFindings(state, input.findings, evidence.newEvidenceIds, events)
-    const contradictions = addContradictions(state, input.contradictions, evidence.newEvidenceIds, events)
-    updateContradictions(state, input.contradictionUpdates, events)
-    applyQuestionUpdates(state, safeArray(input.questionUpdates, "questionUpdates"), evidence, events)
-
+    const sourceInputs = safeArray(input.sources, "sources")
+    const evidenceInputs = safeArray(input.evidence, "evidence")
+    const findingInputs = safeArray(input.findings, "findings")
+    const contradictionInputs = safeArray(input.contradictions, "contradictions")
+    const contradictionUpdates = safeArray(input.contradictionUpdates, "contradictionUpdates")
+    const questionUpdates = safeArray(input.questionUpdates, "questionUpdates")
     const followUpInputs = safeArray(input.followUpTasks, "followUpTasks")
+    const summary = input.summary === undefined ? "" : assertNonEmptyString(input.summary, "commit summary", 4_000)
+    const failed = input.failed === true
+    if (failed && !summary) throw new Error("a failed research task needs a failure summary")
+
+    const hasCriteriaResult = questionUpdates.some((update) => Array.isArray(update?.criteriaSatisfied) && update.criteriaSatisfied.length > 0)
+    const hasCanonicalResult = sourceInputs.length > 0
+      || evidenceInputs.length > 0
+      || findingInputs.length > 0
+      || contradictionInputs.length > 0
+      || contradictionUpdates.length > 0
+      || hasCriteriaResult
+      || followUpInputs.length > 0
+    if (!failed && !hasCanonicalResult) {
+      const question = questionById(state, task.questionId)
+      if (questionIsSufficient(question)) {
+        const events = []
+        markTaskSuperseded(state, task, "linked question already has sufficient evidence; no new result was committed", events)
+        await persist(state, events)
+        return {
+          runId: state.runId,
+          status: state.status,
+          taskId: task.taskId,
+          superseded: true,
+          created: {
+            sources: [],
+            evidence: [],
+            findings: [],
+            contradictions: [],
+            followUpTasks: [],
+          },
+          digest: makeStateDigest(state),
+        }
+      }
+      throw new Error("research_commit requires a canonical research result; use failed:true for a no-result failure")
+    }
+
+    const events = []
+    const sources = normalizeSourceRecords(state, sourceInputs, events)
+    const evidence = addEvidenceRecords(state, evidenceInputs, sources, events)
+    const findings = addFindings(state, findingInputs, evidence.newEvidenceIds, events)
+    const contradictions = addContradictions(state, contradictionInputs, evidence.newEvidenceIds, events)
+    updateContradictions(state, contradictionUpdates, events)
+    applyQuestionUpdates(state, questionUpdates, evidence, events)
+
     const followUpTasks = []
     for (const followUpInput of followUpInputs) {
       const followUp = addTask(state, {
@@ -757,14 +868,7 @@ export function createProfessorRuntime(options = {}) {
       if (!followUp) break
       followUpTasks.push(followUp)
     }
-
-    const summary = input.summary === undefined ? "" : assertNonEmptyString(input.summary, "commit summary", 4_000)
-    if (sources.newRecords.length === 0 && evidence.newEvidenceIds.length === 0 && findings.length === 0 && contradictions.length === 0 && followUpTasks.length === 0 && (input.questionUpdates ?? []).length === 0 && (input.contradictionUpdates ?? []).length === 0 && !summary) {
-      throw new Error("research_commit must record evidence, a finding, a contradiction, a follow-up, a question update, or a summary")
-    }
-
-    const failed = input.failed === true
-    if (failed && !summary) throw new Error("a failed research task needs a failure summary")
+    supersedeSufficientPendingTasks(state, events)
     task.status = failed ? "failed" : "completed"
     task.completedAt = timestamp()
     if (failed) state.counters.tasksFailed += 1
@@ -778,6 +882,7 @@ export function createProfessorRuntime(options = {}) {
       findings: findings.length,
       contradictions: contradictions.length,
       followUps: followUpTasks.length,
+      canonicalResult: hasCanonicalResult,
     }))
     updateBudgetAfterCommit(state, events)
     await persist(state, events)
@@ -826,6 +931,8 @@ export function createProfessorRuntime(options = {}) {
         runId: state.runId,
         view,
         claims: state.claims,
+        claimStatusCounts: claimStatusCounts(state.claims),
+        evidence: verificationEvidence(state),
         contradictions: state.contradictions,
         blockers: verificationBlockers(state),
       }
@@ -835,6 +942,7 @@ export function createProfessorRuntime(options = {}) {
 
   function verificationBlockers(state) {
     return {
+      claimStatusCounts: claimStatusCounts(state.claims),
       criticalQuestionsIncomplete: criticalQuestionsIncomplete(state).map(questionCoverageSummary),
       openCriticalContradictions: openCriticalContradictions(state).map((contradiction) => ({
         contradictionId: contradiction.contradictionId,
@@ -852,6 +960,29 @@ export function createProfessorRuntime(options = {}) {
     }
   }
 
+  function verificationEvidence(state) {
+    const evidenceIds = [
+      ...state.claims.flatMap((claim) => claim.evidenceIds),
+      ...state.contradictions.flatMap((contradiction) => [
+        ...(contradiction.sideA?.evidenceIds ?? []),
+        ...(contradiction.sideB?.evidenceIds ?? []),
+      ]),
+    ]
+    return [...new Set(evidenceIds)]
+      .map((evidenceId) => evidenceById(state, evidenceId))
+      .slice(-30)
+      .map((evidence) => ({
+        evidenceId: evidence.evidenceId,
+        questionId: evidence.questionId,
+        sourceId: evidence.sourceId,
+        citationUrl: evidence.citationUrl,
+        fact: evidence.fact,
+        supportingSpan: evidence.supportingSpan,
+        relation: evidence.relation,
+        qualifiers: evidence.qualifiers,
+      }))
+  }
+
   async function verify(input = {}, context = {}) {
     const runId = assertSafeId(input.runId, "runId")
     bindSession(runId, context.sessionID)
@@ -862,13 +993,14 @@ export function createProfessorRuntime(options = {}) {
     const state = await load(input.runId)
     if (!["researching", "verifying"].includes(state.status)) throw new Error(`research_verify requires researching or verifying phase, got ${state.status}`)
     if (state.tasks.some((task) => task.status === "running")) throw new Error("research_verify cannot run while a task is running")
+    const events = []
+    supersedeSufficientPendingTasks(state, events)
     const pending = sortFrontier(state.tasks)
     const budgetExhausted = state.budget.exhausted || hasHardBudget(state)
     if (state.status === "researching" && pending.length > 0 && !budgetExhausted) {
       throw new Error("research_verify cannot skip pending research tasks")
     }
 
-    const events = []
     if (state.status === "researching") beginVerification(state, events, budgetExhausted ? "budget reached" : "frontier ready")
     const claimsInput = safeArray(input.claims, "claims")
     if (claimsInput.length === 0) throw new Error("research_verify requires at least one claim")
@@ -932,6 +1064,7 @@ export function createProfessorRuntime(options = {}) {
             type: "verification",
             priority: "critical",
             reason: `claim verification is ${claim.verification}`,
+            supersedeWhenSufficient: false,
           }, events)
           if (!task) break
           followUpTasks.push(task)
@@ -980,6 +1113,7 @@ export function createProfessorRuntime(options = {}) {
         evidenceIds: claim.evidenceIds,
       })),
       blockers,
+      claimStatusCounts: claimStatusCounts(state.claims),
       digest: makeStateDigest(state),
     }
   }
@@ -991,6 +1125,9 @@ export function createProfessorRuntime(options = {}) {
     for (const question of blockers.criticalQuestionsIncomplete) lines.push(`- Critical question ${question.questionId} remains ${question.status} at ${question.satisfied}/${question.total} required criteria.`)
     for (const contradiction of blockers.openCriticalContradictions) lines.push(`- Critical contradiction remains open: ${contradiction.proposition}`)
     for (const claim of blockers.criticalClaims) lines.push(`- Critical claim ${claim.claimId} is ${claim.verification}: ${claim.statement}`)
+    for (const claim of state.claims.filter((candidate) => !candidate.critical && candidate.verification !== "SUPPORTED")) {
+      lines.push(`- Reportable claim ${claim.claimId} is ${claim.verification}: ${claim.statement}`)
+    }
     for (const contradiction of state.contradictions.filter((candidate) => candidate.status === "accepted_uncertainty")) lines.push(`- Accepted uncertainty: ${contradiction.proposition} (${contradiction.resolution})`)
     return lines
   }
@@ -1065,6 +1202,7 @@ export function createProfessorRuntime(options = {}) {
       sourcesUsed: reportableSourceIds.size,
       remainingUncertainties: limitations,
       contradictionCount: state.contradictions.length,
+      claimStatusCounts: claimStatusCounts(state.claims),
     }
     state.libraryPath = null
     state.libraryLinkError = null
@@ -1083,6 +1221,7 @@ export function createProfessorRuntime(options = {}) {
         durationDisplay: state.metrics.durationDisplay,
         citationCount: state.metrics.citationCount,
         searchCount: state.metrics.searchCount,
+        claimStatusCounts: state.metrics.claimStatusCounts,
       }),
       makeEvent(state, "research.completed", {
         reportPath,
@@ -1110,6 +1249,7 @@ export function createProfessorRuntime(options = {}) {
       sourcesUsed: state.metrics.sourcesUsed,
       remainingUncertainties: state.metrics.remainingUncertainties,
       contradictionCount: state.metrics.contradictionCount,
+      claimStatusCounts: state.metrics.claimStatusCounts,
       metrics: { ...state.metrics },
       digest: makeStateDigest(state),
     }

@@ -10,6 +10,8 @@ import {
   detectOpenCodeVersion,
   loadCases,
   normalizeProfessorRun,
+  PROFESSOR_BENCHMARK_MODEL,
+  PROFESSOR_BENCHMARK_VARIANT,
   repoRootFromBenchmark,
   resetResultsFile,
 } from "./lib.mjs"
@@ -66,6 +68,8 @@ function executeProfessor(caseItem, run, config) {
     const child = spawn("opencode", [
       "run",
       "--agent", "Professor",
+      "--model", PROFESSOR_BENCHMARK_MODEL,
+      "--variant", PROFESSOR_BENCHMARK_VARIANT,
       "--dir", repoRoot,
       "--format", "json",
       caseItem.query,
@@ -142,6 +146,8 @@ async function main() {
       record.opencodeVersion = version
       record.configIsolation = "temporary XDG config/data/state/cache homes plus OPENCODE_CONFIG"
       record.benchmarkName = option("--label") ?? "professor-quality"
+      record.benchmarkModel = PROFESSOR_BENCHMARK_MODEL
+      record.benchmarkVariant = PROFESSOR_BENCHMARK_VARIANT
       await appendFile(resultsPath, `${JSON.stringify(record)}\n`)
       console.log(`  exit=${record.processExitCode} status=${record.finalStatus} completed=${record.completed} rounds=${record.controllerRounds} tasks=${JSON.stringify(record.taskStatusCounts)} searches=${record.searchCount} fetches=${record.fetchCount} steps=${record.stepCount} durationMs=${record.durationMs}`)
     }
