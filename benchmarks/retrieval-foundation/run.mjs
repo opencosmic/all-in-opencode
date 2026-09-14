@@ -16,6 +16,20 @@ import {
 const benchmarkDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(benchmarkDir, "../..")
 const timeoutMs = 180_000
+const inheritedEnvironmentKeysToClear = [
+  "OPENCODE_CONFIG",
+  "OPENCODE_CONFIG_DIR",
+  "OPENCODE_CONFIG_CONTENT",
+  "OPENCODE_PURE",
+  "AIO_DATA_ROOT",
+  "OPENCODE_WORKFLOW_DATA_ROOT",
+]
+
+export function buildChildEnvironment(inheritedEnvironment = process.env, configEnvironment = {}) {
+  const environment = { ...inheritedEnvironment }
+  for (const key of inheritedEnvironmentKeysToClear) delete environment[key]
+  return { ...environment, ...configEnvironment }
+}
 
 function option(name) {
   const index = process.argv.indexOf(name)
@@ -56,10 +70,7 @@ function executeOpenCode(caseItem, run) {
       caseItem.query,
     ], {
       cwd: repoRoot,
-      env: {
-        ...process.env,
-        ...run.config.env,
-      },
+      env: buildChildEnvironment(process.env, run.config.env),
       stdio: ["ignore", "pipe", "pipe"],
     })
     let timedOut = false
@@ -117,7 +128,7 @@ async function main() {
   await mkdir(dirname(resultsPath), { recursive: true })
   if (hasOption("--fresh")) await resetResultsFile(resultsPath)
   const keys = hasOption("--fresh") ? new Set() : await existingKeys(resultsPath)
-  const isolated = await createIsolatedConfig(repoRoot)
+  const isolated = await createIsolatedConfig(repoRoot, process.env)
   const caseById = new Map(cases.map((item) => [item.id, item]))
   const run = { config: isolated }
   try {
@@ -133,7 +144,7 @@ async function main() {
       console.log(`run ${key}: ${caseById.get(item.caseId).query}`)
       const record = await executeOpenCode(caseById.get(item.caseId), { ...item, config: isolated })
       record.benchmarkName = benchmarkName
-      record.configIsolation = "temporary XDG_CONFIG_HOME plus OPENCODE_CONFIG"
+      record.configIsolation = "temporary XDG config/data/state/cache homes plus OPENCODE_CONFIG"
       record.opencodeVersion = opencodeVersion
       await appendFile(resultsPath, `${JSON.stringify(record)}\n`)
       console.log(`  exit=${record.processExitCode} searches=${record.searchCalls} fetches=${record.fetchCalls} steps=${record.stepCount} durationMs=${record.durationMs}`)

@@ -88,6 +88,9 @@ jobs:
               ;;
           esac
 
+      - name: Run deterministic retrieval benchmark harness
+        run: node --test benchmarks/retrieval-foundation/harness.test.mjs
+
       - name: Run default-parallel test suite
         run: node --test opencode/tests/*.test.js
 

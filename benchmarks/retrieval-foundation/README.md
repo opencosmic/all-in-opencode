@@ -9,7 +9,11 @@ future Deep Research agent.
 
 The runner invokes the installed OpenCode CLI with the following isolation:
 
-- a temporary `XDG_CONFIG_HOME` containing symlinks to this worktree's
+- temporary `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and
+  `XDG_CACHE_HOME` directories; the data/state/cache roots prevent persistent
+  OpenCode databases, sessions, logs, and caches from receiving benchmark
+  writes;
+- a temporary config directory containing symlinks to this worktree's
   `opencode/agents`, `commands`, `plugins`, `categories.json`, and `tui.json`;
 - `OPENCODE_CONFIG` set to this worktree's `opencode/opencode.jsonc`;
 - `--dir` set to this evaluation worktree;
@@ -17,11 +21,16 @@ The runner invokes the installed OpenCode CLI with the following isolation:
 
 At startup it resolves the installed version through `opencode --version` and
 records that value in each run; the original committed result set was produced
-with `1.18.30`.
+with `1.18.30`. Inherited `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR`,
+`OPENCODE_CONFIG_CONTENT`, `OPENCODE_PURE`, `AIO_DATA_ROOT`, and
+`OPENCODE_WORKFLOW_DATA_ROOT` values are cleared before a child starts. If
+authentication is available through an inherited auth-content variable it is
+preserved; otherwise an existing OpenCode auth file is copied into the
+temporary data root for the live run. Global config and runtime state are not
+modified, and temporary credentials/state are removed with the run directory.
 
-This avoids repointing or mutating `~/.config/opencode`. OpenCode's normal data,
-authentication, cache, and log directories remain outside the repository; the
-runner does not copy credentials or runtime state into Git.
+This avoids repointing or mutating `~/.config/opencode` or the user's persistent
+OpenCode data. The runner does not copy credentials or runtime state into Git.
 
 ## Frozen benchmark
 

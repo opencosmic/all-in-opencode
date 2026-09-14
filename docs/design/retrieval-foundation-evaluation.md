@@ -21,6 +21,14 @@ This section preserves the original 24-case evaluation conclusion. The targeted
 supplemental extraction stress evaluation and its updated decision are recorded
 below; it does not rewrite the original run evidence.
 
+## Current aio status
+
+This evaluation predates the current Professor implementation. Its final
+retrieval decision remains applicable to the current aio architecture: Professor
+should continue to use native `websearch`/`webfetch` for source acquisition.
+The evaluation does not justify adding `fetch_evidence` or a retrieval-provider
+abstraction at this time.
+
 ## Repository and baseline
 
 - Base: `main` at `9e91fe032e7e48d4c440b0d7081c2a02f0819fac`.
@@ -255,6 +263,11 @@ source class was demonstrated. Ego Browser/browser fallback is not justified.
 Deep Research will still need a planner, research state, iterative gap
 analysis, verification, stop criteria, and report synthesis. Those are
 orchestration/state responsibilities and should not be put into Search Core.
+
+This evaluation is about web source acquisition and extraction. It does not
+prove that future internal research-memory features will never need embeddings,
+Evidence RAG, Report RAG, section-level retrieval, vector indexes, or evidence
+graphs; those solve a separate internal-memory problem.
 
 Shared retrieval responsibilities should remain narrow:
 

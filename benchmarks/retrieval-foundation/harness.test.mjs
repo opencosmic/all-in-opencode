@@ -22,6 +22,7 @@ import {
   validateExtractionScores,
   validateScores,
 } from "./lib.mjs"
+import { buildChildEnvironment } from "./run.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -125,6 +126,34 @@ test("installed OpenCode version parsing is explicit and deterministic", () => {
   assert.equal(parseOpenCodeVersion("opencode 1.18.30\n"), "1.18.30")
   assert.equal(parseOpenCodeVersion("1.19.0-beta.2"), "1.19.0-beta.2")
   assert.throws(() => parseOpenCodeVersion("OpenCode version unavailable"), /could not parse/)
+})
+
+test("benchmark child environment clears inherited overrides and preserves runner config", () => {
+  const processEnvironmentBefore = { ...process.env }
+  const childEnvironment = buildChildEnvironment({
+    ...process.env,
+    OPENCODE_CONFIG: "/user/config.jsonc",
+    OPENCODE_CONFIG_DIR: "/user/config",
+    OPENCODE_CONFIG_CONTENT: JSON.stringify({ plugin: ["external-plugin"] }),
+    OPENCODE_PURE: "1",
+    AIO_DATA_ROOT: "/user/aio-data",
+    OPENCODE_WORKFLOW_DATA_ROOT: "/user/legacy-data",
+    PATH: "/preserved/path",
+  }, {
+    XDG_CONFIG_HOME: "/tmp/benchmark-config",
+    OPENCODE_CONFIG: "/tmp/benchmark-config/opencode.jsonc",
+  })
+
+  for (const key of [
+    "OPENCODE_CONFIG_CONTENT",
+    "OPENCODE_PURE",
+    "AIO_DATA_ROOT",
+    "OPENCODE_WORKFLOW_DATA_ROOT",
+  ]) assert.equal(childEnvironment[key], undefined, `${key} leaked into child environment`)
+  assert.equal(childEnvironment.OPENCODE_CONFIG, "/tmp/benchmark-config/opencode.jsonc")
+  assert.equal(childEnvironment.OPENCODE_CONFIG_DIR, undefined)
+  assert.equal(childEnvironment.PATH, "/preserved/path")
+  assert.deepEqual({ ...process.env }, processEnvironmentBefore)
 })
 
 test("citation URL normalization removes presentation punctuation without changing balanced URL syntax", () => {

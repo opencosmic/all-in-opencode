@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
-import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
+import { copyFile, mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises"
+import { homedir, tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { promisify } from "node:util"
 
@@ -216,10 +216,31 @@ export async function detectOpenCodeVersion(command = "opencode") {
   return parseOpenCodeVersion(`${result.stdout}\n${result.stderr}`)
 }
 
-export async function createIsolatedConfig(repoRoot) {
+export async function createIsolatedConfig(repoRoot, inheritedEnvironment = process.env) {
   const root = await mkdtemp(join(tmpdir(), "opencode-retrieval-config-"))
-  const configDir = join(root, "opencode")
-  await mkdir(configDir)
+  const configHome = join(root, "config")
+  const configDir = join(configHome, "opencode")
+  const dataHome = join(root, "data")
+  const stateHome = join(root, "state")
+  const cacheHome = join(root, "cache")
+  await Promise.all([
+    configDir,
+    join(dataHome, "opencode"),
+    stateHome,
+    cacheHome,
+  ].map((path) => mkdir(path, { recursive: true })))
+  if (!("OPENCODE_AUTH_CONTENT" in inheritedEnvironment)) {
+    const sourceDataHome = inheritedEnvironment.XDG_DATA_HOME
+      ?? join(inheritedEnvironment.HOME ?? homedir(), ".local", "share")
+    try {
+      await copyFile(
+        join(sourceDataHome, "opencode", "auth.json"),
+        join(dataHome, "opencode", "auth.json"),
+      )
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error
+    }
+  }
   const links = [
     ["agents", join(repoRoot, "opencode/agents")],
     ["commands", join(repoRoot, "opencode/commands")],
@@ -234,7 +255,10 @@ export async function createIsolatedConfig(repoRoot) {
     root,
     configDir,
     env: {
-      XDG_CONFIG_HOME: root,
+      XDG_CONFIG_HOME: configHome,
+      XDG_DATA_HOME: dataHome,
+      XDG_STATE_HOME: stateHome,
+      XDG_CACHE_HOME: cacheHome,
       OPENCODE_CONFIG: join(repoRoot, "opencode/opencode.jsonc"),
     },
   }
