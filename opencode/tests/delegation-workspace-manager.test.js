@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -32,7 +32,7 @@ async function fixture(t) {
   }
 }
 
-test("prepare creates and registers a primary linked worktree", async (t) => {
+test("prepare adopts a clean protected checkout as an in-place primary", async (t) => {
   const { repository, manager } = await fixture(t)
   const baseline = await git(repository, ["rev-parse", "HEAD"])
   const prepared = await manager.prepare({ task_id: "task-1" }, repository)
@@ -40,9 +40,13 @@ test("prepare creates and registers a primary linked worktree", async (t) => {
   assert.match(prepared.workspace_id, /^ws_/)
   assert.equal(prepared.branch, "feat/task-1")
   assert.equal(prepared.role, "primary")
+  assert.equal(prepared.directory, await realpath(repository))
+  assert.equal(prepared.managed_worktree, false)
+  assert.equal(await git(repository, ["branch", "--show-current"]), prepared.branch)
   assert.equal(await git(prepared.directory, ["branch", "--show-current"]), prepared.branch)
   assert.equal(await git(prepared.directory, ["rev-parse", "HEAD"]), baseline)
   assert.equal(await git(prepared.directory, ["rev-parse", "--path-format=absolute", "--git-common-dir"]), prepared.git_common_dir)
+  assert.equal((await git(repository, ["worktree", "list", "--porcelain"])).split(/\n\n+/).filter(Boolean).length, 1)
 })
 
 test("multiple workspaces may start from the same deterministic baseline", async (t) => {
@@ -78,13 +82,20 @@ test("dirty release is refused and preserves the worktree", async (t) => {
   const { repository, manager } = await fixture(t)
   const prepared = await manager.prepare({ task_id: "dirty-release" }, repository)
   await writeFile(join(prepared.directory, "untracked.txt"), "preserve me\n")
-  await assert.rejects(manager.release(prepared.workspace_id), /dirty; preserving/)
+  await assert.rejects(manager.release(prepared.workspace_id), /current or externally-owned|dirty; preserving/)
   assert.equal(await readFile(join(prepared.directory, "untracked.txt"), "utf8"), "preserve me\n")
 })
 
 test("clean integrated release uses only normal removal and safe branch deletion", async (t) => {
   const { repository, manager } = await fixture(t)
-  const prepared = await manager.prepare({ task_id: "safe-release" }, repository)
+  const primary = await manager.prepare({ change_id: "safe-release", task_id: "safe-primary" }, repository)
+  const prepared = await manager.prepare({
+    change_id: "safe-release",
+    task_id: "safe-release",
+    role: "child",
+    parent_workspace_id: primary.workspace_id,
+    isolation_reason: "exercise safe child release",
+  }, repository)
   const released = await manager.release(prepared.workspace_id)
   assert.equal(released.status, "released")
   await assert.rejects(readFile(join(prepared.directory, "tracked.txt")), /ENOENT/)
@@ -96,15 +107,22 @@ test("clean integrated release uses only normal removal and safe branch deletion
 
 test("patch-equivalent cherry-picked work releases normally and retains its non-ancestor branch", async (t) => {
   const { repository, manager } = await fixture(t)
-  const prepared = await manager.prepare({ task_id: "cherry-release" }, repository)
+  const primary = await manager.prepare({ change_id: "cherry-release", task_id: "cherry-primary" }, repository)
+  const prepared = await manager.prepare({
+    change_id: "cherry-release",
+    task_id: "cherry-release",
+    role: "child",
+    parent_workspace_id: primary.workspace_id,
+    isolation_reason: "exercise patch-equivalent child release",
+  }, repository)
   await writeFile(join(prepared.directory, "tracked.txt"), "cherry-picked\n")
   await git(prepared.directory, ["add", "tracked.txt"])
   await git(prepared.directory, ["commit", "-m", "workspace change"])
   const workspaceCommit = await git(prepared.directory, ["rev-parse", "HEAD"])
-  await writeFile(join(repository, "canonical.txt"), "canonical divergence\n")
-  await git(repository, ["add", "canonical.txt"])
-  await git(repository, ["commit", "-m", "canonical divergence"])
-  await git(repository, ["cherry-pick", workspaceCommit])
+  await writeFile(join(primary.directory, "canonical.txt"), "canonical divergence\n")
+  await git(primary.directory, ["add", "canonical.txt"])
+  await git(primary.directory, ["commit", "-m", "canonical divergence"])
+  await git(primary.directory, ["cherry-pick", workspaceCommit])
 
   const released = await manager.release(prepared.workspace_id)
   assert.equal(released.status, "released")

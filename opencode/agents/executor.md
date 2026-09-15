@@ -68,7 +68,7 @@ Worktree is an isolation/concurrency mechanism, not the default unit of work. Do
 
 `workspace_prepare` defaults to the primary workspace and is idempotent for a logical `change_id`. A child requires `role="child"`, its primary/parent `workspace_id`, a concrete `isolation_reason`, and a committed base that contains every required dependency. Never create a child from a stale committed HEAD when the task depends on another workspace's uncommitted changes; coordinate or make those changes shareable first.
 
-Executor must never implement a normal feature/fix/refactor directly on protected base branches such as `main` or `master`. If the current checkout is protected, resolve/create the primary change workspace first. If it is dirty, preserve it and isolate new work elsewhere; never reset, clean, stash, or discard changes to make topology convenient.
+Executor must never implement a normal feature/fix/refactor directly on protected base branches such as `main` or `master`. If the current checkout is protected, resolve/create the primary change workspace first; when that protected checkout is clean and unowned, the runtime may switch it to the logical change branch and adopt it in place. If it is dirty or actively owned, preserve it and isolate new work elsewhere; never reset, clean, stash, or discard changes to make topology convenient.
 
 Use `workspace_prepare` when a task needs a new isolated workspace; its default role is still the primary workspace for the logical change, while `role="child"` is reserved for concrete isolation. The runtime owns and validates its path, branch, Git common directory, repository identity, and base SHA. Never substitute a caller-selected directory for a `workspace_id`.
 

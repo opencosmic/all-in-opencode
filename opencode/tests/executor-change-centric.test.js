@@ -17,10 +17,10 @@ async function git(directory, args) {
   return stdout.trim()
 }
 
-async function fixture(t) {
+async function fixture(t, baseBranch = "main") {
   const root = await mkdtemp(join(tmpdir(), "executor-change-centric-test-"))
   const repository = join(root, "repository")
-  await execFileAsync("git", ["init", "-b", "main", repository])
+  await execFileAsync("git", ["init", "-b", baseBranch, repository])
   await git(repository, ["config", "user.name", "Executor Test"])
   await git(repository, ["config", "user.email", "executor@example.invalid"])
   await writeFile(join(repository, "tracked.txt"), "baseline\n")
@@ -77,11 +77,35 @@ test("clean main resolves a stable primary change workspace", async (t) => {
 
   assert.equal(first.role, "primary")
   assert.equal(first.branch, "feat/change-x")
+  assert.equal(first.directory, await realpath(repository))
+  assert.equal(first.managed_worktree, false)
   assert.equal(first.directory, second.directory)
   assert.equal(first.workspace_id, second.workspace_id)
   assert.equal(second.reused, true)
-  assert.equal(await git(repository, ["branch", "--show-current"]), "main")
-  assert.equal(await worktreeCount(repository), 2)
+  assert.equal(await git(repository, ["branch", "--show-current"]), "feat/change-x")
+  assert.equal(await worktreeCount(repository), 1)
+})
+
+test("master is selected as the protected base when main does not exist", async (t) => {
+  const { repository, manager } = await fixture(t, "master")
+  const baseline = await git(repository, ["rev-parse", "HEAD"])
+  await git(repository, ["switch", "-c", "feat/unrelated-source"])
+  await writeFile(join(repository, "unrelated.txt"), "unrelated source\n")
+  await git(repository, ["add", "unrelated.txt"])
+  await git(repository, ["commit", "-m", "unrelated source"])
+  const unrelatedHead = await git(repository, ["rev-parse", "HEAD"])
+
+  const preflight = await manager.preflight({ change_id: "master-based-change" }, repository)
+  assert.equal(preflight.repository.protected_base_branch, "master")
+  assert.equal(preflight.repository.protected_base_head, baseline)
+
+  const prepared = await manager.prepare({ change_id: "master-based-change", task_id: "master-task" }, repository)
+  assert.equal(prepared.branch, "feat/master-based-change")
+  assert.equal(prepared.base_sha, baseline)
+  assert.equal(await git(prepared.directory, ["rev-parse", "HEAD"]), baseline)
+  assert.equal(await git(repository, ["rev-parse", "HEAD"]), unrelatedHead)
+  assert.equal(await git(repository, ["branch", "--show-current"]), "feat/unrelated-source")
+  await assert.rejects(git(repository, ["show-ref", "--verify", "refs/heads/main"]))
 })
 
 test("dirty main is preserved while the primary workspace starts elsewhere", async (t) => {
@@ -145,6 +169,35 @@ test("a dirty matching branch with explicit unrelated ownership is isolated with
   assert.equal(await git(repository, ["branch", "--show-current"]), "feat/same-change")
   assert.equal(await readFile(dirtyPath, "utf8"), "preserve this work\n")
   await manager.release(prepared.workspace_id, repository)
+})
+
+test("an unrelated dirty primary is superseded by its replacement", async (t) => {
+  const { repository, manager } = await fixture(t)
+  const original = await manager.prepare({ change_id: "replacement-change", task_id: "original-task" }, repository)
+  const dirtyPath = join(original.directory, "old-primary-work.txt")
+  await writeFile(dirtyPath, "preserve the old primary\n")
+
+  const replacement = await manager.prepare({
+    change_id: "replacement-change",
+    task_id: "replacement-task",
+    dirty_ownership: "unrelated",
+  }, repository)
+  assert.match(replacement.branch, /^feat\/replacement-change-isolated-/)
+  assert.notEqual(replacement.workspace_id, original.workspace_id)
+  assert.equal(replacement.role, "primary")
+
+  const oldManifest = await manager.get(original.workspace_id, { validate: false })
+  assert.equal(oldManifest.status, "superseded")
+  assert.equal(oldManifest.canonical, false)
+  assert.equal(oldManifest.superseded_by, replacement.workspace_id)
+  assert.equal(await readFile(dirtyPath, "utf8"), "preserve the old primary\n")
+
+  const resumed = await manager.prepare({ change_id: "replacement-change", task_id: "resume-task" }, repository)
+  assert.equal(resumed.workspace_id, replacement.workspace_id)
+  assert.equal(resumed.reused, true)
+  const activePrimaries = (await manager.listManifests(repository, { changeID: "replacement-change" }))
+    .filter((workspace) => workspace.role === "primary" && workspace.status === "active")
+  assert.deepEqual(activePrimaries.map((workspace) => workspace.workspace_id), [replacement.workspace_id])
 })
 
 test("unknown ownership on a dirty matching branch fails closed", async (t) => {
@@ -228,8 +281,8 @@ test("child workspaces require isolation evidence and release against the primar
   const released = await manager.release(child.workspace_id, repository)
   assert.equal(released.status, "released")
   assert.ok(["ancestor", "patch-equivalent"].includes(released.integration))
-  assert.equal(released.branch_preserved, true)
-  assert.equal(await worktreeCount(repository), 2)
+  assert.equal(released.branch_preserved, false)
+  assert.equal(await worktreeCount(repository), 1)
 })
 
 test("a child cannot be based on required uncommitted primary changes", async (t) => {
@@ -298,6 +351,49 @@ test("Executor preflight is available before topology and records repository rea
   }, context)
   assert.equal(workspace.role, "primary")
   assert.equal(workspace.branch, "feat/preflight-change")
+})
+
+test("preflight and runtime guards see active directory ownership from another change", async (t) => {
+  const { root, repository } = await fixture(t)
+  const runtime = await DelegationRuntime.create({
+    client: fakeClient(),
+    stateDirectory: join(root, "state"),
+    categories: { quick: { description: "quick", model: "example/model" } },
+  })
+  const context = { sessionID: "executor", messageID: "turn", agent: "Executor", directory: repository }
+  const workspace = await runtime.workspacePrepare({
+    change_id: "contended-change",
+    task_id: "primary-task",
+  }, context)
+  const competing = await runtime.registry.register({
+    parent_session_id: "other-executor",
+    parent_message_id: "other-turn",
+    parent_agent: "Executor",
+    parent_directory: await realpath(repository),
+    execution_directory: await realpath(repository),
+    workspace_id: null,
+    change_id: "other-change",
+    category: "quick",
+    agent: "Implementer",
+    description: "active work from another change",
+    background: false,
+  })
+  await runtime.registry.start(competing.task_id, { child_session_id: "other-child" })
+
+  const preflight = await runtime.executionPreflight({ change_id: "contended-change" }, context)
+  assert.equal(preflight.contention.current_workspace_contended, true)
+  assert.equal(preflight.decisions.workspace_strategy, "primary-contended")
+  assert.equal(preflight.recommended_primary_workspace, null)
+  assert.equal(preflight.persisted.tasks[0].change_id, "other-change")
+
+  await assert.rejects(runtime.delegate({
+    workspace_id: workspace.workspace_id,
+    change_id: "contended-change",
+    category: "quick",
+    description: "must wait for the competing directory",
+    prompt: "work",
+    run_in_background: true,
+  }, context), /active task; serialize.*isolated child/)
 })
 
 test("Executor implementation delegation cannot target main, while a resolved change workspace can", async (t) => {

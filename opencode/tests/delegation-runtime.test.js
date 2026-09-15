@@ -123,7 +123,7 @@ test("category delegation routes to Implementer with parent and managed workspac
   const params = {}
   runtime.applyChatParams(result.child_session_id, params)
   assert.deepEqual(params, {})
-  assert.notEqual(workspace.directory, repository)
+  assert.equal(workspace.directory, await realpath(repository))
 })
 
 test("category without a variant sends only the model reference", async (t) => {
@@ -324,7 +324,17 @@ test("prompt transport failure surfaces without fallback", async (t) => {
 
 test("model startup failure terminalizes its task and releases the workspace activity guard", async (t) => {
   const { client, runtime, context } = await fixture(t)
-  const workspace = await runtime.workspacePrepare({ task_id: "prompt-admission" }, context)
+  const primary = await runtime.workspacePrepare({
+    change_id: "prompt-admission",
+    task_id: "prompt-admission-primary",
+  }, context)
+  const workspace = await runtime.workspacePrepare({
+    change_id: "prompt-admission",
+    task_id: "prompt-admission",
+    role: "child",
+    parent_workspace_id: primary.workspace_id,
+    isolation_reason: "exercise child startup failure cleanup",
+  }, context)
   client.state.promptFailures = 1
   await assert.rejects(runtime.delegate({
     workspace_id: workspace.workspace_id,

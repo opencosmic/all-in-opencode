@@ -64,6 +64,10 @@ function isProtectedBranch(branch, protectedBranches = PROTECTED_BASE_BRANCHES) 
   return protectedBranches.includes(normalized)
 }
 
+function sameDirectory(left, right) {
+  return Boolean(left && right) && resolve(left) === resolve(right)
+}
+
 async function pathExists(path) {
   try {
     await access(path)
@@ -174,7 +178,7 @@ export class WorkspaceManager {
     for (const file of files.filter((name) => name.endsWith(".json"))) {
       const manifest = await readJson(join(directory, file))
       if (!manifest) continue
-      if (!includeReleased && manifest.status === "released") continue
+      if (!includeReleased && ["released", "superseded"].includes(manifest.status)) continue
       if (changeID !== undefined && manifest.change_id !== changeID && manifest.task_id !== taskID) continue
       manifests.push(manifest)
     }
@@ -223,9 +227,16 @@ export class WorkspaceManager {
       }
     }
 
+    const knownDirectories = new Set([
+      repository.root,
+      ...current.worktrees.map((worktree) => worktree.directory),
+      ...validWorkspaces.map((workspace) => workspace.directory),
+    ].filter(Boolean).map((directory) => resolve(directory)))
     const analysis = analyzeExecutionTasks(tasks)
     const relevantPersistedTasks = (Array.isArray(persistedTasks) ? persistedTasks : [])
-      .filter((task) => task.change_id === changeID || validWorkspaces.some((workspace) => workspace.workspace_id === task.workspace_id))
+      .filter((task) => task.change_id === changeID
+        || validWorkspaces.some((workspace) => workspace.workspace_id === task.workspace_id)
+        || (task.execution_directory && knownDirectories.has(resolve(task.execution_directory))))
       .map((task) => ({
         task_id: task.task_id,
         change_id: task.change_id ?? null,
@@ -244,22 +255,20 @@ export class WorkspaceManager {
     const workspaceIsContended = (workspace) => Boolean(
       workspace && (
         activeWorkspaceIDs.includes(workspace.workspace_id)
-        || activeTasks.some((task) => task.execution_directory === workspace.directory)
+        || activeTasks.some((task) => sameDirectory(task.execution_directory, workspace.directory))
       ),
     )
     const desiredBranches = changeID ? primaryBranchCandidates(changeID, requestedBranch) : []
     const existingPrimary = validWorkspaces.find((workspace) => workspace.role === "primary") ?? null
     const dirtyOwnershipProven = dirtyOwnership === "same-change" || dirtyChangesBelongToChange === true
     const existingPrimaryDirty = Boolean(existingPrimary?.dirty_changes?.length)
+    const currentWorkspaceContended = activeTasks.some((task) => sameDirectory(task.execution_directory, repository.root))
     const currentMatchesChange = Boolean(
       desiredBranches.length
       && desiredBranches.includes(current.branch)
       && !current.protected,
-    ) && (!current.status.length || dirtyOwnershipProven)
-    const protectedBase = current.protected
-      ? current.branch
-      : current.worktrees.find((worktree) => isProtectedBranch(worktree.branch, this.protectedBranches))?.branch
-        ?? this.protectedBranches[0]
+    ) && (!current.status.length || dirtyOwnershipProven) && !currentWorkspaceContended
+    const protectedBase = await this.configuredProtectedBaseBranch(repository, current)
     const protectedBaseHead = protectedBase
       ? await this.git(repository.root, ["rev-parse", "--verify", "--end-of-options", `${protectedBase}^{commit}`]).catch(() => null)
       : null
@@ -316,7 +325,7 @@ export class WorkspaceManager {
       active: activeTasks.length > 0,
       active_tasks: activeTasks,
       active_workspace_ids: activeWorkspaceIDs,
-      current_workspace_contended: activeTasks.some((task) => task.execution_directory === repository.root),
+      current_workspace_contended: currentWorkspaceContended,
     }
     return {
       version: 1,
@@ -353,7 +362,9 @@ export class WorkspaceManager {
         child_worktrees_require_reason: true,
         implementation_on_protected_base: false,
       },
-      recommended_primary_workspace: existingPrimary && (!existingPrimaryDirty || dirtyOwnershipProven)
+      recommended_primary_workspace: existingPrimary
+        && !workspaceIsContended(existingPrimary)
+        && (!existingPrimaryDirty || dirtyOwnershipProven)
         ? existingPrimary
         : currentMatchesChange
         ? {
@@ -379,6 +390,7 @@ export class WorkspaceManager {
       change_id: changeID,
       task_id: taskID,
       branch: input.branch,
+      persisted_tasks: input.persisted_tasks,
       dirty_ownership: input.dirty_ownership,
       dirty_changes_belong_to_change: input.dirty_changes_belong_to_change,
     }, repository.root)
@@ -388,21 +400,73 @@ export class WorkspaceManager {
     return this.preparePrimary(input, taskID, changeID, repository, preflight)
   }
 
+  async directoryHasActiveTasks(directory, preflight) {
+    const persistedContention = preflight?.contention?.active_tasks?.some((task) =>
+      sameDirectory(task.execution_directory, directory))
+    return Boolean(persistedContention) || await this.hasActiveDirectoryTasks(directory)
+  }
+
+  async workspaceHasActiveTasks(workspace, preflight) {
+    const persistedContention = preflight?.contention?.active_tasks?.some((task) =>
+      (workspace.workspace_id && task.workspace_id === workspace.workspace_id)
+      || sameDirectory(task.execution_directory, workspace.directory))
+    return Boolean(persistedContention)
+      || await this.hasActiveTasks(workspace.workspace_id)
+      || await this.hasActiveDirectoryTasks(workspace.directory)
+  }
+
+  async supersedePrimary(workspaceID, replacementWorkspaceID, reason) {
+    const { manifest, path } = await this.findManifest(workspaceID)
+    if (!["active", "preparing"].includes(manifest.status)) return
+    await writeJson(path, {
+      ...manifest,
+      status: "superseded",
+      canonical: false,
+      superseded_by: replacementWorkspaceID,
+      superseded_at: this.now(),
+      supersede_reason: reason,
+    })
+  }
+
+  async canonicalizePrimary(preflight, workspaceID, reason) {
+    const candidates = preflight.persisted.managed_workspaces.filter((workspace) =>
+      workspace.role === "primary"
+      && workspace.valid
+      && workspace.workspace_id !== workspaceID)
+    for (const candidate of candidates) {
+      if (await this.workspaceHasActiveTasks(candidate, preflight)) {
+        throw new Error(`cannot supersede active primary workspace ${candidate.workspace_id}; serialize its task first`)
+      }
+    }
+    for (const candidate of candidates) {
+      await this.supersedePrimary(candidate.workspace_id, workspaceID, reason)
+    }
+  }
+
   async reusablePrimary(changeID, taskID, preflight, input = {}) {
-    const candidate = preflight.persisted.managed_workspaces.find((workspace) =>
+    const candidates = preflight.persisted.managed_workspaces.filter((workspace) =>
       workspace.role === "primary" && workspace.valid && workspace.change_id === changeID)
-    if (!candidate) return null
+    if (!candidates.length) return null
+    const candidate = candidates.find((workspace) => !workspace.dirty_changes?.length) ?? candidates[0]
     const manifest = await this.get(candidate.workspace_id)
     const status = await this.git(manifest.directory, ["status", "--porcelain=v1", "--untracked-files=all"])
     const dirtyOwnershipProven = input.dirty_ownership === "same-change"
       || input.dirty_changes_belong_to_change === true
+    const active = await this.workspaceHasActiveTasks({
+      workspace_id: manifest.workspace_id,
+      directory: manifest.directory,
+    }, preflight)
     if (status && !dirtyOwnershipProven) {
+      if (active) {
+        throw new Error(`primary workspace for change ${changeID} is currently in use; reconcile or serialize its dirty work first`)
+      }
       if (input.dirty_ownership === "unrelated" || input.dirty_changes_belong_to_change === false) return null
       throw new Error(`primary workspace for change ${changeID} is dirty; declare dirty_ownership="same-change" after reconciling its ownership`)
     }
-    if (await this.hasActiveTasks(manifest.workspace_id) && manifest.task_id !== taskID) {
+    if (active && manifest.task_id !== taskID) {
       throw new Error(`primary workspace for change ${changeID} is currently in use; request an explicit isolated child workspace`)
     }
+    await this.canonicalizePrimary(preflight, manifest.workspace_id, "existing-primary-reused")
     return { ...this.publicRecord(manifest), reused: true }
   }
 
@@ -428,10 +492,10 @@ export class WorkspaceManager {
       throw new Error(`current branch ${current.branch} is dirty; declare dirty_ownership="same-change" after reconciling its ownership`)
     }
     if (currentIsCandidate && !current.protected) {
-      if (await this.hasActiveDirectoryTasks(repository.root)) {
+      if (await this.directoryHasActiveTasks(repository.root, preflight)) {
         throw new Error(`primary workspace for change ${changeID} is currently in use; request an explicit isolated child workspace`)
       }
-      return this.adoptWorkspace({
+      const adopted = await this.adoptWorkspace({
         taskID,
         changeID,
         repository,
@@ -448,6 +512,8 @@ export class WorkspaceManager {
         managedWorktree: false,
         provenance: "current-worktree",
       })
+      await this.canonicalizePrimary(preflight, adopted.workspace_id, "current-worktree-adopted")
+      return adopted
     }
 
     let requiresIsolatedBranch = Boolean(currentDirtyRequiresIsolation)
@@ -466,10 +532,10 @@ export class WorkspaceManager {
       }
     }
     if (registered) {
-      if (await this.hasActiveDirectoryTasks(registered.directory)) {
+      if (await this.directoryHasActiveTasks(registered.directory, preflight)) {
         throw new Error(`primary workspace for change ${changeID} is currently in use; request an explicit isolated child workspace`)
       }
-      return this.adoptWorkspace({
+      const adopted = await this.adoptWorkspace({
         taskID,
         changeID,
         repository,
@@ -486,6 +552,8 @@ export class WorkspaceManager {
         managedWorktree: this.isManagedDirectory(registered.directory),
         provenance: "existing-worktree",
       })
+      await this.canonicalizePrimary(preflight, adopted.workspace_id, "existing-worktree-adopted")
+      return adopted
     }
 
     let branch = branchCandidates[0]
@@ -511,7 +579,23 @@ export class WorkspaceManager {
       repository,
       preflight,
     })
-    return this.createLinkedWorkspace({
+    const currentCanBecomePrimary = current.protected
+      && current.clean
+      && !requiresIsolatedBranch
+      && !await this.directoryHasActiveTasks(repository.root, preflight)
+    if (currentCanBecomePrimary) {
+      const switched = await this.switchCurrentPrimary({
+        taskID,
+        changeID,
+        repository,
+        branch,
+        branchExists,
+        baseSha,
+      })
+      await this.canonicalizePrimary(preflight, switched.workspace_id, "protected-checkout-switched")
+      return switched
+    }
+    const created = await this.createLinkedWorkspace({
       taskID,
       changeID,
       repository,
@@ -522,6 +606,12 @@ export class WorkspaceManager {
       managedWorktree: true,
       provenance: "runtime-created-primary",
     })
+    await this.canonicalizePrimary(
+      preflight,
+      created.workspace_id,
+      requiresIsolatedBranch ? "unrelated-dirty-primary-replaced" : "primary-created",
+    )
+    return created
   }
 
   async prepareChild(input, taskID, changeID, repository, preflight) {
@@ -583,6 +673,16 @@ export class WorkspaceManager {
     })
   }
 
+  async configuredProtectedBaseBranch(repository, current) {
+    if (current.protected && current.branch) return current.branch
+    for (const branch of this.protectedBranches) {
+      if (await this.gitSucceeds(repository.root, [
+        "show-ref", "--verify", "--quiet", `refs/heads/${branch}`,
+      ])) return branch
+    }
+    return null
+  }
+
   async resolvePrimaryBase({ requestedBase, branch, branchExists, repository, preflight }) {
     if (requestedBase) return this.resolveCommit(repository.root, requestedBase)
     if (branchExists) {
@@ -593,7 +693,7 @@ export class WorkspaceManager {
       return this.resolveCommit(repository.root, branch)
     }
     if (preflight.repository.protected_base_head) return preflight.repository.protected_base_head
-    return preflight.repository.current.head
+    throw new Error("cannot resolve a configured protected base branch for a new primary workspace")
   }
 
   async resolveCommit(directory, ref) {
@@ -626,6 +726,32 @@ export class WorkspaceManager {
     return candidate === root || candidate.startsWith(`${root}/`)
   }
 
+  async switchCurrentPrimary({
+    taskID,
+    changeID,
+    repository,
+    branch,
+    branchExists,
+    baseSha,
+  }) {
+    if (branchExists) {
+      await this.git(repository.root, ["switch", branch])
+    } else {
+      await this.git(repository.root, ["switch", "-c", branch, baseSha])
+    }
+    return this.adoptWorkspace({
+      taskID,
+      changeID,
+      repository,
+      directory: repository.root,
+      branch,
+      baseSha,
+      role: "primary",
+      managedWorktree: false,
+      provenance: "runtime-switched-current-worktree",
+    })
+  }
+
   async createLinkedWorkspace({
     taskID,
     changeID,
@@ -653,6 +779,7 @@ export class WorkspaceManager {
       primary_workspace_id: primaryWorkspaceID ?? (role === "primary" ? workspaceID : null),
       parent_workspace_id: parentWorkspaceID,
       managed_worktree: managedWorktree,
+      canonical: role === "primary",
       provenance,
       isolation_reason: isolationReason,
       directory,
@@ -712,6 +839,7 @@ export class WorkspaceManager {
       primary_workspace_id: workspaceID,
       parent_workspace_id: null,
       managed_worktree: managedWorktree,
+      canonical: role === "primary",
       provenance,
       isolation_reason: null,
       directory: await canonical(directory),
@@ -793,6 +921,7 @@ export class WorkspaceManager {
       primary_workspace_id: manifest.primary_workspace_id ?? (legacyPrimary ? manifest.workspace_id : null),
       parent_workspace_id: manifest.parent_workspace_id ?? null,
       managed_worktree: manifest.managed_worktree !== false,
+      canonical: manifest.canonical !== false,
       integration_target_branch: manifest.integration_target_branch ?? null,
       isolation_reason: manifest.isolation_reason ?? null,
       reused: Boolean(manifest.reused),

@@ -137,7 +137,7 @@ export class DelegationRuntime {
     const result = await this.workspaces.preflight({
       ...args,
       change_id: changeID,
-      persisted_tasks: this.registry.list({ change_id: changeID }),
+      persisted_tasks: this.registry.list(),
     }, context.directory)
     this.preflights.set(context.sessionID, {
       change_id: changeID,
@@ -173,7 +173,10 @@ export class DelegationRuntime {
 
   async workspacePrepare(args, context) {
     await this.ensureExecutionPreflight(args, context)
-    return this.workspaces.prepare(args, context.directory)
+    return this.workspaces.prepare({
+      ...args,
+      persisted_tasks: this.registry.list(),
+    }, context.directory)
   }
 
   async delegate(args, context) {
@@ -207,6 +210,7 @@ export class DelegationRuntime {
       }
       const workspaceInUse = workspace.workspace_id
         ? this.registry.hasActiveWorkspace(workspace.workspace_id)
+          || await this.workspaces.hasActiveDirectoryTasks(workspace.directory)
         : await this.workspaces.hasActiveDirectoryTasks(workspace.directory)
       if (workspaceInUse) {
         throw new Error("execution workspace already has an active task; serialize this work or use an explicitly isolated child workspace")
