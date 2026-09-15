@@ -647,6 +647,9 @@ export class WorkspaceManager {
 
   async prepareChild(input, taskID, changeID, repository, preflight) {
     if (!taskID) throw new Error("child workspace preparation requires task_id")
+    const parentID = input.parent_workspace_id ?? input.primary_workspace_id
+    const parent = parentID ? await this.get(parentID) : null
+    if (parent) await this.assertWorkspaceBelongsToRepository(parent, repository, "workspace_prepare")
     const existing = preflight.persisted.managed_workspaces.find((workspace) =>
       workspace.role === "child"
       && workspace.valid
@@ -659,9 +662,7 @@ export class WorkspaceManager {
       }
       return { ...this.publicRecord(manifest), reused: true }
     }
-    const parentID = input.parent_workspace_id ?? input.primary_workspace_id
     if (!parentID) throw new Error("child workspace preparation requires parent_workspace_id")
-    const parent = await this.get(parentID)
     if ((parent.role ?? "primary") !== "primary" && parent.primary_workspace_id !== parent.workspace_id) {
       throw new Error("child workspace parent must be the primary change workspace")
     }
@@ -913,6 +914,17 @@ export class WorkspaceManager {
     return { ...found.manifest, ...(await this.validateManifest(found.manifest)) }
   }
 
+  async assertWorkspaceBelongsToRepository(workspace, repository, operation) {
+    const workspaceRepositoryID = String(workspace?.repository_id ?? "").trim()
+    const workspaceCommonDir = workspace?.git_common_dir
+      ? await canonical(workspace.git_common_dir).catch(() => null)
+      : null
+    const currentRepositoryID = String(repository?.projectKey ?? "").trim()
+    if (workspaceRepositoryID !== currentRepositoryID || workspaceCommonDir !== repository?.commonDir) {
+      throw new Error(`${operation} workspace ${workspace?.workspace_id ?? "unknown"} belongs to repository ${workspaceRepositoryID || "unknown"}; current execution context belongs to repository ${currentRepositoryID || "unknown"}`)
+    }
+  }
+
   async validateManifest(manifest) {
     if (!["active", "preparing"].includes(manifest.status)) {
       throw new Error(`workspace is not active: ${manifest.workspace_id} (${manifest.status})`)
@@ -1034,8 +1046,11 @@ export class WorkspaceManager {
   }
 
   async release(workspaceID, repositoryDirectory, options = {}) {
-    if (repositoryDirectory) await this.requireRepositoryFacts(repositoryDirectory, "workspace_release")
+    const repository = repositoryDirectory
+      ? await this.requireRepositoryFacts(repositoryDirectory, "workspace_release")
+      : null
     const { manifest, path } = await this.findManifest(workspaceID)
+    if (repository) await this.assertWorkspaceBelongsToRepository(manifest, repository, "workspace_release")
     if (manifest.managed_worktree === false) {
       if (options.finalize_in_place !== true) {
         throw new Error("primary workspace is the current or externally-owned worktree; preserving it")

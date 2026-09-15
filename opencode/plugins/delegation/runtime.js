@@ -202,6 +202,10 @@ export class DelegationRuntime {
     const workspace = args.workspace_id
       ? await this.workspaces.get(args.workspace_id)
       : { workspace_id: null, directory: await realpath(context.directory) }
+    const repository = args.workspace_id
+      ? await this.workspaces.requireRepositoryFacts(context.directory, "delegate_task")
+      : null
+    if (repository) await this.workspaces.assertWorkspaceBelongsToRepository(workspace, repository, "delegate_task")
     const requestedChangeID = String(args.change_id ?? "").trim() || null
     const selectedWorkspaceChangeID = workspaceChangeID(workspace)
     if (args.workspace_id && requestedChangeID && selectedWorkspaceChangeID

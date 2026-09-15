@@ -8,6 +8,7 @@ import { promisify } from "node:util"
 
 import { DelegationRuntime } from "../plugins/delegation/runtime.js"
 import { SkillResolver } from "../plugins/delegation/skill-resolver.js"
+import { WorkspaceManager } from "../plugins/delegation/workspace-manager.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -92,6 +93,46 @@ async function fixture(t) {
     await rm(root, { recursive: true })
   })
   return { root, repository, client, runtime, context }
+}
+
+async function crossRepositoryFixture(t) {
+  const root = await mkdtemp(join(tmpdir(), "delegation-cross-repository-test-"))
+  const repositoryA = join(root, "repository-a")
+  const repositoryB = join(root, "repository-b")
+  await execFileAsync("git", ["init", "-b", "main", repositoryA])
+  await git(repositoryA, ["config", "user.name", "Delegation Test"])
+  await git(repositoryA, ["config", "user.email", "delegation@example.invalid"])
+  await writeFile(join(repositoryA, "tracked.txt"), "baseline\n")
+  await git(repositoryA, ["add", "tracked.txt"])
+  await git(repositoryA, ["commit", "-m", "baseline"])
+  await execFileAsync("git", ["clone", "--no-local", repositoryA, repositoryB])
+  await git(repositoryB, ["config", "user.name", "Delegation Test"])
+  await git(repositoryB, ["config", "user.email", "delegation@example.invalid"])
+  const client = fakeClient()
+  const stateDirectory = join(root, "state")
+  const runtime = await DelegationRuntime.create({
+    client,
+    stateDirectory,
+    categories: {
+      test: {
+        description: "test route",
+        model: "example/primary",
+        variant: "focused",
+        tools: { delegate_task: false },
+      },
+    },
+  })
+  const context = { sessionID: "parent", messageID: "parent-turn", agent: "Executor", directory: repositoryA }
+  t.after(async () => rm(root, { recursive: true, force: true }))
+  return {
+    root,
+    repositoryA,
+    repositoryB,
+    client,
+    runtime,
+    context,
+    managerB: new WorkspaceManager({ stateDirectory }),
+  }
 }
 
 test("category delegation routes to Implementer with parent and managed workspace binding", async (t) => {
@@ -321,6 +362,70 @@ test("delegate_task infers change ownership from an explicit managed workspace",
   assert.equal(runtime.registry.get(delegated.task_id).change_id, "inferred-change")
   assert.equal(runtime.registry.get(delegated.task_id).workspace_id, workspace.workspace_id)
   assert.equal(client.state.creates.length, 1)
+})
+
+test("delegate_task rejects a workspace from another repository before registry writes", async (t) => {
+  const { client, runtime, context, repositoryB, managerB } = await crossRepositoryFixture(t)
+  const workspace = await managerB.prepare({ change_id: "cross-repository", task_id: "repo-b-primary" }, repositoryB)
+  const before = await managerB.get(workspace.workspace_id, { validate: false })
+
+  await assert.rejects(
+    runtime.delegate({
+      workspace_id: workspace.workspace_id,
+      change_id: workspace.change_id,
+      category: "test",
+      description: "Foreign repository delegation",
+      prompt: "Do not run",
+      run_in_background: true,
+    }, context),
+    /delegate_task workspace .*belongs to repository .*current execution context belongs to repository/,
+  )
+  assert.equal(runtime.preflights.size, 0)
+  assert.deepEqual(runtime.registry.list(), [])
+  assert.equal(client.state.creates.length, 0)
+  assert.deepEqual(await managerB.get(workspace.workspace_id, { validate: false }), before)
+})
+
+test("workspace_release rejects a workspace from another repository before removal", async (t) => {
+  const { runtime, context, repositoryB, managerB } = await crossRepositoryFixture(t)
+  const primary = await managerB.prepare({ change_id: "cross-release", task_id: "repo-b-primary" }, repositoryB)
+  const child = await managerB.prepare({
+    change_id: "cross-release",
+    task_id: "repo-b-child",
+    role: "child",
+    parent_workspace_id: primary.workspace_id,
+    isolation_reason: "foreign release",
+  }, repositoryB)
+  const before = await managerB.get(child.workspace_id, { validate: false })
+  const beforeWorktrees = await git(repositoryB, ["worktree", "list", "--porcelain"])
+
+  await assert.rejects(
+    runtime.workspaceRelease(child.workspace_id, context),
+    /workspace_release workspace .*belongs to repository .*current execution context belongs to repository/,
+  )
+  assert.equal(await realpath(child.directory), child.directory)
+  assert.deepEqual(await managerB.get(child.workspace_id, { validate: false }), before)
+  assert.equal(await git(repositoryB, ["worktree", "list", "--porcelain"]), beforeWorktrees)
+})
+
+test("workspace_prepare rejects a child parent from another repository before creation", async (t) => {
+  const { runtime, context, repositoryA, repositoryB, managerB } = await crossRepositoryFixture(t)
+  const primary = await managerB.prepare({ change_id: "cross-child", task_id: "repo-b-primary" }, repositoryB)
+  const beforeWorktrees = await git(repositoryA, ["worktree", "list", "--porcelain"])
+
+  await assert.rejects(
+    runtime.workspacePrepare({
+      change_id: "cross-child",
+      task_id: "repo-a-child",
+      role: "child",
+      parent_workspace_id: primary.workspace_id,
+      isolation_reason: "foreign parent",
+    }, context),
+    /workspace_prepare workspace .*belongs to repository .*current execution context belongs to repository/,
+  )
+  assert.deepEqual(await runtime.workspaces.listManifests(repositoryA), [])
+  assert.equal(await git(repositoryA, ["worktree", "list", "--porcelain"]), beforeWorktrees)
+  assert.equal((await managerB.get(primary.workspace_id, { validate: false })).status, "active")
 })
 
 test("allowlisted specialists use the same child session runner and current workspace", async (t) => {
