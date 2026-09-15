@@ -262,24 +262,25 @@ export class DelegationRuntime {
         throw new Error("Executor checkpoint update requires explicit task_id; workspace creation task_id is not current execution identity")
       }
       const targetTask = this.registry.list().find((candidate) => candidate.task_id === checkpointTaskID)
-      if (targetTask) {
-        if (targetTask.workspace_id !== workspaceID) {
-          throw new Error(`checkpoint task ${checkpointTaskID} belongs to workspace ${targetTask.workspace_id ?? "none"}; cannot update workspace ${workspaceID}`)
-        }
-        const targetChangeID = String(targetTask.change_id ?? "").trim() || null
-        if (targetChangeID && selectedChangeID && targetChangeID !== selectedChangeID) {
-          throw new Error(`checkpoint task ${checkpointTaskID} belongs to logical change ${targetChangeID}; cannot update change ${selectedChangeID}`)
-        }
-        const targetDirectory = targetTask.execution_directory
-          ? await realpath(targetTask.execution_directory).catch(() => null)
-          : null
-        if (targetDirectory !== workspace.directory) {
-          throw new Error(`checkpoint task ${checkpointTaskID} does not belong to workspace ${workspaceID}`)
-        }
-        const targetRepository = await this.workspaces.repositoryFacts(targetDirectory)
-        if (targetRepository.projectKey !== repository.projectKey || targetRepository.commonDir !== repository.commonDir) {
-          throw new Error(`checkpoint task ${checkpointTaskID} does not belong to the current repository`)
-        }
+      if (!targetTask) {
+        throw new Error(`unknown checkpoint execution task_id: ${checkpointTaskID}`)
+      }
+      if (targetTask.workspace_id !== workspaceID) {
+        throw new Error(`checkpoint task ${checkpointTaskID} belongs to workspace ${targetTask.workspace_id ?? "none"}; cannot update workspace ${workspaceID}`)
+      }
+      const targetChangeID = String(targetTask.change_id ?? "").trim() || null
+      if (targetChangeID !== selectedChangeID) {
+        throw new Error(`checkpoint task ${checkpointTaskID} belongs to logical change ${targetChangeID ?? "none"}; cannot update change ${selectedChangeID ?? "none"}`)
+      }
+      const targetDirectory = targetTask.execution_directory
+        ? await realpath(targetTask.execution_directory).catch(() => null)
+        : null
+      if (targetDirectory !== workspace.directory) {
+        throw new Error(`checkpoint task ${checkpointTaskID} does not belong to workspace ${workspaceID}`)
+      }
+      const targetRepository = await this.workspaces.repositoryFacts(targetDirectory)
+      if (targetRepository.projectKey !== repository.projectKey || targetRepository.commonDir !== repository.commonDir) {
+        throw new Error(`checkpoint task ${checkpointTaskID} does not belong to the current repository`)
       }
     }
 

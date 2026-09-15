@@ -58,7 +58,7 @@ export function delegationPluginHooks(runtime) {
         execute: async (args, context) => json(await runtime.workspacePrepare(args, context)),
       }),
       workspace_checkpoint_update: tool({
-        description: "Replace the latest bounded local execution checkpoint for a provenance-validated workspace; Executor must provide the execution task_id, Implementer identity is derived from its active session, and runtime derives the workspace HEAD and timestamp.",
+        description: "Replace the latest bounded local execution checkpoint for a provenance-validated workspace; Executor must provide an existing TaskRegistry execution task_id, Implementer identity is derived from its active session, and runtime derives the workspace HEAD and timestamp.",
         args: {
           workspace_id: tool.schema.string().min(1).optional(),
           change_id: tool.schema.string().min(1).optional(),

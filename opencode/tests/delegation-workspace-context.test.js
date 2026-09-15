@@ -159,6 +159,17 @@ test("Executor checkpoints require the current execution task after primary reus
     /requires explicit task_id.*creation task_id is not current execution identity/,
   )
   assert.equal((await runtime.workspaces.get(first.workspace_id, { validate: false })).latest_checkpoint, undefined)
+  await assert.rejects(
+    runtime.workspaceCheckpointUpdate({
+      workspace_id: first.workspace_id,
+      change_id: "sequential-change",
+      task_id: "task_does_not_exist",
+      status: "in_progress",
+      current_focus: "Working on task-2",
+    }, context),
+    /unknown checkpoint execution task_id: task_does_not_exist/,
+  )
+  assert.equal((await runtime.workspaces.get(first.workspace_id, { validate: false })).latest_checkpoint, undefined)
 
   const task2 = await runtime.registry.register({
     parent_session_id: context.sessionID,
@@ -184,6 +195,17 @@ test("Executor checkpoints require the current execution task after primary reus
   assert.equal(checkpoint.latest_checkpoint.task_id, task2.task_id)
   assert.notEqual(checkpoint.latest_checkpoint.task_id, "task-1")
   assert.equal(await git(repository, ["worktree", "list", "--porcelain"]), beforeWorktrees)
+
+  await runtime.registry.terminal(task2.task_id, "completed")
+  const terminalCheckpoint = await runtime.workspaceCheckpointUpdate({
+    workspace_id: first.workspace_id,
+    change_id: "sequential-change",
+    task_id: task2.task_id,
+    status: "completed",
+    current_focus: "Task-2 completed",
+  }, context)
+  assert.equal(terminalCheckpoint.latest_checkpoint.task_id, task2.task_id)
+  assert.equal(terminalCheckpoint.latest_checkpoint.status, "completed")
 })
 
 test("latest checkpoints persist, overwrite in place, and expose runtime HEAD freshness", async (t) => {
@@ -193,11 +215,25 @@ test("latest checkpoints persist, overwrite in place, and expose runtime HEAD fr
     task_id: "workers-runtime",
     description: "Primary workspace for execution checkpoint recovery",
   }, context)
+  const executionTask = await runtime.registry.register({
+    parent_session_id: context.sessionID,
+    parent_message_id: context.messageID,
+    parent_agent: context.agent,
+    parent_directory: await realpath(repository),
+    execution_directory: workspace.directory,
+    workspace_id: workspace.workspace_id,
+    change_id: "checkpoint-change",
+    category: "quick",
+    agent: "Implementer",
+    description: "Checkpoint recovery execution task",
+    background: false,
+  })
+  await runtime.registry.terminal(executionTask.task_id, "completed")
   const headA = await git(workspace.directory, ["rev-parse", "HEAD"])
   const first = await runtime.workspaceCheckpointUpdate({
     workspace_id: workspace.workspace_id,
     change_id: "checkpoint-change",
-    task_id: "workers-runtime",
+    task_id: executionTask.task_id,
     status: "in_progress",
     current_focus: "Integrating WorkerPool with Executor runtime",
     completed: ["Implemented WorkerPool"],
@@ -210,7 +246,7 @@ test("latest checkpoints persist, overwrite in place, and expose runtime HEAD fr
     updated_at: "spoofed-time",
   }, context)
 
-  assert.equal(first.latest_checkpoint.task_id, "workers-runtime")
+  assert.equal(first.latest_checkpoint.task_id, executionTask.task_id)
   assert.equal(first.latest_checkpoint.head_sha, headA)
   assert.notEqual(first.latest_checkpoint.updated_at, "spoofed-time")
   assert.equal(first.checkpoint_freshness, "current")
@@ -240,7 +276,7 @@ test("latest checkpoints persist, overwrite in place, and expose runtime HEAD fr
   const second = await runtime.workspaceCheckpointUpdate({
     workspace_id: workspace.workspace_id,
     change_id: "checkpoint-change",
-    task_id: "workers-runtime",
+    task_id: executionTask.task_id,
     status: "blocked",
     current_focus: "Resolve WorkerPool / CompletionTracker contract",
     completed: ["Implemented WorkerPool"],
@@ -368,16 +404,31 @@ test("child checkpoints are independent and release never reactivates their mani
     parent_workspace_id: primary.workspace_id,
     isolation_reason: "independent checkpoint fixture",
   }, context)
+  const childTask = await runtime.registry.register({
+    parent_session_id: context.sessionID,
+    parent_message_id: context.messageID,
+    parent_agent: context.agent,
+    parent_directory: await realpath(repository),
+    execution_directory: child.directory,
+    workspace_id: child.workspace_id,
+    change_id: "child-context",
+    category: "quick",
+    agent: "Implementer",
+    description: "Child checkpoint execution task",
+    background: false,
+  })
+  await runtime.registry.terminal(childTask.task_id, "completed")
 
   await runtime.workspaceCheckpointUpdate({
     workspace_id: child.workspace_id,
     change_id: "child-context",
-    task_id: "child",
+    task_id: childTask.task_id,
     status: "completed",
     current_focus: "Child validation complete",
   }, context)
   assert.equal((await runtime.workspaces.get(primary.workspace_id, { validate: false })).latest_checkpoint, undefined)
   assert.equal((await runtime.workspaces.get(child.workspace_id, { validate: false })).latest_checkpoint.status, "completed")
+  assert.equal((await runtime.workspaces.get(child.workspace_id, { validate: false })).latest_checkpoint.task_id, childTask.task_id)
 
   const released = await runtime.workspaceRelease(child.workspace_id, context)
   assert.equal(released.status, "released")
@@ -537,12 +588,25 @@ test("Executor checkpoint updates keep repository provenance and change ownershi
 })
 
 test("checkpoint metadata stays bounded", async (t) => {
-  const { runtime, context } = await repositoryFixture(t)
+  const { repository, runtime, context } = await repositoryFixture(t)
   const workspace = await runtime.workspacePrepare({ change_id: "bounded-context", task_id: "bounded-task" }, context)
+  const boundedTask = await runtime.registry.register({
+    parent_session_id: context.sessionID,
+    parent_message_id: context.messageID,
+    parent_agent: context.agent,
+    parent_directory: await realpath(repository),
+    execution_directory: workspace.directory,
+    workspace_id: workspace.workspace_id,
+    change_id: "bounded-context",
+    category: "quick",
+    agent: "Implementer",
+    description: "Bounded checkpoint execution task",
+    background: false,
+  })
   await assert.rejects(
     runtime.workspaceCheckpointUpdate({
       workspace_id: workspace.workspace_id,
-      task_id: "bounded-task",
+      task_id: boundedTask.task_id,
       status: "in_progress",
       current_focus: "x".repeat(241),
     }, context),
@@ -551,7 +615,7 @@ test("checkpoint metadata stays bounded", async (t) => {
   await assert.rejects(
     runtime.workspaceCheckpointUpdate({
       workspace_id: workspace.workspace_id,
-      task_id: "bounded-task",
+      task_id: boundedTask.task_id,
       status: "in_progress",
       important_files: ["../outside"],
     }, context),
