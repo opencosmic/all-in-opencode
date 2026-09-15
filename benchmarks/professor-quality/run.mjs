@@ -18,7 +18,7 @@ import {
 
 const benchmarkDirectory = dirname(fileURLToPath(import.meta.url))
 const repoRoot = repoRootFromBenchmark(benchmarkDirectory)
-const timeoutMs = 180_000
+const DEFAULT_TIMEOUT_MS = 180_000
 const environmentKeysToClear = [
   "OPENCODE_CONFIG",
   "OPENCODE_CONFIG_DIR",
@@ -60,7 +60,7 @@ async function existingKeys(resultsPath) {
   }
 }
 
-function executeProfessor(caseItem, run, config) {
+function executeProfessor(caseItem, run, config, timeoutMs = DEFAULT_TIMEOUT_MS) {
   return new Promise((resolvePromise) => {
     const started = Date.now()
     const stdout = []
@@ -119,9 +119,13 @@ async function main() {
   const casesPath = resolve(benchmarkDirectory, option("--cases") ?? "cases.json")
   const resultsPath = resolve(benchmarkDirectory, option("--out") ?? "results/runs.jsonl")
   const selectedCase = option("--case")
+  const selectedSuite = option("--suite") ?? "all"
+  const requestedTimeout = option("--timeout-ms")
+  const timeoutMs = requestedTimeout === undefined ? DEFAULT_TIMEOUT_MS : Number(requestedTimeout)
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000) throw new Error("--timeout-ms must be an integer of at least 1000")
   const cases = await loadCases(casesPath)
   if (selectedCase && !cases.some((item) => item.id === selectedCase)) throw new Error(`unknown Professor case: ${selectedCase}`)
-  const plan = buildRunPlan(cases).filter((run) => !selectedCase || run.caseId === selectedCase)
+  const plan = buildRunPlan(cases, { suite: selectedSuite }).filter((run) => !selectedCase || run.caseId === selectedCase)
   const version = await detectOpenCodeVersion()
   await mkdir(dirname(resultsPath), { recursive: true })
   if (hasOption("--fresh")) await resetResultsFile(resultsPath)
@@ -131,6 +135,8 @@ async function main() {
   try {
     console.log(`evaluation worktree: ${repoRoot}`)
     console.log(`OpenCode version: ${version}`)
+    console.log(`benchmark model: ${PROFESSOR_BENCHMARK_MODEL} (${PROFESSOR_BENCHMARK_VARIANT})`)
+    console.log(`benchmark suite: ${selectedSuite}`)
     console.log(`isolated config: ${isolated.root}`)
     console.log(`planned runs: ${plan.length}`)
     for (const item of plan) {
@@ -141,7 +147,7 @@ async function main() {
       }
       const caseItem = caseById.get(item.caseId)
       console.log(`run ${key}: ${caseItem.query}`)
-      const raw = await executeProfessor(caseItem, item, isolated)
+      const raw = await executeProfessor(caseItem, item, isolated, timeoutMs)
       const record = await normalizeProfessorRun({ caseItem, ...raw, config: isolated })
       record.opencodeVersion = version
       record.configIsolation = "temporary XDG config/data/state/cache homes plus OPENCODE_CONFIG"

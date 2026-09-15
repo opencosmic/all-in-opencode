@@ -7,6 +7,7 @@ import { join } from "node:path"
 import {
   canonicalizeUrl,
   claimStatusCounts,
+  FALLBACK_CONTROLLER_ROUND_LIMIT,
   SAFE_CONTROLLER_ROUND_LIMIT,
   researchCapacity,
   transitionState,
@@ -261,9 +262,11 @@ test("controller capacity is derived from the outer-step ceiling and reserves cl
   const { runtime, started, next } = await startAndNext(t)
   assert.equal(started.digest.budget.outerStepLimit, 32)
   assert.equal(started.digest.budget.maxControllerRounds, SAFE_CONTROLLER_ROUND_LIMIT)
+  assert.equal(started.digest.budget.capacity.controllerRoundLimit, FALLBACK_CONTROLLER_ROUND_LIMIT)
+  assert.equal(started.digest.budget.capacity.outerStepObservationAvailable, false)
   assert.equal(started.digest.budget.capacity.completionReserve, 2)
   assert.equal(next.capacity.controllerRoundsUsed, 1)
-  assert.equal(next.capacity.researchRoundsRemaining, SAFE_CONTROLLER_ROUND_LIMIT - 2 - 1)
+  assert.equal(next.capacity.researchRoundsRemaining, FALLBACK_CONTROLLER_ROUND_LIMIT - 2 - 1)
   assert.equal(researchCapacity(await runtime.load(started.runId)).researchRoundsRemaining, next.capacity.researchRoundsRemaining)
 
   const clamped = await runtime.start({ objective: "A clamped budget.", questions: plan(), budget: { maxControllerRounds: 500 } })
@@ -299,6 +302,143 @@ test("an empty successful commit is rejected without closing the running task", 
   assert.equal(state.sources.length, 0)
   assert.equal(state.evidence.length, 0)
   assert.equal((await runtime.store.readEvents(started.runId)).filter((event) => event.type === "task.completed").length, 0)
+})
+
+test("a duplicate source does not count as canonical progress", async (t) => {
+  const { runtime, started, next } = await startAndNext(t, 2)
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "first source",
+    sources: [{ url: "https://example.com/duplicate-source" }],
+  })
+  const second = await runtime.next({ runId: started.runId })
+  await assert.rejects(runtime.commit({
+    runId: started.runId,
+    taskId: second.task.taskId,
+    summary: "same source again",
+    sources: [{ url: "https://example.com/duplicate-source" }],
+  }), /canonical research result/)
+  const state = await runtime.load(started.runId)
+  assert.equal(state.sources.length, 1)
+  assert.equal(state.tasks[1].status, "running")
+  assert.equal((await runtime.store.readEvents(started.runId)).filter((event) => event.type === "task.completed").length, 1)
+})
+
+test("a duplicate evidence record does not count as canonical progress", async (t) => {
+  const { runtime, started, next } = await startAndNext(t)
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "first evidence",
+    sources: [{ url: "https://example.com/duplicate-evidence", sourceKey: "duplicate-evidence" }],
+    evidence: [{
+      questionId: next.task.questionId,
+      sourceKey: "duplicate-evidence",
+      fact: "A durable fact",
+      supportingSpan: "The source states the durable fact.",
+      relation: "supports",
+    }],
+  })
+  const second = await runtime.next({ runId: started.runId })
+  await assert.rejects(runtime.commit({
+    runId: started.runId,
+    taskId: second.task.taskId,
+    summary: "same evidence again",
+    sources: [{ url: "https://example.com/duplicate-evidence", sourceKey: "duplicate-evidence" }],
+    evidence: [{
+      questionId: next.task.questionId,
+      sourceKey: "duplicate-evidence",
+      fact: "A durable fact",
+      supportingSpan: "The source states the durable fact.",
+      relation: "supports",
+    }],
+  }), /canonical research result/)
+  const state = await runtime.load(started.runId)
+  assert.equal(state.sources.length, 1)
+  assert.equal(state.evidence.length, 1)
+  assert.equal(state.tasks[1].status, "running")
+  assert.equal((await runtime.store.readEvents(started.runId)).filter((event) => event.type === "task.completed").length, 1)
+})
+
+test("an unchanged criterion update does not count as canonical progress", async (t) => {
+  const { runtime, started, next } = await startAndNext(t, 2)
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "close the first question",
+    sources: [{ url: "https://example.com/criterion-no-op", sourceKey: "criterion-source" }],
+    evidence: [{ questionId: "question-0001", sourceKey: "criterion-source", fact: "A durable fact", supportingSpan: "The source states the durable fact.", relation: "supports" }],
+    questionUpdates: [{
+      questionId: "question-0001",
+      criteriaSatisfied: [
+        { criterionId: "question-0001-criterion-1", evidenceIndexes: [0] },
+        { criterionId: "question-0001-criterion-2", evidenceIndexes: [0] },
+      ],
+    }],
+  })
+  const second = await runtime.next({ runId: started.runId })
+  await assert.rejects(runtime.commit({
+    runId: started.runId,
+    taskId: second.task.taskId,
+    summary: "repeat the same coverage",
+    questionUpdates: [{
+      questionId: "question-0001",
+      criteriaSatisfied: [
+        { criterionId: "question-0001-criterion-1", evidenceIds: ["evidence-0001"] },
+        { criterionId: "question-0001-criterion-2", evidenceIds: ["evidence-0001"] },
+      ],
+    }],
+  }), /canonical research result/)
+  assert.equal((await runtime.load(started.runId)).tasks[1].status, "running")
+})
+
+test("an unchanged contradiction update does not count as canonical progress", async (t) => {
+  const { runtime, started, next } = await startAndNext(t)
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "record the conflict",
+    sources: [
+      { url: "https://example.com/contradiction-a", sourceKey: "a" },
+      { url: "https://example.com/contradiction-b", sourceKey: "b" },
+    ],
+    evidence: [
+      { questionId: "question-0001", sourceKey: "a", fact: "Side A", supportingSpan: "Source A states side A.", relation: "supports" },
+      { questionId: "question-0001", sourceKey: "b", fact: "Side B", supportingSpan: "Source B states side B.", relation: "contradicts" },
+    ],
+    contradictions: [{
+      questionId: "question-0001",
+      proposition: "The sources disagree",
+      critical: true,
+      sideA: { evidenceIndexes: [0] },
+      sideB: { evidenceIndexes: [1] },
+    }],
+  })
+  const second = await runtime.next({ runId: started.runId })
+  await assert.rejects(runtime.commit({
+    runId: started.runId,
+    taskId: second.task.taskId,
+    summary: "repeat the open status",
+    contradictionUpdates: [{ contradictionId: "contradiction-0001", status: "open" }],
+  }), /canonical research result/)
+  const state = await runtime.load(started.runId)
+  assert.equal(state.contradictions[0].status, "open")
+  assert.equal(state.tasks[1].status, "running")
+})
+
+test("a follow-up that cannot be created does not count as canonical progress", async (t) => {
+  const { runtime, started, next } = await startAndNext(t, 1, { start: { budget: { maxTasks: 1 } } })
+  await assert.rejects(runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "no available task slot",
+    followUpTasks: [{ questionId: next.task.questionId, objective: "Unavailable follow-up", reason: "test" }],
+  }), /canonical research result/)
+  const state = await runtime.load(started.runId)
+  assert.equal(state.tasks.length, 1)
+  assert.equal(state.tasks[0].status, "running")
+  assert.equal(state.budget.exhausted, false)
 })
 
 test("bounded multi-round research reaches commit, verification, and completion before the outer cap", async (t) => {

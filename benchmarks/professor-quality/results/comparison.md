@@ -1,91 +1,173 @@
 # Professor V1.1 research-correctness comparison
 
-Captured 14 September 2026 UTC / 15 September local time from the frozen
-Professor V1 commit `84e259b6e9e5a963875e908045bda28536b4aa1c` and the
-`feat/professor-v1-1-research-correctness` worktree. Prompts were unchanged.
+Captured 15 September 2026 local time in the isolated worktree
+`feat/professor-v1-1-research-correctness`. This note is the corrective
+comparison for the existing Professor V1.1 change; it does not merge or push
+anything.
 
-## Run provenance
+## Current gate result
 
-| Dataset | Code | OpenCode | Model | Variant | Result use |
+**NOT READY TO MERGE.** The runtime correctness fixes and deterministic tests
+pass, and no corrected run produced a zero-value completed task or reached the
+Professor outer-step boundary. The remaining blocker is benchmark reliability:
+the original B6 case timed out in the full 180-second regression batch, and its
+latest final-code retries timed out at 240 seconds, 360 seconds, and the final
+600-second controlled attempt before a normal report was produced. An earlier
+same-model focused B6 run did complete, so this is intermittent
+retrieval/process latency, but it is still an unmet merge gate until a
+final-code original B6 regression run completes normally.
+
+## Run provenance and model control
+
+| Dataset | Code / suite | OpenCode | Model | Variant | Use |
 | --- | --- | --- | --- | --- | --- |
-| Historical frozen baseline | V1 commit above | 1.18.30 | Not recorded; runner used the OpenCode default | Not recorded | Original B1b–B4b baseline; retained unchanged |
-| Post-change full batch | V1.1 worktree | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | B1–B7 and B1b–B4b; one B4b timeout retained |
-| Post-change focused B4b | V1.1 worktree | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | Successful repeat used for B4b quality assessment |
-| Pre-change fixed-model control | Frozen V1 code | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | Four startup timeouts; no quality score inferred |
+| Historical frozen baseline | V1 commit `84e259b` / blind B1b–B4b | 1.18.30 | Unknown; the old runner did not record it | Unknown | Preserved blind reference only |
+| Pre-change fixed-model control | Frozen V1 / blind B1b–B4b | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | Four startup timeouts; no quality baseline inferred |
+| Corrected regression batch | V1.1 / original B1–B7 plus blind B1b–B4b | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | Primary corrected run, 180-second harness ceiling |
+| Corrected focused repeats | B2, B4, and B6 | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | Separate completion/latency evidence |
 
-The fixed-model control was attempted to remove the historical model mismatch.
-All four pre-change controls timed out before `research_start` produced a
-state or any retrieval output, so they cannot serve as a successful quality
-baseline. The historical baseline is consequently reported as a separately
-identified, unpinned reference rather than an apples-to-apples model match.
+Every new Professor run in this pass explicitly used the fixed model and
+`xhigh` variant. The runner records both values in each JSONL record. The
+historical model identity is unknown, so the historical blind comparison is
+not presented as apples-to-apples model evidence.
 
-## Objective metrics
+## Suite correction
 
-### Blind B1b–B4b
+- **Original regression:** B1–B7 are the exact frozen prompts recovered from
+  the preserved durable Professor run artifacts, including the original
+  adaptive-replanning B5, evidence-dense integration B6, and practical-stack
+  B7.
+- **Blind suite:** B1b–B4b remain the exact blind prompts, without hidden
+  coaching.
+- **Supplemental suite:** the formerly mislabelled newer cases are now C1–C7
+  in `cases.json`. The old `after-runs.jsonl` records are retained as
+  historical artifacts but are not silently relabelled or counted as current
+  original results; no valid post-correction C1–C7 batch was required for this
+  gate.
 
-| Metric | Historical frozen baseline | V1.1 full batch | V1.1 focused B4b |
-| --- | ---: | ---: | ---: |
-| Runs completed | 3/4 (75%) | 3/4 (75%) | 1/1 (100%) |
-| Completed / failed / superseded tasks | 9 / 1 / 0 | 10 / 0 / 0 | 5 / 0 / 1 |
-| Sources / evidence / claims | 30 / 35 / 11 | 26 / 42 / 17 | 5 / 14 / 4 |
-| Claim verdicts: supported / partial / unsupported / contradicted | 10 / 1 / 0 / 0 | 17 / 0 / 0 / 0 | 4 / 0 / 0 / 0 |
-| Searches / fetches | 16 / 30 | 20 / 52 | 5 / 1 |
+## Original B1–B7 results
 
-The full batch B4b record is conservatively incomplete: it timed out at the
-180-second harness boundary while still researching, with 3 pending and 1
-running task. A separate fixed-model, `xhigh` B4b run completed in 5 rounds;
-both records remain available so repeat variability is not hidden.
+The primary corrected batch is
+[`corrected-regression-runs.jsonl`](corrected-regression-runs.jsonl), with
+objective metrics in
+[`corrected-regression-summary.json`](corrected-regression-summary.json).
+Durable state and event data provide task status and per-task canonical
+progress.
 
-### Main B1–B7 V1.1 run
+| Case | 180s primary result | Outer observed / CLI steps | Rounds | Durable tasks | Sources / evidence / claims | Follow-up result |
+| --- | --- | ---: | ---: | --- | ---: | --- |
+| B1 | Completed; no timeout | 16 / 18 | 4 | 4 completed | 13 / 19 / 8 | Report produced |
+| B2 | Incomplete: harness timeout while writing | 22 / 23 | 6 | 6 completed | 12 / 19 / 11 | `corrected-B2-extended.jsonl` completed in 169s |
+| B3 | Completed at the 180s timer race; no runtime failure | 20 / 22 | 4 | 4 completed | 10 / 14 / 6 | Report produced |
+| B4 | Incomplete: harness timeout with 1 task running | 17 / 18 | 5 | 4 completed, 1 running | 9 / 19 / 0 | `corrected-B4-extended.jsonl` completed in 169s |
+| B5 | Completed; no timeout | 19 / 21 | 5 | 5 completed | 15 / 24 / 8 | Adaptive assumptions and blockers reported |
+| B6 | Incomplete: harness timeout while writing | 25 / 26 | 6 | 6 completed | 17 / 23 / 0 | Earlier `corrected-B6-runs-v2.jsonl` completed; final-code retries at 240s, 360s, and 600s timed out |
+| B7 | Completed at the 180s timer race; no runtime failure | 21 / 22 | 6 | 6 completed | 17 / 20 / 10 | 0 zero-value completed tasks; no superseded task arose in this run |
 
-All seven main cases completed. The aggregate contained 23 completed tasks, 1
-superseded task, 62 sources, 93 evidence records, 44 claims (43 supported and
-1 partial), 39 searches, and 65 fetches. Every completed task in the batch
-produced canonical source/evidence/finding/claim progress, and the runtime’s
-empty-success rejection test also passed directly.
+Across the 11-record corrected regression batch: 8 records completed, 3 were
+incomplete (B2, B4, B6), 0 zero-value completed tasks were observed, and 0
+runs hit the Professor outer-step boundary. The three timer-race records are
+kept as `timedOut: true` in the raw artifacts even though durable state reached
+`completed`; they are not silently treated as ordinary fast completions.
 
-## Blind quality assessment
+The successful focused B6 repeat in
+[`corrected-B6-runs-v2.jsonl`](corrected-B6-runs-v2.jsonl) used the required
+model/variant and completed in 3 controller rounds with 15 durably observed
+outer steps (17 CLI steps), 10 sources, 10 evidence records, and 8 claims
+(6 supported, 1 partial, 1 unsupported). It is useful evidence that the
+runtime can close B6 without the outer emergency ceiling, but it predates the
+latest final-code evidence-dedup and timeout-plumbing edits, so it does not
+clear the final-code gate by itself. The subsequent records
+[`corrected-B6-extended-v2.jsonl`](corrected-B6-extended-v2.jsonl),
+[`corrected-B6-extended-v3.jsonl`](corrected-B6-extended-v3.jsonl), and
+[`corrected-B6-final.jsonl`](corrected-B6-final.jsonl) preserve the final-code
+240-second, 360-second, and 600-second failures. The final record contains no
+durable state because the child process was still in startup/retrieval when
+the harness ceiling elapsed.
 
-- **B1b — PASS.** The report leads with current Next.js 16/App Router guidance,
-  separates the still-supported Pages Router and version-specific Cache
-  Components behavior, and lists residual version/vendor uncertainties.
-- **B2b — PASS.** It distinguishes no currently documented released interface
-  from official roadmap items, a closed community PR, third-party bridges, and
-  bounded not-found evidence; the absence claim is not presented as proof of
-  impossibility.
-- **B3b — PASS.** It separates first-party source-only desktop work from a
-  usable packaged application, distinguishes the official web path, and labels
-  similarly named `.dmg` packaging as third-party.
-- **B4b — PASS for the focused completed run; FAIL for the full-batch record
-  solely on completion.** The completed report separates classic documentation,
-  the current rewrite, and roadmap material, identifies stack differences, and
-  records remaining version uncertainty. The full-batch timeout remains a real
-  boundedness result, not a hidden failure.
+### Main-case report assessment
 
-## Main-case rubric scores
+Scores are 0–5 in the rubric order: bounded completion, question coverage,
+evidence atomicity, claim accounting, report usefulness. They are manual
+assessment of available completed reports, not a synthetic runner score.
 
-Scores are 0–5 per rubric dimension in the order: bounded completion, question
-coverage, evidence atomicity, claim accounting, report usefulness.
+| Case | Score | Assessment |
+| --- | ---: | --- |
+| B1 | 23/25 | Current App Router guidance is direct and legacy behavior is separated; minor version/source caveats remain. |
+| B2 | 25/25 on the completed extended report | Released, roadmap, PR, community, and not-found categories are explicitly separated. |
+| B3 | 24/25 | Official web/source status is separated from third-party packaging and community claims. |
+| B4 | 25/25 on the completed extended report | Classic, rewrite, roadmap, and version conflicts are reconciled without collapsing them. |
+| B5 | 24/25 | Production blockers and changed assumptions are useful; adaptive replanning is reflected in the report, though this run created no additional follow-up task. |
+| B6 | 22/25 on the earlier completed focused report | The report is candid about partial desktop/licensing evidence and gives feasible-today/future architectures; final-code completion remains unproven. |
+| B7 | 25/25 | The report covers HyperFrames, Blender, OpenCut, FFmpeg, AI services, audio, captions, and human/file boundaries with a practical architecture. |
 
-| Case | Scores | Total | Short evidence note |
-| --- | --- | ---: | --- |
-| B1 | 5 / 4 / 4 / 5 / 5 | 23/25 | Current/legacy guidance is clear; one non-primary legacy reference and minor version ambiguity remain. |
-| B2 | 5 / 5 / 5 / 5 / 5 | 25/25 | Released, roadmap, community, third-party, and not-found categories are explicitly separated. |
-| B3 | 5 / 5 / 4 / 5 / 5 | 24/25 | First-party authority and packaging provenance are strong; some citations are plain URL forms. |
-| B4 | 5 / 5 / 5 / 5 / 5 | 25/25 | Current rewrite, classic stack, roadmap, and version conflicts are labeled rather than merged. |
-| B5 | 5 / 5 / 5 / 5 / 5 | 25/25 | Official Node 24 evidence keeps stable core status distinct from experimental subfeatures and flag dating. |
-| B6 | 5 / 5 / 5 / 5 / 5 | 25/25 | Uses a small official source set, separates current main from classic/roadmap material, and states gaps. |
-| B7 | 5 / 5 / 5 / 5 / 5 | 25/25 | Covers repository, runtime, and UI; stops at sufficient dimensions and exposes a partial media/persistence claim. |
+## Blind B1b–B4b
 
-## Verification and environment notes
+The corrected primary batch completed all four blind cases with the fixed model
+and variant. All four reports are judged **PASS**:
 
-- `node --test opencode/tests/*.test.js`: 236 passed.
-- `node --test benchmarks/professor-quality/harness.test.mjs`: 5 passed.
-- Strict OpenSpec validation: passed with no issues.
-- The durable-event task audit was added after the full batch, so its older
-  records are not used as the sole zero-value-task proof; the direct runtime
-  guard and B7 terminal task counts provide the verification for that case.
-- The local global OpenCode launcher initially contained a postinstall
-  placeholder; rerunning its package postinstall restored the CLI. This was a
-  user-level environment issue, not a retrieval/source failure, and the
-  successful benchmark records were produced after repair.
+- **B1b — PASS:** current App Router/Next.js guidance is distinguished from
+  supported Pages Router and version-specific caching/legacy behavior, with
+  residual uncertainty disclosed.
+- **B2b — PASS:** no released official automation surface is separated from
+  roadmap items, closed/open proposals, third-party controllers, and bounded
+  not-found evidence.
+- **B3b — PASS:** first-party web/source-only desktop status is separated from
+  unofficial DMG/fork claims and community evidence.
+- **B4b — PASS:** classic/current rewrite/roadmap generations and stack
+  differences are reconciled, with remaining version uncertainty recorded.
+
+The primary blind metrics were 4/4 completed, 14 completed tasks, no failed or
+superseded tasks, 36 sources, 55 evidence records, 24 supported claims, and no
+zero-value completed tasks. The historical frozen baseline was 3/4 completed
+(B1b PARTIAL, B2b PASS, B3b PASS, B4b FAIL), but its model was not recorded.
+
+## Correctness and budget changes verified
+
+The zero-value completion root cause was checking whether input arrays were
+non-empty before normalization. The runtime now computes canonical progress
+after normalization. It counts only new source records or observed aliases,
+new canonical evidence, new findings/contradictions, meaningful criterion or
+contradiction mutations, and follow-up tasks actually created and still
+actionable. Duplicate source/evidence records and unchanged updates therefore
+reject an unresolved successful commit, preserve the running task, or use
+supersession when the linked question is already sufficient. Durable
+`task.completed` events include those actual counts and `canonicalResult`.
+
+The unsafe budget root cause was treating one controller round as a fixed three
+outer steps. That estimate is retained only for compatibility/diagnostics. New
+runs retain a 32-step emergency ceiling and an 8-step closure reserve. Without
+an observed host step event, the runtime uses a fallback five-round controller
+ceiling (default two-round controller reserve, three normal research rounds).
+Once completed outer-step events are observed, the configured ceiling can be
+used, but actual observed outer steps gate new research when only the closure
+reserve remains. Capacity exposes observed/remaining steps, normal research
+steps, controller limits, and closure recommendation; the Professor prompt
+also requires bounded tasks, selective retrieval, and early commit/verify.
+
+The remaining host limitation is observability: if the host emits no recognized
+step event, the runtime cannot know live outer usage and must use the fallback.
+On OpenCode 1.18.31, recognized `message.part.updated` `step-finish` events were
+available, although durable counts can lag the CLI step count by a small amount
+because event delivery occurs after session binding.
+
+## Verification status
+
+- Deterministic repository tests excluding the host-readiness integration:
+  **241 passed**.
+- Professor/runtime/plugin/agent focused tests: **60 passed** (included in the
+  deterministic total).
+- Benchmark harness tests: **5 passed**.
+- `git diff --check`: passed.
+- Strict OpenSpec validation: run after the final artifact update; the existing
+  change remains the single change, with task 4.4 intentionally open until B6
+  clears the final-code regression gate.
+- Host-dependent integration: **1 failed at readiness** after 183.9 seconds;
+  the test's OpenCode server printed that it was listening on localhost, but
+  its HTTP readiness operation timed out before the test could exercise the
+  linked-worktree flow. This is an environment-level limitation, not a
+  Professor assertion failure.
+
+The exact remaining blocker is therefore benchmark completion reliability for
+the original B6 under the final code, not a detected outer-step-cap breach or a
+zero-value task regression.

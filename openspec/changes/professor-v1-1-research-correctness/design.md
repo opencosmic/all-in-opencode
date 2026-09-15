@@ -38,10 +38,12 @@ does not provide a credible closure boundary for a research run.
 ### Use a small derived closure boundary
 
 The existing 32-step Professor ceiling remains an emergency ceiling. State
-normalization derives a conservative safe controller-round ceiling from an
-explicit outer-step assumption and a fixed completion reserve, and new runs
-default to that safe ceiling rather than 30 rounds. Each budget exposes the
-outer limit, reserve, and remaining normal/closure capacity in the digest and
+normalization uses a deliberately conservative controller-round ceiling as the
+fallback for hosts that do not expose outer-step events. When the OpenCode
+host emits completed step parts, the plugin durably observes those parts and
+the runtime gates further research from the actual outer-step count, retaining
+the explicit completion reserve. Each budget exposes the outer limit, observed
+usage, reserve, and remaining normal/closure capacity in the digest and
 `research_next` response. When normal research capacity is consumed,
 `research_next` records a bounded stopping reason and transitions to
 verification. The runtime does not count web requests as controller rounds;
@@ -68,11 +70,13 @@ actionable `pending` tasks.
 
 ### Gate commits on canonical result categories
 
-`research_commit` validates whether the input adds a new source, evidence,
-finding, contradiction, follow-up, criterion satisfaction, or contradiction
-update before changing the task to `completed`. A summary-only commit is
-rejected unless the linked question is already sufficient, in which case the
-running task is durably superseded. A caller that genuinely has no result uses
+`research_commit` validates whether the input causes a genuine canonical state
+mutation: a new source or evidence record, finding, contradiction, follow-up,
+criterion satisfaction, or contradiction update. Source and evidence inputs
+are normalized against existing canonical records, so duplicate source/evidence
+inputs and unchanged updates do not count. A summary-only commit is rejected
+unless the linked question is already sufficient, in which case the running
+task is durably superseded. A caller that genuinely has no result uses
 `failed: true` with a failure summary. The check is based on canonical state
 changes, not text heuristics.
 
@@ -104,10 +108,10 @@ completion.
   early. → [Mitigation] Keep the bound explicit in state, preserve all pending
   work and uncertainty, and use a focused follow-up run; do not pretend the
   run is certain.
-- [Risk] A fixed outer-step estimate cannot observe every model step. →
-  [Mitigation] Treat it as a deterministic safety boundary and reinforce it
-  with selective-retrieval/early-commit instructions; the 32-step ceiling
-  remains an emergency stop.
+- [Risk] A host may not emit a usable outer-step event for every model step. →
+  [Mitigation] Use the conservative controller fallback, expose observed
+  capacity when available, and reinforce selective-retrieval/early-commit
+  instructions; the 32-step ceiling remains an emergency stop.
 - [Risk] Prompt compliance cannot prove natural-language evidence entailment.
   → [Mitigation] Enforce source identity/span structure, expose bounded
   records to verification, and leave semantic checking for a future

@@ -3,7 +3,12 @@ import { readFile, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { loadCases, objectiveMetrics } from "./lib.mjs"
+import {
+  loadCases,
+  objectiveMetrics,
+  PROFESSOR_BENCHMARK_MODEL,
+  PROFESSOR_BENCHMARK_VARIANT,
+} from "./lib.mjs"
 
 const benchmarkDirectory = dirname(fileURLToPath(import.meta.url))
 
@@ -29,7 +34,15 @@ async function main() {
     schemaVersion: 1,
     benchmarkName: "professor-quality",
     generatedAt: new Date().toISOString(),
-    cases: cases.map((item) => ({ id: item.id, category: item.category, blind: item.blind === true, repeatRuns: item.repeatRuns })),
+    benchmarkModel: PROFESSOR_BENCHMARK_MODEL,
+    benchmarkVariant: PROFESSOR_BENCHMARK_VARIANT,
+    modelControl: {
+      requiredModel: PROFESSOR_BENCHMARK_MODEL,
+      requiredVariant: PROFESSOR_BENCHMARK_VARIANT,
+      recordsWithRequiredModel: records.filter((record) => record.benchmarkModel === PROFESSOR_BENCHMARK_MODEL && record.benchmarkVariant === PROFESSOR_BENCHMARK_VARIANT).length,
+      recordsWithOtherModelOrVariant: records.filter((record) => record.benchmarkModel !== PROFESSOR_BENCHMARK_MODEL || record.benchmarkVariant !== PROFESSOR_BENCHMARK_VARIANT).length,
+    },
+    cases: cases.map((item) => ({ id: item.id, suite: item.suite, category: item.category, blind: item.blind === true, repeatRuns: item.repeatRuns })),
     records: records.length,
     objective: objectiveMetrics(records),
     evaluation: {

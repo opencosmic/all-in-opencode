@@ -13,6 +13,7 @@ export { createIsolatedConfig, detectOpenCodeVersion, normalizeEvents, resetResu
 export const OUTER_STEP_LIMIT = 32
 export const PROFESSOR_BENCHMARK_MODEL = "opencode/muse-spark-1.3-contributor-free"
 export const PROFESSOR_BENCHMARK_VARIANT = "xhigh"
+export const PROFESSOR_BENCHMARK_SUITES = ["original", "blind", "supplemental"]
 export const PROFESSOR_TOOL_NAMES = [
   "research_start",
   "research_next",
@@ -25,6 +26,7 @@ export const PROFESSOR_TOOL_NAMES = [
 
 const REQUIRED_FIELDS = [
   "id",
+  "suite",
   "category",
   "query",
   "requiresFreshness",
@@ -48,6 +50,7 @@ export function validateCases(cases) {
     if (ids.has(item.id)) throw new Error(`duplicate Professor case id: ${item.id}`)
     ids.add(item.id)
     if (typeof item.category !== "string" || !item.category.trim()) throw new Error(`${item.id}: category must be non-empty`)
+    if (!PROFESSOR_BENCHMARK_SUITES.includes(item.suite)) throw new Error(`${item.id}: suite must be one of ${PROFESSOR_BENCHMARK_SUITES.join(", ")}`)
     if (typeof item.query !== "string" || !item.query.trim()) throw new Error(`${item.id}: query must be non-empty`)
     for (const field of ["requiresFreshness", "requiresPrimarySource", "critical"]) {
       if (typeof item[field] !== "boolean") throw new Error(`${item.id}: ${field} must be boolean`)
@@ -58,17 +61,27 @@ export function validateCases(cases) {
     if (!Number.isInteger(item.repeatRuns) || item.repeatRuns < 1 || item.repeatRuns > 3) {
       throw new Error(`${item.id}: repeatRuns must be an integer from 1 to 3`)
     }
-    if (item.blind === true && !/^B[1-4]b$/.test(item.id)) throw new Error(`${item.id}: only B1b-B4b may be blind cases`)
+    if (item.blind === true && (item.suite !== "blind" || !/^B[1-4]b$/.test(item.id))) throw new Error(`${item.id}: only B1b-B4b may be blind cases`)
+    if (item.suite === "blind" && item.blind !== true) throw new Error(`${item.id}: blind suite cases must set blind=true`)
   }
   for (const id of ["B1b", "B2b", "B3b", "B4b"]) if (!ids.has(id)) throw new Error(`missing blind case ${id}`)
   return cases
 }
 
-export function buildRunPlan(cases) {
-  return cases.flatMap((item) => Array.from({ length: item.repeatRuns }, (_, index) => ({
+export function buildRunPlan(cases, { suite = "all" } = {}) {
+  const selected = suite === "all"
+    ? cases
+    : suite === "regression"
+      ? cases.filter((item) => item.suite === "original" || item.suite === "blind")
+      : cases.filter((item) => item.suite === suite)
+  if (suite !== "all" && suite !== "regression" && !PROFESSOR_BENCHMARK_SUITES.includes(suite)) {
+    throw new Error(`unknown Professor benchmark suite: ${suite}`)
+  }
+  return selected.flatMap((item) => Array.from({ length: item.repeatRuns }, (_, index) => ({
     caseId: item.id,
     runIndex: index + 1,
     runKind: index === 0 ? "baseline" : "repeat",
+    suite: item.suite,
   })))
 }
 
@@ -167,6 +180,7 @@ export function summarizeProfessorState(state, fallback = {}) {
     runId: state?.runId ?? fallback.runId ?? null,
     finalStatus: state?.status ?? fallback.finalStatus ?? null,
     controllerRounds: state?.counters?.controllerRounds ?? null,
+    outerStepsObserved: metrics.outerStepsObserved ?? fallback.outerStepsObserved ?? 0,
     taskStatusCounts: countTaskStatuses(tasks),
     taskStatuses: tasks.map((task) => ({ taskId: task.taskId, questionId: task.questionId, type: task.type, status: task.status })),
     sourceCount: state?.sources?.length ?? 0,
@@ -278,6 +292,7 @@ export async function normalizeProfessorRun({ caseItem, runIndex, runKind, stdou
     benchmarkName: "professor-quality",
     caseId: caseItem.id,
     category: caseItem.category,
+    suite: caseItem.suite,
     blind: caseItem.blind === true,
     runIndex,
     runKind,
@@ -296,6 +311,7 @@ export async function normalizeProfessorRun({ caseItem, runIndex, runKind, stdou
     finalStatus: stateSummary.finalStatus,
     completed: stateSummary.finalStatus === "completed",
     controllerRounds: stateSummary.controllerRounds,
+    outerStepsObserved: stateSummary.outerStepsObserved,
     taskStatusCounts: stateSummary.taskStatusCounts,
     taskStatuses: stateSummary.taskStatuses,
     taskLifecycle,
@@ -322,6 +338,7 @@ export async function normalizeProfessorRun({ caseItem, runIndex, runKind, stdou
       sourcesDiscovered: stateSummary.sourcesDiscovered,
       sourcesUsed: stateSummary.sourcesUsed,
       contradictionCount: stateSummary.contradictionCount,
+      outerStepsObserved: stateSummary.outerStepsObserved,
     },
     finalReport: loaded.report,
     finalResponse: finalText.slice(0, 16_000),
@@ -364,6 +381,7 @@ export function objectiveMetrics(records) {
     searchCalls: records.reduce((sum, record) => sum + (record.searchCount ?? 0), 0),
     fetchCalls: records.reduce((sum, record) => sum + (record.fetchCount ?? 0), 0),
     retrievalCalls: records.reduce((sum, record) => sum + (record.retrievalCount ?? 0), 0),
+    outerStepsObserved: records.reduce((sum, record) => sum + (record.outerStepsObserved ?? record.metrics?.outerStepsObserved ?? 0), 0),
     stepCapBoundaryRuns: records.filter((record) => record.stepCapAtBoundary).length,
     failureReasons: records.filter((record) => record.failureReason).map((record) => ({ caseId: record.caseId, reason: record.failureReason })),
     byCase: Object.fromEntries([...new Set(records.map((record) => record.caseId))].map((caseId) => {
@@ -372,6 +390,7 @@ export function objectiveMetrics(records) {
         runs: rows.length,
         completedRuns: rows.filter((record) => record.completed).length,
         controllerRounds: rows.map((record) => record.controllerRounds),
+        outerStepsObserved: rows.map((record) => record.outerStepsObserved ?? record.metrics?.outerStepsObserved ?? 0),
         supersededTasks: rows.reduce((sum, record) => sum + (record.taskStatusCounts?.superseded ?? 0), 0),
         zeroValueCompletedTasks: rows.reduce((sum, record) => sum + (record.zeroValueCompletedTasks?.length ?? 0), 0),
         sources: rows.reduce((sum, record) => sum + (record.sourceCount ?? 0), 0),

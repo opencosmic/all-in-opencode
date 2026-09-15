@@ -10,16 +10,21 @@ export const VERIFICATION_RESULTS = ["SUPPORTED", "PARTIAL", "UNSUPPORTED", "CON
 export const CONFIDENCE_LEVELS = ["low", "medium", "high"]
 
 // Professor's agent definition is intentionally kept at a modest outer step
-// ceiling. ResearchState derives its normal controller capacity from that
-// contract and reserves room for closure instead of advertising the old
-// twenty-plus-round budget as if every round could fit in one model turn.
+// ceiling. The runtime observes completed outer steps when the host exposes
+// them. This fixed controller limit is only the conservative fallback for
+// hosts where that observation is unavailable; it is deliberately not derived
+// from an optimistic steps-per-round average.
 export const PROFESSOR_OUTER_STEP_LIMIT = 32
 export const COMPLETION_STEP_RESERVE = 8
+// Retained in the persisted budget for compatibility and diagnostics. It is
+// not used to derive the fallback controller limit.
 export const ESTIMATED_STEPS_PER_CONTROLLER_ROUND = 3
-export const SAFE_CONTROLLER_ROUND_LIMIT = Math.max(
-  1,
-  Math.floor((PROFESSOR_OUTER_STEP_LIMIT - COMPLETION_STEP_RESERVE) / ESTIMATED_STEPS_PER_CONTROLLER_ROUND),
-)
+export const FALLBACK_CONTROLLER_ROUND_LIMIT = 5
+// This is the maximum configured controller ceiling when the host has
+// demonstrated that actual outer-step events are available. It is still
+// gated by the observed outer-step reserve rather than a steps-per-round
+// estimate. Keep the old export name for callers and persisted-state tests.
+export const SAFE_CONTROLLER_ROUND_LIMIT = 8
 export const DEFAULT_COMPLETION_RESERVE = 2
 
 const PRIORITY_WEIGHT = { critical: 3, high: 2, normal: 1 }
@@ -45,6 +50,7 @@ function emptyCompletionMetrics() {
     sourcesUsed: null,
     remainingUncertainties: null,
     contradictionCount: null,
+    outerStepsObserved: 0,
     claimStatusCounts: emptyClaimStatusCounts(),
   }
 }
@@ -75,6 +81,16 @@ function normalizeClaimStatusCounts(value) {
 
 function defaultCompletionReserve(maxControllerRounds) {
   return Math.min(DEFAULT_COMPLETION_RESERVE, Math.max(0, maxControllerRounds - 1))
+}
+
+function outerStepObservationAvailable(state) {
+  return Number.isInteger(state?.metrics?.outerStepsObserved) && state.metrics.outerStepsObserved > 0
+}
+
+function effectiveControllerRoundLimit(state, maxControllerRounds) {
+  return outerStepObservationAvailable(state)
+    ? maxControllerRounds
+    : Math.min(maxControllerRounds, FALLBACK_CONTROLLER_ROUND_LIMIT)
 }
 
 function normalizeBudgetShape(budget) {
@@ -290,11 +306,24 @@ export function criticalQuestionsIncomplete(state) {
 }
 
 export function hasHardBudget(state) {
+  const outerStepLimit = Number.isInteger(state?.budget?.outerStepLimit)
+    ? state.budget.outerStepLimit
+    : PROFESSOR_OUTER_STEP_LIMIT
+  const completionStepReserve = Number.isInteger(state?.budget?.completionStepReserve)
+    ? state.budget.completionStepReserve
+    : COMPLETION_STEP_RESERVE
+  const outerStepsObserved = Number.isInteger(state?.metrics?.outerStepsObserved)
+    ? state.metrics.outerStepsObserved
+    : 0
+  const maxControllerRounds = Number.isInteger(state?.budget?.maxControllerRounds)
+    ? Math.max(1, Math.min(state.budget.maxControllerRounds, SAFE_CONTROLLER_ROUND_LIMIT))
+    : SAFE_CONTROLLER_ROUND_LIMIT
   return Boolean(
     state.budget.exhausted ||
-      state.counters.controllerRounds >= state.budget.maxControllerRounds ||
+      state.counters.controllerRounds >= effectiveControllerRoundLimit(state, maxControllerRounds) ||
       state.counters.sourcesRecorded >= state.budget.maxSources ||
-      state.counters.evidenceRecorded >= state.budget.maxEvidenceRecords,
+      state.counters.evidenceRecorded >= state.budget.maxEvidenceRecords ||
+      outerStepsObserved + completionStepReserve >= outerStepLimit,
   )
 }
 
@@ -305,19 +334,40 @@ export function researchCapacity(state) {
   const completionReserve = Number.isInteger(state?.budget?.completionReserve)
     ? Math.max(0, Math.min(state.budget.completionReserve, maxControllerRounds - 1))
     : defaultCompletionReserve(maxControllerRounds)
-  const normalResearchRoundLimit = Math.max(1, maxControllerRounds - completionReserve)
+  const controllerRoundLimit = effectiveControllerRoundLimit(state, maxControllerRounds)
+  const normalResearchRoundLimit = Math.max(1, controllerRoundLimit - completionReserve)
   const controllerRoundsUsed = Number.isInteger(state?.counters?.controllerRounds) ? state.counters.controllerRounds : 0
   const controllerRoundsRemaining = Math.max(0, maxControllerRounds - controllerRoundsUsed)
-  const researchRoundsRemaining = Math.max(0, normalResearchRoundLimit - controllerRoundsUsed)
+  const outerStepLimit = Number.isInteger(state?.budget?.outerStepLimit)
+    ? state.budget.outerStepLimit
+    : PROFESSOR_OUTER_STEP_LIMIT
+  const completionStepReserveInBudget = Number.isInteger(state?.budget?.completionStepReserve)
+    ? state.budget.completionStepReserve
+    : COMPLETION_STEP_RESERVE
+  const outerStepsObserved = Number.isInteger(state?.metrics?.outerStepsObserved)
+    ? Math.max(0, state.metrics.outerStepsObserved)
+    : 0
+  const outerStepsRemaining = Math.max(0, outerStepLimit - outerStepsObserved)
+  const outerResearchStepsRemaining = Math.max(0, outerStepsRemaining - completionStepReserveInBudget)
+  const outerStepCapacityReached = outerResearchStepsRemaining <= 0
+  const researchRoundsRemaining = outerStepCapacityReached
+    ? 0
+    : Math.max(0, normalResearchRoundLimit - controllerRoundsUsed)
   const taskSlotsRemaining = Math.max(0, (state?.budget?.maxTasks ?? 0) - (state?.counters?.tasksCreated ?? 0))
   const sourceRecordsRemaining = Math.max(0, (state?.budget?.maxSources ?? 0) - (state?.counters?.sourcesRecorded ?? 0))
   const evidenceRecordsRemaining = Math.max(0, (state?.budget?.maxEvidenceRecords ?? 0) - (state?.counters?.evidenceRecorded ?? 0))
   return {
-    outerStepLimit: state?.budget?.outerStepLimit ?? PROFESSOR_OUTER_STEP_LIMIT,
-    completionStepReserve: state?.budget?.completionStepReserve ?? COMPLETION_STEP_RESERVE,
+    outerStepLimit,
+    completionStepReserve: completionStepReserveInBudget,
     estimatedStepsPerControllerRound: state?.budget?.estimatedStepsPerControllerRound ?? ESTIMATED_STEPS_PER_CONTROLLER_ROUND,
+    outerStepsObserved,
+    outerStepsRemaining,
+    outerResearchStepsRemaining,
+    outerStepCapacityReached,
     completionReserve,
     maxControllerRounds,
+    controllerRoundLimit,
+    outerStepObservationAvailable: outerStepObservationAvailable(state),
     normalResearchRoundLimit,
     controllerRoundsUsed,
     controllerRoundsRemaining,
@@ -558,6 +608,9 @@ export function validateResearchState(state) {
   }
   if (!Number.isInteger(state.metrics.searchCount) || state.metrics.searchCount < 0) {
     throw new Error("research state searchCount is invalid")
+  }
+  if (!Number.isInteger(state.metrics.outerStepsObserved) || state.metrics.outerStepsObserved < 0) {
+    throw new Error("research state outerStepsObserved is invalid")
   }
   for (const key of ["durationMs", "citationCount", "questionsTotal", "questionsResolved", "sourcesDiscovered", "sourcesUsed", "contradictionCount"]) {
     const value = state.metrics[key]

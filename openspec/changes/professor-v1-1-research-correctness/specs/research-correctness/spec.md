@@ -18,6 +18,11 @@ Professor research MUST expose a deterministic normal research bound and remaini
 - **WHEN** a run has remaining controller capacity
 - **THEN** the scheduling response and durable state expose enough remaining-capacity information for Professor to choose closure over an unnecessary deep retrieval branch
 
+#### Scenario: Host outer-step usage is observable
+
+- **WHEN** the OpenCode host emits a completed outer-step event for a bound Professor session
+- **THEN** the runtime records that usage once, exposes observed and remaining outer-step capacity, and stops selecting new research when the completion reserve would otherwise be consumed
+
 ### Requirement: Sufficient questions supersede redundant pending tasks
 
 When a question's required criteria are satisfied by same-question evidence, all redundant pending tasks linked to that question MUST become auditable `superseded` tasks. A task explicitly created to resolve a separate critical claim or contradiction MAY remain actionable until that blocker is resolved. Superseded tasks MUST NOT be returned as actionable work, counted as unresolved gaps, or treated as successful research completions.
@@ -34,7 +39,7 @@ When a question's required criteria are satisfied by same-question evidence, all
 
 ### Requirement: Completed tasks represent canonical research progress
 
-A task MUST NOT be marked completed from a summary alone. A normal completed task MUST add a source, evidence record, finding, contradiction, follow-up, or criterion update (or another explicitly canonical research result). Already-sufficient no-result work MUST use supersession, and retrieval that genuinely yields no result MUST use the failure state with a failure summary.
+A task MUST NOT be marked completed from a summary alone. A normal completed task MUST cause a genuine canonical ResearchState mutation, such as adding a new source, new evidence record, finding, contradiction, follow-up, or meaningful criterion/contradiction update. Duplicate or normalized no-op inputs MUST NOT count as progress. Already-sufficient no-result work MUST use supersession, and retrieval that genuinely yields no result MUST use the failure state with a failure summary.
 
 #### Scenario: Meaningful task commit completes
 
@@ -45,6 +50,11 @@ A task MUST NOT be marked completed from a summary alone. A normal completed tas
 
 - **WHEN** a running task submits only a summary and no canonical research result
 - **THEN** the runtime rejects the commit and leaves the task running for a corrected commit or explicit failure
+
+#### Scenario: Normalized duplicate input is rejected
+
+- **WHEN** a running task submits only an already-canonical source or evidence record, unchanged coverage/contradiction state, or follow-up requests that cannot be created
+- **THEN** the runtime records no successful completion and leaves the task running unless the linked question is already sufficient, in which case it uses supersession
 
 #### Scenario: Failed no-result work is explicit
 

@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+  "benchmarkName": "professor-quality",
+  "generatedAt": "2026-09-15T10:58:44.556Z",
+  "benchmarkModel": "opencode/muse-spark-1.3-contributor-free",
+  "benchmarkVariant": "xhigh",
+  "modelControl": {
+    "requiredModel": "opencode/muse-spark-1.3-contributor-free",
+    "requiredVariant": "xhigh",
+    "recordsWithRequiredModel": 1,
+    "recordsWithOtherModelOrVariant": 0
+  },
+  "cases": [
+    {
+      "id": "B1",
+      "suite": "original",
+      "category": "temporal-version",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B2",
+      "suite": "original",
+      "category": "negative-claim",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B3",
+      "suite": "original",
+      "category": "source-authority",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B4",
+      "suite": "original",
+      "category": "contradiction-version",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B5",
+      "suite": "original",
+      "category": "multi-aspect-correctness",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B6",
+      "suite": "original",
+      "category": "bounded-deep-retrieval",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B7",
+      "suite": "original",
+      "category": "frontier-supersession",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B1b",
+      "suite": "blind",
+      "category": "blind-temporal-version",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B2b",
+      "suite": "blind",
+      "category": "blind-negative-claim",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B3b",
+      "suite": "blind",
+      "category": "blind-source-authority",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B4b",
+      "suite": "blind",
+      "category": "blind-contradiction-version",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "C1",
+      "suite": "supplemental",
+      "category": "supplemental-temporal-version",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "C2",
+      "suite": "supplemental",
+      "category": "supplemental-negative-claim",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "C3",
+      "suite": "supplemental",
+      "category": "supplemental-source-authority",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "C4",
+      "suite": "supplemental",
+      "category": "supplemental-contradiction-version",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "C5",
+      "suite": "supplemental",
+      "category": "supplemental-multi-aspect-correctness",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "C6",
+      "suite": "supplemental",
+      "category": "supplemental-bounded-deep-retrieval",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "C7",
+      "suite": "supplemental",
+      "category": "supplemental-frontier-supersession",
+      "blind": false,
+      "repeatRuns": 1
+    }
+  ],
+  "records": 1,
+  "objective": {
+    "runs": 1,
+    "completedRuns": 1,
+    "incompleteRuns": 0,
+    "completionRate": 1,
+    "controllerRounds": [
+      3
+    ],
+    "taskStatusCounts": {
+      "pending": 0,
+      "running": 0,
+      "completed": 3,
+      "failed": 0,
+      "superseded": 0
+    },
+    "sources": 9,
+    "evidence": 18,
+    "findings": 4,
+    "claims": 7,
+    "claimStatusCounts": {
+      "supported": 7,
+      "partial": 0,
+      "unsupported": 0,
+      "contradicted": 0
+    },
+    "zeroValueCompletedTasks": 0,
+    "searchCalls": 7,
+    "fetchCalls": 6,
+    "retrievalCalls": 13,
+    "outerStepsObserved": 16,
+    "stepCapBoundaryRuns": 0,
+    "failureReasons": [],
+    "byCase": {
+      "B4": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          3
+        ],
+        "outerStepsObserved": [
+          16
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 9,
+        "evidence": 18,
+        "claims": 7,
+        "claimStatusCounts": {
+          "supported": 7,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 7,
+        "fetchCalls": 6,
+        "durationsMs": [
+          169105
+        ]
+      }
+    }
+  },
+  "evaluation": {
+    "qualityJudgments": "not assigned by the runner; assess final reports against the frozen case prompts and rubric",
+    "blindAssessments": "B1b-B4b require manual PASS/PARTIAL/FAIL assessment with concise evidence"
+  }
+}

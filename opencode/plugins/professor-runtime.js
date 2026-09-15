@@ -6,7 +6,7 @@ import { SAFE_CONTROLLER_ROUND_LIMIT } from "./professor/state.js"
 const z = tool.schema
 
 const budgetArgs = z.object({
-  maxControllerRounds: z.number().int().min(1).max(SAFE_CONTROLLER_ROUND_LIMIT).optional().describe("Normal research rounds; the runtime reserves closure capacity from the Professor outer-step budget"),
+  maxControllerRounds: z.number().int().min(1).max(SAFE_CONTROLLER_ROUND_LIMIT).optional().describe("Normal research rounds; the runtime observes host outer steps when available and retains closure capacity"),
   completionReserve: z.number().int().min(0).max(500).optional().describe("Controller rounds retained for verification and report completion"),
   maxTasks: z.number().int().min(1).max(500).optional(),
   maxSources: z.number().int().min(1).max(500).optional(),
@@ -128,14 +128,14 @@ export default async function ProfessorRuntime(_input = {}, options = {}) {
         },
       }),
       research_next: tool({
-        description: "Select the deterministic highest-priority pending research task. The runtime marks redundant work as superseded when its question is already sufficient, enforces one running task, and returns closure-aware remaining capacity before selecting more research.",
+        description: "Select the deterministic highest-priority pending research task. The runtime marks redundant work as superseded when its question is already sufficient, enforces one running task, observes outer-step usage when the host exposes it, and returns closure-aware remaining capacity before selecting more research.",
         args: { runId: z.string() },
         async execute(args, context) {
           return json(await runtime.next(args, context))
         },
       }),
       research_commit: tool({
-        description: "Atomically record a bounded research task result. A summary alone cannot complete an unresolved task: provide a canonical research result through source/evidence/finding/contradiction/coverage output, or set failed:true with a failure summary. If the linked question is already sufficient and there is no new result, the task is recorded as superseded. A satisfied completion criterion must name at least one evidenceId, evidenceIndex, or evidenceKey for the same question; evidenceIndexes and evidenceKeys may refer to evidence declared in this commit. Each evidence record must bind one bounded proposition to one declared source, canonical citation URL, fact, and supporting span.",
+        description: "Atomically record a bounded research task result. A summary alone cannot complete an unresolved task: provide a canonical research result through source/evidence/finding/contradiction/coverage output, or set failed:true with a failure summary. The runtime checks the normalized state for actual progress, so duplicate sources or evidence, unchanged criteria, unchanged contradiction updates, and follow-ups that were not created do not count. If the linked question is already sufficient and there is no new result, the task is recorded as superseded. A satisfied completion criterion must name at least one evidenceId, evidenceIndex, or evidenceKey for the same question; evidenceIndexes and evidenceKeys may refer to evidence declared in this commit. Each evidence record must bind one bounded proposition to one declared source, canonical citation URL, fact, and supporting span.",
         args: {
           runId: z.string(),
           taskId: z.string(),
@@ -197,6 +197,9 @@ export default async function ProfessorRuntime(_input = {}, options = {}) {
     },
     "tool.execute.before": async ({ tool: toolName, sessionID }) => {
       await runtime.recordNativeSearch({ tool: toolName, sessionID })
+    },
+    event: async ({ event }) => {
+      await runtime.observeOuterStep(event)
     },
     "chat.params": async (input) => {
       runtime.observeSessionAgent(input)
