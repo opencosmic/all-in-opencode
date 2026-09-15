@@ -130,3 +130,91 @@ test("patch-equivalent cherry-picked work releases normally and retains its non-
   assert.equal(released.branch_preserved, true)
   assert.equal(await git(repository, ["branch", "--list", prepared.branch]), `* ${prepared.branch}`.replace("* ", ""))
 })
+
+test("successful local integration finalizes an in-place primary without removing the checkout", async (t) => {
+  const { repository, manager } = await fixture(t)
+  const primary = await manager.prepare({ change_id: "ship-change", task_id: "ship-task" }, repository)
+  await writeFile(join(primary.directory, "ship.txt"), "shipped\n")
+  await git(primary.directory, ["add", "ship.txt"])
+  await git(primary.directory, ["commit", "-m", "ship change"])
+  await git(repository, ["switch", "main"])
+  await git(repository, ["merge", "--ff-only", primary.branch])
+
+  const finalized = await manager.release(primary.workspace_id, repository, {
+    finalize_in_place: true,
+    integration_branch: "main",
+  })
+  assert.equal(finalized.status, "finalized")
+  assert.equal(finalized.canonical, false)
+  assert.equal(finalized.managed_worktree, false)
+  assert.equal(await git(repository, ["branch", "--show-current"]), "main")
+  assert.equal(await readFile(join(repository, "ship.txt"), "utf8"), "shipped\n")
+  assert.equal((await git(repository, ["worktree", "list", "--porcelain"])).split(/\n\n+/).filter(Boolean).length, 1)
+  assert.equal((await manager.get(primary.workspace_id, { validate: false })).status, "finalized")
+  const preflight = await manager.preflight({ change_id: "ship-change" }, repository)
+  assert.deepEqual(preflight.persisted.managed_workspaces, [])
+  assert.deepEqual(preflight.persisted.invalid_workspaces, [])
+})
+
+test("failed local integration preserves the in-place primary manifest", async (t) => {
+  const { repository, manager } = await fixture(t)
+  const primary = await manager.prepare({ change_id: "failed-ship", task_id: "failed-task" }, repository)
+  await writeFile(join(primary.directory, "not-yet-shipped.txt"), "pending\n")
+  await git(primary.directory, ["add", "not-yet-shipped.txt"])
+  await git(primary.directory, ["commit", "-m", "pending ship"])
+  await git(repository, ["switch", "main"])
+
+  await assert.rejects(
+    manager.release(primary.workspace_id, repository, {
+      finalize_in_place: true,
+      integration_branch: "main",
+    }),
+    /not integrated into main.*preserving/,
+  )
+  const preserved = await manager.get(primary.workspace_id, { validate: false })
+  assert.equal(preserved.status, "active")
+  assert.equal(preserved.canonical, true)
+  assert.equal(await git(repository, ["branch", "--show-current"]), "main")
+  assert.equal(await git(repository, ["branch", "--list", primary.branch]), primary.branch)
+})
+
+test("in-place primary finalization refuses active child and task ownership", async (t) => {
+  const { root, repository } = await fixture(t)
+  let activeWorkspaceID = null
+  const manager = new WorkspaceManager({
+    stateDirectory: join(root, "state"),
+    hasActiveTasks: async (workspaceID) => workspaceID === activeWorkspaceID,
+  })
+  const primary = await manager.prepare({ change_id: "busy-ship", task_id: "busy-primary" }, repository)
+  const child = await manager.prepare({
+    change_id: "busy-ship",
+    task_id: "busy-child",
+    role: "child",
+    parent_workspace_id: primary.workspace_id,
+    isolation_reason: "keep a dependent child active",
+  }, repository)
+  await writeFile(join(primary.directory, "busy-ship.txt"), "ship\n")
+  await git(primary.directory, ["add", "busy-ship.txt"])
+  await git(primary.directory, ["commit", "-m", "busy ship"])
+  await git(repository, ["switch", "main"])
+  await git(repository, ["merge", "--ff-only", primary.branch])
+
+  activeWorkspaceID = primary.workspace_id
+  await assert.rejects(
+    manager.release(primary.workspace_id, repository, {
+      finalize_in_place: true,
+      integration_branch: "main",
+    }),
+    /task still uses it/,
+  )
+  activeWorkspaceID = null
+  await assert.rejects(
+    manager.release(primary.workspace_id, repository, {
+      finalize_in_place: true,
+      integration_branch: "main",
+    }),
+    /dependent child.*active or unreleased/,
+  )
+  assert.equal((await manager.get(primary.workspace_id, { validate: false })).status, "active")
+  assert.equal((await manager.get(child.workspace_id, { validate: false })).primary_workspace_id, primary.workspace_id)
+})

@@ -178,8 +178,15 @@ export class WorkspaceManager {
     for (const file of files.filter((name) => name.endsWith(".json"))) {
       const manifest = await readJson(join(directory, file))
       if (!manifest) continue
-      if (!includeReleased && ["released", "superseded"].includes(manifest.status)) continue
-      if (changeID !== undefined && manifest.change_id !== changeID && manifest.task_id !== taskID) continue
+      if (!includeReleased && ["released", "superseded", "finalized"].includes(manifest.status)) continue
+      if (changeID !== undefined) {
+        const hasChangeOwnership = manifest.change_id !== undefined
+          && manifest.change_id !== null
+          && String(manifest.change_id).trim().length > 0
+        if (hasChangeOwnership
+          ? manifest.change_id !== changeID
+          : taskID === undefined || taskID === null || manifest.task_id !== taskID) continue
+      }
       manifests.push(manifest)
     }
     return manifests
@@ -415,6 +422,30 @@ export class WorkspaceManager {
       || await this.hasActiveDirectoryTasks(workspace.directory)
   }
 
+  dependentChildren(workspaces, primaryWorkspaceID) {
+    return workspaces.filter((workspace) =>
+      workspace.role === "child"
+      && workspace.primary_workspace_id === primaryWorkspaceID
+      && !["released", "superseded", "finalized"].includes(workspace.status))
+  }
+
+  async assertPrimaryReplacementAllowed(preflight, replacementWorkspaceID = null) {
+    const candidates = [
+      ...(preflight.persisted.managed_workspaces ?? []),
+      ...(preflight.persisted.invalid_workspaces ?? []),
+    ].filter((workspace) =>
+      workspace.role === "primary"
+      && workspace.change_id === preflight.change_id
+      && workspace.workspace_id !== replacementWorkspaceID)
+    const projectWorkspaces = await this.projectManifests(preflight.repository.repository_id)
+    for (const candidate of candidates) {
+      const children = this.dependentChildren(projectWorkspaces, candidate.workspace_id)
+      if (children.length) {
+        throw new Error(`cannot supersede primary workspace ${candidate.workspace_id} while dependent child workspace(s) remain active or unreleased; complete, integrate, and release them first`)
+      }
+    }
+  }
+
   async supersedePrimary(workspaceID, replacementWorkspaceID, reason) {
     const { manifest, path } = await this.findManifest(workspaceID)
     if (!["active", "preparing"].includes(manifest.status)) return
@@ -429,9 +460,11 @@ export class WorkspaceManager {
   }
 
   async canonicalizePrimary(preflight, workspaceID, reason) {
+    await this.assertPrimaryReplacementAllowed(preflight, workspaceID)
     const candidates = preflight.persisted.managed_workspaces.filter((workspace) =>
       workspace.role === "primary"
       && workspace.valid
+      && workspace.change_id === preflight.change_id
       && workspace.workspace_id !== workspaceID)
     for (const candidate of candidates) {
       if (await this.workspaceHasActiveTasks(candidate, preflight)) {
@@ -477,6 +510,7 @@ export class WorkspaceManager {
     }
     const existing = await this.reusablePrimary(changeID, taskID, preflight, input)
     if (existing) return existing
+    await this.assertPrimaryReplacementAllowed(preflight)
 
     const current = preflight.repository.current
     const dirtyOwnershipProven = input.dirty_ownership === "same-change"
@@ -937,13 +971,84 @@ export class WorkspaceManager {
     }
   }
 
-  async release(workspaceID, repositoryDirectory) {
+  async finalizeInPlace(workspaceID, manifest, path, repositoryDirectory, options = {}) {
+    if (manifest.status !== "active") {
+      throw new Error(`workspace ${workspaceID} is not active; preserving its manifest`)
+    }
+    if (manifest.role !== undefined && manifest.role !== null && manifest.role !== "primary") {
+      throw new Error("only an in-place primary workspace can be finalized")
+    }
+    if (isProtectedBranch(manifest.branch, this.protectedBranches)) {
+      throw new Error("a protected branch cannot be finalized as an in-place primary workspace")
+    }
+    const integrationBranch = String(options.integration_branch ?? "").trim().replace(/^refs\/heads\//, "")
+    if (!integrationBranch || !isProtectedBranch(integrationBranch, this.protectedBranches)) {
+      throw new Error("in-place primary finalization requires an explicit protected integration_branch")
+    }
+    const repository = await this.requireRepositoryFacts(
+      repositoryDirectory ?? manifest.repository_root,
+      "workspace_release",
+    )
+    if (!sameDirectory(repository.root, manifest.repository_root)
+      || repository.projectKey !== manifest.repository_id
+      || repository.commonDir !== manifest.git_common_dir
+      || !sameDirectory(repository.root, manifest.directory)) {
+      throw new Error("in-place primary finalization repository does not match its manifest; preserving it")
+    }
+    if (await this.hasActiveTasks(workspaceID) || await this.hasActiveDirectoryTasks(repository.root)) {
+      throw new Error("cannot finalize an in-place primary while a task still uses it")
+    }
+    const dependentChildren = (await this.projectManifests(repository.projectKey)).filter((candidate) =>
+      candidate.role === "child"
+      && candidate.primary_workspace_id === workspaceID
+      && !["released", "superseded", "finalized"].includes(candidate.status))
+    if (dependentChildren.length) {
+      throw new Error(`cannot finalize primary workspace ${workspaceID} while dependent child workspace(s) remain active or unreleased; complete, integrate, and release them first`)
+    }
+    const currentBranch = await this.git(repository.root, ["branch", "--show-current"])
+    if (currentBranch !== integrationBranch) {
+      throw new Error(`in-place primary finalization requires the repository checkout on ${integrationBranch}; found ${currentBranch || "detached"}`)
+    }
+    const status = await this.git(repository.root, ["status", "--porcelain=v1", "--untracked-files=all"])
+    if (status) throw new Error("repository checkout is dirty or has an unresolved integration; preserving the primary manifest")
+    const integrationHead = await this.resolveCommit(repository.root, integrationBranch)
+    if (!await this.gitSucceeds(repository.root, ["merge-base", "--is-ancestor", manifest.branch, integrationBranch])) {
+      throw new Error(`primary branch ${manifest.branch} is not integrated into ${integrationBranch}; preserving the primary manifest`)
+    }
+    const finalized = {
+      ...manifest,
+      status: "finalized",
+      canonical: false,
+      finalized_into_branch: integrationBranch,
+      finalized_into_head: integrationHead,
+      finalized_at: this.now(),
+    }
+    await writeJson(path, finalized)
+    return {
+      workspace_id: workspaceID,
+      status: "finalized",
+      branch: manifest.branch,
+      directory: manifest.directory,
+      integration_branch: integrationBranch,
+      integration_head: integrationHead,
+      canonical: false,
+      managed_worktree: false,
+    }
+  }
+
+  async release(workspaceID, repositoryDirectory, options = {}) {
     if (repositoryDirectory) await this.requireRepositoryFacts(repositoryDirectory, "workspace_release")
     const { manifest, path } = await this.findManifest(workspaceID)
-    const validated = await this.get(workspaceID)
     if (manifest.managed_worktree === false) {
-      throw new Error("primary workspace is the current or externally-owned worktree; preserving it")
+      if (options.finalize_in_place !== true) {
+        throw new Error("primary workspace is the current or externally-owned worktree; preserving it")
+      }
+      return this.finalizeInPlace(workspaceID, manifest, path, repositoryDirectory, options)
     }
+    if (options.finalize_in_place === true) {
+      throw new Error("finalize_in_place is only valid for an in-place primary workspace")
+    }
+    const validated = await this.get(workspaceID)
     if (await this.hasActiveTasks(workspaceID)) {
       throw new Error("workspace has a pending or running task; cancellation does not imply release")
     }

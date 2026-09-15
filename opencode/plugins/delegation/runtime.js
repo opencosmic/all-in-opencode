@@ -485,8 +485,8 @@ export class DelegationRuntime {
     return publicTask(this.registry.get(taskID))
   }
 
-  async workspaceRelease(workspaceID, context) {
-    return this.workspaces.release(workspaceID, context?.directory)
+  async workspaceRelease(workspaceID, context, options = {}) {
+    return this.workspaces.release(workspaceID, context?.directory, options)
   }
 
   delegateTaskDescription() {

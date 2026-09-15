@@ -42,6 +42,8 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
   ])
   assert.match(plugin.tool.execution_preflight.description, /current Git.*persisted task.*source-overlap/i)
   assert.ok(plugin.tool.execution_preflight.args.change_id)
+  assert.ok(plugin.tool.workspace_release.args.finalize_in_place)
+  assert.ok(plugin.tool.workspace_release.args.integration_branch)
   assert.match(plugin.tool.delegate_task.description, /Available categories:/)
   assert.match(plugin.tool.delegate_task.description, /browser-automation/)
   assert.ok(plugin.tool.delegate_task.args.load_skills)

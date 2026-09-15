@@ -104,7 +104,7 @@ test("spec refuses a change-worktree handoff when strategy content is not in the
 test("executor owns adaptive topology, baseline, worker workspace, and lifecycle", async () => {
   const command = await text("commands/execute.md")
   const agent = await text("agents/executor.md")
-  assert.match(agent, /Use the simplest safe topology/)
+  assert.match(agent, /Use the simplest safe change-centric topology/)
   assert.match(agent, /Use `workspace_prepare` when a task needs a new isolated workspace/)
   assert.match(agent, /Never substitute a caller-selected directory for a `workspace_id`/)
   assert.match(agent, /Serialize tasks with dependency edges, overlapping writes/)
@@ -121,7 +121,7 @@ test("delegation runtime owns isolation while Executor owns integration", async 
   assert.match(agent, /route read-only inspection to `Reviewer` or `QA`/)
   assert.match(agent, /The runtime never decides what to stage, commit, integrate, or check/)
   assert.match(agent, /`workspace_release` uses normal Git removal and safe branch deletion/)
-  assert.match(agent, /Never force-remove, force-delete, reset, or clean/)
+  assert.match(agent, /Never force-remove, force-delete, reset, clean/)
   assert.match(command, /Executor alone decides integration order and scope/)
   assert.match(agent, /git category only executes the operation you explicitly select/)
 })
@@ -135,6 +135,8 @@ test("ship keeps its exact menu and applies provenance-aware conservative cleanu
   assert.match(command, /Unknown\/external worktrees are never auto-deleted/)
   assert.match(command, /do not force it/)
   assert.match(command, /verify the merged result/)
+  assert.match(command, /finalize its manifest with `workspace_release\(finalize_in_place=true, integration_branch=<confirmed main or master>\)`/)
+  assert.match(command, /manifest-only and preserves the current checkout/)
   assert.match(command, /Do not infer merge, push, PR, deploy, cleanup, sync, or archive intent/)
 })
 

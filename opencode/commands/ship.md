@@ -32,7 +32,7 @@ Any archive or sync mutation of an OpenSpec artifact invalidates the pre-archive
 
 Execute only the selected and approved actions.
 
-- `merge locally`: verify the worktree again, merge into the user-confirmed base, then verify the merged result. If merged verification fails, preserve the feature branch/worktree and stop. Consider cleanup only after successful merged verification.
+- `merge locally`: verify the worktree again, merge into the user-confirmed base, then verify the merged result. If merged verification fails, preserve the feature branch/workspace and stop. After successful local integration of an in-place primary, finalize its manifest with `workspace_release(finalize_in_place=true, integration_branch=<confirmed main or master>)`; this is manifest-only and preserves the current checkout. Do not finalize when the selected path intentionally keeps the change branch/workspace alive.
 - `push + PR`: push/create the PR only after this explicit choice and KEEP the worktree for CI/review fixes.
 - `keep branch`: preserve both branch and worktree.
 

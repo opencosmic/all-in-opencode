@@ -108,6 +108,36 @@ test("master is selected as the protected base when main does not exist", async 
   await assert.rejects(git(repository, ["show-ref", "--verify", "refs/heads/main"]))
 })
 
+test("modern change ownership prevents same-task cross-change primary matching", async (t) => {
+  const { repository, manager } = await fixture(t)
+  const primaryA = await manager.prepare({ change_id: "change-a", task_id: "1" }, repository)
+  const preflightB = await manager.preflight({ change_id: "change-b", task_id: "1" }, repository)
+
+  assert.equal(preflightB.recommended_primary_workspace, null)
+  assert.deepEqual(preflightB.persisted.managed_workspaces, [])
+
+  const primaryB = await manager.prepare({ change_id: "change-b", task_id: "1" }, repository)
+  assert.notEqual(primaryB.workspace_id, primaryA.workspace_id)
+  assert.equal(primaryA.branch, "feat/change-a")
+  assert.equal(primaryB.branch, "feat/change-b")
+  assert.equal(primaryA.canonical, true)
+  assert.equal(primaryB.canonical, true)
+
+  const manifestA = await manager.get(primaryA.workspace_id, { validate: false })
+  const manifestB = await manager.get(primaryB.workspace_id, { validate: false })
+  assert.equal(manifestA.status, "active")
+  assert.equal(manifestA.canonical, true)
+  assert.equal(manifestB.status, "active")
+  assert.equal(manifestB.canonical, true)
+
+  const resumedA = await manager.prepare({ change_id: "change-a", task_id: "1" }, repository)
+  const resumedB = await manager.prepare({ change_id: "change-b", task_id: "1" }, repository)
+  assert.equal(resumedA.workspace_id, primaryA.workspace_id)
+  assert.equal(resumedB.workspace_id, primaryB.workspace_id)
+  assert.equal((await manager.get(primaryA.workspace_id, { validate: false })).status, "active")
+  assert.equal((await manager.get(primaryB.workspace_id, { validate: false })).status, "active")
+})
+
 test("dirty main is preserved while the primary workspace starts elsewhere", async (t) => {
   const { repository, manager } = await fixture(t)
   const dirtyPath = join(repository, "unrelated.txt")
@@ -198,6 +228,82 @@ test("an unrelated dirty primary is superseded by its replacement", async (t) =>
   const activePrimaries = (await manager.listManifests(repository, { changeID: "replacement-change" }))
     .filter((workspace) => workspace.role === "primary" && workspace.status === "active")
   assert.deepEqual(activePrimaries.map((workspace) => workspace.workspace_id), [replacement.workspace_id])
+})
+
+test("a primary with an active dependent child cannot be superseded", async (t) => {
+  const { repository, manager } = await fixture(t)
+  const primary = await manager.prepare({ change_id: "child-protected-change", task_id: "primary" }, repository)
+  const child = await manager.prepare({
+    change_id: "child-protected-change",
+    task_id: "active-child",
+    role: "child",
+    parent_workspace_id: primary.workspace_id,
+    isolation_reason: "keep the active child dependency",
+  }, repository)
+  await writeFile(join(primary.directory, "dirty-primary.txt"), "unrelated\n")
+
+  await assert.rejects(
+    manager.prepare({
+      change_id: "child-protected-change",
+      task_id: "replacement",
+      dirty_ownership: "unrelated",
+    }, repository),
+    /cannot supersede primary.*dependent child.*active or unreleased/,
+  )
+
+  const primaryManifest = await manager.get(primary.workspace_id, { validate: false })
+  const childManifest = await manager.get(child.workspace_id, { validate: false })
+  assert.equal(primaryManifest.status, "active")
+  assert.equal(primaryManifest.canonical, true)
+  assert.equal(childManifest.status, "active")
+  assert.equal(childManifest.primary_workspace_id, primary.workspace_id)
+  assert.deepEqual((await manager.listManifests(repository, { changeID: "child-protected-change" }))
+    .filter((workspace) => workspace.role === "primary" && workspace.status === "active")
+    .map((workspace) => workspace.workspace_id), [primary.workspace_id])
+})
+
+test("released children no longer block replacement, while another active child still does", async (t) => {
+  const { repository, manager } = await fixture(t)
+  const primary = await manager.prepare({ change_id: "multiple-children-change", task_id: "primary" }, repository)
+  const releasedChild = await manager.prepare({
+    change_id: "multiple-children-change",
+    task_id: "released-child",
+    role: "child",
+    parent_workspace_id: primary.workspace_id,
+    isolation_reason: "release one child before replacement",
+  }, repository)
+  const activeChild = await manager.prepare({
+    change_id: "multiple-children-change",
+    task_id: "active-child",
+    role: "child",
+    parent_workspace_id: primary.workspace_id,
+    isolation_reason: "retain another child dependency",
+  }, repository)
+  const released = await manager.release(releasedChild.workspace_id, repository)
+  assert.equal(released.status, "released")
+  await writeFile(join(primary.directory, "dirty-primary.txt"), "unrelated\n")
+
+  await assert.rejects(
+    manager.prepare({
+      change_id: "multiple-children-change",
+      task_id: "blocked-replacement",
+      dirty_ownership: "unrelated",
+    }, repository),
+    /dependent child.*active or unreleased/,
+  )
+  assert.equal((await manager.get(releasedChild.workspace_id, { validate: false })).status, "released")
+  assert.equal((await manager.get(activeChild.workspace_id, { validate: false })).status, "active")
+  assert.equal((await manager.get(primary.workspace_id, { validate: false })).status, "active")
+
+  await manager.release(activeChild.workspace_id, repository)
+  const replacement = await manager.prepare({
+    change_id: "multiple-children-change",
+    task_id: "replacement",
+    dirty_ownership: "unrelated",
+  }, repository)
+  assert.match(replacement.branch, /^feat\/multiple-children-change-isolated-/)
+  assert.equal((await manager.get(primary.workspace_id, { validate: false })).status, "superseded")
+  assert.equal((await manager.get(replacement.workspace_id, { validate: false })).canonical, true)
 })
 
 test("unknown ownership on a dirty matching branch fails closed", async (t) => {

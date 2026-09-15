@@ -102,9 +102,13 @@ export function delegationPluginHooks(runtime) {
         execute: async (args) => json(await runtime.taskCancel(args.task_id)),
       }),
       workspace_release: tool({
-        description: "Safely release a managed, terminal, clean, integrated workspace without force operations.",
-        args: { workspace_id: tool.schema.string().min(1) },
-        execute: async (args, context) => json(await runtime.workspaceRelease(args.workspace_id, context)),
+        description: "Safely release a managed, terminal, clean, integrated workspace, or finalize an in-place primary only after successful local integration; never use force operations.",
+        args: {
+          workspace_id: tool.schema.string().min(1),
+          finalize_in_place: tool.schema.boolean().optional(),
+          integration_branch: tool.schema.string().min(1).optional(),
+        },
+        execute: async (args, context) => json(await runtime.workspaceRelease(args.workspace_id, context, args)),
       }),
     },
     event: async ({ event }) => runtime.handleEvent(event),
