@@ -133,6 +133,59 @@ test("description never makes a different logical change eligible for reuse", as
   assert.equal(preflight.recommended_primary_workspace.workspace_id, changeB.workspace_id)
 })
 
+test("Executor checkpoints require the current execution task after primary reuse", async (t) => {
+  const { repository, runtime, context } = await repositoryFixture(t)
+  const first = await runtime.workspacePrepare({
+    change_id: "sequential-change",
+    task_id: "task-1",
+  }, context)
+  const beforeWorktrees = await git(repository, ["worktree", "list", "--porcelain"])
+  const reused = await runtime.workspacePrepare({
+    change_id: "sequential-change",
+    task_id: "task-2",
+  }, context)
+  assert.equal(reused.workspace_id, first.workspace_id)
+  assert.equal(reused.change_id, first.change_id)
+  assert.equal((await runtime.workspaces.get(first.workspace_id, { validate: false })).task_id, "task-1")
+  assert.equal(await git(repository, ["worktree", "list", "--porcelain"]), beforeWorktrees)
+
+  await assert.rejects(
+    runtime.workspaceCheckpointUpdate({
+      workspace_id: first.workspace_id,
+      change_id: "sequential-change",
+      status: "in_progress",
+      current_focus: "Working on task-2",
+    }, context),
+    /requires explicit task_id.*creation task_id is not current execution identity/,
+  )
+  assert.equal((await runtime.workspaces.get(first.workspace_id, { validate: false })).latest_checkpoint, undefined)
+
+  const task2 = await runtime.registry.register({
+    parent_session_id: context.sessionID,
+    parent_message_id: context.messageID,
+    parent_agent: context.agent,
+    parent_directory: await realpath(repository),
+    execution_directory: first.directory,
+    workspace_id: first.workspace_id,
+    change_id: "sequential-change",
+    category: "quick",
+    agent: "Implementer",
+    description: "Current task-2 execution identity",
+    background: false,
+  })
+  await runtime.registry.start(task2.task_id, { child_session_id: "task-2-child" })
+  const checkpoint = await runtime.workspaceCheckpointUpdate({
+    workspace_id: first.workspace_id,
+    change_id: "sequential-change",
+    task_id: task2.task_id,
+    status: "in_progress",
+    current_focus: "Working on task-2",
+  }, context)
+  assert.equal(checkpoint.latest_checkpoint.task_id, task2.task_id)
+  assert.notEqual(checkpoint.latest_checkpoint.task_id, "task-1")
+  assert.equal(await git(repository, ["worktree", "list", "--porcelain"]), beforeWorktrees)
+})
+
 test("latest checkpoints persist, overwrite in place, and expose runtime HEAD freshness", async (t) => {
   const { repository, stateDirectory, client, runtime, context, now } = await repositoryFixture(t)
   const workspace = await runtime.workspacePrepare({
@@ -187,6 +240,7 @@ test("latest checkpoints persist, overwrite in place, and expose runtime HEAD fr
   const second = await runtime.workspaceCheckpointUpdate({
     workspace_id: workspace.workspace_id,
     change_id: "checkpoint-change",
+    task_id: "workers-runtime",
     status: "blocked",
     current_focus: "Resolve WorkerPool / CompletionTracker contract",
     completed: ["Implemented WorkerPool"],
@@ -393,20 +447,87 @@ test("Executor checkpoint updates keep repository provenance and change ownershi
     change_id: "foreign-change",
     task_id: "foreign-task",
   }, repositoryB)
+  const foreignTask = await runtime.registry.register({
+    parent_session_id: context.sessionID,
+    parent_message_id: context.messageID,
+    parent_agent: context.agent,
+    parent_directory: await realpath(repositoryB),
+    execution_directory: foreign.directory,
+    workspace_id: foreign.workspace_id,
+    change_id: "foreign-change",
+    category: "quick",
+    agent: "Implementer",
+    description: "Foreign repository execution task",
+    background: false,
+  })
   await assert.rejects(
     runtime.workspaceCheckpointUpdate({
       workspace_id: foreign.workspace_id,
       change_id: "foreign-change",
+      task_id: foreignTask.task_id,
       status: "in_progress",
     }, context),
     /workspace .*belongs to repository .*current execution context belongs to repository/,
   )
 
   const local = await runtime.workspacePrepare({ change_id: "local-change", task_id: "local-task" }, context)
+  const otherWorkspace = await runtime.workspacePrepare({
+    change_id: "other-change",
+    task_id: "other-task",
+  }, context)
+  const otherWorkspaceTask = await runtime.registry.register({
+    parent_session_id: context.sessionID,
+    parent_message_id: context.messageID,
+    parent_agent: context.agent,
+    parent_directory: await realpath(repository),
+    execution_directory: otherWorkspace.directory,
+    workspace_id: otherWorkspace.workspace_id,
+    change_id: "other-change",
+    category: "quick",
+    agent: "Implementer",
+    description: "Other workspace execution task",
+    background: false,
+  })
+  await runtime.registry.start(otherWorkspaceTask.task_id, { child_session_id: "other-workspace-child" })
+  await runtime.executionPreflight({ change_id: "local-change" }, context)
+  await assert.rejects(
+    runtime.workspaceCheckpointUpdate({
+      workspace_id: local.workspace_id,
+      change_id: "local-change",
+      task_id: otherWorkspaceTask.task_id,
+      status: "in_progress",
+    }, context),
+    /belongs to workspace .*cannot update workspace/,
+  )
+
+  const otherChangeTask = await runtime.registry.register({
+    parent_session_id: context.sessionID,
+    parent_message_id: context.messageID,
+    parent_agent: context.agent,
+    parent_directory: await realpath(repository),
+    execution_directory: local.directory,
+    workspace_id: local.workspace_id,
+    change_id: "other-change",
+    category: "quick",
+    agent: "Implementer",
+    description: "Wrong logical change execution task",
+    background: false,
+  })
+  await runtime.registry.start(otherChangeTask.task_id, { child_session_id: "other-change-child" })
+  await assert.rejects(
+    runtime.workspaceCheckpointUpdate({
+      workspace_id: local.workspace_id,
+      change_id: "local-change",
+      task_id: otherChangeTask.task_id,
+      status: "in_progress",
+    }, context),
+    /belongs to logical change other-change.*cannot update change local-change/,
+  )
   await assert.rejects(
     runtime.workspaceCheckpointUpdate({
       workspace_id: local.workspace_id,
       change_id: "different-change",
+      task_id: "unresolved-explicit-task",
       status: "in_progress",
     }, context),
     /does not match the current execution preflight change local-change/,
@@ -421,6 +542,7 @@ test("checkpoint metadata stays bounded", async (t) => {
   await assert.rejects(
     runtime.workspaceCheckpointUpdate({
       workspace_id: workspace.workspace_id,
+      task_id: "bounded-task",
       status: "in_progress",
       current_focus: "x".repeat(241),
     }, context),
@@ -429,6 +551,7 @@ test("checkpoint metadata stays bounded", async (t) => {
   await assert.rejects(
     runtime.workspaceCheckpointUpdate({
       workspace_id: workspace.workspace_id,
+      task_id: "bounded-task",
       status: "in_progress",
       important_files: ["../outside"],
     }, context),

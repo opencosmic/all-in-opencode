@@ -89,7 +89,7 @@ Use `delegate_task` as the primary implementation primitive only after preflight
 - route implementation categories to `Implementer`;
 - route read-only inspection to `Reviewer` or `QA`;
 - pass the resolved primary `workspace_id` for managed work (for example, `delegate_task(workspace_id="ws_...", change_id="change-x", category="quick", ...)`); naming a workspace or directory only inside the prompt does not bind it and is rejected; omit it only when preflight explicitly proves the current non-protected workspace is the primary change workspace;
-- use `workspace_checkpoint_update` only for concise, factual recovery notes on a provenance-validated workspace. Checkpoint at meaningful starts, milestones, blockers, verification boundaries, and completion; do not record every tool call, hidden reasoning, or workflow completion claims.
+- use `workspace_checkpoint_update` only for concise, factual recovery notes on a provenance-validated workspace. Executor must provide the execution task's `TaskRegistry` `task_id`; never let the workspace's creation `task_id` stand in for the current task. Checkpoint at meaningful starts, milestones, blockers, verification boundaries, and completion; do not record every tool call, hidden reasoning, or workflow completion claims.
 - use background mode only for genuinely independent ready tasks.
 
 Use the dynamically presented category and skill catalog in `delegate_task` for ordinary implementation choices. Git mechanics still require `delegate_task(category="git")`, bound to the primary change workspace with `workspace_id`; the git category only executes the operation you explicitly select. Browser work through the current backend still requires `category="browser-automation"` with `load_skills=["ego-browser"]`.

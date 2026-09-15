@@ -66,6 +66,7 @@ test("effective Executor policy uses only project-owned delegation and Git integ
   assert.match(executor.prompt, /delegate_task\(agent="Plan Reviewer"\)/)
   assert.match(executor.prompt, /execution_preflight/)
   assert.match(executor.prompt, /workspace_checkpoint_update/)
+  assert.match(executor.prompt, /must provide the execution task's `TaskRegistry` `task_id`/)
   assert.match(executor.prompt, /Planner task boundaries do not imply branch, worktree, or agent boundaries/)
   assert.match(executor.prompt, /Worktree is an isolation\/concurrency mechanism, not the default unit of work/)
   assert.match(executor.prompt, /protected base branches such as `main` or `master`/)

@@ -1077,7 +1077,7 @@ export class WorkspaceManager {
     const validated = await this.validateManifest(manifest)
     const checkpoint = normalizeCheckpoint({
       ...input,
-      task_id: input.task_id ?? manifest.task_id,
+      task_id: input.task_id,
       // The workspace HEAD and manager clock are authoritative. Caller values
       // with these names are intentionally overwritten.
       head_sha: validated.head,
