@@ -954,7 +954,7 @@ export function createProfessorRuntime(options = {}) {
       if (followUp.status === "pending" || followUp.status === "running") followUpTasks.push(followUp)
     }
     const canonicalProgress = {
-      sources: sources.newRecords.length + sources.updatedRecords.length,
+      sources: sources.newRecords.length,
       evidence: evidence.newEvidenceIds.length,
       findings: findings.length,
       contradictions: contradictions.length + contradictionUpdatesApplied,

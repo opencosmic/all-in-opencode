@@ -8,6 +8,7 @@ import {
   buildRunPlan,
   countClaimStatuses,
   countTaskStatuses,
+  isZeroValueCompletedTask,
   loadCases,
   objectiveMetrics,
   parseJsonOutput,
@@ -100,6 +101,24 @@ test("Professor benchmark parser keeps malformed output auditable without treati
   assert.equal(metrics.stepCapBoundaryRuns, 1)
   assert.equal(metrics.failureReasons[0].reason, "max_controller_rounds")
   assert.equal(metrics.zeroValueCompletedTasks, 0)
+  assert.equal(isZeroValueCompletedTask({
+    type: "task.completed",
+    sources: 1,
+    evidence: 0,
+    findings: 0,
+    contradictions: 0,
+    followUps: 0,
+    canonicalResult: false,
+  }), true)
+  assert.equal(isZeroValueCompletedTask({
+    type: "task.completed",
+    sources: 1,
+    evidence: 0,
+    findings: 0,
+    contradictions: 0,
+    followUps: 0,
+    canonicalResult: true,
+  }), false)
 })
 
 test("post-change Professor benchmark runs pin the controlled model explicitly", async () => {

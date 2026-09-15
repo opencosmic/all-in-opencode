@@ -74,11 +74,11 @@ actionable `pending` tasks.
 mutation: a new source or evidence record, finding, contradiction, follow-up,
 criterion satisfaction, or contradiction update. Source and evidence inputs
 are normalized against existing canonical records, so duplicate source/evidence
-inputs and unchanged updates do not count. A summary-only commit is rejected
-unless the linked question is already sufficient, in which case the running
-task is durably superseded. A caller that genuinely has no result uses
-`failed: true` with a failure summary. The check is based on canonical state
-changes, not text heuristics.
+inputs, observed-URL-alias-only metadata updates, and unchanged updates do not
+count. A summary-only commit is rejected unless the linked question is already
+sufficient, in which case the running task is durably superseded. A caller that
+genuinely has no result uses `failed: true` with a failure summary. The check is
+based on canonical state changes, not text heuristics.
 
 ### Keep evidence structural and source-bounded
 

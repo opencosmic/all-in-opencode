@@ -325,6 +325,28 @@ test("a duplicate source does not count as canonical progress", async (t) => {
   assert.equal((await runtime.store.readEvents(started.runId)).filter((event) => event.type === "task.completed").length, 1)
 })
 
+test("an observed URL alias does not count as canonical source progress", async (t) => {
+  const { runtime, started, next } = await startAndNext(t, 2)
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "canonical source",
+    sources: [{ url: "https://example.com/alias-only?utm_source=first" }],
+  })
+  const second = await runtime.next({ runId: started.runId })
+  await assert.rejects(runtime.commit({
+    runId: started.runId,
+    taskId: second.task.taskId,
+    summary: "alias only",
+    sources: [{ url: "https://example.com/alias-only#section" }],
+  }), /canonical research result/)
+  const state = await runtime.load(started.runId)
+  assert.equal(state.sources.length, 1)
+  assert.equal(state.sources[0].canonicalUrl, "https://example.com/alias-only")
+  assert.equal(state.tasks[1].status, "running")
+  assert.equal((await runtime.store.readEvents(started.runId)).filter((event) => event.type === "task.completed").length, 1)
+})
+
 test("a duplicate evidence record does not count as canonical progress", async (t) => {
   const { runtime, started, next } = await startAndNext(t)
   await runtime.commit({

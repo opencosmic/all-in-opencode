@@ -56,6 +56,11 @@ A task MUST NOT be marked completed from a summary alone. A normal completed tas
 - **WHEN** a running task submits only an already-canonical source or evidence record, unchanged coverage/contradiction state, or follow-up requests that cannot be created
 - **THEN** the runtime records no successful completion and leaves the task running unless the linked question is already sufficient, in which case it uses supersession
 
+#### Scenario: Observed URL alias is not task progress
+
+- **WHEN** a running task submits only a raw URL alias that canonicalizes to an existing source and would add metadata to `observedUrls`
+- **THEN** the alias may remain useful source metadata, but it does not count as a new canonical source and cannot by itself complete the task
+
 #### Scenario: Failed no-result work is explicit
 
 - **WHEN** retrieval or evidence collection genuinely cannot produce a result and the caller supplies a failure summary

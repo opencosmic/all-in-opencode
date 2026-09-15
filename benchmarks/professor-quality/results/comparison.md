@@ -7,15 +7,15 @@ anything.
 
 ## Current gate result
 
-**NOT READY TO MERGE.** The runtime correctness fixes and deterministic tests
-pass, and no corrected run produced a zero-value completed task or reached the
-Professor outer-step boundary. The remaining blocker is benchmark reliability:
-the original B6 case timed out in the full 180-second regression batch, and its
-latest final-code retries timed out at 240 seconds, 360 seconds, and the final
-600-second controlled attempt before a normal report was produced. An earlier
-same-model focused B6 run did complete, so this is intermittent
-retrieval/process latency, but it is still an unmet merge gate until a
-final-code original B6 regression run completes normally.
+**CODE READY / BENCHMARK VALIDATION BLOCKED BY ENVIRONMENT.** The alias-only
+canonical-progress loophole is fixed and covered by focused regression tests.
+The fresh post-patch original B6 attempt used the required model/variant but
+timed out after 600 seconds before Professor created a run or session: no
+outer steps, retrieval, or durable state were observed. This is a Case D
+startup/provider/CLI stall, not evidence of a Professor ResearchRuntime
+failure. Earlier controlled B6 execution reached verification/writing at
+approximately 25 observed outer steps without reaching the 32-step emergency
+boundary. A provider-ready final B6 run is still required before merging.
 
 ## Run provenance and model control
 
@@ -85,6 +85,12 @@ clear the final-code gate by itself. The subsequent records
 durable state because the child process was still in startup/retrieval when
 the harness ceiling elapsed.
 
+The post-alias-fix retry is preserved in
+[`corrected-B6-alias-fix.jsonl`](corrected-B6-alias-fix.jsonl), with its
+summary in [`corrected-B6-alias-fix-summary.json`](corrected-B6-alias-fix-summary.json).
+It is the Case D startup/provider stall: 600,093 ms, no run ID, no session,
+zero outer steps, zero retrieval calls, and no durable state.
+
 ### Main-case report assessment
 
 Scores are 0–5 in the rubric order: bounded completion, question coverage,
@@ -129,9 +135,12 @@ non-empty before normalization. The runtime now computes canonical progress
 after normalization. It counts only new source records or observed aliases,
 new canonical evidence, new findings/contradictions, meaningful criterion or
 contradiction mutations, and follow-up tasks actually created and still
-actionable. Duplicate source/evidence records and unchanged updates therefore
-reject an unresolved successful commit, preserve the running task, or use
-supersession when the linked question is already sufficient. Durable
+actionable. Only new canonical source records count as source progress. An
+observed-URL alias may remain source metadata, but it cannot by itself count as
+progress. Duplicate
+source/evidence records and unchanged updates therefore reject an unresolved
+successful commit, preserve the running task, or use supersession when the
+linked question is already sufficient. Durable
 `task.completed` events include those actual counts and `canonicalResult`.
 
 The unsafe budget root cause was treating one controller round as a fixed three
@@ -154,20 +163,20 @@ because event delivery occurs after session binding.
 ## Verification status
 
 - Deterministic repository tests excluding the host-readiness integration:
-  **241 passed**.
-- Professor/runtime/plugin/agent focused tests: **60 passed** (included in the
+  **242 passed**.
+- Professor/runtime/plugin/agent focused tests: **61 passed** (included in the
   deterministic total).
 - Benchmark harness tests: **5 passed**.
 - `git diff --check`: passed.
 - Strict OpenSpec validation: run after the final artifact update; the existing
-  change remains the single change, with task 4.4 intentionally open until B6
-  clears the final-code regression gate.
+  change remains the single change, with task 4.4 intentionally open until a
+  provider-ready B6 validation is available.
 - Host-dependent integration: **1 failed at readiness** after 183.9 seconds;
   the test's OpenCode server printed that it was listening on localhost, but
   its HTTP readiness operation timed out before the test could exercise the
   linked-worktree flow. This is an environment-level limitation, not a
   Professor assertion failure.
 
-The exact remaining blocker is therefore benchmark completion reliability for
-the original B6 under the final code, not a detected outer-step-cap breach or a
+The exact remaining limitation is therefore provider-ready benchmark
+validation for the original B6, not a detected outer-step-cap breach or a
 zero-value task regression.

@@ -47,8 +47,8 @@ the host emits step events, and a failure reason when the run does not
 complete. Retrieved page bodies and raw OpenCode transcripts are not
 committed. Durable task lifecycle events are used for canonical progress
 counts; a task completed with only a summary, duplicate source/evidence,
-unchanged criterion/contradiction, or uncreated follow-up is a benchmark
-failure signal.
+observed-URL-alias metadata, unchanged criterion/contradiction, or uncreated
+follow-up is a benchmark failure signal.
 
 The report is reconstructed from the isolated Professor run's durable
 `state.json`, `events.jsonl`, and `report.md` artifacts while the temporary

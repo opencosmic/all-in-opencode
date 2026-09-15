@@ -121,6 +121,16 @@ function summarizeTaskLifecycle(events) {
   })
 }
 
+export function isZeroValueCompletedTask(task) {
+  return task?.type === "task.completed"
+    && (task.canonicalResult === false
+      || (task.sources === 0
+        && task.evidence === 0
+        && task.findings === 0
+        && task.contradictions === 0
+        && task.followUps === 0))
+}
+
 export function parseJsonOutput(value) {
   if (typeof value !== "string" || !value.trim()) return null
   try {
@@ -273,12 +283,7 @@ export async function normalizeProfessorRun({ caseItem, runIndex, runKind, stdou
     retrievalCount: base.retrieval.length,
   })
   const taskLifecycle = summarizeTaskLifecycle([...events, ...(loaded.events ?? [])])
-  const zeroValueCompletedTasks = taskLifecycle.filter((item) => item.type === "task.completed"
-    && item.sources === 0
-    && item.evidence === 0
-    && item.findings === 0
-    && item.contradictions === 0
-    && item.followUps === 0)
+  const zeroValueCompletedTasks = taskLifecycle.filter(isZeroValueCompletedTask)
   const completionOutput = [...toolOutputs].reverse().find((item) => item.tool === "research_complete")?.output ?? null
   const errors = events.filter((event) => event.type === "error").map((event) => eventPart(event)?.error ?? eventPart(event)?.message ?? "runtime error")
   const failureReason = stateSummary.finalStatus === "completed"
