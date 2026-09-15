@@ -111,6 +111,7 @@ export class DelegationRuntime {
         return registry.list().some((task) =>
           !TERMINAL_STATUSES.has(task.status) && task.execution_directory === currentDirectory)
       },
+      now,
     })
     const skills = skillEntries
       ? new SkillResolver({ entries: skillEntries })
@@ -184,6 +185,85 @@ export class DelegationRuntime {
       ...args,
       persisted_tasks: this.registry.list(),
     }, context.directory)
+  }
+
+  async workspaceCheckpointUpdate(args = {}, context) {
+    const agent = context?.agent
+    if (![
+      "Executor",
+      "Implementer",
+    ].includes(agent)) {
+      throw new Error("workspace_checkpoint_update may only be called by Executor or Implementer")
+    }
+
+    const requestedWorkspaceID = String(args.workspace_id ?? "").trim() || null
+    let task = null
+    let workspaceID = requestedWorkspaceID
+    if (agent === "Implementer") {
+      task = this.registry.list().find((candidate) => candidate.child_session_id === context.sessionID) ?? null
+      if (!task || task.agent !== "Implementer") {
+        throw new Error("Implementer checkpoint updates require an active task owned by the current session")
+      }
+      if (task.status !== "running") {
+        throw new Error("Implementer checkpoint updates require the current task to be running")
+      }
+      if (!task.workspace_id) {
+        throw new Error("Implementer checkpoint updates require a managed workspace")
+      }
+      if (workspaceID && workspaceID !== task.workspace_id) {
+        throw new Error("Implementer checkpoint update workspace_id must match the current task workspace")
+      }
+      workspaceID = task.workspace_id
+    }
+    if (!workspaceID) throw new Error("workspace_checkpoint_update requires workspace_id")
+
+    const repository = await this.workspaces.requireRepositoryFacts(
+      context.directory,
+      "workspace_checkpoint_update",
+    )
+    const workspace = await this.workspaces.get(workspaceID)
+    await this.workspaces.assertWorkspaceBelongsToRepository(
+      workspace,
+      repository,
+      "workspace_checkpoint_update",
+    )
+
+    const selectedChangeID = workspaceChangeID(workspace)
+    const requestedChangeID = String(args.change_id ?? "").trim() || null
+    const preflightChangeID = agent === "Executor"
+      ? String(this.preflights.get(context.sessionID)?.change_id ?? "").trim() || null
+      : null
+    if (requestedChangeID && preflightChangeID && requestedChangeID !== preflightChangeID) {
+      throw new Error(`workspace checkpoint change ${requestedChangeID} does not match the current execution preflight change ${preflightChangeID}`)
+    }
+    const effectiveChangeID = requestedChangeID ?? preflightChangeID
+    if (effectiveChangeID && selectedChangeID && effectiveChangeID !== selectedChangeID) {
+      throw new Error(`workspace ${workspaceID} belongs to logical change ${selectedChangeID}; cannot update checkpoint for change ${effectiveChangeID}`)
+    }
+
+    let checkpointTaskID = args.task_id
+    if (task) {
+      const taskChangeID = String(task.change_id ?? "").trim() || null
+      if (taskChangeID && selectedChangeID && taskChangeID !== selectedChangeID) {
+        throw new Error("Implementer checkpoint update task does not belong to the workspace logical change")
+      }
+      const currentDirectory = await realpath(context.directory)
+      const taskDirectory = await realpath(task.execution_directory)
+      if (currentDirectory !== workspace.directory || taskDirectory !== workspace.directory) {
+        throw new Error("Implementer checkpoint update requires the current task and session workspace")
+      }
+      if (checkpointTaskID !== undefined && String(checkpointTaskID).trim() !== task.task_id) {
+        throw new Error("Implementer checkpoint update task_id must match the current task")
+      }
+      checkpointTaskID = task.task_id
+    } else {
+      checkpointTaskID = String(checkpointTaskID ?? workspace.task_id ?? "").trim() || null
+    }
+
+    return this.workspaces.updateCheckpoint(workspaceID, {
+      ...args,
+      task_id: checkpointTaskID,
+    })
   }
 
   async delegate(args, context) {

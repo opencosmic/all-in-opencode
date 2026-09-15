@@ -1,5 +1,7 @@
 import { tool } from "@opencode-ai/plugin"
 
+import { CHECKPOINT_STATUSES } from "./workspace-manager.js"
+
 function json(value) {
   return JSON.stringify(value, null, 2)
 }
@@ -38,6 +40,7 @@ export function delegationPluginHooks(runtime) {
         args: {
           task_id: tool.schema.string().min(1).optional(),
           change_id: tool.schema.string().min(1).optional(),
+          description: tool.schema.string().min(1).max(240).optional(),
           base_sha: tool.schema.string().min(1).optional(),
           branch: tool.schema.string().min(1).optional(),
           role: tool.schema.enum(["primary", "child"]).optional(),
@@ -53,6 +56,30 @@ export function delegationPluginHooks(runtime) {
           requires_uncommitted: tool.schema.boolean().optional(),
         },
         execute: async (args, context) => json(await runtime.workspacePrepare(args, context)),
+      }),
+      workspace_checkpoint_update: tool({
+        description: "Replace the latest bounded local execution checkpoint for a provenance-validated workspace; runtime derives the workspace HEAD and timestamp.",
+        args: {
+          workspace_id: tool.schema.string().min(1).optional(),
+          change_id: tool.schema.string().min(1).optional(),
+          task_id: tool.schema.string().min(1).max(160).optional(),
+          status: tool.schema.enum(CHECKPOINT_STATUSES),
+          current_focus: tool.schema.string().min(1).max(240).optional(),
+          completed: tool.schema.array(tool.schema.string().min(1).max(240)).max(20).optional(),
+          next_steps: tool.schema.array(tool.schema.string().min(1).max(240)).max(20).optional(),
+          blockers: tool.schema.array(tool.schema.string().min(1).max(240)).max(20).optional(),
+          decisions: tool.schema.array(tool.schema.string().min(1).max(240)).max(20).optional(),
+          verification: tool.schema.record(
+            tool.schema.string().min(1).max(80),
+            tool.schema.union([
+              tool.schema.string().min(1).max(240),
+              tool.schema.boolean(),
+              tool.schema.number(),
+            ]),
+          ).optional(),
+          important_files: tool.schema.array(tool.schema.string().min(1).max(240)).max(40).optional(),
+        },
+        execute: async (args, context) => json(await runtime.workspaceCheckpointUpdate(args, context)),
       }),
       delegate_task: tool({
         description: runtime.delegateTaskDescription(),

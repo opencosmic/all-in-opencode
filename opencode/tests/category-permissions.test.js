@@ -122,6 +122,8 @@ test("permission decisions are scoped to the exact category session", () => {
 test("Git and browser categories use the shared contract plus category context", () => {
   const contract = systemFor("Implementer", "git")
   assert.match(contract, /project-owned Implementer/)
+  assert.match(contract, /workspace_checkpoint_update only for the active task and workspace bound to this session/)
+  assert.match(contract, /Runtime supplies the actual workspace HEAD and timestamp/)
   assert.doesNotMatch(contract, /operating under the git category/)
   assert.match(systemFor("Implementer", "git", {
     prompt_append: "<Category_Context name=\"git\">caller owns integration-order</Category_Context>",

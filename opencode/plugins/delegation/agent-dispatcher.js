@@ -20,6 +20,7 @@ function namedAgentRoute(agent) {
       tools: {
         workspace_prepare: false,
         delegate_task: false,
+        workspace_checkpoint_update: false,
         consult_agents: false,
         task_status: false,
         task_output: false,

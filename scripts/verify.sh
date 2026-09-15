@@ -64,7 +64,7 @@ fi
 
 check_hash opencode/agents/planner.md a69e5edaeeb44c82a9fb923717dba3e1c99f449acf62286e429c64cc5601b347
 check_hash opencode/agents/plan-reviewer.md e60475766ed21222ec332aedeaf89a59072a6e88af6f6219117e25649f0dadd5
-check_hash opencode/agents/executor.md c40567f45b804ee61597b8151b2e559267b93a57795533ed3778c651b8e96c3e
+check_hash opencode/agents/executor.md 9effc34fed53883ea913cac6bd9f2bfea28b82ae596fa70a9aaf229609f84a7b
 check_hash opencode/agents/reviewer.md 895fd594ba5204a81ae8e615572006d02cf4059a4f055aaa09796e253da6df6a
 
 "$SCRIPT_DIR/check-codegraph.sh" "$REPO_ROOT"

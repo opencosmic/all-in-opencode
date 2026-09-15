@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto"
 import { execFile } from "node:child_process"
 import { access, mkdir, realpath, readdir } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import { join, relative, resolve } from "node:path"
 import { promisify } from "node:util"
 
 import { analyzeExecutionTasks } from "./execution-preflight.js"
@@ -11,6 +11,21 @@ import { resolveProjectDataRoot } from "../project-data-root.js"
 const execFileAsync = promisify(execFile)
 
 export const PROTECTED_BASE_BRANCHES = Object.freeze(["main", "master"])
+export const CHECKPOINT_STATUSES = Object.freeze([
+  "in_progress",
+  "blocked",
+  "verification",
+  "completed",
+])
+
+const CHECKPOINT_STATUS_SET = new Set(CHECKPOINT_STATUSES)
+const MAX_DESCRIPTION_LENGTH = 240
+const MAX_CHECKPOINT_TEXT_LENGTH = 240
+const MAX_CHECKPOINT_TASK_ID_LENGTH = 160
+const MAX_CHECKPOINT_LIST_ITEMS = 20
+const MAX_CHECKPOINT_IMPORTANT_FILES = 40
+const MAX_CHECKPOINT_VERIFICATION_ENTRIES = 12
+const MAX_CHECKPOINT_BYTES = 16 * 1024
 
 async function defaultGit(directory, args) {
   try {
@@ -83,6 +98,107 @@ function projectKey(commonDir) {
 
 function isNotGitRepositoryError(error) {
   return /not a git repository|outside any repository|not inside a Git worktree/i.test(String(error?.message ?? error))
+}
+
+function boundedText(value, field, { required = false, maxLength = MAX_CHECKPOINT_TEXT_LENGTH } = {}) {
+  if (value === undefined || value === null) {
+    if (required) throw new Error(`${field} is required`)
+    return null
+  }
+  if (typeof value !== "string") throw new Error(`${field} must be a string`)
+  const text = value.trim()
+  if (!text) {
+    if (required) throw new Error(`${field} is required`)
+    return null
+  }
+  if (text.length > maxLength) throw new Error(`${field} must be at most ${maxLength} characters`)
+  return text
+}
+
+function normalizeDescription(value) {
+  return boundedText(value, "workspace description", { maxLength: MAX_DESCRIPTION_LENGTH })
+}
+
+function normalizeStringList(value, field, maxItems = MAX_CHECKPOINT_LIST_ITEMS) {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) throw new Error(`${field} must be an array`)
+  if (value.length > maxItems) throw new Error(`${field} must contain at most ${maxItems} items`)
+  return value.map((item, index) => boundedText(item, `${field}[${index + 1}]`, { required: true }))
+}
+
+function normalizeVerification(value) {
+  if (value === undefined || value === null) return {}
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("checkpoint verification must be an object")
+  }
+  const entries = Object.entries(value)
+  if (entries.length > MAX_CHECKPOINT_VERIFICATION_ENTRIES) {
+    throw new Error(`checkpoint verification must contain at most ${MAX_CHECKPOINT_VERIFICATION_ENTRIES} entries`)
+  }
+  const normalized = {}
+  for (const [rawKey, rawValue] of entries) {
+    const key = boundedText(rawKey, "checkpoint verification key", { required: true, maxLength: 80 })
+    if (typeof rawValue === "string") {
+      normalized[key] = boundedText(rawValue, `checkpoint verification ${key}`, { required: true })
+    } else if (typeof rawValue === "boolean") {
+      normalized[key] = rawValue
+    } else if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+      normalized[key] = rawValue
+    } else {
+      throw new Error(`checkpoint verification ${key} must be a string, boolean, or finite number`)
+    }
+  }
+  return normalized
+}
+
+function normalizeImportantFiles(value, repositoryRoot) {
+  const paths = normalizeStringList(value, "checkpoint important_files", MAX_CHECKPOINT_IMPORTANT_FILES)
+  const root = resolve(repositoryRoot)
+  return paths.map((path) => {
+    const candidate = resolve(root, path.replaceAll("\\", "/"))
+    const repositoryRelative = relative(root, candidate).replaceAll("\\", "/")
+    if (!repositoryRelative || repositoryRelative === "." || repositoryRelative === ".."
+      || repositoryRelative.startsWith("../") || repositoryRelative.startsWith("/")) {
+      throw new Error("checkpoint important_files must stay within the repository and be repository-relative")
+    }
+    return repositoryRelative
+  })
+}
+
+function normalizeCheckpoint(input, repositoryRoot) {
+  const taskID = boundedText(input.task_id, "checkpoint task_id", {
+    required: true,
+    maxLength: MAX_CHECKPOINT_TASK_ID_LENGTH,
+  })
+  const status = boundedText(input.status, "checkpoint status", { required: true, maxLength: 32 })
+  if (!CHECKPOINT_STATUS_SET.has(status)) {
+    throw new Error(`checkpoint status must be one of: ${CHECKPOINT_STATUSES.join(", ")}`)
+  }
+  const checkpoint = {
+    task_id: taskID,
+    status,
+    head_sha: boundedText(input.head_sha, "checkpoint head_sha", { required: true, maxLength: 128 }),
+    current_focus: boundedText(input.current_focus, "checkpoint current_focus"),
+    completed: normalizeStringList(input.completed, "checkpoint completed"),
+    next_steps: normalizeStringList(input.next_steps, "checkpoint next_steps"),
+    blockers: normalizeStringList(input.blockers, "checkpoint blockers"),
+    decisions: normalizeStringList(input.decisions, "checkpoint decisions"),
+    verification: normalizeVerification(input.verification),
+    important_files: normalizeImportantFiles(input.important_files, repositoryRoot),
+    updated_at: boundedText(input.updated_at, "checkpoint updated_at", { required: true, maxLength: 128 }),
+  }
+  if (Buffer.byteLength(JSON.stringify(checkpoint), "utf8") > MAX_CHECKPOINT_BYTES) {
+    throw new Error(`checkpoint metadata must be at most ${MAX_CHECKPOINT_BYTES} bytes`)
+  }
+  return checkpoint
+}
+
+export function checkpointFreshness(checkpoint, currentHead) {
+  if (!checkpoint) return "unknown"
+  const checkpointHead = String(checkpoint.head_sha ?? "").trim()
+  const head = String(currentHead ?? "").trim()
+  if (!checkpointHead || !head) return "unknown"
+  return checkpointHead === head ? "current" : "stale_head"
 }
 
 function parseWorktrees(output) {
@@ -214,18 +330,21 @@ export class WorkspaceManager {
       try {
         const validated = await this.validateManifest(manifest)
         const statusOutput = await this.git(validated.directory, ["status", "--porcelain=v1", "--untracked-files=all"])
+        const publicWorkspace = this.publicRecord({ ...manifest, ...validated })
         validWorkspaces.push({
-          ...this.publicRecord({ ...manifest, ...validated }),
+          ...publicWorkspace,
           status: manifest.status,
           valid: true,
           clean: !statusOutput,
           dirty_changes: statusOutput ? statusOutput.split("\n").filter(Boolean) : [],
+          checkpoint_freshness: checkpointFreshness(publicWorkspace.latest_checkpoint, validated.head),
         })
       } catch (error) {
         invalidWorkspaces.push({
           ...this.publicRecord(manifest),
           status: manifest.status,
           valid: false,
+          checkpoint_freshness: "unknown",
           error: error.message,
         })
       }
@@ -387,6 +506,7 @@ export class WorkspaceManager {
     const taskID = input.task_id ? String(input.task_id).trim() : null
     const changeID = String(input.change_id ?? taskID ?? "").trim()
     if (!changeID) throw new Error("workspace_prepare requires change_id or task_id")
+    normalizeDescription(input.description)
     const repository = await this.requireRepositoryFacts(repositoryDirectory, "workspace_prepare")
     // Keep the read-only reconciliation immediately before every topology
     // decision. A caller cannot create a branch from an uninspected tree.
@@ -497,7 +617,8 @@ export class WorkspaceManager {
       throw new Error(`primary workspace for change ${changeID} is currently in use; request an explicit isolated child workspace`)
     }
     await this.canonicalizePrimary(preflight, manifest.workspace_id, "existing-primary-reused")
-    return { ...this.publicRecord(manifest), reused: true }
+    const refreshed = await this.updateDescription(manifest.workspace_id, input.description)
+    return { ...this.publicRecord(refreshed), reused: true }
   }
 
   async preparePrimary(input, taskID, changeID, repository, preflight) {
@@ -529,6 +650,7 @@ export class WorkspaceManager {
       const adopted = await this.adoptWorkspace({
         taskID,
         changeID,
+        description: input.description,
         repository,
         directory: repository.root,
         branch: current.branch,
@@ -569,6 +691,7 @@ export class WorkspaceManager {
       const adopted = await this.adoptWorkspace({
         taskID,
         changeID,
+        description: input.description,
         repository,
         directory: await canonical(registered.directory),
         branch: registered.branch,
@@ -618,6 +741,7 @@ export class WorkspaceManager {
       const switched = await this.switchCurrentPrimary({
         taskID,
         changeID,
+        description: input.description,
         repository,
         branch,
         branchExists,
@@ -629,6 +753,7 @@ export class WorkspaceManager {
     const created = await this.createLinkedWorkspace({
       taskID,
       changeID,
+      description: input.description,
       repository,
       branch,
       baseSha,
@@ -660,7 +785,8 @@ export class WorkspaceManager {
       if (await this.hasActiveTasks(existing.workspace_id) && manifest.task_id !== taskID) {
         throw new Error(`child workspace for task ${taskID} is currently in use`)
       }
-      return { ...this.publicRecord(manifest), reused: true }
+      const refreshed = await this.updateDescription(manifest.workspace_id, input.description)
+      return { ...this.publicRecord(refreshed), reused: true }
     }
     if (!parentID) throw new Error("child workspace preparation requires parent_workspace_id")
     if ((parent.role ?? "primary") !== "primary" && parent.primary_workspace_id !== parent.workspace_id) {
@@ -692,6 +818,7 @@ export class WorkspaceManager {
     return this.createLinkedWorkspace({
       taskID,
       changeID,
+      description: input.description,
       repository,
       branch,
       baseSha,
@@ -761,6 +888,7 @@ export class WorkspaceManager {
   async switchCurrentPrimary({
     taskID,
     changeID,
+    description,
     repository,
     branch,
     branchExists,
@@ -774,6 +902,7 @@ export class WorkspaceManager {
     return this.adoptWorkspace({
       taskID,
       changeID,
+      description,
       repository,
       directory: repository.root,
       branch,
@@ -787,6 +916,7 @@ export class WorkspaceManager {
   async createLinkedWorkspace({
     taskID,
     changeID,
+    description,
     repository,
     branch,
     baseSha,
@@ -801,6 +931,7 @@ export class WorkspaceManager {
     const workspaceID = `ws_${randomUUID()}`
     const directory = await this.workspaceDirectory(repository, role, changeID, workspaceID)
     const manifestPath = this.manifestPath(repository.projectKey, workspaceID)
+    const normalizedDescription = normalizeDescription(description)
     const manifest = {
       version: 2,
       status: "preparing",
@@ -822,6 +953,7 @@ export class WorkspaceManager {
       repository_id: repository.projectKey,
       git_common_dir: repository.commonDir,
       created_at: this.now(),
+      ...(normalizedDescription === null ? {} : { description: normalizedDescription }),
     }
     await mkdir(join(this.stateDirectory, "manifests", repository.projectKey), { recursive: true })
     await writeJson(manifestPath, manifest)
@@ -851,6 +983,7 @@ export class WorkspaceManager {
   async adoptWorkspace({
     taskID,
     changeID,
+    description,
     repository,
     directory,
     branch,
@@ -861,6 +994,7 @@ export class WorkspaceManager {
   }) {
     const workspaceID = `ws_${randomUUID()}`
     const manifestPath = this.manifestPath(repository.projectKey, workspaceID)
+    const normalizedDescription = normalizeDescription(description)
     const manifest = {
       version: 2,
       status: "active",
@@ -883,6 +1017,7 @@ export class WorkspaceManager {
       git_common_dir: repository.commonDir,
       created_at: this.now(),
       reused: false,
+      ...(normalizedDescription === null ? {} : { description: normalizedDescription }),
     }
     await mkdir(join(this.stateDirectory, "manifests", repository.projectKey), { recursive: true })
     const validated = await this.validateManifest(manifest)
@@ -925,6 +1060,38 @@ export class WorkspaceManager {
     }
   }
 
+  async updateDescription(workspaceID, description) {
+    const normalizedDescription = normalizeDescription(description)
+    const { manifest, path } = await this.findManifest(workspaceID)
+    if (normalizedDescription === null || normalizedDescription === manifest.description) return manifest
+    if (!["active", "preparing"].includes(manifest.status)) {
+      throw new Error(`workspace is not active: ${manifest.workspace_id} (${manifest.status})`)
+    }
+    const updated = { ...manifest, description: normalizedDescription }
+    await writeJson(path, updated)
+    return updated
+  }
+
+  async updateCheckpoint(workspaceID, input = {}) {
+    const { manifest, path } = await this.findManifest(workspaceID)
+    const validated = await this.validateManifest(manifest)
+    const checkpoint = normalizeCheckpoint({
+      ...input,
+      task_id: input.task_id ?? manifest.task_id,
+      // The workspace HEAD and manager clock are authoritative. Caller values
+      // with these names are intentionally overwritten.
+      head_sha: validated.head,
+      updated_at: this.now(),
+    }, manifest.repository_root)
+    const updated = { ...manifest, latest_checkpoint: checkpoint }
+    await writeJson(path, updated)
+    return {
+      ...this.publicRecord(updated),
+      status: updated.status,
+      checkpoint_freshness: checkpointFreshness(checkpoint, validated.head),
+    }
+  }
+
   async validateManifest(manifest) {
     if (!["active", "preparing"].includes(manifest.status)) {
       throw new Error(`workspace is not active: ${manifest.workspace_id} (${manifest.status})`)
@@ -957,6 +1124,8 @@ export class WorkspaceManager {
       branch: manifest.branch,
       base_sha: manifest.base_sha,
       git_common_dir: manifest.git_common_dir,
+      description: manifest.description ?? null,
+      latest_checkpoint: manifest.latest_checkpoint ? structuredClone(manifest.latest_checkpoint) : null,
       // Version-one manifests represented one isolated task, so treat an
       // unfinished legacy record as that task's resumable primary workspace.
       change_id: manifest.change_id ?? (legacyPrimary ? manifest.task_id ?? null : null),

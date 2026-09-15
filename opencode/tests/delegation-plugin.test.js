@@ -33,6 +33,7 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
   assert.deepEqual(Object.keys(plugin.tool), [
     "execution_preflight",
     "workspace_prepare",
+    "workspace_checkpoint_update",
     "delegate_task",
     "consult_agents",
     "task_status",
@@ -44,6 +45,9 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
   assert.ok(plugin.tool.execution_preflight.args.change_id)
   assert.ok(plugin.tool.workspace_release.args.finalize_in_place)
   assert.ok(plugin.tool.workspace_release.args.integration_branch)
+  assert.ok(plugin.tool.workspace_checkpoint_update.args.status)
+  assert.equal(plugin.tool.workspace_checkpoint_update.args.head_sha, undefined)
+  assert.equal(plugin.tool.workspace_checkpoint_update.args.updated_at, undefined)
   assert.match(plugin.tool.delegate_task.description, /Available categories:/)
   assert.match(plugin.tool.delegate_task.description, /browser-automation/)
   assert.ok(plugin.tool.delegate_task.args.load_skills)
@@ -79,6 +83,7 @@ test("plugin entrypoint initializes with the full tool set outside Git", async (
   assert.deepEqual(Object.keys(plugin.tool), [
     "execution_preflight",
     "workspace_prepare",
+    "workspace_checkpoint_update",
     "delegate_task",
     "consult_agents",
     "task_status",

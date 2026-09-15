@@ -3,7 +3,7 @@
 | Invariant | Enforcement |
 |---|---|
 | Runtime code uses stock public OpenCode plugin and SDK APIs only. | Static dependency guard and loader test |
-| Eight project-owned delegation tools are exposed, including the Executor-only `execution_preflight` and restricted `consult_agents` facades. | Plugin test |
+| Nine project-owned delegation tools are exposed, including the Executor-only `execution_preflight`, bounded `workspace_checkpoint_update`, and restricted `consult_agents` facades. | Plugin and runtime policy tests |
 | Category selection is deterministic and implementation categories route to Implementer. | CategoryEngine tests |
 | Named delegation accepts only project-owned read-only specialists. | AgentDispatcher tests |
 | `consult_agents` is Implementer-only, accepts only bounded Explorer/Librarian requests, waits for all outcomes in input order, and consultation children cannot recurse. | Consultation runtime, profile, and effective-agent permission tests |
@@ -15,6 +15,8 @@
 | OpenSpec `tasks.md` is the only durable formal-workflow progress source. | Prompt and command policy tests |
 | Executor performs a mandatory current-state execution preflight before topology or implementation delegation. | Execution preflight and Executor policy tests |
 | Planner task boundaries do not imply agent, branch, or worktree boundaries; one logical change reuses one primary workspace by default. | Change-centric workspace resolver tests |
+| Workspace descriptions and one latest checkpoint are local advisory manifest metadata; they cannot override identity, ownership, Git facts, or workflow gates. | Workspace context, runtime ownership, and preflight tests |
+| Checkpoints are bounded, overwrite-only, carry runtime-derived HEAD/timestamp, report simple HEAD freshness, and do not create history, event logs, or alternate durable workflow state. | Workspace context tests |
 | Protected base branches such as `main` and `master` are never normal Executor implementation or Git-mutation targets. | Executor runtime and Git permission tests |
 | Child worktrees require a concrete isolation reason and integrate into the primary change branch, never directly into the protected base. | Child workspace and cleanup tests |
 | Technical Advisor advises and Plan Reviewer independently approves or rejects. | Agent policy tests |
