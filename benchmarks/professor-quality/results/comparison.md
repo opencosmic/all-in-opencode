@@ -16,7 +16,11 @@ status-unavailable rather than treated as verified zeroes. The fresh post-patch
 original B6 attempt used the required model/variant but timed out after 600
 seconds before Professor created a run or session: no outer steps, retrieval,
 or durable state were observed. This is a Case D startup/provider/CLI stall,
-not evidence of a Professor ResearchRuntime failure. Earlier controlled B6
+not evidence of a Professor ResearchRuntime failure. A subsequent bounded
+preflight with the same fixed model/variant launched OpenCode but produced no
+run/session output in 20,092 ms; the evidence is preserved in
+[`fixed-model-health-check.json`](fixed-model-health-check.json). Per the retry
+policy, no further long B6 attempt was started. Earlier controlled B6
 execution reached verification/writing at approximately 25 observed outer
 steps without reaching the 32-step emergency boundary. A provider-ready final
 B6 run is still required before merging.
@@ -108,6 +112,13 @@ It is the Case D startup/provider stall: 600,093 ms, no run ID, no session,
 zero outer steps, zero retrieval calls, and no durable state. The final retry
 was 600,078 ms and had the same Case D result.
 
+The final bounded fixed-model preflight is recorded in
+[`fixed-model-health-check.json`](fixed-model-health-check.json): OpenCode
+1.18.31 launched with `opencode/muse-spark-1.3-contributor-free` and `xhigh`,
+but the non-Professor request emitted no output or session/run event before
+the 20-second timeout. This prevented a responsible additional 600-second B6
+attempt.
+
 ### Main-case report assessment
 
 Scores are 0–5 in the rubric order: bounded completion, question coverage,
@@ -195,6 +206,8 @@ because event delivery occurs after session binding.
 - Strict OpenSpec validation: run after the final artifact update; the existing
   change remains the single change, with task 4.4 intentionally open until a
   provider-ready B6 validation is available.
+- Fixed-model provider preflight: **blocked** after 20,092 ms with no
+  run/session output; OpenCode itself resolved as **1.18.31**.
 - Host-dependent integration: **1 failed at readiness** after 183.9 seconds;
   the test's OpenCode server printed that it was listening on localhost, but
   its HTTP readiness operation timed out before the test could exercise the
@@ -203,4 +216,5 @@ because event delivery occurs after session binding.
 
 The exact remaining limitation is therefore provider-ready benchmark
 validation for the original B6, not a detected outer-step-cap breach or a
-zero-value task regression.
+zero-value task regression. The bounded preflight was stopped before another
+long B6 run, as required by the retry policy.

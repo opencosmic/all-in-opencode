@@ -1,0 +1,20 @@
+{
+  "check": "fixed-model-non-professor-health",
+  "checkedAtUtc": "2026-09-15T14:48:27Z",
+  "opencodeVersion": "1.18.31",
+  "model": "opencode/muse-spark-1.3-contributor-free",
+  "variant": "xhigh",
+  "prompt": "Reply with exactly OK",
+  "timeoutMs": 20000,
+  "durationMs": 20092,
+  "timedOut": true,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "spawnError": null,
+  "stdoutBytes": 0,
+  "stderrBytes": 0,
+  "eventTypes": [],
+  "reachedRunOutput": false,
+  "completedSuccessfully": false,
+  "interpretation": "OpenCode launched, but the fixed-model request produced no run/session output before the bounded health-check timeout."
+}
