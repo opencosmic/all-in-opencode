@@ -274,6 +274,55 @@ test("workspace references in prompts must be bound by the workspace_id argument
   assert.equal(client.state.creates.length, 0)
 })
 
+test("delegate_task rejects mixed workspace and change ownership before registry writes", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const workspace = await runtime.workspacePrepare({ change_id: "change-a", task_id: "primary" }, context)
+
+  await assert.rejects(
+    runtime.delegate({
+      workspace_id: workspace.workspace_id,
+      change_id: "change-b",
+      category: "test",
+      description: "Mixed ownership",
+      prompt: "Do not run",
+      run_in_background: true,
+    }, context),
+    /workspace .*belongs to logical change change-a.*cannot delegate change change-b/,
+  )
+  assert.equal(client.state.creates.length, 0)
+  assert.deepEqual(runtime.registry.list(), [])
+  assert.equal((await runtime.workspaces.get(workspace.workspace_id, { validate: false })).change_id, "change-a")
+
+  const matched = await runtime.delegate({
+    workspace_id: workspace.workspace_id,
+    change_id: "change-a",
+    category: "test",
+    description: "Matching ownership",
+    prompt: "Proceed",
+    run_in_background: true,
+  }, context)
+  assert.equal(matched.status, "running")
+  assert.equal(runtime.registry.get(matched.task_id).change_id, "change-a")
+  assert.equal(runtime.registry.get(matched.task_id).workspace_id, workspace.workspace_id)
+})
+
+test("delegate_task infers change ownership from an explicit managed workspace", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const workspace = await runtime.workspacePrepare({ change_id: "inferred-change", task_id: "primary" }, context)
+
+  const delegated = await runtime.delegate({
+    workspace_id: workspace.workspace_id,
+    category: "test",
+    description: "Inferred ownership",
+    prompt: "Proceed",
+    run_in_background: true,
+  }, context)
+  assert.equal(delegated.status, "running")
+  assert.equal(runtime.registry.get(delegated.task_id).change_id, "inferred-change")
+  assert.equal(runtime.registry.get(delegated.task_id).workspace_id, workspace.workspace_id)
+  assert.equal(client.state.creates.length, 1)
+})
+
 test("allowlisted specialists use the same child session runner and current workspace", async (t) => {
   const { client, runtime, context } = await fixture(t)
   const workspace = await runtime.workspacePrepare({ task_id: "review-target" }, context)

@@ -342,6 +342,13 @@ test("legacy unfinished workspace manifests resume as the logical change primary
     created_at: new Date().toISOString(),
   }))
 
+  const collision = await manager.preflight({ change_id: "different-change", task_id: "legacy-task" }, repository)
+  assert.equal(collision.recommended_primary_workspace, null)
+  assert.deepEqual(collision.persisted.managed_workspaces, [])
+  const separate = await manager.prepare({ change_id: "different-change", task_id: "legacy-task" }, repository)
+  assert.notEqual(separate.workspace_id, "ws_legacy")
+  assert.equal((await manager.get("ws_legacy", { validate: false })).status, "active")
+
   const resumed = await manager.prepare({ change_id: "legacy-task", task_id: "legacy-task" }, repository)
   assert.equal(resumed.workspace_id, "ws_legacy")
   assert.equal(resumed.role, "primary")

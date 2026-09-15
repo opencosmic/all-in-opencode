@@ -180,12 +180,9 @@ export class WorkspaceManager {
       if (!manifest) continue
       if (!includeReleased && ["released", "superseded", "finalized"].includes(manifest.status)) continue
       if (changeID !== undefined) {
-        const hasChangeOwnership = manifest.change_id !== undefined
-          && manifest.change_id !== null
-          && String(manifest.change_id).trim().length > 0
-        if (hasChangeOwnership
-          ? manifest.change_id !== changeID
-          : taskID === undefined || taskID === null || manifest.task_id !== taskID) continue
+        const manifestChangeID = String(manifest.change_id ?? "").trim()
+        const implicitLegacyChangeID = String(manifest.task_id ?? "").trim()
+        if ((manifestChangeID || implicitLegacyChangeID) !== String(changeID).trim()) continue
       }
       manifests.push(manifest)
     }

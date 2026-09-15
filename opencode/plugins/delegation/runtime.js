@@ -30,6 +30,13 @@ function defaultStateDirectory() {
   return join(resolveProjectDataRoot(), "delegation")
 }
 
+function workspaceChangeID(workspace) {
+  const changeID = String(workspace?.change_id ?? "").trim()
+  if (changeID) return changeID
+  const legacyTaskID = String(workspace?.task_id ?? "").trim()
+  return legacyTaskID || null
+}
+
 function publicTask(task) {
   return {
     task_id: task.task_id,
@@ -151,7 +158,7 @@ export class DelegationRuntime {
   async ensureExecutionPreflight(args = {}, context, workspace) {
     if (context?.agent !== "Executor") return null
     const previous = this.preflights.get(context.sessionID)
-    let changeID = args.change_id ?? workspace?.change_id
+    let changeID = args.change_id ?? workspaceChangeID(workspace)
     if (!changeID) changeID = previous?.change_id
     if (!changeID) changeID = args.task_id ?? "execution"
     const currentDirectory = await realpath(context.directory)
@@ -195,6 +202,12 @@ export class DelegationRuntime {
     const workspace = args.workspace_id
       ? await this.workspaces.get(args.workspace_id)
       : { workspace_id: null, directory: await realpath(context.directory) }
+    const requestedChangeID = String(args.change_id ?? "").trim() || null
+    const selectedWorkspaceChangeID = workspaceChangeID(workspace)
+    if (args.workspace_id && requestedChangeID && selectedWorkspaceChangeID
+      && requestedChangeID !== selectedWorkspaceChangeID) {
+      throw new Error(`workspace ${args.workspace_id} belongs to logical change ${selectedWorkspaceChangeID}; cannot delegate change ${requestedChangeID}`)
+    }
     const implementationRoute = route.agent === "Implementer" || route.category === "git"
     const preflight = await this.ensureExecutionPreflight(args, context, workspace)
     if (context?.agent === "Executor" && implementationRoute) {
@@ -223,7 +236,10 @@ export class DelegationRuntime {
       parent_directory: await realpath(context.directory),
       execution_directory: workspace.directory,
       workspace_id: workspace.workspace_id,
-      change_id: args.change_id ?? workspace.change_id ?? this.preflights.get(context.sessionID)?.change_id ?? null,
+      change_id: requestedChangeID
+        ?? selectedWorkspaceChangeID
+        ?? this.preflights.get(context.sessionID)?.change_id
+        ?? null,
       category: route.category,
       agent: route.agent,
       variant: route.profile.variant ?? null,
