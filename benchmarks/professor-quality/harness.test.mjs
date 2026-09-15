@@ -65,7 +65,11 @@ test("Professor benchmark metrics retain superseded tasks and every claim verdic
     findings: [{}],
     claims: [{ verification: "PARTIAL" }, { verification: "SUPPORTED" }],
     contradictions: [{ contradictionId: "contradiction-1", proposition: "A", critical: false, status: "open" }],
-    metrics: { searchCount: 3, remainingUncertainties: ["partial claim"] },
+    metrics: {
+      searchCount: 3,
+      claimStatusCounts: { supported: 0, partial: 0, unsupported: 0, contradicted: 0 },
+      remainingUncertainties: ["partial claim"],
+    },
   }, { fetchCount: 2, retrievalCount: 5 })
   assert.equal(summary.controllerRounds, 4)
   assert.equal(summary.taskStatusCounts.superseded, 1)
@@ -116,9 +120,33 @@ test("Professor benchmark parser keeps malformed output auditable without treati
     evidence: 0,
     findings: 0,
     contradictions: 0,
+    criteria: 0,
     followUps: 0,
     canonicalResult: true,
   }), false)
+  assert.equal(isZeroValueCompletedTask({
+    type: "task.completed",
+    sources: 0,
+    evidence: 0,
+    findings: 0,
+    contradictions: 0,
+    criteria: 1,
+    followUps: 0,
+    canonicalResult: true,
+  }), false)
+})
+
+test("benchmark aggregates do not present stale claim metrics as verified counts", () => {
+  const metrics = objectiveMetrics([{
+    caseId: "B6",
+    completed: false,
+    claimCount: 13,
+    claimStatusCounts: { supported: 0, partial: 0, unsupported: 0, contradicted: 0 },
+  }])
+  assert.equal(metrics.claimStatusCounts, null)
+  assert.equal(metrics.claimStatusCountsUnavailable, 13)
+  assert.equal(metrics.byCase.B6.claimStatusCounts, null)
+  assert.equal(metrics.byCase.B6.claimStatusCountsUnavailable, 13)
 })
 
 test("post-change Professor benchmark runs pin the controlled model explicitly", async () => {

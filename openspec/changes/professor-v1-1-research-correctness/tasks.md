@@ -7,16 +7,16 @@
 
 - [x] 2.1 Add a conservative closure-aware controller budget derived from the Professor outer-step contract, normalize older budgets, expose remaining capacity, and verify with default/custom/near-boundary runtime tests
 - [x] 2.2 Add the auditable `superseded` task lifecycle, counters, timestamps/reasons, state validation, frontier sweep, and events; verify pending sufficient-question tasks are skipped and excluded from gaps
-- [x] 2.3 Tighten `research_commit` canonical-result gating and explicit failed/already-sufficient paths; verify meaningful completion, empty rejection, failure, and supersession behavior
+- [x] 2.3 Tighten `research_commit` canonical-result gating and explicit failed/already-sufficient paths; verify meaningful completion, status-only/empty rejection, failure, and supersession behavior
 
 ## 3. Evidence and completion correctness
 
 - [x] 3.1 Strengthen evidence validation and bounded state projections for source identity, canonical citation, fact, supporting span/context, and claim-bound evidence; verify regression fixtures for merged/missing/mismatched evidence shapes
-- [x] 3.2 Add deterministic supported/partial/unsupported/contradicted claim counts and honest reportable uncertainty metrics with backward-compatible defaults; verify all verdicts and older state loading
+- [x] 3.2 Add deterministic supported/partial/unsupported/contradicted claim counts, criterion progress in task events, and honest reportable uncertainty metrics with backward-compatible defaults; verify all verdicts and older state loading
 
 ## 4. Professor contract, benchmark, and integration verification
 
 - [x] 4.1 Update the Professor prompt and public tool descriptions for closure capacity, selective retrieval, atomic evidence, superseded work, failure semantics, and claim accounting; verify deny-by-default/native-retrieval policy tests
-- [x] 4.2 Update Professor runtime/plugin tests and benchmark harness tests for every changed behavior; verify focused Professor tests and the benchmark harness pass
+- [x] 4.2 Update Professor runtime/plugin tests and benchmark harness tests for every changed behavior, including status-only commits, criterion-only lifecycle audit, and canonical claim accounting; verify focused Professor tests and the benchmark harness pass
 - [x] 4.3 Run the affected deterministic project suite, OpenSpec validation, and repository verification where the environment supports it; record any user-level configuration limitation without claiming it as a source failure
-- [ ] 4.4 Rerun B1–B7 and B1b–B4b with unchanged prompts, analyze before/after metrics, and verify B6 bounded completion and B7 absence of zero-value actionable tasks before final branch review (the alias-only regression is fixed; the latest fixed-model B6 retry was a Case D startup/provider stall with no Professor execution, so provider-ready validation remains open)
+- [ ] 4.4 Rerun B1–B7 and B1b–B4b with unchanged prompts, analyze before/after metrics, and verify B6 bounded completion and B7 absence of zero-value actionable tasks before final branch review (the alias-only and status-only regressions are fixed; the latest fixed-model B6 retry was a Case D startup/provider stall with no Professor execution, so provider-ready validation remains open)

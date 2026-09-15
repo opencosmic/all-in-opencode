@@ -8,14 +8,18 @@ anything.
 ## Current gate result
 
 **CODE READY / BENCHMARK VALIDATION BLOCKED BY ENVIRONMENT.** The alias-only
-canonical-progress loophole is fixed and covered by focused regression tests.
-The fresh post-patch original B6 attempt used the required model/variant but
-timed out after 600 seconds before Professor created a run or session: no
-outer steps, retrieval, or durable state were observed. This is a Case D
-startup/provider/CLI stall, not evidence of a Professor ResearchRuntime
-failure. Earlier controlled B6 execution reached verification/writing at
-approximately 25 observed outer steps without reaching the 32-step emergency
-boundary. A provider-ready final B6 run is still required before merging.
+and question-status-only canonical-progress loopholes are fixed and covered by
+focused regression tests. Benchmark task lifecycle records now preserve
+criterion progress, and claim-status summaries derive from canonical
+`state.claims`; legacy incomplete records with stale zero metrics are marked
+status-unavailable rather than treated as verified zeroes. The fresh post-patch
+original B6 attempt used the required model/variant but timed out after 600
+seconds before Professor created a run or session: no outer steps, retrieval,
+or durable state were observed. This is a Case D startup/provider/CLI stall,
+not evidence of a Professor ResearchRuntime failure. Earlier controlled B6
+execution reached verification/writing at approximately 25 observed outer
+steps without reaching the 32-step emergency boundary. A provider-ready final
+B6 run is still required before merging.
 
 ## Run provenance and model control
 
@@ -61,7 +65,7 @@ progress.
 | B3 | Completed at the 180s timer race; no runtime failure | 20 / 22 | 4 | 4 completed | 10 / 14 / 6 | Report produced |
 | B4 | Incomplete: harness timeout with 1 task running | 17 / 18 | 5 | 4 completed, 1 running | 9 / 19 / 0 | `corrected-B4-extended.jsonl` completed in 169s |
 | B5 | Completed; no timeout | 19 / 21 | 5 | 5 completed | 15 / 24 / 8 | Adaptive assumptions and blockers reported |
-| B6 | Incomplete: harness timeout while writing | 25 / 26 | 6 | 6 completed | 17 / 23 / 0 | Earlier `corrected-B6-runs-v2.jsonl` completed; final-code retries at 240s, 360s, and 600s timed out |
+| B6 | Incomplete: harness timeout while writing | 25 / 26 | 6 | 6 completed | 17 / 23 / 13 | Earlier `corrected-B6-runs-v2.jsonl` completed; final-code retries at 240s, 360s, and 600s timed out |
 | B7 | Completed at the 180s timer race; no runtime failure | 21 / 22 | 6 | 6 completed | 17 / 20 / 10 | 0 zero-value completed tasks; no superseded task arose in this run |
 
 Across the 11-record corrected regression batch: 8 records completed, 3 were
@@ -69,6 +73,14 @@ incomplete (B2, B4, B6), 0 zero-value completed tasks were observed, and 0
 runs hit the Professor outer-step boundary. The three timer-race records are
 kept as `timedOut: true` in the raw artifacts even though durable state reached
 `completed`; they are not silently treated as ordinary fast completions.
+
+The primary B6 record contains 13 canonical claims. Its pre-fix normalized
+JSONL snapshot did not retain the claim objects, so its stale all-zero verdict
+metrics cannot be reconstructed without inventing statuses. The regenerated
+[`corrected-regression-summary.json`](corrected-regression-summary.json) now
+reports those 13 claims as `claimStatusCountsUnavailable: 13` instead of
+presenting a false zero-status count; the same treatment is applied to the
+10-claim extended B6 writing artifact.
 
 The successful focused B6 repeat in
 [`corrected-B6-runs-v2.jsonl`](corrected-B6-runs-v2.jsonl) used the required
@@ -88,8 +100,13 @@ the harness ceiling elapsed.
 The post-alias-fix retry is preserved in
 [`corrected-B6-alias-fix.jsonl`](corrected-B6-alias-fix.jsonl), with its
 summary in [`corrected-B6-alias-fix-summary.json`](corrected-B6-alias-fix-summary.json).
+The final status/claims retry is preserved in
+[`corrected-B6-status-claims.jsonl`](corrected-B6-status-claims.jsonl), with its
+regenerated summary in
+[`corrected-B6-status-claims-summary.json`](corrected-B6-status-claims-summary.json).
 It is the Case D startup/provider stall: 600,093 ms, no run ID, no session,
-zero outer steps, zero retrieval calls, and no durable state.
+zero outer steps, zero retrieval calls, and no durable state. The final retry
+was 600,078 ms and had the same Case D result.
 
 ### Main-case report assessment
 
@@ -137,11 +154,18 @@ new canonical evidence, new findings/contradictions, meaningful criterion or
 contradiction mutations, and follow-up tasks actually created and still
 actionable. Only new canonical source records count as source progress. An
 observed-URL alias may remain source metadata, but it cannot by itself count as
-progress. Duplicate
-source/evidence records and unchanged updates therefore reject an unresolved
-successful commit, preserve the running task, or use supersession when the
-linked question is already sufficient. Durable
-`task.completed` events include those actual counts and `canonicalResult`.
+progress. Question status bookkeeping is likewise metadata, not criterion
+progress. Duplicate source/evidence records and unchanged updates therefore
+reject an unresolved successful commit, preserve the running task, or use
+supersession when the linked question is already sufficient. Durable
+`task.completed` events include sources, evidence, findings, contradictions,
+criteria, follow-ups, and `canonicalResult`.
+
+Benchmark state summaries now derive claim-status counts directly from
+`state.claims`, so a writing-stage state with 13 claims cannot be represented as
+13 claims with four false zero counts. When only an old normalized record is
+available and its status total does not equal its claim total, the report marks
+the status count unavailable instead of guessing.
 
 The unsafe budget root cause was treating one controller round as a fixed three
 outer steps. That estimate is retained only for compatibility/diagnostics. New
@@ -163,10 +187,10 @@ because event delivery occurs after session binding.
 ## Verification status
 
 - Deterministic repository tests excluding the host-readiness integration:
-  **242 passed**.
-- Professor/runtime/plugin/agent focused tests: **61 passed** (included in the
+  **245 passed**.
+- Professor/runtime/plugin/agent focused tests: **64 passed** (included in the
   deterministic total).
-- Benchmark harness tests: **5 passed**.
+- Benchmark harness tests: **6 passed**.
 - `git diff --check`: passed.
 - Strict OpenSpec validation: run after the final artifact update; the existing
   change remains the single change, with task 4.4 intentionally open until a

@@ -39,7 +39,7 @@ When a question's required criteria are satisfied by same-question evidence, all
 
 ### Requirement: Completed tasks represent canonical research progress
 
-A task MUST NOT be marked completed from a summary alone. A normal completed task MUST cause a genuine canonical ResearchState mutation, such as adding a new source, new evidence record, finding, contradiction, follow-up, or meaningful criterion/contradiction update. Duplicate or normalized no-op inputs MUST NOT count as progress. Already-sufficient no-result work MUST use supersession, and retrieval that genuinely yields no result MUST use the failure state with a failure summary.
+A task MUST NOT be marked completed from a summary alone. A normal completed task MUST cause a genuine canonical ResearchState mutation, such as adding a new source, new evidence record, finding, contradiction, follow-up, or meaningful criterion/contradiction update. Question status bookkeeping by itself MUST NOT count as progress. Duplicate or normalized no-op inputs MUST NOT count as progress. Already-sufficient no-result work MUST use supersession, and retrieval that genuinely yields no result MUST use the failure state with a failure summary.
 
 #### Scenario: Meaningful task commit completes
 
@@ -60,6 +60,11 @@ A task MUST NOT be marked completed from a summary alone. A normal completed tas
 
 - **WHEN** a running task submits only a raw URL alias that canonicalizes to an existing source and would add metadata to `observedUrls`
 - **THEN** the alias may remain useful source metadata, but it does not count as a new canonical source and cannot by itself complete the task
+
+#### Scenario: Question status-only update is not task progress
+
+- **WHEN** a running task submits only a question status mutation such as `blocked` without a source, evidence, finding, contradiction, criterion, or follow-up result
+- **THEN** the status-only mutation does not count as canonical progress and the successful commit is rejected unless the caller uses the existing supersession or explicit failure path
 
 #### Scenario: Failed no-result work is explicit
 
@@ -82,7 +87,7 @@ Each evidence record MUST contain one bounded proposition, an explicit canonical
 
 ### Requirement: Completion metadata accounts for every claim verification status
 
-Completed ResearchState metrics MUST include deterministic counts for `SUPPORTED`, `PARTIAL`, `UNSUPPORTED`, and `CONTRADICTED` claims using the project's canonical machine-readable names. Remaining uncertainty MUST include reportable non-supported claims even when no critical blocker remains. Non-critical accepted uncertainty MAY still complete when the existing completion policy permits it, but metadata MUST NOT imply zero uncertainty while such claims exist.
+Completed ResearchState metrics MUST include deterministic counts for `SUPPORTED`, `PARTIAL`, `UNSUPPORTED`, and `CONTRADICTED` claims using the project's canonical machine-readable names. Durable task completion events MUST include the count of meaningful criterion mutations alongside the other canonical progress dimensions. Benchmark summaries MUST derive claim status counts from the canonical `state.claims` array rather than stale pre-completion metrics. Remaining uncertainty MUST include reportable non-supported claims even when no critical blocker remains. Non-critical accepted uncertainty MAY still complete when the existing completion policy permits it, but metadata MUST NOT imply zero uncertainty while such claims exist.
 
 #### Scenario: All claim statuses are counted
 
@@ -98,3 +103,8 @@ Completed ResearchState metrics MUST include deterministic counts for `SUPPORTED
 
 - **WHEN** an older persisted state lacks the new claim-count or closure-capacity fields
 - **THEN** the runtime supplies safe defaults, validates the state, and loads it without requiring a migration
+
+#### Scenario: Criterion-only progress is auditable
+
+- **WHEN** a task makes a meaningful criterion update using existing evidence without adding another source or evidence record
+- **THEN** the task completion event records a positive `criteria` count and benchmark zero-value auditing does not classify the completion as zero-value

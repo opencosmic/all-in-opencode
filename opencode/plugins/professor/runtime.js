@@ -481,7 +481,7 @@ export function createProfessorRuntime(options = {}) {
   }
 
   function applyQuestionUpdates(state, updates, evidenceContext, events) {
-    let meaningfulMutations = 0
+    let meaningfulCriterionMutations = 0
     for (const update of updates) {
       if (!update || typeof update !== "object") throw new Error("each question update must be an object")
       const question = questionById(state, update.questionId)
@@ -507,7 +507,10 @@ export function createProfessorRuntime(options = {}) {
         }
         const evidenceIdsChanged = criterion.evidenceIds.length !== evidenceIds.length
           || criterion.evidenceIds.some((evidenceId, index) => evidenceId !== evidenceIds[index])
-        if (!criterion.satisfied || evidenceIdsChanged) questionChanged = true
+        if (!criterion.satisfied || evidenceIdsChanged) {
+          questionChanged = true
+          meaningfulCriterionMutations += 1
+        }
         criterion.satisfied = true
         criterion.evidenceIds = evidenceIds
       }
@@ -518,11 +521,10 @@ export function createProfessorRuntime(options = {}) {
       else if (update.status === "researching" || (satisfied.length > 0 && question.status === "pending") || question.status === "researching") question.status = "researching"
       if (question.status !== previousStatus) questionChanged = true
       if (questionChanged) {
-        meaningfulMutations += 1
         events.push(makeEvent(state, "coverage.updated", questionCoverageSummary(question)))
       }
     }
-    return meaningfulMutations
+    return meaningfulCriterionMutations
   }
 
   function normalizeSourceRecords(state, sources, events) {
@@ -998,6 +1000,7 @@ export function createProfessorRuntime(options = {}) {
       evidence: evidence.newEvidenceIds.length,
       findings: findings.length,
       contradictions: canonicalProgress.contradictions,
+      criteria: canonicalProgress.criteria,
       followUps: followUpTasks.length,
       canonicalResult: hasCanonicalResult,
     }))

@@ -114,6 +114,7 @@ function summarizeTaskLifecycle(events) {
       evidence: Number(data.evidence ?? 0),
       findings: Number(data.findings ?? 0),
       contradictions: Number(data.contradictions ?? 0),
+      criteria: Number(data.criteria ?? 0),
       followUps: Number(data.followUps ?? 0),
       canonicalResult: data.canonicalResult ?? null,
       reason: data.reason ?? null,
@@ -128,6 +129,7 @@ export function isZeroValueCompletedTask(task) {
         && task.evidence === 0
         && task.findings === 0
         && task.contradictions === 0
+        && Number(task.criteria ?? 0) === 0
         && task.followUps === 0))
 }
 
@@ -168,6 +170,32 @@ export function countClaimStatuses(claims = []) {
   return counts
 }
 
+function claimStatusCoverage(records) {
+  const counts = countClaimStatuses()
+  const statusKeys = Object.keys(counts)
+  let knownRecords = 0
+  let unavailableClaims = 0
+  for (const record of records) {
+    const claimCount = Number(record?.claimCount ?? 0)
+    const recordCounts = record?.claimStatusCounts && typeof record.claimStatusCounts === "object"
+      ? record.claimStatusCounts
+      : null
+    const statusTotal = recordCounts
+      ? statusKeys.reduce((sum, key) => sum + Number(recordCounts[key] ?? 0), 0)
+      : 0
+    if (statusTotal !== claimCount) {
+      unavailableClaims += claimCount
+      continue
+    }
+    knownRecords += 1
+    for (const key of statusKeys) counts[key] += Number(recordCounts?.[key] ?? 0)
+  }
+  return {
+    counts: knownRecords === 0 && unavailableClaims > 0 ? null : counts,
+    unavailableClaims,
+  }
+}
+
 function summarizedRetrieval(retrieval) {
   return retrieval.map((item) => ({
     sequence: item.sequence,
@@ -197,7 +225,7 @@ export function summarizeProfessorState(state, fallback = {}) {
     evidenceCount: state?.evidence?.length ?? 0,
     findingCount: state?.findings?.length ?? 0,
     claimCount: claims.length,
-    claimStatusCounts: metrics.claimStatusCounts ?? countClaimStatuses(claims),
+    claimStatusCounts: countClaimStatuses(claims),
     searchCount: metrics.searchCount ?? fallback.searchCount ?? 0,
     fetchCount: fallback.fetchCount ?? 0,
     retrievalCount: fallback.retrievalCount ?? 0,
@@ -363,10 +391,7 @@ export async function normalizeProfessorRun({ caseItem, runIndex, runKind, stdou
 export function objectiveMetrics(records) {
   const total = records.length
   const completed = records.filter((record) => record.completed)
-  const claimStatusCounts = records.reduce((totals, record) => {
-    for (const key of Object.keys(totals)) totals[key] += record.claimStatusCounts?.[key] ?? 0
-    return totals
-  }, { supported: 0, partial: 0, unsupported: 0, contradicted: 0 })
+  const claimStatusSummary = claimStatusCoverage(records)
   return {
     runs: total,
     completedRuns: completed.length,
@@ -381,7 +406,8 @@ export function objectiveMetrics(records) {
     evidence: records.reduce((sum, record) => sum + (record.evidenceCount ?? 0), 0),
     findings: records.reduce((sum, record) => sum + (record.findingCount ?? 0), 0),
     claims: records.reduce((sum, record) => sum + (record.claimCount ?? 0), 0),
-    claimStatusCounts,
+    claimStatusCounts: claimStatusSummary.counts,
+    claimStatusCountsUnavailable: claimStatusSummary.unavailableClaims,
     zeroValueCompletedTasks: records.reduce((sum, record) => sum + (record.zeroValueCompletedTasks?.length ?? 0), 0),
     searchCalls: records.reduce((sum, record) => sum + (record.searchCount ?? 0), 0),
     fetchCalls: records.reduce((sum, record) => sum + (record.fetchCount ?? 0), 0),
@@ -391,6 +417,7 @@ export function objectiveMetrics(records) {
     failureReasons: records.filter((record) => record.failureReason).map((record) => ({ caseId: record.caseId, reason: record.failureReason })),
     byCase: Object.fromEntries([...new Set(records.map((record) => record.caseId))].map((caseId) => {
       const rows = records.filter((record) => record.caseId === caseId)
+      const claimStatusSummary = claimStatusCoverage(rows)
       return [caseId, {
         runs: rows.length,
         completedRuns: rows.filter((record) => record.completed).length,
@@ -401,10 +428,8 @@ export function objectiveMetrics(records) {
         sources: rows.reduce((sum, record) => sum + (record.sourceCount ?? 0), 0),
         evidence: rows.reduce((sum, record) => sum + (record.evidenceCount ?? 0), 0),
         claims: rows.reduce((sum, record) => sum + (record.claimCount ?? 0), 0),
-        claimStatusCounts: rows.reduce((counts, record) => {
-          for (const key of Object.keys(counts)) counts[key] += record.claimStatusCounts?.[key] ?? 0
-          return counts
-        }, { supported: 0, partial: 0, unsupported: 0, contradicted: 0 }),
+        claimStatusCounts: claimStatusSummary.counts,
+        claimStatusCountsUnavailable: claimStatusSummary.unavailableClaims,
         searchCalls: rows.reduce((sum, record) => sum + (record.searchCount ?? 0), 0),
         fetchCalls: rows.reduce((sum, record) => sum + (record.fetchCount ?? 0), 0),
         durationsMs: rows.map((record) => record.durationMs),

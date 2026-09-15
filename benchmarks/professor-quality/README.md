@@ -48,7 +48,10 @@ complete. Retrieved page bodies and raw OpenCode transcripts are not
 committed. Durable task lifecycle events are used for canonical progress
 counts; a task completed with only a summary, duplicate source/evidence,
 observed-URL-alias metadata, unchanged criterion/contradiction, or uncreated
-follow-up is a benchmark failure signal.
+follow-up is a benchmark failure signal. Claim verdict counts are derived from
+the canonical `state.claims` snapshot; legacy normalized records whose stored
+status totals do not match `claimCount` are reported as status-unavailable
+instead of being presented as verified zeroes.
 
 The report is reconstructed from the isolated Professor run's durable
 `state.json`, `events.jsonl`, and `report.md` artifacts while the temporary

@@ -75,10 +75,13 @@ mutation: a new source or evidence record, finding, contradiction, follow-up,
 criterion satisfaction, or contradiction update. Source and evidence inputs
 are normalized against existing canonical records, so duplicate source/evidence
 inputs, observed-URL-alias-only metadata updates, and unchanged updates do not
-count. A summary-only commit is rejected unless the linked question is already
+count. Question status bookkeeping alone is not criterion progress. A
+summary-only commit is rejected unless the linked question is already
 sufficient, in which case the running task is durably superseded. A caller that
 genuinely has no result uses `failed: true` with a failure summary. The check is
-based on canonical state changes, not text heuristics.
+based on canonical state changes, not text heuristics. Completion events record
+the count of meaningful criterion mutations so lifecycle audits preserve that
+dimension.
 
 ### Keep evidence structural and source-bounded
 
@@ -91,10 +94,10 @@ context so claims can bind to individual evidence records. The Professor
 prompt will require one proposition per record and direct source-local support;
 claims remain the place where multiple records can be synthesized.
 
-### Derive claim accounting at completion
+### Derive claim accounting from canonical state
 
-Claim counts are derived from the canonical claim array at completion, rather
-than incrementally trusted from model input. A nested
+Claim counts are derived from the canonical claim array in benchmark state
+snapshots, rather than trusting potentially stale completion metrics. A nested
 `claimStatusCounts` object is added to metrics with lower-case keys matching
 the four upper-case verdict values. Critical weak claims remain blockers under
 the existing policy; non-critical weak claims remain completable but are added

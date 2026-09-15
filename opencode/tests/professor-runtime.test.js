@@ -347,6 +347,63 @@ test("an observed URL alias does not count as canonical source progress", async 
   assert.equal((await runtime.store.readEvents(started.runId)).filter((event) => event.type === "task.completed").length, 1)
 })
 
+test("a question status-only update does not count as canonical research progress", async (t) => {
+  const { runtime, started, next } = await startAndNext(t)
+  await assert.rejects(runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "blocked without a research result",
+    questionUpdates: [{ questionId: next.task.questionId, status: "blocked" }],
+  }), /canonical research result/)
+  const state = await runtime.load(started.runId)
+  assert.equal(state.tasks[0].status, "running")
+  assert.equal(state.questions[0].status, "researching")
+  assert.equal((await runtime.store.readEvents(started.runId)).filter((event) => event.type === "task.completed").length, 0)
+})
+
+test("question status changes remain valid alongside canonical research progress", async (t) => {
+  const { runtime, started, next } = await startAndNext(t)
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "blocked source result",
+    sources: [{ url: "https://example.com/status-with-result" }],
+    questionUpdates: [{ questionId: next.task.questionId, status: "blocked" }],
+  })
+  const state = await runtime.load(started.runId)
+  assert.equal(state.tasks[0].status, "completed")
+  assert.equal(state.questions[0].status, "blocked")
+  const completed = (await runtime.store.readEvents(started.runId)).find((event) => event.type === "task.completed")
+  assert.equal(completed.data.criteria, 0)
+  assert.equal(completed.data.canonicalResult, true)
+})
+
+test("criterion-only progress is durable completion progress", async (t) => {
+  const { runtime, started, next } = await startAndNext(t)
+  await runtime.commit({
+    runId: started.runId,
+    taskId: next.task.taskId,
+    summary: "record evidence before coverage update",
+    sources: [{ url: "https://example.com/criterion-only", sourceKey: "criterion-only" }],
+    evidence: [{ questionId: next.task.questionId, sourceKey: "criterion-only", fact: "Criterion fact", supportingSpan: "The source supports the criterion.", relation: "supports" }],
+  })
+  const gap = await runtime.next({ runId: started.runId })
+  await runtime.commit({
+    runId: started.runId,
+    taskId: gap.task.taskId,
+    summary: "apply existing evidence to criterion",
+    questionUpdates: [{
+      questionId: gap.task.questionId,
+      criteriaSatisfied: [{ criterionId: "question-0001-criterion-1", evidenceIds: ["evidence-0001"] }],
+    }],
+  })
+  const completed = (await runtime.store.readEvents(started.runId)).filter((event) => event.type === "task.completed").at(-1)
+  assert.equal(completed.data.sources, 0)
+  assert.equal(completed.data.evidence, 0)
+  assert.equal(completed.data.criteria, 1)
+  assert.equal(completed.data.canonicalResult, true)
+})
+
 test("a duplicate evidence record does not count as canonical progress", async (t) => {
   const { runtime, started, next } = await startAndNext(t)
   await runtime.commit({
