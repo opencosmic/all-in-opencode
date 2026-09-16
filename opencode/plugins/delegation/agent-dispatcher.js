@@ -7,9 +7,18 @@ const NAMED_AGENTS = new Set([
   "Validator",
   "Reviewer",
   "QA",
+  "Verifier",
 ])
 
 const CONSULTATION_AGENTS = new Set(["Explorer", "Librarian"])
+
+const PARENT_AGENT_NAMED_AGENTS = new Map([
+  ["Strategist", new Set(["Explorer", "Librarian", "Researcher", "Validator"])],
+  ["Planner", new Set(["Explorer", "Librarian", "Technical Advisor", "Plan Reviewer"])],
+  ["Executor", new Set(["Plan Reviewer", "Reviewer", "QA", "Verifier"])],
+])
+
+const CATEGORY_RESTRICTED_PARENTS = new Set(["Strategist", "Planner"])
 
 function namedAgentRoute(agent) {
   return {
@@ -38,9 +47,21 @@ export class AgentDispatcher {
     this.categoryEngine = categoryEngine
   }
 
-  resolve({ category, agent }) {
+  resolve({ category, agent, parentAgent }) {
     if (Boolean(category) === Boolean(agent)) {
       throw new Error("delegate_task requires exactly one of category or agent")
+    }
+    const allowedNamedAgents = PARENT_AGENT_NAMED_AGENTS.get(parentAgent)
+    if (allowedNamedAgents) {
+      if (category && CATEGORY_RESTRICTED_PARENTS.has(parentAgent)) {
+        throw new Error(`${parentAgent} may only delegate its allowlisted named agents; category routes are not allowed`)
+      }
+      if (!category && !allowedNamedAgents.has(agent)) {
+        throw new Error(`${parentAgent} cannot delegate named agent ${agent}; allowed: ${[...allowedNamedAgents].join(", ")}`)
+      }
+    }
+    if (!category && agent === "Verifier" && parentAgent !== "Executor") {
+      throw new Error("Verifier may only be delegated by Executor")
     }
     if (category) return this.categoryEngine.resolve(category)
     if (!NAMED_AGENTS.has(agent)) throw new Error(`named agent is not allowed: ${agent}`)

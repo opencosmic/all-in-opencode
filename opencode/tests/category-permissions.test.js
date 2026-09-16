@@ -119,6 +119,44 @@ test("permission decisions are scoped to the exact category session", () => {
   }), "deny")
 })
 
+test("non-Git implementation categories cannot mutate the Git index", () => {
+  const deniedCommands = [
+    "git add -- src/a.js",
+    "npm test && git add -- src/a.js",
+    "npm test || git add -- src/a.js",
+    "git status; git add -- src/a.js",
+    "git status\ngit add -- src/a.js",
+    "npm test && git commit -m change",
+    "git status; git cherry-pick 0123456789abcdef",
+  ]
+  for (const category of ["quick", "standard"]) {
+    for (const command of deniedCommands) {
+      assert.equal(categoryPermission({ category }, {
+        type: "bash",
+        pattern: command,
+      }), "deny", `${category} must not stage files: ${command}`)
+    }
+  }
+  assert.equal(categoryPermission({ category: "git" }, {
+    type: "bash",
+    pattern: "git add -- src/a.js",
+  }), "allow")
+  assert.equal(categoryPermission({ category: "git" }, {
+    type: "bash",
+    pattern: "git status; git add -- src/a.js",
+  }), "deny", "Git-category compound-command safety remains unchanged")
+  for (const command of ["git status --short", "git diff --check"]) {
+    assert.equal(categoryPermission({ category: "quick" }, {
+      type: "bash",
+      pattern: command,
+    }), null, `safe Git inspection remains available: ${command}`)
+  }
+  assert.equal(categoryPermission({ category: "quick" }, {
+    type: "bash",
+    pattern: 'printf "git add src/a.js"',
+  }), null, "quoted Git text is not a command boundary")
+})
+
 test("Git and browser categories use the shared contract plus category context", () => {
   const contract = systemFor("Implementer", "git")
   assert.match(contract, /project-owned Implementer/)

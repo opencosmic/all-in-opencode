@@ -22,6 +22,10 @@ function decision(rules, command) {
   return rules.findLast((rule) => rule.permission === "bash" && wildcard(command, rule.pattern))?.action ?? "ask"
 }
 
+function fileDecision(rules, permission, path) {
+  return rules.findLast((rule) => rule.permission === permission && wildcard(path, rule.pattern))?.action ?? "ask"
+}
+
 test("resolved Implementer permissions reserve commit mechanics for category mediation", async (t) => {
   const env = await isolatedOpenCodeEnv(t, repository)
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Implementer"], {
@@ -64,4 +68,18 @@ test("resolved Implementer permissions reserve commit mechanics for category med
     "npm test",
   ]
   for (const command of allowed) assert.equal(decision(rules, command), "allow", command)
+
+  for (const path of [
+    "openspec/config.yaml",
+    "openspec/changes/example/proposal.md",
+    "openspec/changes/example/specs/behavior/spec.md",
+    ".product/strategy/example.md",
+    ".product/state.json",
+  ]) {
+    assert.equal(fileDecision(rules, "read", path), "allow", `read ${path}`)
+    assert.equal(fileDecision(rules, "edit", path), "deny", `edit ${path}`)
+    assert.equal(fileDecision(rules, "write", path), "deny", `write ${path}`)
+  }
+  assert.equal(fileDecision(rules, "edit", "src/implementation.js"), "allow")
+  assert.equal(fileDecision(rules, "write", "src/implementation.js"), "allow")
 })

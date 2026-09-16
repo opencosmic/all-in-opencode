@@ -734,7 +734,7 @@ export class WorkspaceManager {
       preflight,
     })
     const currentCanBecomePrimary = current.protected
-      && current.clean
+      && (!current.status.length || dirtyOwnershipProven)
       && !requiresIsolatedBranch
       && !await this.directoryHasActiveTasks(repository.root, preflight)
     if (currentCanBecomePrimary) {

@@ -30,7 +30,7 @@ Primary agents are `Assistant`, `Browser`, `Blender`, `Producer`, `Searcher`, `P
 - `Plan Reviewer`: independent `[APPROVED]` / `[REJECTED]` plan gate.
 - `Researcher`, `Validator`, `Reviewer`, and `QA`: bounded product evidence, falsification, code review, and runtime evidence.
 
-Named delegation is fail closed. Only the repository-owned specialist allowlist is accepted.
+Named delegation is fail closed. Only the repository-owned specialist allowlist is accepted; `Verifier` is reserved for Executor's fresh shipping-verification handoff.
 
 `Searcher` is read-only and does bounded adaptive retrieval with native `websearch`/`websearch_*` and `webfetch`. It does not delegate, own OpenSpec, implement code, or replace the distinct `Researcher` and `Librarian` specialist roles. It is intentionally a normal-search route, not Deep Research.
 

@@ -45,11 +45,11 @@ function isBrowserRuntimeCommand(command) {
 }
 
 function isCategoryScopedGitMutation(command) {
-  return /^git\s+(?:commit|cherry-pick)(?:\s|$)/.test(command.trim())
+  return isGitMutationCommand(command)
 }
 
 export function isGitMutationCommand(command) {
-  return /^git\s+(?:add|commit|cherry-pick)(?:\s|$)/.test(String(command ?? "").trim())
+  return /(?:^|&&|\|\||;|\r?\n)\s*git\s+(?:add|commit|cherry-pick)(?:\s|$)/.test(String(command ?? "").trim())
 }
 
 function skillLocation(skill) {

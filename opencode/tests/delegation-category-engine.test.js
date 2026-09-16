@@ -145,4 +145,26 @@ test("dispatcher enforces category XOR named agent and allowlists specialists", 
   ]) assert.equal(dispatcher.resolve({ agent }).agent, agent)
   assert.throws(() => dispatcher.resolve({ agent: "Executor" }), /not allowed/)
   assert.throws(() => dispatcher.resolve({ agent: "RandomAgent" }), /not allowed/)
+  assert.throws(() => dispatcher.resolve({ agent: "Verifier" }), /only be delegated by Executor/)
+})
+
+test("dispatcher enforces stage-specific named delegation boundaries", () => {
+  const dispatcher = new AgentDispatcher(new CategoryEngine({}))
+
+  assert.throws(
+    () => dispatcher.resolve({ category: "quick", parentAgent: "Strategist" }),
+    /Strategist.*category routes are not allowed/,
+  )
+  assert.throws(
+    () => dispatcher.resolve({ category: "quick", parentAgent: "Planner" }),
+    /Planner.*category routes are not allowed/,
+  )
+  assert.equal(dispatcher.resolve({ agent: "Researcher", parentAgent: "Strategist" }).agent, "Researcher")
+  assert.equal(dispatcher.resolve({ agent: "Technical Advisor", parentAgent: "Planner" }).agent, "Technical Advisor")
+  assert.equal(dispatcher.resolve({ agent: "Verifier", parentAgent: "Executor" }).agent, "Verifier")
+  assert.equal(dispatcher.resolve({ category: "quick", parentAgent: "Executor" }).agent, "Implementer")
+  assert.throws(
+    () => dispatcher.resolve({ agent: "Verifier", parentAgent: "Strategist" }),
+    /Strategist cannot delegate named agent Verifier/,
+  )
 })

@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { promisify } from "node:util"
 
 import { analyzeExecutionTasks } from "../plugins/delegation/execution-preflight.js"
@@ -150,6 +150,37 @@ test("dirty main is preserved while the primary workspace starts elsewhere", asy
   assert.equal(await readFile(dirtyPath, "utf8"), "keep this dirty\n")
   assert.equal(await git(prepared.directory, ["branch", "--show-current"]), "feat/new-feature")
   assert.equal(await git(prepared.directory, ["status", "--porcelain=v1", "--untracked-files=all"]), "")
+})
+
+test("same-change OpenSpec artifacts on protected main move in-place with the primary", async (t) => {
+  const { repository, manager } = await fixture(t)
+  const changeRoot = join(repository, "openspec", "changes", "same-change")
+  const files = {
+    [join(changeRoot, "proposal.md")]: "# Proposal\n\nKeep this exact content.\n",
+    [join(changeRoot, "specs", "behavior", "spec.md")]: "# Behavior\n\n#### Scenario\n\n- **WHEN** tested\n- **THEN** preserved\n",
+    [join(changeRoot, "design.md")]: "# Design\n\nIn-place handoff.\n",
+    [join(changeRoot, "tasks.md")]: "- [ ] preserve this task\n",
+  }
+  for (const [path, content] of Object.entries(files)) {
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, content)
+  }
+  const beforeStatus = await git(repository, ["status", "--porcelain=v1", "--untracked-files=all"])
+
+  const prepared = await manager.prepare({
+    change_id: "same-change",
+    task_id: "same-change-execution",
+    dirty_ownership: "same-change",
+  }, repository)
+
+  assert.equal(prepared.directory, await realpath(repository))
+  assert.equal(prepared.branch, "feat/same-change")
+  assert.equal(prepared.role, "primary")
+  assert.equal(prepared.managed_worktree, false)
+  assert.equal(await git(repository, ["branch", "--show-current"]), "feat/same-change")
+  assert.equal(await worktreeCount(repository), 1)
+  assert.equal(await git(repository, ["status", "--porcelain=v1", "--untracked-files=all"]), beforeStatus)
+  for (const [path, content] of Object.entries(files)) assert.equal(await readFile(path, "utf8"), content)
 })
 
 test("a matching feature branch reuses the current dirty workspace", async (t) => {

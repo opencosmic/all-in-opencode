@@ -294,7 +294,7 @@ export class DelegationRuntime {
     if (context?.agent === "Implementer") {
       throw new Error("Implementer cannot call delegate_task")
     }
-    const route = this.dispatcher.resolve(args)
+    const route = this.dispatcher.resolve({ ...args, parentAgent: context?.agent })
     const skills = this.skills.resolve(args.load_skills ?? [])
     const referencedWorkspaces = `${args.description}\n${args.prompt}`.match(/\bws_[0-9a-f-]+\b/g) ?? []
     if (!args.workspace_id && referencedWorkspaces.length) {

@@ -447,6 +447,69 @@ test("allowlisted specialists use the same child session runner and current work
   assert.ok(client.state.creates.every((call) => call.body.parentID === "parent"))
 })
 
+test("stage-specific parents use only their contract collaborators", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const strategist = { ...context, sessionID: "strategist", messageID: "strategist-turn", agent: "Strategist" }
+  const planner = { ...context, sessionID: "planner", messageID: "planner-turn", agent: "Planner" }
+
+  await assert.rejects(runtime.delegate({
+    category: "test",
+    description: "Strategist must not implement",
+    prompt: "Do not run",
+    run_in_background: true,
+  }, strategist), /Strategist.*category routes are not allowed/)
+  await assert.rejects(runtime.delegate({
+    category: "test",
+    description: "Planner must not implement",
+    prompt: "Do not run",
+    run_in_background: true,
+  }, planner), /Planner.*category routes are not allowed/)
+
+  const research = await runtime.delegate({
+    agent: "Researcher",
+    description: "Strategist consultation",
+    prompt: "Inspect the product evidence.",
+    run_in_background: true,
+  }, strategist)
+  const advice = await runtime.delegate({
+    agent: "Technical Advisor",
+    description: "Planner consultation",
+    prompt: "Inspect the technical tradeoff.",
+    run_in_background: true,
+  }, planner)
+
+  assert.equal(runtime.registry.get(research.task_id).agent, "Researcher")
+  assert.equal(runtime.registry.get(advice.task_id).agent, "Technical Advisor")
+  assert.deepEqual(client.state.prompts.map((call) => call.body.agent), ["Researcher", "Technical Advisor"])
+})
+
+test("Executor can route every declared review and verification handoff", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const executor = { ...context, agent: "Executor" }
+  const workspace = await runtime.workspacePrepare({
+    change_id: "handoff-contract",
+    task_id: "handoff-primary",
+  }, executor)
+  const shipCommand = await readFile(new URL("../commands/ship.md", import.meta.url), "utf8")
+  assert.match(shipCommand, /ALWAYS dispatch a new `Verifier`/)
+
+  const agents = ["Plan Reviewer", "Reviewer", "QA", "Verifier"]
+  const results = []
+  for (const agent of agents) {
+    results.push(await runtime.delegate({
+      workspace_id: workspace.workspace_id,
+      change_id: "handoff-contract",
+      agent,
+      description: `${agent} handoff contract`,
+      prompt: "Inspect the current change.",
+      run_in_background: true,
+    }, executor))
+  }
+
+  assert.deepEqual(results.map((result) => runtime.registry.get(result.task_id).agent), agents)
+  assert.deepEqual(client.state.prompts.map((call) => call.body.agent), agents)
+})
+
 test("configured model failure is surfaced without fallback", async (t) => {
   const { client, runtime, context } = await fixture(t)
   client.state.promptFailures = 1
