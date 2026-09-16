@@ -133,6 +133,18 @@ test("non-Git implementation categories cannot mutate the Git index", () => {
     type: "bash",
     pattern: 'printf "git add src/a.js"',
   }), null, "quoted Git text is not a command boundary")
+  for (const command of [
+    "printf 'hello; git add src/a.js'",
+    'printf "hello && git add src/a.js"',
+    "printf 'git commit -m nope'",
+    'echo "git cherry-pick deadbeef"',
+    'printf "hello \\"; git add src/a.js"',
+  ]) {
+    assert.equal(categoryPermission({ category: "quick" }, {
+      type: "bash",
+      pattern: command,
+    }), null, `quoted Git data remains allowed: ${command}`)
+  }
 })
 
 test("Git category uses the shared contract plus category context", () => {
