@@ -88,6 +88,33 @@ test("spec places the workspace before creating canonical OpenSpec state", async
   assert.match(command, /create no topology ledger or workspace-state file/)
 })
 
+test("mandatory workspace gates require the callable tool rather than shell inspection", async () => {
+  const paths = [
+    "commands/spec.md",
+    "agents/strategist.md",
+    "commands/plan.md",
+    "agents/planner.md",
+    "commands/execute.md",
+    "agents/executor.md",
+    "commands/verify.md",
+    "agents/verifier.md",
+    "commands/ship.md",
+  ]
+
+  for (const path of paths) {
+    const source = await text(path)
+    assert.match(source, /CALL the `workspace_inspect` tool directly from the tool catalog/, path)
+    assert.match(source, /not an executable or shell command/, path)
+    assert.match(source, /shell Git inspection is not a substitute/, path)
+    assert.match(source, /If the `workspace_inspect` tool is unavailable or its call fails, STOP/i, path)
+  }
+
+  const spec = await text("commands/spec.md")
+  assert.match(spec, /Use its returned structured result for the placement decision/)
+  assert.match(spec, /The OpenSpec CLI commands below[\s\S]*are real shell commands under the existing permissions/)
+  assert.match(spec, /that distinction does not apply to `workspace_inspect`/)
+})
+
 test("spec refuses a change-worktree handoff when strategy content is not in the intended base", async () => {
   const command = await text("commands/spec.md")
   assert.match(command, /selected strategy path and intended worktree base/)

@@ -10,6 +10,8 @@ Finish this OpenSpec change safely:
 
 Every invocation is an independent shipping gate. Resolve exactly one current change, inspect the current git/worktree state and comparison basis, and ALWAYS dispatch a new `Verifier` against the current OpenSpec artifacts, repository tree, diff, and fresh evidence before presenting any archive or integration choice. A previous `/verify` result or `VERIFIED` message is advisory only and never satisfies this gate; any code, artifact, base, or worktree change after an earlier verdict makes that verdict stale by definition.
 
+Before dispatching the fresh `Verifier`, CALL the `workspace_inspect` tool directly from the tool catalog and use its structured result for the current workspace/branch comparison. `workspace_inspect` is a callable OpenCode/AIO tool, not an executable or shell command. Do not use Bash, `command -v workspace_inspect`, `git status`, `git worktree`, or `git rev-parse`; shell Git inspection is not a substitute. If the `workspace_inspect` tool is unavailable or its call fails, STOP before archive or integration and report a tool/runtime blocker.
+
 `/execute` must leave the completed logical change on its primary change branch/workspace; `/ship` is the final normal boundary that may integrate that verified primary change into protected `main` or `master`. Confirm that child work has already been integrated into the primary workspace and that whole-change verification covers the primary tree before offering the menu. Never ship a partial child task directly.
 
 Handle the fresh result exactly:

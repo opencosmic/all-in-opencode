@@ -104,7 +104,7 @@ Classify ready tasks as `SAFE_TO_PARALLELIZE` or `MUST_SERIALIZE`. Mark `WORKSPA
 
 Do not estimate task duration to justify parallelism. Determine concurrency constraints only from observable dependencies, write-scope overlap, shared contracts/state, isolation requirements, and independently verifiable boundaries. Never claim guessed time savings.
 
-Use `workspace_inspect` only for read-only facts. Recommend the simplest high-level execution topology:
+At the required workspace placement gate, CALL the `workspace_inspect` tool directly from the tool catalog. It is a callable OpenCode/AIO tool, not an executable or shell command. Do not use Bash, `command -v workspace_inspect`, `git status`, `git worktree`, or `git rev-parse`; shell Git inspection is not a substitute. Use its returned structured result. If the `workspace_inspect` tool is unavailable or its call fails, STOP before writing `design.md` or `tasks.md` and report a tool/runtime blocker. Use `workspace_inspect` only for read-only facts. Recommend the simplest high-level execution topology:
 
 - `IN_PLACE` when the current workspace safely owns this one change;
 - `CHANGE_WORKTREE` when the change is already in suitable isolation or obvious facts require preserving unrelated work/parallel change activity.

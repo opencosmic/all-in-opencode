@@ -39,6 +39,7 @@ test("preflight initialization accepts the exact session-independent shape witho
 
   assert.equal(clientRead, false)
   assert.deepEqual(Object.keys(plugin.tool), ["workspace_inspect"])
+  assert.equal(typeof plugin.tool.workspace_inspect.execute, "function")
 })
 
 test("tool uses a valid explicit directory and returns the fixture Git root", async (t) => {

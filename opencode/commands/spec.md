@@ -18,7 +18,7 @@ Strategy argument:
 
 ## Change-workspace placement gate — before persistent artifacts
 
-Before `openspec init`, `openspec new change`, or any proposal/spec write, run the read-only `workspace_inspect` with the selected strategy path and intended worktree base (default `HEAD`). This is a placement gate, not product strategy and not Git management by Strategist.
+Before `openspec init`, `openspec new change`, or any proposal/spec write, CALL the `workspace_inspect` tool directly from the tool catalog, passing the selected strategy path and intended worktree base (default `HEAD`). `workspace_inspect` is a callable OpenCode/AIO tool, not an executable or shell command. Do not use Bash, `command -v workspace_inspect`, `git status`, `git worktree`, or `git rev-parse`; shell Git inspection is not a substitute. Use its returned structured result for the placement decision. If the `workspace_inspect` tool is unavailable or its call fails, STOP before writing any OpenSpec artifact and report a tool/runtime blocker. The OpenSpec CLI commands below, such as `openspec init`, `openspec new change`, and `openspec status`, are real shell commands under the existing permissions; that distinction does not apply to `workspace_inspect`. This is a placement gate, not product strategy and not Git management by Strategist.
 
 - Reuse the current workspace when it is already a suitable linked worktree (a submodule does not count), or select `IN_PLACE` when it safely owns this one change.
 - Before a `CHANGE_WORKTREE` handoff, require `strategySource.availableFromBase: true`: the selected approved strategy must exist unchanged in the Git base from which the worktree will be created. A tracked-and-clean strategy available from that base may proceed.
