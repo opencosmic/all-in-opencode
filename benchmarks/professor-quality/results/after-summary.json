@@ -1,0 +1,380 @@
+{
+  "schemaVersion": 1,
+  "benchmarkName": "professor-quality",
+  "generatedAt": "2026-09-14T22:10:42.286Z",
+  "cases": [
+    {
+      "id": "B1",
+      "category": "temporal-version",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B2",
+      "category": "negative-claim",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B3",
+      "category": "source-authority",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B4",
+      "category": "contradiction-version",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B5",
+      "category": "multi-aspect-correctness",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B6",
+      "category": "bounded-deep-retrieval",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B7",
+      "category": "frontier-supersession",
+      "blind": false,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B1b",
+      "category": "blind-temporal-version",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B2b",
+      "category": "blind-negative-claim",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B3b",
+      "category": "blind-source-authority",
+      "blind": true,
+      "repeatRuns": 1
+    },
+    {
+      "id": "B4b",
+      "category": "blind-contradiction-version",
+      "blind": true,
+      "repeatRuns": 1
+    }
+  ],
+  "records": 11,
+  "objective": {
+    "runs": 11,
+    "completedRuns": 10,
+    "incompleteRuns": 1,
+    "completionRate": 0.9090909090909091,
+    "controllerRounds": [
+      3,
+      4,
+      3,
+      4,
+      3,
+      3,
+      3,
+      4,
+      3,
+      3,
+      1
+    ],
+    "taskStatusCounts": {
+      "pending": 3,
+      "running": 1,
+      "completed": 33,
+      "failed": 0,
+      "superseded": 1
+    },
+    "sources": 88,
+    "evidence": 135,
+    "findings": 43,
+    "claims": 61,
+    "claimStatusCounts": {
+      "supported": 60,
+      "partial": 1,
+      "unsupported": 0,
+      "contradicted": 0
+    },
+    "zeroValueCompletedTasks": 0,
+    "searchCalls": 59,
+    "fetchCalls": 117,
+    "retrievalCalls": 176,
+    "stepCapBoundaryRuns": 0,
+    "failureReasons": [
+      {
+        "caseId": "B4b",
+        "reason": "benchmark timeout"
+      }
+    ],
+    "byCase": {
+      "B1": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          3
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 7,
+        "evidence": 8,
+        "claims": 6,
+        "claimStatusCounts": {
+          "supported": 6,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 4,
+        "fetchCalls": 2,
+        "durationsMs": [
+          118475
+        ]
+      },
+      "B2": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          4
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 11,
+        "evidence": 14,
+        "claims": 5,
+        "claimStatusCounts": {
+          "supported": 5,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 8,
+        "fetchCalls": 10,
+        "durationsMs": [
+          155213
+        ]
+      },
+      "B3": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          3
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 5,
+        "evidence": 8,
+        "claims": 4,
+        "claimStatusCounts": {
+          "supported": 4,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 6,
+        "fetchCalls": 6,
+        "durationsMs": [
+          116529
+        ]
+      },
+      "B4": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          4
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 15,
+        "evidence": 22,
+        "claims": 8,
+        "claimStatusCounts": {
+          "supported": 8,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 5,
+        "fetchCalls": 16,
+        "durationsMs": [
+          153518
+        ]
+      },
+      "B5": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          3
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 5,
+        "evidence": 9,
+        "claims": 6,
+        "claimStatusCounts": {
+          "supported": 6,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 6,
+        "fetchCalls": 3,
+        "durationsMs": [
+          114659
+        ]
+      },
+      "B6": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          3
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 9,
+        "evidence": 16,
+        "claims": 8,
+        "claimStatusCounts": {
+          "supported": 8,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 4,
+        "fetchCalls": 13,
+        "durationsMs": [
+          153790
+        ]
+      },
+      "B7": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          3
+        ],
+        "supersededTasks": 1,
+        "zeroValueCompletedTasks": 0,
+        "sources": 10,
+        "evidence": 16,
+        "claims": 7,
+        "claimStatusCounts": {
+          "supported": 6,
+          "partial": 1,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 6,
+        "fetchCalls": 15,
+        "durationsMs": [
+          162075
+        ]
+      },
+      "B1b": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          4
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 14,
+        "evidence": 21,
+        "claims": 10,
+        "claimStatusCounts": {
+          "supported": 10,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 11,
+        "fetchCalls": 0,
+        "durationsMs": [
+          164084
+        ]
+      },
+      "B2b": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          3
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 6,
+        "evidence": 9,
+        "claims": 4,
+        "claimStatusCounts": {
+          "supported": 4,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 4,
+        "fetchCalls": 15,
+        "durationsMs": [
+          115157
+        ]
+      },
+      "B3b": {
+        "runs": 1,
+        "completedRuns": 1,
+        "controllerRounds": [
+          3
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 6,
+        "evidence": 12,
+        "claims": 3,
+        "claimStatusCounts": {
+          "supported": 3,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 3,
+        "fetchCalls": 11,
+        "durationsMs": [
+          109619
+        ]
+      },
+      "B4b": {
+        "runs": 1,
+        "completedRuns": 0,
+        "controllerRounds": [
+          1
+        ],
+        "supersededTasks": 0,
+        "zeroValueCompletedTasks": 0,
+        "sources": 0,
+        "evidence": 0,
+        "claims": 0,
+        "claimStatusCounts": {
+          "supported": 0,
+          "partial": 0,
+          "unsupported": 0,
+          "contradicted": 0
+        },
+        "searchCalls": 2,
+        "fetchCalls": 26,
+        "durationsMs": [
+          180082
+        ]
+      }
+    }
+  },
+  "evaluation": {
+    "qualityJudgments": "not assigned by the runner; assess final reports against the frozen case prompts and rubric",
+    "blindAssessments": "B1b-B4b require manual PASS/PARTIAL/FAIL assessment with concise evidence"
+  }
+}

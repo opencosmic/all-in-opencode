@@ -10,6 +10,7 @@ import {
   assertNonEmptyString,
   assertSafeId,
   canonicalizeUrl,
+  claimStatusCounts,
   createResearchState,
   criticalQuestionsIncomplete,
   hasHardBudget,
@@ -17,6 +18,7 @@ import {
   normalizeBudget,
   openCriticalContradictions,
   questionIsSufficient,
+  researchCapacity,
   sortFrontier,
   transitionState,
   validateResearchState,
@@ -143,6 +145,8 @@ function taskPayload(task) {
     priority: task.priority,
     reason: task.reason,
     status: task.status,
+    supersededAt: task.supersededAt ?? null,
+    supersededReason: task.supersededReason ?? null,
   }
 }
 
@@ -188,6 +192,7 @@ export function createProfessorRuntime(options = {}) {
   const generateRunId = options.generateRunId ?? createRunId
   const mutationQueues = new Map()
   const sessionRuns = new Map()
+  const observedOuterStepParts = new Set()
 
   async function serializeRunMutation(runId, operation) {
     const safeRunId = assertSafeId(runId, "runId")
@@ -231,6 +236,62 @@ export function createProfessorRuntime(options = {}) {
   function observeSessionAgent({ sessionID, agent } = {}) {
     if (typeof sessionID !== "string" || !sessionID || typeof agent !== "string" || !agent) return
     if (agent.toLowerCase() !== "professor") sessionRuns.delete(sessionID)
+  }
+
+  function outerStepIdentity(event) {
+    if (event?.type === "message.part.updated") {
+      const part = event.properties?.part ?? event.data?.part
+      const sessionID = part?.sessionID ?? event.data?.sessionID
+      if (part?.type === "step-finish" && typeof part.id === "string" && typeof sessionID === "string") {
+        return { id: part.id, sessionID }
+      }
+      return null
+    }
+    if (event?.type === "session.next.step.ended" || event?.type === "session.next.step.failed") {
+      const sessionID = event.properties?.sessionID ?? event.data?.sessionID
+      const id = event.id ?? event.properties?.assistantMessageID ?? event.data?.assistantMessageID
+      return typeof id === "string" && typeof sessionID === "string" ? { id, sessionID } : null
+    }
+    if (event?.type === "sync") {
+      const syncEvent = event.syncEvent
+      const sessionID = syncEvent?.data?.sessionID
+      const id = syncEvent?.id ?? syncEvent?.data?.assistantMessageID
+      if (typeof syncEvent?.type === "string" && /session\.next\.step\.(ended|failed)/.test(syncEvent.type)) {
+        return typeof id === "string" && typeof sessionID === "string" ? { id, sessionID } : null
+      }
+    }
+    return null
+  }
+
+  async function observeOuterStep(event) {
+    const identity = outerStepIdentity(event)
+    if (!identity) return { counted: false }
+    const runId = sessionRuns.get(identity.sessionID)
+    if (!runId) return { counted: false }
+    const partKey = `${runId}:${identity.id}`
+    if (observedOuterStepParts.has(partKey)) return { counted: false, duplicate: true, runId }
+    observedOuterStepParts.add(partKey)
+    return serializeRunMutation(runId, async () => {
+      let state
+      try {
+        state = await load(runId)
+      } catch {
+        sessionRuns.delete(identity.sessionID)
+        return { counted: false }
+      }
+      if (state.status === "completed") {
+        sessionRuns.delete(identity.sessionID)
+        return { counted: false }
+      }
+      state.metrics.outerStepsObserved = (Number.isInteger(state.metrics.outerStepsObserved) ? state.metrics.outerStepsObserved : 0) + 1
+      await persist(state, [])
+      return {
+        counted: true,
+        runId,
+        outerStepsObserved: state.metrics.outerStepsObserved,
+        capacity: researchCapacity(state),
+      }
+    })
   }
 
   function unbindRun(runId) {
@@ -278,6 +339,34 @@ export function createProfessorRuntime(options = {}) {
     return state.counters.tasksCreated < state.budget.maxTasks
   }
 
+  function markTaskSuperseded(state, task, reason, events) {
+    if (task.status !== "pending" && task.status !== "running") return false
+    const at = timestamp()
+    task.status = "superseded"
+    task.supersededAt = at
+    task.supersededReason = assertNonEmptyString(reason, "superseded task reason", 2_000)
+    task.completedAt = at
+    state.counters.tasksSuperseded += 1
+    events.push(makeEvent(state, "task.superseded", {
+      taskId: task.taskId,
+      questionId: task.questionId,
+      reason: task.supersededReason,
+    }))
+    return true
+  }
+
+  function supersedeSufficientPendingTasks(state, events) {
+    let count = 0
+    for (const task of state.tasks) {
+      if (task.status !== "pending" || task.supersedeWhenSufficient === false) continue
+      const question = questionById(state, task.questionId)
+      if (!questionIsSufficient(question)) continue
+      if (question.status !== "sufficient") question.status = "sufficient"
+      if (markTaskSuperseded(state, task, "linked question already has sufficient evidence", events)) count += 1
+    }
+    return count
+  }
+
   function addTask(state, input, events) {
     if (!canCreateTask(state)) {
       markBudgetExhausted(state, "max_tasks", events)
@@ -300,6 +389,9 @@ export function createProfessorRuntime(options = {}) {
       createdAt: timestamp(),
       startedAt: null,
       completedAt: null,
+      supersededAt: null,
+      supersededReason: null,
+      supersedeWhenSufficient: input.supersedeWhenSufficient !== false,
     }
     state.tasks.push(task)
     state.counters.tasksCreated += 1
@@ -310,6 +402,9 @@ export function createProfessorRuntime(options = {}) {
       priority: task.priority,
       reason: task.reason,
     }))
+    if (task.supersedeWhenSufficient && questionIsSufficient(question)) {
+      markTaskSuperseded(state, task, "linked question already has sufficient evidence", events)
+    }
     return task
   }
 
@@ -336,6 +431,7 @@ export function createProfessorRuntime(options = {}) {
       type: "conflict-resolution",
       priority: "critical",
       reason: "critical contradiction remains open",
+      supersedeWhenSufficient: false,
     }, events)
   }
 
@@ -368,12 +464,12 @@ export function createProfessorRuntime(options = {}) {
     throw new Error("evidence must reference a declared sourceIndex, sourceKey, sourceId, or sourceUrl")
   }
 
-  function resolveEvidenceReferences(state, input, newEvidenceIds, evidenceKeys = new Map()) {
+  function resolveEvidenceReferences(state, input, evidenceRefs, evidenceKeys = new Map()) {
     const evidenceIds = []
     for (const evidenceId of input.evidenceIds ?? []) evidenceIds.push(evidenceById(state, evidenceId).evidenceId)
     for (const index of input.evidenceIndexes ?? []) {
-      if (!Number.isInteger(index) || index < 0 || !newEvidenceIds[index]) throw new Error(`evidence index is out of range: ${index}`)
-      evidenceIds.push(newEvidenceIds[index])
+      if (!Number.isInteger(index) || index < 0 || !evidenceRefs[index]) throw new Error(`evidence index is out of range: ${index}`)
+      evidenceIds.push(evidenceRefs[index])
     }
     for (const evidenceKey of input.evidenceKeys ?? []) {
       const key = assertNonEmptyString(evidenceKey, "evidenceKey", 200)
@@ -385,11 +481,13 @@ export function createProfessorRuntime(options = {}) {
   }
 
   function applyQuestionUpdates(state, updates, evidenceContext, events) {
+    let meaningfulCriterionMutations = 0
     for (const update of updates) {
       if (!update || typeof update !== "object") throw new Error("each question update must be an object")
       const question = questionById(state, update.questionId)
       const satisfied = update.criteriaSatisfied ?? []
       if (!Array.isArray(satisfied)) throw new Error("criteriaSatisfied must be an array")
+      let questionChanged = false
       for (const criterionRef of satisfied) {
         if (!criterionRef || typeof criterionRef !== "object") {
           throw new Error("criteriaSatisfied items must identify a criterion and its evidence")
@@ -397,7 +495,7 @@ export function createProfessorRuntime(options = {}) {
         const criterionId = assertNonEmptyString(criterionRef.criterionId, "criteriaSatisfied criterionId", 200)
         const criterion = question.completionCriteria.find((candidate) => candidate.criterionId === criterionId)
         if (!criterion) throw new Error(`unknown completion criterion for ${question.questionId}: ${criterionId}`)
-        const evidenceIds = resolveEvidenceReferences(state, criterionRef, evidenceContext.newEvidenceIds, evidenceContext.keyMap)
+        const evidenceIds = resolveEvidenceReferences(state, criterionRef, evidenceContext.evidenceRefs, evidenceContext.keyMap)
         if (evidenceIds.length === 0) {
           throw new Error(`completion criterion ${criterionId} must reference at least one evidence record`)
         }
@@ -407,15 +505,26 @@ export function createProfessorRuntime(options = {}) {
             throw new Error(`completion criterion ${criterionId} references evidence from another question`)
           }
         }
+        const evidenceIdsChanged = criterion.evidenceIds.length !== evidenceIds.length
+          || criterion.evidenceIds.some((evidenceId, index) => evidenceId !== evidenceIds[index])
+        if (!criterion.satisfied || evidenceIdsChanged) {
+          questionChanged = true
+          meaningfulCriterionMutations += 1
+        }
         criterion.satisfied = true
         criterion.evidenceIds = evidenceIds
       }
       if (update.status !== undefined) assertEnum(update.status, ["researching", "blocked"], "question update status")
+      const previousStatus = question.status
       if (questionIsSufficient(question)) question.status = "sufficient"
       else if (update.status === "blocked") question.status = "blocked"
-      else if (update.status === "researching" || question.status === "pending" || question.status === "researching") question.status = "researching"
-      events.push(makeEvent(state, "coverage.updated", questionCoverageSummary(question)))
+      else if (update.status === "researching" || (satisfied.length > 0 && question.status === "pending") || question.status === "researching") question.status = "researching"
+      if (question.status !== previousStatus) questionChanged = true
+      if (questionChanged) {
+        events.push(makeEvent(state, "coverage.updated", questionCoverageSummary(question)))
+      }
     }
+    return meaningfulCriterionMutations
   }
 
   function normalizeSourceRecords(state, sources, events) {
@@ -424,6 +533,7 @@ export function createProfessorRuntime(options = {}) {
     const sourceKeys = new Map()
     const sourceUrls = new Map()
     const newRecords = []
+    const updatedRecords = []
 
     for (const input of sourceInputs) {
       if (!input || typeof input !== "object") throw new Error("each source must be an object")
@@ -436,9 +546,14 @@ export function createProfessorRuntime(options = {}) {
       }
       const existing = state.sources.find((source) => source.canonicalUrl === canonicalUrl) ?? newRecords.find((source) => source.canonicalUrl === canonicalUrl)
       let source
+      let observedUrlAdded = false
       if (existing) {
         source = existing
-        if (!source.observedUrls.includes(url) && source.observedUrls.length < 8) source.observedUrls.push(url)
+        if (!source.observedUrls.includes(url) && source.observedUrls.length < 8) {
+          source.observedUrls.push(url)
+          observedUrlAdded = true
+          if (!updatedRecords.includes(source)) updatedRecords.push(source)
+        }
       } else {
         if (state.sources.length + newRecords.length >= state.budget.maxSources) throw new Error("research source budget exceeded")
         source = {
@@ -459,20 +574,41 @@ export function createProfessorRuntime(options = {}) {
       sourceRefs.push(source.sourceId)
       sourceUrls.set(canonicalUrl, source.sourceId)
       if (normalizedSourceKey !== undefined) sourceKeys.set(normalizedSourceKey, source.sourceId)
-      events.push(makeEvent(state, "source.added", {
-        sourceId: source.sourceId,
-        newRecord: newRecords.includes(source),
-        index,
-      }))
+      if (!existing) {
+        events.push(makeEvent(state, "source.added", {
+          sourceId: source.sourceId,
+          newRecord: true,
+          index,
+        }))
+      } else if (observedUrlAdded) {
+        events.push(makeEvent(state, "source.updated", {
+          sourceId: source.sourceId,
+          update: "observed_url",
+          index,
+        }))
+      }
     }
-    return { sourceRefs, sourceKeys, sourceUrls, newRecords }
+    return { sourceRefs, sourceKeys, sourceUrls, newRecords, updatedRecords }
+  }
+
+  function evidenceCanonicalKey(evidence) {
+    return JSON.stringify([
+      evidence.questionId,
+      evidence.sourceId,
+      canonicalizeUrl(evidence.citationUrl),
+      evidence.fact,
+      evidence.supportingSpan,
+      evidence.relation,
+      Array.isArray(evidence.qualifiers) ? evidence.qualifiers : [],
+    ])
   }
 
   function addEvidenceRecords(state, evidenceInputs, sourceContext, events) {
     const inputs = safeArray(evidenceInputs, "evidence")
-    if (state.evidence.length + inputs.length > state.budget.maxEvidenceRecords) throw new Error("research evidence budget exceeded")
     const newEvidenceIds = []
+    const evidenceRefs = []
     const keyMap = new Map()
+    const evidenceByCanonicalKey = new Map(state.evidence.map((evidence) => [evidenceCanonicalKey(evidence), evidence.evidenceId]))
     for (const input of inputs) {
       if (!input || typeof input !== "object") throw new Error("each evidence record must be an object")
       const question = questionById(state, input.questionId)
@@ -490,22 +626,35 @@ export function createProfessorRuntime(options = {}) {
         : assertNonEmptyString(input.evidenceKey, "evidence.evidenceKey", 200)
       if (evidenceKey !== undefined) {
         if (keyMap.has(evidenceKey)) throw new Error(`duplicate evidenceKey: ${evidenceKey}`)
-        keyMap.set(evidenceKey, null)
       }
-      const evidence = {
-        evidenceId: allocateId(state, "evidence", "evidence"),
+      const normalizedQualifiers = normalizeQualifiers(input.qualifiers)
+      const normalizedEvidence = {
         questionId: question.questionId,
         sourceId,
         citationUrl,
         fact,
         supportingSpan,
         relation,
-        qualifiers: normalizeQualifiers(input.qualifiers),
+        qualifiers: normalizedQualifiers,
+      }
+      const canonicalKey = evidenceCanonicalKey(normalizedEvidence)
+      const existingEvidenceId = evidenceByCanonicalKey.get(canonicalKey)
+      if (existingEvidenceId) {
+        evidenceRefs.push(existingEvidenceId)
+        if (evidenceKey !== undefined) keyMap.set(evidenceKey, existingEvidenceId)
+        continue
+      }
+      if (state.evidence.length + newEvidenceIds.length >= state.budget.maxEvidenceRecords) throw new Error("research evidence budget exceeded")
+      const evidence = {
+        evidenceId: allocateId(state, "evidence", "evidence"),
+        ...normalizedEvidence,
         createdAt: timestamp(),
       }
       state.evidence.push(evidence)
       state.counters.evidenceRecorded += 1
       newEvidenceIds.push(evidence.evidenceId)
+      evidenceRefs.push(evidence.evidenceId)
+      evidenceByCanonicalKey.set(canonicalKey, evidence.evidenceId)
       if (evidenceKey !== undefined) keyMap.set(evidenceKey, evidence.evidenceId)
       events.push(makeEvent(state, "evidence.added", {
         evidenceId: evidence.evidenceId,
@@ -514,7 +663,7 @@ export function createProfessorRuntime(options = {}) {
         relation: evidence.relation,
       }))
     }
-    return { newEvidenceIds, keyMap }
+    return { newEvidenceIds, evidenceRefs, keyMap }
   }
 
   function addFindings(state, findings, newEvidenceIds, events) {
@@ -586,20 +735,25 @@ export function createProfessorRuntime(options = {}) {
 
   function updateContradictions(state, updates, events) {
     const inputs = safeArray(updates, "contradictionUpdates")
+    let meaningfulMutations = 0
     for (const input of inputs) {
+      if (!input || typeof input !== "object") throw new Error("each contradiction update must be an object")
       const contradiction = state.contradictions.find((candidate) => candidate.contradictionId === input.contradictionId)
       if (!contradiction) throw new Error(`unknown contradiction: ${input.contradictionId}`)
       const status = assertEnum(input.status, CONTRADICTION_STATUSES, "contradiction update status")
       const resolution = input.resolution ? assertNonEmptyString(input.resolution, "contradiction update resolution", 4_000) : contradiction.resolution
       if (status !== "open" && !resolution) throw new Error("resolved or accepted contradictions need a resolution")
+      if (contradiction.status === status && (contradiction.resolution ?? null) === (resolution ?? null)) continue
       contradiction.status = status
       contradiction.resolution = resolution ?? null
       contradiction.updatedAt = timestamp()
+      meaningfulMutations += 1
       events.push(makeEvent(state, status === "open" ? "contradiction.updated" : "contradiction.resolved", {
         contradictionId: contradiction.contradictionId,
         status,
       }))
     }
+    return meaningfulMutations
   }
 
   function updateBudgetAfterCommit(state, events) {
@@ -642,6 +796,7 @@ export function createProfessorRuntime(options = {}) {
     return {
       runId,
       status: state.status,
+      capacity: researchCapacity(state),
       digest: makeStateDigest(state),
     }
   }
@@ -656,46 +811,78 @@ export function createProfessorRuntime(options = {}) {
     const state = await load(input.runId)
     const events = []
     if (state.status === "completed" || state.status === "writing") {
-      return { runId: state.runId, status: state.status, task: null, digest: makeStateDigest(state) }
+      return { runId: state.runId, status: state.status, task: null, capacity: researchCapacity(state), digest: makeStateDigest(state) }
     }
-    if (state.status === "verifying") return { runId: state.runId, status: state.status, task: null, digest: makeStateDigest(state) }
+    if (state.status === "verifying") return { runId: state.runId, status: state.status, task: null, capacity: researchCapacity(state), digest: makeStateDigest(state) }
     if (state.status === "planning") transitionState(state, "researching")
 
     const running = state.tasks.find((task) => task.status === "running")
-    if (running) return { runId: state.runId, status: state.status, task: taskPayload(running), reused: true, digest: makeStateDigest(state) }
+    if (running) return { runId: state.runId, status: state.status, task: taskPayload(running), reused: true, capacity: researchCapacity(state), digest: makeStateDigest(state) }
 
-    if (state.counters.controllerRounds >= state.budget.maxControllerRounds) {
-      markBudgetExhausted(state, "max_controller_rounds", events)
-      beginVerification(state, events, "controller round budget reached")
+    supersedeSufficientPendingTasks(state, events)
+
+    const capacity = researchCapacity(state)
+    const hardBudgetReason = state.budget.exhausted
+      ? state.budget.exhaustionReason ?? "configured_limit"
+      : capacity.outerStepCapacityReached
+        ? "outer_step_capacity"
+        : state.counters.controllerRounds >= state.budget.maxControllerRounds
+          ? "max_controller_rounds"
+          : state.counters.sourcesRecorded >= state.budget.maxSources
+            ? "max_sources"
+            : state.counters.evidenceRecorded >= state.budget.maxEvidenceRecords
+              ? "max_evidence_records"
+              : null
+
+    if (hardBudgetReason) {
+      markBudgetExhausted(state, hardBudgetReason, events)
+      const reason = hardBudgetReason === "outer_step_capacity"
+        ? "observed outer-step capacity reached; completion reserve retained"
+        : hardBudgetReason === "max_controller_rounds"
+          ? "controller round budget reached"
+          : hardBudgetReason === "max_sources" || hardBudgetReason === "max_evidence_records"
+            ? "research record budget reached"
+            : "research budget was already exhausted"
+      beginVerification(state, events, reason)
       await persist(state, events)
-      return { runId: state.runId, status: state.status, task: null, budgetExhausted: true, digest: makeStateDigest(state) }
-    }
-    if (state.counters.sourcesRecorded >= state.budget.maxSources || state.counters.evidenceRecorded >= state.budget.maxEvidenceRecords) {
-      markBudgetExhausted(state, state.counters.sourcesRecorded >= state.budget.maxSources ? "max_sources" : "max_evidence_records", events)
-      beginVerification(state, events, "research record budget reached")
-      await persist(state, events)
-      return { runId: state.runId, status: state.status, task: null, budgetExhausted: true, digest: makeStateDigest(state) }
+      return { runId: state.runId, status: state.status, task: null, budgetExhausted: true, capacity: researchCapacity(state), digest: makeStateDigest(state) }
     }
 
     let pending = sortFrontier(state.tasks)
+    let incomplete = criticalQuestionsIncomplete(state).sort((left, right) => right.priority.localeCompare(left.priority))
+    let openContradictions = openCriticalContradictions(state)
+
+    if (pending.length === 0 && incomplete.length === 0 && openContradictions.length === 0) {
+      beginVerification(state, events, "frontier is complete")
+      await persist(state, events)
+      return { runId: state.runId, status: state.status, task: null, budgetExhausted: state.budget.exhausted, capacity: researchCapacity(state), digest: makeStateDigest(state) }
+    }
+
+    if (capacity.researchRoundsRemaining <= 0) {
+      markBudgetExhausted(state, "completion_reserve", events)
+      beginVerification(state, events, "normal research capacity reached; completion reserve retained")
+      await persist(state, events)
+      return { runId: state.runId, status: state.status, task: null, budgetExhausted: true, capacity: researchCapacity(state), digest: makeStateDigest(state) }
+    }
+
     if (pending.length === 0) {
-      const incomplete = criticalQuestionsIncomplete(state).sort((left, right) => right.priority.localeCompare(left.priority))
-      const openContradictions = openCriticalContradictions(state)
       let followUp = null
       if (openContradictions.length > 0) followUp = addConflictTask(state, openContradictions[0], events)
       else if (incomplete.length > 0) followUp = addVerificationTaskForGap(state, incomplete[0], events)
       if (followUp) pending = sortFrontier(state.tasks)
-      else if (openContradictions.length > 0 || incomplete.length > 0) {
+      incomplete = criticalQuestionsIncomplete(state).sort((left, right) => right.priority.localeCompare(left.priority))
+      openContradictions = openCriticalContradictions(state)
+      if (pending.length === 0 && (openContradictions.length > 0 || incomplete.length > 0)) {
         markBudgetExhausted(state, "max_tasks", events)
         beginVerification(state, events, "no task capacity remains for a critical gap")
-      } else {
+      } else if (pending.length === 0) {
         beginVerification(state, events, "frontier is complete")
       }
     }
 
     if (state.status === "verifying") {
       await persist(state, events)
-      return { runId: state.runId, status: state.status, task: null, budgetExhausted: state.budget.exhausted, digest: makeStateDigest(state) }
+      return { runId: state.runId, status: state.status, task: null, budgetExhausted: state.budget.exhausted, capacity: researchCapacity(state), digest: makeStateDigest(state) }
     }
 
     const task = pending[0]
@@ -723,6 +910,7 @@ export function createProfessorRuntime(options = {}) {
       status: state.status,
       task: taskPayload(task),
       controllerRound: state.counters.controllerRounds,
+      capacity: researchCapacity(state),
       digest: makeStateDigest(state),
     }
   }
@@ -739,15 +927,25 @@ export function createProfessorRuntime(options = {}) {
     const task = taskById(state, input.taskId)
     if (task.status !== "running") throw new Error(`task ${task.taskId} is not running`)
 
-    const events = []
-    const sources = normalizeSourceRecords(state, input.sources, events)
-    const evidence = addEvidenceRecords(state, input.evidence, sources, events)
-    const findings = addFindings(state, input.findings, evidence.newEvidenceIds, events)
-    const contradictions = addContradictions(state, input.contradictions, evidence.newEvidenceIds, events)
-    updateContradictions(state, input.contradictionUpdates, events)
-    applyQuestionUpdates(state, safeArray(input.questionUpdates, "questionUpdates"), evidence, events)
-
+    const sourceInputs = safeArray(input.sources, "sources")
+    const evidenceInputs = safeArray(input.evidence, "evidence")
+    const findingInputs = safeArray(input.findings, "findings")
+    const contradictionInputs = safeArray(input.contradictions, "contradictions")
+    const contradictionUpdates = safeArray(input.contradictionUpdates, "contradictionUpdates")
+    const questionUpdates = safeArray(input.questionUpdates, "questionUpdates")
     const followUpInputs = safeArray(input.followUpTasks, "followUpTasks")
+    const summary = input.summary === undefined ? "" : assertNonEmptyString(input.summary, "commit summary", 4_000)
+    const failed = input.failed === true
+    if (failed && !summary) throw new Error("a failed research task needs a failure summary")
+
+    const events = []
+    const sources = normalizeSourceRecords(state, sourceInputs, events)
+    const evidence = addEvidenceRecords(state, evidenceInputs, sources, events)
+    const findings = addFindings(state, findingInputs, evidence.evidenceRefs, events)
+    const contradictions = addContradictions(state, contradictionInputs, evidence.evidenceRefs, events)
+    const contradictionUpdatesApplied = updateContradictions(state, contradictionUpdates, events)
+    const questionUpdatesApplied = applyQuestionUpdates(state, questionUpdates, evidence, events)
+
     const followUpTasks = []
     for (const followUpInput of followUpInputs) {
       const followUp = addTask(state, {
@@ -755,16 +953,41 @@ export function createProfessorRuntime(options = {}) {
         type: followUpInput.type ?? "follow-up",
       }, events)
       if (!followUp) break
-      followUpTasks.push(followUp)
+      if (followUp.status === "pending" || followUp.status === "running") followUpTasks.push(followUp)
+    }
+    const canonicalProgress = {
+      sources: sources.newRecords.length,
+      evidence: evidence.newEvidenceIds.length,
+      findings: findings.length,
+      contradictions: contradictions.length + contradictionUpdatesApplied,
+      criteria: questionUpdatesApplied,
+      followUps: followUpTasks.length,
+    }
+    const hasCanonicalResult = Object.values(canonicalProgress).some((count) => count > 0)
+    if (!failed && !hasCanonicalResult) {
+      const question = questionById(state, task.questionId)
+      if (questionIsSufficient(question)) {
+        markTaskSuperseded(state, task, "linked question already has sufficient evidence; no new result was committed", events)
+        await persist(state, events)
+        return {
+          runId: state.runId,
+          status: state.status,
+          taskId: task.taskId,
+          superseded: true,
+          created: {
+            sources: [],
+            evidence: [],
+            findings: [],
+            contradictions: [],
+            followUpTasks: [],
+          },
+          digest: makeStateDigest(state),
+        }
+      }
+      throw new Error("research_commit requires a canonical research result; use failed:true for a no-result failure")
     }
 
-    const summary = input.summary === undefined ? "" : assertNonEmptyString(input.summary, "commit summary", 4_000)
-    if (sources.newRecords.length === 0 && evidence.newEvidenceIds.length === 0 && findings.length === 0 && contradictions.length === 0 && followUpTasks.length === 0 && (input.questionUpdates ?? []).length === 0 && (input.contradictionUpdates ?? []).length === 0 && !summary) {
-      throw new Error("research_commit must record evidence, a finding, a contradiction, a follow-up, a question update, or a summary")
-    }
-
-    const failed = input.failed === true
-    if (failed && !summary) throw new Error("a failed research task needs a failure summary")
+    supersedeSufficientPendingTasks(state, events)
     task.status = failed ? "failed" : "completed"
     task.completedAt = timestamp()
     if (failed) state.counters.tasksFailed += 1
@@ -773,11 +996,13 @@ export function createProfessorRuntime(options = {}) {
       taskId: task.taskId,
       questionId: task.questionId,
       summaryLength: summary.length,
-      sources: sources.newRecords.length,
+      sources: canonicalProgress.sources,
       evidence: evidence.newEvidenceIds.length,
       findings: findings.length,
-      contradictions: contradictions.length,
+      contradictions: canonicalProgress.contradictions,
+      criteria: canonicalProgress.criteria,
       followUps: followUpTasks.length,
+      canonicalResult: hasCanonicalResult,
     }))
     updateBudgetAfterCommit(state, events)
     await persist(state, events)
@@ -826,6 +1051,8 @@ export function createProfessorRuntime(options = {}) {
         runId: state.runId,
         view,
         claims: state.claims,
+        claimStatusCounts: claimStatusCounts(state.claims),
+        evidence: verificationEvidence(state),
         contradictions: state.contradictions,
         blockers: verificationBlockers(state),
       }
@@ -835,6 +1062,7 @@ export function createProfessorRuntime(options = {}) {
 
   function verificationBlockers(state) {
     return {
+      claimStatusCounts: claimStatusCounts(state.claims),
       criticalQuestionsIncomplete: criticalQuestionsIncomplete(state).map(questionCoverageSummary),
       openCriticalContradictions: openCriticalContradictions(state).map((contradiction) => ({
         contradictionId: contradiction.contradictionId,
@@ -852,6 +1080,29 @@ export function createProfessorRuntime(options = {}) {
     }
   }
 
+  function verificationEvidence(state) {
+    const evidenceIds = [
+      ...state.claims.flatMap((claim) => claim.evidenceIds),
+      ...state.contradictions.flatMap((contradiction) => [
+        ...(contradiction.sideA?.evidenceIds ?? []),
+        ...(contradiction.sideB?.evidenceIds ?? []),
+      ]),
+    ]
+    return [...new Set(evidenceIds)]
+      .map((evidenceId) => evidenceById(state, evidenceId))
+      .slice(-30)
+      .map((evidence) => ({
+        evidenceId: evidence.evidenceId,
+        questionId: evidence.questionId,
+        sourceId: evidence.sourceId,
+        citationUrl: evidence.citationUrl,
+        fact: evidence.fact,
+        supportingSpan: evidence.supportingSpan,
+        relation: evidence.relation,
+        qualifiers: evidence.qualifiers,
+      }))
+  }
+
   async function verify(input = {}, context = {}) {
     const runId = assertSafeId(input.runId, "runId")
     bindSession(runId, context.sessionID)
@@ -862,13 +1113,14 @@ export function createProfessorRuntime(options = {}) {
     const state = await load(input.runId)
     if (!["researching", "verifying"].includes(state.status)) throw new Error(`research_verify requires researching or verifying phase, got ${state.status}`)
     if (state.tasks.some((task) => task.status === "running")) throw new Error("research_verify cannot run while a task is running")
+    const events = []
+    supersedeSufficientPendingTasks(state, events)
     const pending = sortFrontier(state.tasks)
     const budgetExhausted = state.budget.exhausted || hasHardBudget(state)
     if (state.status === "researching" && pending.length > 0 && !budgetExhausted) {
       throw new Error("research_verify cannot skip pending research tasks")
     }
 
-    const events = []
     if (state.status === "researching") beginVerification(state, events, budgetExhausted ? "budget reached" : "frontier ready")
     const claimsInput = safeArray(input.claims, "claims")
     if (claimsInput.length === 0) throw new Error("research_verify requires at least one claim")
@@ -932,6 +1184,7 @@ export function createProfessorRuntime(options = {}) {
             type: "verification",
             priority: "critical",
             reason: `claim verification is ${claim.verification}`,
+            supersedeWhenSufficient: false,
           }, events)
           if (!task) break
           followUpTasks.push(task)
@@ -980,6 +1233,7 @@ export function createProfessorRuntime(options = {}) {
         evidenceIds: claim.evidenceIds,
       })),
       blockers,
+      claimStatusCounts: claimStatusCounts(state.claims),
       digest: makeStateDigest(state),
     }
   }
@@ -991,6 +1245,9 @@ export function createProfessorRuntime(options = {}) {
     for (const question of blockers.criticalQuestionsIncomplete) lines.push(`- Critical question ${question.questionId} remains ${question.status} at ${question.satisfied}/${question.total} required criteria.`)
     for (const contradiction of blockers.openCriticalContradictions) lines.push(`- Critical contradiction remains open: ${contradiction.proposition}`)
     for (const claim of blockers.criticalClaims) lines.push(`- Critical claim ${claim.claimId} is ${claim.verification}: ${claim.statement}`)
+    for (const claim of state.claims.filter((candidate) => !candidate.critical && candidate.verification !== "SUPPORTED")) {
+      lines.push(`- Reportable claim ${claim.claimId} is ${claim.verification}: ${claim.statement}`)
+    }
     for (const contradiction of state.contradictions.filter((candidate) => candidate.status === "accepted_uncertainty")) lines.push(`- Accepted uncertainty: ${contradiction.proposition} (${contradiction.resolution})`)
     return lines
   }
@@ -1065,6 +1322,7 @@ export function createProfessorRuntime(options = {}) {
       sourcesUsed: reportableSourceIds.size,
       remainingUncertainties: limitations,
       contradictionCount: state.contradictions.length,
+      claimStatusCounts: claimStatusCounts(state.claims),
     }
     state.libraryPath = null
     state.libraryLinkError = null
@@ -1083,6 +1341,7 @@ export function createProfessorRuntime(options = {}) {
         durationDisplay: state.metrics.durationDisplay,
         citationCount: state.metrics.citationCount,
         searchCount: state.metrics.searchCount,
+        claimStatusCounts: state.metrics.claimStatusCounts,
       }),
       makeEvent(state, "research.completed", {
         reportPath,
@@ -1110,6 +1369,7 @@ export function createProfessorRuntime(options = {}) {
       sourcesUsed: state.metrics.sourcesUsed,
       remainingUncertainties: state.metrics.remainingUncertainties,
       contradictionCount: state.metrics.contradictionCount,
+      claimStatusCounts: state.metrics.claimStatusCounts,
       metrics: { ...state.metrics },
       digest: makeStateDigest(state),
     }
@@ -1153,6 +1413,7 @@ export function createProfessorRuntime(options = {}) {
     complete,
     report,
     recordNativeSearch,
+    observeOuterStep,
     observeSessionAgent,
     load,
     store,

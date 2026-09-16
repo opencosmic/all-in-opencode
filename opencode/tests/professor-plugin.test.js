@@ -58,6 +58,7 @@ test("Professor plugin uses the injected state directory and leaves report/state
     runId: start.runId,
     taskId: next.task.taskId,
     summary: "state persisted",
+    sources: [{ url: "https://example.com/plugin-state" }],
   }, {}))
   assert.equal(commit.runId, "run-plugin-001")
   const statePath = join(stateDirectory, "runs", "run-plugin-001", "state.json")
@@ -98,6 +99,49 @@ test("Professor search counting observes native search hooks by session and excl
   const secondState = JSON.parse(await plugin.tool.research_state.execute({ runId: second.runId }, { sessionID: "professor-session-b" }))
   assert.equal(firstState.digest.metrics.searchCount, 2)
   assert.equal(secondState.digest.metrics.searchCount, 1)
+})
+
+test("Professor plugin observes completed outer steps once per step part", async (t) => {
+  const stateDirectory = await mkdtemp(join(tmpdir(), "professor-plugin-step-count-"))
+  t.after(() => rm(stateDirectory, { recursive: true, force: true }))
+  const plugin = await ProfessorRuntime({}, {
+    stateDirectory,
+    libraryRoot: join(stateDirectory, "research-library"),
+    generateRunId: () => "run-step-count-1",
+  })
+  const start = JSON.parse(await plugin.tool.research_start.execute({
+    objective: "Count Professor outer steps.",
+    questions: [{
+      question: "How many outer steps were observed?",
+      priority: "critical",
+      evidenceNeeded: ["step events"],
+      completionCriteria: ["step count"],
+    }],
+  }, { sessionID: "professor-step-session" }))
+  const event = (id) => ({
+    type: "message.part.updated",
+    properties: { part: { id, sessionID: "professor-step-session", type: "step-finish" } },
+  })
+  await plugin.event({ event: event("step-1") })
+  await plugin.event({ event: event("step-1") })
+  await plugin.event({ event: event("step-2") })
+  const state = JSON.parse(await plugin.tool.research_state.execute({ runId: start.runId }, { sessionID: "professor-step-session" }))
+  assert.equal(state.digest.metrics.outerStepsObserved, 2)
+  assert.equal(state.digest.budget.capacity.outerStepsRemaining, 30)
+  assert.equal(state.digest.budget.capacity.outerStepCapacityReached, false)
+  assert.equal(state.digest.budget.capacity.outerStepObservationAvailable, true)
+  assert.equal(state.digest.budget.capacity.controllerRoundLimit, 8)
+
+  for (let step = 3; step <= 24; step += 1) await plugin.event({ event: event(`step-${step}`) })
+  const stopped = JSON.parse(await plugin.tool.research_next.execute({ runId: start.runId }, { sessionID: "professor-step-session" }))
+  assert.equal(stopped.status, "verifying")
+  assert.equal(stopped.task, null)
+  assert.equal(stopped.budgetExhausted, true)
+  assert.equal(stopped.capacity.outerStepsObserved, 24)
+  assert.equal(stopped.capacity.outerResearchStepsRemaining, 0)
+  assert.equal(stopped.capacity.outerStepCapacityReached, true)
+  const exhaustedState = JSON.parse(await plugin.tool.research_state.execute({ runId: start.runId }, { sessionID: "professor-step-session" }))
+  assert.equal(exhaustedState.digest.budget.exhaustionReason, "outer_step_capacity")
 })
 
 test("Professor plugin entrypoint does not cross private OpenCode or shell boundaries", async () => {

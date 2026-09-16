@@ -32,6 +32,9 @@ test("Professor is a dedicated read-only primary with a narrow native retrieval/
     /native `websearch`.*`webfetch`/i,
     /untrusted evidence/i,
     /claim.*evidence/i,
+    /closure-aware|researchRoundsRemaining/i,
+    /superseded/i,
+    /one bounded proposition|supporting span/i,
     /research_verify/i,
     /research_report/i,
     /adaptive/i,
@@ -53,6 +56,8 @@ test("Professor citation instructions match the reportable-evidence runtime cont
   const prompt = await source("opencode/agents/professor.md")
   const plugin = await ProfessorRuntime()
   const description = plugin.tool.research_complete.description
+  const nextDescription = plugin.tool.research_next.description
+  const commitDescription = plugin.tool.research_commit.description
   const reportDescription = plugin.tool.research_report.description
   for (const contract of [
     /structured reportable evidence/i,
@@ -68,6 +73,8 @@ test("Professor citation instructions match the reportable-evidence runtime cont
     /SUPPORTED.*PARTIAL.*UNSUPPORTED.*CONTRADICTED/i,
     /unused research sources and unrelated URLs are rejected/i,
   ]) assert.match(description, contract)
+  for (const contract of [/closure-aware/i, /superseded/i, /remaining capacity/i]) assert.match(nextDescription, contract)
+  for (const contract of [/summary alone/i, /canonical research result/i, /superseded/i, /bounded proposition/i]) assert.match(commitDescription, contract)
   for (const contract of [
     /durationMs.*durationDisplay.*citationCount.*searchCount/i,
     /libraryPath/i,
