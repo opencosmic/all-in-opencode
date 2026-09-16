@@ -40,10 +40,6 @@ function isSafeGitCommand(command) {
   return !/(?:^|\s)(?:--force|-f|--hard|--delete|-D|--amend)(?:\s|$)/.test(command)
 }
 
-function isBrowserRuntimeCommand(command) {
-  return /^ego-browser(?:\s|$)/.test(command.trim())
-}
-
 function isCategoryScopedGitMutation(command) {
   return /^git\s+(?:commit|cherry-pick)(?:\s|$)/.test(command.trim())
 }
@@ -114,7 +110,7 @@ export function openDesignResourceDecision(profile, tool, args = {}) {
 
 export function requiresPreservedSessionPermissions(agent, category, skills = []) {
   return agent === "Implementer" && (
-    ["git", "browser-automation", "video-analysis"].includes(category)
+    ["git", "video-analysis"].includes(category)
     || (category === "visual-engineering" && hasSkill(skills, "open-design"))
   )
 }
@@ -212,17 +208,6 @@ export function categoryPermission(profile, input = {}) {
     return "deny"
   }
 
-  if (profile.category === "browser-automation") {
-    if (type === "skill") return profile.tools?.skill === false || value !== "ego-browser" ? "deny" : "allow"
-    if (type === "bash") return profile.tools?.bash === false || !isBrowserRuntimeCommand(value) ? "deny" : "allow"
-    if (type === "external_directory") {
-      if (profile.tools?.skill === false) return "deny"
-      return /\/(?:\.config\/opencode|\.agents|\.claude)\/skills\/ego-browser(?:\/|$)/.test(value)
-        ? "allow"
-        : "deny"
-    }
-  }
-
   if (profile.category === "video-analysis") {
     const skillPaths = watchSkillPaths(profile)
     if (type === "skill") {
@@ -270,25 +255,6 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
       { permission: "bash", pattern: "git commit *--amend*", action: "deny" },
       { permission: "bash", pattern: "git commit *--force*", action: "deny" },
       { permission: "bash", pattern: "git cherry-pick --*", action: "deny" },
-    )
-    return rules
-  }
-  if (category === "browser-automation") {
-    const rules = [
-      { permission: "edit", pattern: "*", action: "deny" },
-      { permission: "write", pattern: "*", action: "deny" },
-      { permission: "skill", pattern: "*", action: "deny" },
-      { permission: "external_directory", pattern: "*", action: "deny" },
-      { permission: "bash", pattern: "*", action: "deny" },
-    ]
-    if (tools.skill !== false) rules.push(
-      { permission: "skill", pattern: "ego-browser", action: "allow" },
-      { permission: "external_directory", pattern: "*/skills/ego-browser", action: "allow" },
-      { permission: "external_directory", pattern: "*/skills/ego-browser/*", action: "allow" },
-    )
-    if (tools.bash !== false) rules.push(
-      { permission: "bash", pattern: "ego-browser", action: "allow" },
-      { permission: "bash", pattern: "ego-browser *", action: "allow" },
     )
     return rules
   }
@@ -356,4 +322,4 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
   return undefined
 }
 
-export { isBrowserRuntimeCommand, isCategoryScopedGitMutation, isSafeGitCommand, permissionValue }
+export { isCategoryScopedGitMutation, isSafeGitCommand, permissionValue }

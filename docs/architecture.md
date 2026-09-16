@@ -7,16 +7,15 @@ User
  |                      +-- CategoryEngine --> Implementer
  |                                            +-- consult_agents --> Explorer / Librarian
  |                                            +-- git
- |                                            +-- browser-automation
  |                                            +-- video-analysis + watch
  |                                            +-- visual-engineering + open-design (optional resources)
- |                      +-- /browser --> Browser --> ego-browser backend
- |                      +-- /blender --> Blender --> Blender MCP --> Blender addon
- |                      +-- /video --> Producer --> HyperFrames external skills/CLI
- |                      +-- /search --> Searcher --> websearch/webfetch
- |                      +-- /research --> Professor --> ResearchState/runtime
- |                                             +-- websearch/webfetch
- |                                             +-- evidence -> verification -> report
+ +-- /browser -------> Browser --> ego-browser backend
+ +-- /blender -------> Blender --> Blender MCP --> Blender addon
+ +-- /video ---------> Producer --> HyperFrames external skills/CLI
+ +-- /search --------> Searcher --> websearch/webfetch
+ +-- /research ------> Professor --> ResearchState/runtime
+                                  +-- websearch/webfetch
+                                  +-- evidence -> verification -> report
  |
  +-- formal work ----> /spec -> /plan -> /execute -> /verify -> /ship
                                       |
@@ -99,7 +98,7 @@ The public CodeGraph CLI is provisioned independently and connected through `cod
 
 ## Browser capability
 
-The dedicated `/browser` route launches the purpose-built `Browser` primary agent for direct navigation, interaction, visual inspection, Task Spaces, and browser evidence. Assistant independently routes website work to `browser-automation` with `load_skills=["ego-browser"]`; CategoryEngine launches an Implementer with editing disabled and a session-scoped permission for the installed browser skill/runtime only. Both use the current external Ego Lite backend, while the category remains backend-neutral. The two routes intentionally coexist.
+The dedicated `/browser` route launches the purpose-built `Browser` primary agent for direct navigation, interaction, visual inspection, Task Spaces, and browser evidence. It independently uses the external `ego-browser` skill/runtime. Browser remains outside CategoryEngine and the reusable Implementer; Assistant-to-Browser delegation is not part of this phase.
 
 ## HyperFrames video capability
 

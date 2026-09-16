@@ -41,7 +41,7 @@ Run `./scripts/check-codegraph.sh`. If the CLI is absent or the project is unind
 
 Run `./scripts/setup-ego-browser.sh`, finish the Ego Lite GUI onboarding, then run `./scripts/check-ego-browser.sh`. Ensure `~/.local/bin` is in the PATH inherited by OpenCode and restart it. Do not copy the external skill into this repository or broaden ordinary Implementer permissions.
 
-Use `/browser` for the dedicated Browser route, or ask Assistant to use `category="browser-automation"`; both routes require the same external backend health.
+Use `/browser` for the dedicated Browser route; it requires the external backend health described above.
 
 ## Blender MCP is unavailable
 

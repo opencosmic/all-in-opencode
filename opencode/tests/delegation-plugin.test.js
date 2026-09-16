@@ -49,7 +49,7 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
   assert.equal(plugin.tool.workspace_checkpoint_update.args.head_sha, undefined)
   assert.equal(plugin.tool.workspace_checkpoint_update.args.updated_at, undefined)
   assert.match(plugin.tool.delegate_task.description, /Available categories:/)
-  assert.match(plugin.tool.delegate_task.description, /browser-automation/)
+  assert.doesNotMatch(plugin.tool.delegate_task.description, /browser-automation/)
   assert.ok(plugin.tool.delegate_task.args.load_skills)
   assert.match(plugin.tool.consult_agents.description, /Explorer or Librarian/)
   assert.ok(plugin.tool.consult_agents.args.requests)
