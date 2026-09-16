@@ -1,29 +1,25 @@
 # Professor V1.1 research-correctness comparison
 
-Captured 15 September 2026 local time in the isolated worktree
+Captured 16 September 2026 local time in the isolated worktree
 `feat/professor-v1-1-research-correctness`. This note is the corrective
 comparison for the existing Professor V1.1 change; it does not merge or push
 anything.
 
 ## Current gate result
 
-**CODE READY / BENCHMARK VALIDATION BLOCKED BY ENVIRONMENT.** The alias-only
-and question-status-only canonical-progress loopholes are fixed and covered by
-focused regression tests. Benchmark task lifecycle records now preserve
-criterion progress, and claim-status summaries derive from canonical
-`state.claims`; legacy incomplete records with stale zero metrics are marked
-status-unavailable rather than treated as verified zeroes. The fresh post-patch
-original B6 attempt used the required model/variant but timed out after 600
-seconds before Professor created a run or session: no outer steps, retrieval,
-or durable state were observed. This is a Case D startup/provider/CLI stall,
-not evidence of a Professor ResearchRuntime failure. A subsequent bounded
-preflight with the same fixed model/variant launched OpenCode but produced no
-run/session output in 20,092 ms; the evidence is preserved in
-[`fixed-model-health-check.json`](fixed-model-health-check.json). Per the retry
-policy, no further long B6 attempt was started. Earlier controlled B6
-execution reached verification/writing at approximately 25 observed outer
-steps without reaching the 32-step emergency boundary. A provider-ready final
-B6 run is still required before merging.
+**READY TO MERGE.** The alias-only and question-status-only canonical-progress
+loopholes are fixed and covered by focused regression tests. Benchmark task
+lifecycle records now preserve criterion progress, and claim-status summaries
+derive from canonical `state.claims`; legacy incomplete records with stale zero
+metrics are marked status-unavailable rather than treated as verified zeroes.
+After the fixed model quota reset, the exact model/variant health check
+completed successfully, and the fresh original B6 run completed normally in
+176,933 ms: 5 controller rounds, 22 CLI steps, 19 observed outer steps, 5
+completed tasks, 22 sources, 24 evidence records, 9 findings, and 13 claims
+(11 supported, 2 partial). Verification and writing completed, a final report
+was generated, no zero-value completed tasks were observed, and the 32-step
+emergency ceiling was not reached. This is Case A; the prior Case D startup
+records remain preserved as historical environment evidence.
 
 ## Run provenance and model control
 
@@ -33,6 +29,7 @@ B6 run is still required before merging.
 | Pre-change fixed-model control | Frozen V1 / blind B1b–B4b | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | Four startup timeouts; no quality baseline inferred |
 | Corrected regression batch | V1.1 / original B1–B7 plus blind B1b–B4b | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | Primary corrected run, 180-second harness ceiling |
 | Corrected focused repeats | B2, B4, and B6 | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | Separate completion/latency evidence |
+| Quota-reset final validation | V1.1 / original B6 | 1.18.31 | `opencode/muse-spark-1.3-contributor-free` | `xhigh` | Provider-ready Case A gate run |
 
 Every new Professor run in this pass explicitly used the fixed model and
 `xhigh` variant. The runner records both values in each JSONL record. The
@@ -69,7 +66,7 @@ progress.
 | B3 | Completed at the 180s timer race; no runtime failure | 20 / 22 | 4 | 4 completed | 10 / 14 / 6 | Report produced |
 | B4 | Incomplete: harness timeout with 1 task running | 17 / 18 | 5 | 4 completed, 1 running | 9 / 19 / 0 | `corrected-B4-extended.jsonl` completed in 169s |
 | B5 | Completed; no timeout | 19 / 21 | 5 | 5 completed | 15 / 24 / 8 | Adaptive assumptions and blockers reported |
-| B6 | Incomplete: harness timeout while writing | 25 / 26 | 6 | 6 completed | 17 / 23 / 13 | Earlier `corrected-B6-runs-v2.jsonl` completed; final-code retries at 240s, 360s, and 600s timed out |
+| B6 | Incomplete: harness timeout while writing | 25 / 26 | 6 | 6 completed | 17 / 23 / 13 | Fresh quota-reset final B6 completed in 176.9s; 19 / 22 steps, 5 rounds, report generated |
 | B7 | Completed at the 180s timer race; no runtime failure | 21 / 22 | 6 | 6 completed | 17 / 20 / 10 | 0 zero-value completed tasks; no superseded task arose in this run |
 
 Across the 11-record corrected regression batch: 8 records completed, 3 were
@@ -117,7 +114,42 @@ The final bounded fixed-model preflight is recorded in
 1.18.31 launched with `opencode/muse-spark-1.3-contributor-free` and `xhigh`,
 but the non-Professor request emitted no output or session/run event before
 the 20-second timeout. This prevented a responsible additional 600-second B6
-attempt.
+attempt. It remains preserved as historical environment evidence; the later
+quota-reset health check and B6 run are the provider-ready validation below.
+
+### Quota-reset provider-ready B6 validation
+
+The fresh original B6 artifact is
+[`corrected-B6-quota-reset.jsonl`](corrected-B6-quota-reset.jsonl), with its
+normalized summary in
+[`corrected-B6-quota-reset-summary.json`](corrected-B6-quota-reset-summary.json).
+The runner used the exact frozen B6 prompt with
+`opencode/muse-spark-1.3-contributor-free` and `xhigh`.
+
+- Run/session: `run-1789552278925-1ab5cedf-243` /
+  `ses_f56600e1fffebx4jgwg4c3xH5O`
+- Started/ended: `2026-09-16T09:50:17.427Z` /
+  `2026-09-16T09:53:14.362Z`; duration `176,933 ms`
+- Process: exit `0`, not timed out, final status `completed`
+- Budget: 22 CLI steps, 19 observed outer steps, 5 controller rounds, 32-step
+  ceiling not reached
+- Lifecycle: 5 completed, 0 pending/running/failed/superseded; every completed
+  task has canonical progress and `canonicalResult: true`; zero-value count `0`
+- Retrieval: 12 searches, 2 fetches (14 retrieval calls)
+- State: 22 sources, 24 evidence records, 9 findings, 13 claims
+- Canonical claim statuses: 11 supported, 2 partial, 0 unsupported, 0
+  contradicted; totals reconcile to 13
+- Verification resolved all 5 questions with 0 critical blockers and 0 open
+  critical contradictions; writing and `research_complete` completed
+- Report: generated; the complete `finalReport` is preserved in the raw JSONL
+  artifact and the completion output records the isolated report reference
+
+The successful health check is preserved in
+[`fixed-model-health-check-2026-09-16.json`](fixed-model-health-check-2026-09-16.json):
+it returned exit `0` in `44,233 ms`, emitted `step_start`, `text`, and
+`step_finish`, and created session `ses_f5660ff3bffeXARtD4m7a0FRJY`.
+
+This run is the required Case A validation and clears the final B6 gate.
 
 ### Main-case report assessment
 
@@ -203,18 +235,17 @@ because event delivery occurs after session binding.
   deterministic total).
 - Benchmark harness tests: **6 passed**.
 - `git diff --check`: passed.
-- Strict OpenSpec validation: run after the final artifact update; the existing
-  change remains the single change, with task 4.4 intentionally open until a
-  provider-ready B6 validation is available.
-- Fixed-model provider preflight: **blocked** after 20,092 ms with no
-  run/session output; OpenCode itself resolved as **1.18.31**.
+- Strict OpenSpec validation: passed after the final artifact/OpenSpec update;
+  task 4.4 is complete and the existing change remains the single change.
+- Fixed-model provider preflight: **passed** after 44,233 ms with output,
+  `step_start`, `text`, and `step_finish` events, and session
+  `ses_f5660ff3bffeXARtD4m7a0FRJY`; OpenCode resolved as **1.18.31**.
 - Host-dependent integration: **1 failed at readiness** after 183.9 seconds;
   the test's OpenCode server printed that it was listening on localhost, but
   its HTTP readiness operation timed out before the test could exercise the
   linked-worktree flow. This is an environment-level limitation, not a
   Professor assertion failure.
 
-The exact remaining limitation is therefore provider-ready benchmark
-validation for the original B6, not a detected outer-step-cap breach or a
-zero-value task regression. The bounded preflight was stopped before another
-long B6 run, as required by the retry policy.
+The original B6 provider-ready validation is complete. The prior host-readiness
+integration limitation remains an environment-level risk, but no Professor
+correctness or outer-step-cap failure was observed in the fresh Case A run.
