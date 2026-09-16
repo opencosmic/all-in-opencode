@@ -164,7 +164,7 @@ assessment of available completed reports, not a synthetic runner score.
 | B3 | 24/25 | Official web/source status is separated from third-party packaging and community claims. |
 | B4 | 25/25 on the completed extended report | Classic, rewrite, roadmap, and version conflicts are reconciled without collapsing them. |
 | B5 | 24/25 | Production blockers and changed assumptions are useful; adaptive replanning is reflected in the report, though this run created no additional follow-up task. |
-| B6 | 22/25 on the earlier completed focused report | The report is candid about partial desktop/licensing evidence and gives feasible-today/future architectures; final-code completion remains unproven. |
+| B6 | 22/25 on the earlier completed focused report | The report is candid about partial desktop/licensing evidence and gives feasible-today/future architectures; the fresh quota-reset Case A run validates final-code completion. |
 | B7 | 25/25 | The report covers HyperFrames, Blender, OpenCut, FFmpeg, AI services, audio, captions, and human/file boundaries with a practical architecture. |
 
 ## Blind B1b–B4b
@@ -192,12 +192,11 @@ zero-value completed tasks. The historical frozen baseline was 3/4 completed
 
 The zero-value completion root cause was checking whether input arrays were
 non-empty before normalization. The runtime now computes canonical progress
-after normalization. It counts only new source records or observed aliases,
-new canonical evidence, new findings/contradictions, meaningful criterion or
+after normalization. It counts only new canonical source records, new
+canonical evidence, new findings/contradictions, meaningful criterion or
 contradiction mutations, and follow-up tasks actually created and still
-actionable. Only new canonical source records count as source progress. An
-observed-URL alias may remain source metadata, but it cannot by itself count as
-progress. Question status bookkeeping is likewise metadata, not criterion
+actionable. Observed URL aliases remain source metadata, but they cannot by
+themselves count as source progress. Question status bookkeeping is likewise metadata, not criterion
 progress. Duplicate source/evidence records and unchanged updates therefore
 reject an unresolved successful commit, preserve the running task, or use
 supersession when the linked question is already sufficient. Durable
