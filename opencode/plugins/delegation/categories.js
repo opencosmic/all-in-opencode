@@ -84,21 +84,6 @@ No narrower category fits this broad task. Survey the affected modules, callers,
 You are working on one explicitly authorized Git operation. Inspect the current repository facts before acting, perform only the named staging, task-local commit, history investigation, comparison, or source-derived integration operation, then verify the resulting status and history. Report exact SHAs and evidence when applicable. The caller owns branch, integration-order, shipping, pushing, and history-rewrite decisions; do not expand the operation or silently discard user changes.
 </Category_Context>`,
   },
-  "browser-automation": {
-    description: "Website interaction and browser-state verification through the currently installed browser capability",
-    // model: "openai/gpt-5.6-luna-fast",
-    model: "opencode/muse-spark-1.3-contributor-free",
-    variant: "high",
-    tools: {
-      edit: false,
-      write: false,
-      skill: true,
-      bash: true,
-    },
-    prompt_append: `<Category_Context name="browser-automation">
-You are working on one browser interaction assignment. Inspect fresh browser state before acting, use only the explicitly selected browser capability on the requested website or workflow, and verify the resulting page or UI state with fresh evidence. Treat authentication and other human-control boundaries as handoff points, and return concise evidence rather than a generic narrative.
-</Category_Context>`,
-  },
   "video-analysis": {
     description: "Grounded analysis of spoken and visual video content",
     model: "openai/gpt-5.6-sol",

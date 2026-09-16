@@ -12,7 +12,7 @@ Use `/search <question>` or select `Searcher` when you want a standalone normal 
 
 Use `/research <question>` or select `Professor` when the question needs a durable, multi-aspect investigation. Professor creates a ResearchState plan, works through one prioritized task at a time using native web retrieval, records explicit evidence and contradictions, adapts to gaps, verifies claims, and persists a final report under the configured workflow data root. The canonical report stays in its run directory while a human-facing symlink is created under `/Users/code/Documents/Research/`. Completion returns a concise handoff with runtime metrics and the report path; if a later follow-up needs details outside the current context, Professor can lazily reload the clearly identified run through `research_report`. The runtime state—not chat history—is the source of truth. `Researcher` remains the bounded internal product/market evidence specialist for Strategist.
 
-Non-trivial implementation flows through `delegate_task(category=...)` to Implementer. Use `load_skills=["skill-name"]` only for selected specialized instructions. Use `git` only when the Git operation and authority are explicit. For browser work, use `/browser` for the dedicated Browser agent or ask Assistant, which routes it through `browser-automation` with `load_skills=["ego-browser"]` to the currently installed browser backend. Both entry paths are intentionally retained.
+Non-trivial implementation flows through `delegate_task(category=...)` to Implementer. Use `load_skills=["skill-name"]` only for selected specialized instructions. Use `git` only when the Git operation and authority are explicit. Browser work uses the dedicated `/browser` route and Browser agent; it is not routed through the Implementer category catalog.
 
 The category catalog is dynamic. Built-ins are centrally defined; the optional user-local `~/.config/opencode/categories.json` can add, override, or disable entries and may be absent. It is not tracked by Git, so an absent file simply means built-ins are used. Each enabled entry uses one `model`, an optional `variant`, an optional `prompt_append`, and optional tool narrowing. It does not support model arrays, fallback models, or `reasoning`. All category entries route to the shared Implementer. The category's `prompt_append` supplies its execution specialization, while `load_skills` remains an independent explicit capability selection.
 
@@ -76,7 +76,7 @@ Before first browser use, run:
 ./scripts/check-ego-browser.sh
 ```
 
-The dedicated user-facing route is `/browser` and the Assistant category route is `browser-automation`; Ego Lite is only the current backend. Login, CAPTCHA, MFA, payment, security confirmation, and user takeover remain human-control boundaries. Browser work must verify the resulting page state and must not mutate repository files.
+The dedicated user-facing route is `/browser`, backed by Ego Lite. Assistant-to-Browser delegation is not part of this phase. Login, CAPTCHA, MFA, payment, security confirmation, and user takeover remain human-control boundaries. Browser work must verify the resulting page state and must not mutate repository files.
 
 ## OpenDesign references
 

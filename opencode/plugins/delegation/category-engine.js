@@ -14,6 +14,7 @@ const SUPPORTED_FIELDS = new Set([
 ])
 
 const DEFAULT_CATEGORY_CONFIG_PATH = join(homedir(), ".config", "opencode", "categories.json")
+const RETIRED_CATEGORIES = new Set(["browser-automation"])
 
 function categoryConfigError(configPath, message) {
   return new Error(`invalid category config ${configPath}: ${message}`)
@@ -102,6 +103,7 @@ export class CategoryEngine {
     for (const [name, source] of Object.entries(this.userCategories)) validateCategory(name, source, configPath)
     this.categories = Object.fromEntries(
       [...new Set([...Object.keys(this.builtins), ...Object.keys(this.userCategories)])]
+        .filter((name) => !RETIRED_CATEGORIES.has(name))
         .map((name) => [name, mergeCategory(this.builtins[name], this.userCategories[name])]),
     )
   }

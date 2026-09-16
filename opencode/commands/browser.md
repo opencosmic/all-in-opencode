@@ -4,7 +4,7 @@ agent: Browser
 subtask: false
 ---
 
-Handle this as a standalone browser-automation goal. Do not enter OpenSpec or the normal coding lifecycle, create or mutate implementation execution state, delegate to coding workers, use structural code tooling, or modify repository files.
+Handle this as a standalone Browser goal. Do not enter OpenSpec or the normal coding lifecycle, create or mutate implementation execution state, delegate to coding workers, use structural code tooling, or modify repository files.
 
 Browser goal:
 
