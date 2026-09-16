@@ -6,7 +6,7 @@ In this documentation, `OpenCode` means the upstream coding agent/runtime; `All-
 
 ## Workflows
 
-`Assistant` handles ordinary work: explanations, investigation, bounded implementation, documentation, reviews, dependency research, Git mechanics, and browser interaction. It answers or edits directly when work is truly small, consults read-only specialists when evidence improves correctness, and routes non-trivial implementation through `delegate_task(category=...)` to `Implementer`. `Searcher` and `/search` provide a separate user-facing normal web Search / Answer Engine route for grounded current answers; `Professor` and `/research` provide stateful Deep Research with durable evidence and verification.
+`Assistant` handles ordinary work: explanations, investigation, bounded implementation, documentation, reviews, dependency research, Git mechanics, and video analysis. It answers or edits directly when work is truly small, consults read-only specialists when evidence improves correctness, and routes non-trivial implementation through `delegate_task(category=...)` to `Implementer`. `Searcher` and `/search` provide a separate user-facing normal web Search / Answer Engine route for grounded current answers; `Professor` and `/research` provide stateful Deep Research with durable evidence and verification.
 
 The formal lifecycle is:
 
@@ -53,7 +53,7 @@ The runtime exposes eight tools:
 
 `delegate_task` delegates a real scoped assignment. `consult_agents` is separate: only `Implementer` can call it, and only for a bounded batch of information-gathering requests to `Explorer` or `Librarian`. The batch starts its requests concurrently, waits synchronously for every outcome, and returns results in input order. Explorer reports local repository evidence; Librarian reports external documentation and upstream evidence. Neither consultant can edit, delegate, or consult another agent, and `Implementer` remains responsible for all implementation decisions, edits, and validation. Consultation tasks are always foreground (`background: false`, `completion_group: null`) and never enter the parent-resume lifecycle. A `session_id` may continue a completed consultation only for the same target, parent Implementer, and directory; skills are not exposed by this tool.
 
-Category execution has three separate layers: the shared Implementer contract holds invariants for every delegated task, `category.prompt_append` supplies the selected execution mindset and completion bar, and `load_skills` injects only the explicitly selected capability instructions. Category choice and skill choice remain independent. Git and browser behavior still have hard session permissions; their category contexts do not replace those boundaries.
+Category execution has three separate layers: the shared Implementer contract holds invariants for every delegated task, `category.prompt_append` supplies the selected execution mindset and completion bar, and `load_skills` injects only the explicitly selected capability instructions. Category choice and skill choice remain independent. Git and video behavior still have hard session permissions; their category contexts do not replace those boundaries.
 
 The Delegation Runtime loads in any directory. Ordinary `delegate_task` work does not require a Git repository; `workspace_prepare` and `workspace_release` remain Git/worktree operations and report a clear error when called outside one.
 
@@ -106,12 +106,11 @@ Check runtime, index, and OpenCode MCP health with:
 
 ## Browser automation
 
-There are intentionally two browser entry paths for practical comparison:
+Browser automation has one dedicated entry path:
 
 - `/browser` opens the dedicated `Browser` agent provided by All-in OpenCode for direct browser workflows.
-- Assistant delegates `category="browser-automation", load_skills=["ego-browser"]` through CategoryEngine to Implementer for browser work requested as part of ordinary assistance.
 
-The dedicated `Browser` route is the All-in OpenCode-facing browser agent. The `browser-automation` category is browser capability through the reusable Implementer, and `ego-browser` is the current external backend/skill identifier. Both paths use the external official `citrolabs/ego-lite` runtime.
+The dedicated `Browser` route is the All-in OpenCode-facing browser agent. It independently uses `ego-browser`, the current external backend/skill identifier, through the official `citrolabs/ego-lite` runtime. Browser work is not an Implementer category, and Assistant-to-Browser delegation is not part of this phase.
 
 Provision the current backend explicitly, then verify it:
 
@@ -182,7 +181,7 @@ implicitly authorized.
 
 ## Video analysis
 
-For questions that depend on the actual contents of a video, Assistant routes through the shared Implementer with `category="video-analysis"` and `load_skills=["watch"]`. This covers summaries, timestamped questions, hooks, editing structure, screen recordings, visual-versus-spoken comparisons, and on-screen UI evidence. A website-only task remains `browser-automation`; watching the video embedded on that website is `video-analysis`.
+For questions that depend on the actual contents of a video, Assistant routes through the shared Implementer with `category="video-analysis"` and `load_skills=["watch"]`. This covers summaries, timestamped questions, hooks, editing structure, screen recordings, visual-versus-spoken comparisons, and on-screen UI evidence. Website interaction remains the responsibility of the dedicated Browser route; watching the video embedded on that website is `video-analysis`.
 
 Provision the upstream `bradautomates/claude-video` Agent Skill with:
 
@@ -259,6 +258,6 @@ opencode debug agent Producer
 opencode debug agent Executor
 ```
 
-The deterministic suite covers discovery, permissions, planning/execution gates, independent CodeGraph configuration, loader safety, shared cross-worktree control-plane ownership, workspace provenance, completion correctness, grouped single-resume behavior, cancellation, category-specific Git/browser policy, and conservative release.
+The deterministic suite covers discovery, permissions, planning/execution gates, independent CodeGraph configuration, loader safety, shared cross-worktree control-plane ownership, workspace provenance, completion correctness, grouped single-resume behavior, cancellation, category-specific Git/video policy, dedicated Browser policy, and conservative release.
 
 Edit canonical files here, rerun verification, inspect the diff, and commit one coherent change. Never copy sessions, caches, credentials, indexes, runtime state, browser state, or external repositories into this repository.

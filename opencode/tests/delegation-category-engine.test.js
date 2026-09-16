@@ -42,10 +42,18 @@ test("category context meaningfully specializes the shared executor", () => {
     ["visual-engineering", /design system/i],
     ["testing", /discriminating tests/i],
     ["git", /explicitly authorized Git operation/i],
-    ["browser-automation", /fresh browser state/i],
     ["video-analysis", /actual video/i],
   ])
   for (const [name, pattern] of expected) assert.match(engine.resolve(name).profile.prompt_append, pattern)
+})
+
+test("retired browser category is absent even when user config tries to add it", () => {
+  const engine = new CategoryEngine({
+    "browser-automation": { model: "provider/model", description: "retired" },
+  })
+  assert.equal(engine.has("browser-automation"), false)
+  assert.equal(engine.list().some((entry) => entry.name === "browser-automation"), false)
+  assert.throws(() => engine.resolve("browser-automation"), /unknown delegation category.*Available/)
 })
 
 test("user category fields override built-ins without recursive merging", () => {
@@ -143,6 +151,7 @@ test("dispatcher enforces category XOR named agent and allowlists specialists", 
     "Reviewer",
     "QA",
   ]) assert.equal(dispatcher.resolve({ agent }).agent, agent)
+  assert.throws(() => dispatcher.resolve({ agent: "Browser" }), /not allowed/)
   assert.throws(() => dispatcher.resolve({ agent: "Executor" }), /not allowed/)
   assert.throws(() => dispatcher.resolve({ agent: "RandomAgent" }), /not allowed/)
   assert.throws(() => dispatcher.resolve({ agent: "Verifier" }), /only be delegated by Executor/)

@@ -51,13 +51,6 @@ test("sensitive category sessions receive fail-closed session permissions", () =
     rule.permission === "bash" && rule.pattern === "git commit *--amend*" && rule.action === "deny"))
   assert.ok(gitRules.some((rule) =>
     rule.permission === "bash" && rule.pattern === "git cherry-pick --*" && rule.action === "deny"))
-  const browserRules = categorySessionPermission("browser-automation")
-  assert.ok(browserRules.some((rule) =>
-    rule.permission === "skill" && rule.pattern === "ego-browser" && rule.action === "allow"))
-  assert.ok(browserRules.some((rule) =>
-    rule.permission === "bash" && rule.pattern === "ego-browser *" && rule.action === "allow"))
-  assert.ok(browserRules.some((rule) =>
-    rule.permission === "bash" && rule.pattern === "*" && rule.action === "deny"))
   assert.equal(categorySessionPermission("quick"), undefined)
 })
 
@@ -78,28 +71,13 @@ test("git tool overrides narrow bash without broadening the hard ceiling", () =>
   }), "deny")
 })
 
-test("browser tool overrides narrow selected capabilities without broadening the hard ceiling", () => {
-  const defaultRules = categorySessionPermission("browser-automation")
-  assert.ok(defaultRules.some((rule) => rule.permission === "skill" && rule.pattern === "ego-browser" && rule.action === "allow"))
-  assert.ok(defaultRules.some((rule) => rule.permission === "bash" && rule.pattern === "ego-browser *" && rule.action === "allow"))
-
-  const skillNarrowed = categorySessionPermission("browser-automation", { skill: false })
-  assert.equal(skillNarrowed.some((rule) => rule.permission === "skill" && rule.action === "allow"), false)
-  assert.equal(categoryPermission({ category: "browser-automation", tools: { skill: false } }, {
-    type: "skill",
-    pattern: "ego-browser",
+test("removed browser category has no category-specific permission exceptions", () => {
+  assert.equal(categorySessionPermission("browser-automation"), undefined)
+  assert.equal(categoryPermission({ category: "quick" }, { type: "skill", pattern: "ego-browser" }), "deny")
+  assert.equal(categoryPermission({ category: "quick" }, {
+    type: "external_directory",
+    pattern: "/Users/code/.agents/skills/ego-browser/SKILL.md",
   }), "deny")
-
-  const bashNarrowed = categorySessionPermission("browser-automation", { bash: false })
-  assert.equal(bashNarrowed.some((rule) => rule.permission === "bash" && rule.action === "allow"), false)
-  assert.equal(categoryPermission({ category: "browser-automation", tools: { bash: false } }, {
-    type: "bash",
-    pattern: "ego-browser --version",
-  }), "deny")
-
-  const broadenedRules = categorySessionPermission("browser-automation", { edit: true, write: true, bash: true, skill: true })
-  assert.ok(broadenedRules.some((rule) => rule.permission === "edit" && rule.pattern === "*" && rule.action === "deny"))
-  assert.ok(broadenedRules.some((rule) => rule.permission === "write" && rule.pattern === "*" && rule.action === "deny"))
 })
 
 test("permission decisions are scoped to the exact category session", () => {
@@ -157,7 +135,7 @@ test("non-Git implementation categories cannot mutate the Git index", () => {
   }), null, "quoted Git text is not a command boundary")
 })
 
-test("Git and browser categories use the shared contract plus category context", () => {
+test("Git category uses the shared contract plus category context", () => {
   const contract = systemFor("Implementer", "git")
   assert.match(contract, /project-owned Implementer/)
   assert.match(contract, /workspace_checkpoint_update only for the active task and workspace bound to this session/)
@@ -171,12 +149,6 @@ test("Git and browser categories use the shared contract plus category context",
   })
   assert.doesNotMatch(gitPrompt, /Do not commit/)
   assert.match(gitPrompt, /authorized task-local commit/)
-  const browser = systemFor("Implementer", "browser-automation", {
-    prompt_append: "<Category_Context name=\"browser-automation\">fresh browser state</Category_Context>",
-  })
-  assert.match(browser, /project-owned Implementer/)
-  assert.match(browser, /fresh browser state/)
-  assert.doesNotMatch(browser, /operating under the browser-automation category/)
 })
 
 test("video analysis admits only the selected watch runtime and safe output paths", () => {
@@ -235,7 +207,6 @@ test("video analysis admits only the selected watch runtime and safe output path
 
 test("sensitive categories preserve session permissions instead of replacing them with prompt tool flags", () => {
   assert.equal(toolsFor("Implementer", { edit: false, bash: true }, "git"), undefined)
-  assert.equal(toolsFor("Implementer", { edit: false, bash: true }, "browser-automation"), undefined)
   assert.deepEqual(toolsFor("Implementer", { edit: false }, "quick"), {
     edit: false,
     workspace_prepare: false,

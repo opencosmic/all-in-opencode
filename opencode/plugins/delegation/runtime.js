@@ -20,6 +20,15 @@ import { isProtectedBranch, WorkspaceManager } from "./workspace-manager.js"
 
 const SESSION_PROFILES = Symbol.for("aio.delegation.session-profiles")
 const MAX_CONSULTATION_REQUESTS = 4
+const RESERVED_DELEGATED_SKILL = "ego-browser"
+
+function assertDelegatedSkillsAllowed(names) {
+  if (Array.isArray(names) && names.includes(RESERVED_DELEGATED_SKILL)) {
+    throw new Error(
+      "ego-browser is reserved for the dedicated Browser route and cannot be loaded by delegated workers",
+    )
+  }
+}
 
 function sharedSessionProfiles() {
   globalThis[SESSION_PROFILES] ??= new Map()
@@ -294,8 +303,10 @@ export class DelegationRuntime {
     if (context?.agent === "Implementer") {
       throw new Error("Implementer cannot call delegate_task")
     }
+    const requestedSkills = args.load_skills ?? []
+    assertDelegatedSkillsAllowed(requestedSkills)
     const route = this.dispatcher.resolve({ ...args, parentAgent: context?.agent })
-    const skills = this.skills.resolve(args.load_skills ?? [])
+    const skills = this.skills.resolve(requestedSkills)
     const referencedWorkspaces = `${args.description}\n${args.prompt}`.match(/\bws_[0-9a-f-]+\b/g) ?? []
     if (!args.workspace_id && referencedWorkspaces.length) {
       throw new Error("delegation prompt references a managed workspace but workspace_id was omitted")
@@ -615,14 +626,14 @@ export class DelegationRuntime {
 
   delegateTaskDescription() {
     const categories = this.dispatcher.categoryEngine.list()
-    const skills = this.skills.list()
+    const skills = this.skills.list().filter((entry) => entry.name !== RESERVED_DELEGATED_SKILL)
     const categoryList = categories.length
       ? categories.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
       : "- none"
     const skillList = skills.length
       ? skills.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
       : "- none"
-    return `Delegate one scoped assignment through a category or an allowlisted named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. If a selected skill is required by the assignment but unavailable, surface the capability or setup failure instead of retrying the same assignment without it; omit a skill only when it is explicitly optional and the fallback remains semantically valid. Git mechanics require category="git". Browser work through Implementer requires category="browser-automation" and, for the current backend, load_skills=["ego-browser"]. Video-content analysis normally requires category="video-analysis" with load_skills=["watch"]; use it when evidence must come from the video itself rather than the surrounding website. For frontend/UI/design work that benefits from OpenDesign design-system or design-skill references, use category="visual-engineering" with load_skills=["open-design"]. This optional skill provides read-only design context; OpenCode remains responsible for implementation. Pass workspace_id for a managed workspace.`
+    return `Delegate one scoped assignment through a category or an allowlisted named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. If a selected skill is required by the assignment but unavailable, surface the capability or setup failure instead of retrying the same assignment without it; omit a skill only when it is explicitly optional and the fallback remains semantically valid. Git mechanics require category="git". Video-content analysis normally requires category="video-analysis" with load_skills=["watch"]; use it when evidence must come from the video itself rather than the surrounding website. For frontend/UI/design work that benefits from OpenDesign design-system or design-skill references, use category="visual-engineering" with load_skills=["open-design"]. This optional skill provides read-only design context; OpenCode remains responsible for implementation. Pass workspace_id for a managed workspace.`
   }
 
   async handleEvent(event) {

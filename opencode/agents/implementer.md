@@ -23,6 +23,7 @@ permission:
     ".product/**": deny
   bash:
     "*": allow
+    "ego-browser *": deny
     "git commit *": ask
     "git cherry-pick *": ask
     "git merge *": deny
