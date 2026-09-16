@@ -12,7 +12,7 @@ import {
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
-import { resolveProjectDataRoot } from "../project-data-root.js"
+import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
 import { SkillResolver, discoverSkills } from "./skill-resolver.js"
 import { TaskRegistry, TERMINAL_STATUSES } from "./task-registry.js"

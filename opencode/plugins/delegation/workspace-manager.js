@@ -6,7 +6,7 @@ import { promisify } from "node:util"
 
 import { analyzeExecutionTasks } from "./execution-preflight.js"
 import { readJson, writeJson } from "./json-store.js"
-import { resolveProjectDataRoot } from "../project-data-root.js"
+import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 
 const execFileAsync = promisify(execFile)
 

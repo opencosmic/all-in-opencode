@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 import { appendFile, lstat, mkdir, open, readFile, readlink, rename, symlink, writeFile } from "node:fs/promises"
 import { dirname, join, relative, resolve, sep } from "node:path"
 
-import { resolveProjectDataRoot } from "../project-data-root.js"
+import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { assertSafeId, normalizeResearchState, validateResearchState } from "./state.js"
 
 export const DEFAULT_PROFESSOR_LIBRARY_ROOT = "/Users/code/Documents/Research"
