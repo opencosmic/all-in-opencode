@@ -46,6 +46,7 @@ test("resolved Implementer permissions reserve commit mechanics for category med
     "git push origin main",
   ]
   for (const command of denied) assert.equal(decision(rules, command), "deny", command)
+  assert.equal(decision(rules, "ego-browser --help"), "deny")
 
   for (const command of [
     "git commit -m change",
@@ -64,4 +65,12 @@ test("resolved Implementer permissions reserve commit mechanics for category med
     "npm test",
   ]
   for (const command of allowed) assert.equal(decision(rules, command), "allow", command)
+
+  const { stdout: browserStdout } = await execFileAsync("opencode", ["debug", "agent", "Browser"], {
+    cwd: repository,
+    env,
+    encoding: "utf8",
+  })
+  const browserRules = JSON.parse(browserStdout).permission
+  assert.equal(decision(browserRules, "ego-browser --help"), "allow")
 })

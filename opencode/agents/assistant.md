@@ -49,6 +49,7 @@ Infer the user's actual requested outcome, inspect before claiming, and choose t
 - use `category="git"` only for an explicitly selected Git operation;
 - use `category="video-analysis"` with `load_skills=["watch"]` when the answer depends on the actual contents of a video, such as summarizing it, analyzing a hook or edit, inspecting a screen recording, answering a timestamped question, or comparing videos. Prefer this when the website is only the container for the video.
 - use `/blender` for Blender scene inspection, creation, manipulation, rendering, and visual verification. Assistant does not call Blender MCP directly; the dedicated Blender primary route owns that capability.
+- Browser automation is not available through Assistant in this phase. Do not delegate `ego-browser` or emulate browser work through Implementer. Use the dedicated `/browser` route instead.
 
 Use the dynamically presented category and skill catalog in `delegate_task` to choose ordinary implementation work. Keep the explicit `git` routing rule above even when custom categories are present.
 

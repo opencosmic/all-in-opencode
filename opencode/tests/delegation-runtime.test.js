@@ -215,6 +215,40 @@ test("ordinary delegation works outside Git while workspace operations stay Git-
   )
 })
 
+test("delegated ego-browser skill selection is rejected before child launch", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  runtime.skills = new SkillResolver({ entries: [
+    { name: "safe-skill", description: "Safe fixture", content: "SAFE CONTENT" },
+    { name: "ego-browser", description: "Browser fixture", content: "EGO BROWSER CONTENT" },
+  ] })
+  const request = {
+    category: "standard",
+    description: "Reject delegated browser capability",
+    prompt: "Inspect only",
+    run_in_background: true,
+  }
+
+  for (const load_skills of [["ego-browser"], ["safe-skill", "ego-browser"]]) {
+    await assert.rejects(
+      runtime.delegate({ ...request, load_skills }, context),
+      /ego-browser is reserved for the dedicated Browser route and cannot be loaded by delegated workers/,
+    )
+  }
+  assert.equal(client.state.creates.length, 0)
+})
+
+test("delegation skill catalog hides ego-browser but retains ordinary skills", async (t) => {
+  const { runtime } = await fixture(t)
+  runtime.skills = new SkillResolver({ entries: [
+    { name: "safe-skill", description: "Safe fixture", content: "SAFE CONTENT" },
+    { name: "ego-browser", description: "Browser fixture", content: "EGO BROWSER CONTENT" },
+  ] })
+
+  const description = runtime.delegateTaskDescription()
+  assert.match(description, /safe-skill: Safe fixture/)
+  assert.doesNotMatch(description, /ego-browser/)
+})
+
 test("category profiles are shared across per-worktree plugin instances", async (t) => {
   const { root, client, runtime, context } = await fixture(t)
   const result = await runtime.delegate({
