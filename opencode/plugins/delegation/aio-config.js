@@ -103,7 +103,9 @@ function normalizeDelegation(value, configPath) {
     }
     const entry = {}
     for (const field of SUPPORTED_DELEGATION_FIELDS) {
-      if (source[field] !== undefined) entry[field] = stringList(source[field], `delegation.${caller}.${field}`, configPath)
+      entry[field] = source[field] === undefined
+        ? []
+        : stringList(source[field], `delegation.${caller}.${field}`, configPath)
     }
     result[caller] = entry
   }

@@ -81,6 +81,32 @@ test("valid V1 aio.json is normalized and defaults missing sections", async (t) 
   })
 })
 
+test("delegation fields default independently to empty arrays", async (t) => {
+  const { configPath } = await fixture(t)
+  await writeFile(configPath, JSON.stringify({
+    version: 1,
+    delegation: {
+      "Categories Only": { categories: ["standard"] },
+      "Families Only": { category_families: ["implementation"] },
+      "Agents Only": { agents: ["Explorer"] },
+      "Empty Entry": {},
+      "Full Entry": {
+        categories: ["standard"],
+        category_families: ["implementation"],
+        agents: ["Explorer"],
+      },
+    },
+  }))
+
+  assert.deepEqual(loadAioConfig({ configPath }).delegation, {
+    "Categories Only": { categories: ["standard"], category_families: [], agents: [] },
+    "Families Only": { categories: [], category_families: ["implementation"], agents: [] },
+    "Agents Only": { categories: [], category_families: [], agents: ["Explorer"] },
+    "Empty Entry": { categories: [], category_families: [], agents: [] },
+    "Full Entry": { categories: ["standard"], category_families: ["implementation"], agents: ["Explorer"] },
+  })
+})
+
 test("malformed JSON fails with the config path", async (t) => {
   const { configPath } = await fixture(t)
   await writeFile(configPath, "{not-json")

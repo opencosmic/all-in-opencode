@@ -105,6 +105,63 @@ test("custom delegated agents require OpenCode existence, AIO opt-in, and caller
   )
 })
 
+test("independently optional delegation lists authorize only their configured routes", () => {
+  const caller = { name: "My Agent", mode: "primary", builtIn: false }
+  const availableAgents = [...effectiveAgents, caller]
+  const cases = [
+    {
+      name: "categories only",
+      entry: { categories: ["standard"] },
+      allowed: { category: "standard" },
+      denied: { agent: "Explorer" },
+    },
+    {
+      name: "category families only",
+      entry: { category_families: ["implementation"] },
+      allowed: { category: "standard" },
+      denied: { agent: "Explorer" },
+    },
+    {
+      name: "agents only",
+      entry: { agents: ["Explorer"] },
+      allowed: { agent: "Explorer" },
+      denied: { category: "standard" },
+    },
+    {
+      name: "empty entry",
+      entry: {},
+      denied: { category: "standard" },
+      alsoDenied: { agent: "Explorer" },
+    },
+    {
+      name: "full entry",
+      entry: { categories: ["standard"], category_families: ["implementation"], agents: ["Explorer"] },
+      allowed: { category: "standard" },
+      alsoAllowed: { agent: "Explorer" },
+    },
+  ]
+
+  for (const testCase of cases) {
+    const policy = new AgentDispatcher(new CategoryEngine({}), {
+      aioConfig: { version: 1, delegation: { [caller.name]: testCase.entry } },
+      availableAgents,
+    })
+    if (testCase.allowed) {
+      assert.doesNotThrow(() => policy.resolve({ ...testCase.allowed, parentAgent: caller.name }), testCase.name)
+    }
+    if (testCase.alsoAllowed) {
+      assert.doesNotThrow(() => policy.resolve({ ...testCase.alsoAllowed, parentAgent: caller.name }), testCase.name)
+    }
+    for (const denied of [testCase.denied, testCase.alsoDenied].filter(Boolean)) {
+      assert.throws(
+        () => policy.resolve({ ...denied, parentAgent: caller.name }),
+        /not allowed/,
+        testCase.name,
+      )
+    }
+  }
+})
+
 test("workflow named-agent ceilings and Verifier boundary remain hard", () => {
   const route = dispatcher()
   assert.equal(route.resolve({ agent: "Researcher", parentAgent: "Strategist" }).agent, "Researcher")
