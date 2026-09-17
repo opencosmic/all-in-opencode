@@ -29,7 +29,7 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
     client: client(),
     directory: fileURLToPath(new URL("../..", import.meta.url)),
     serverUrl: new URL("http://127.0.0.1:40200"),
-  }, { stateDirectory })
+  }, { stateDirectory, aioConfig: { version: 1 } })
   assert.deepEqual(Object.keys(plugin.tool), [
     "execution_preflight",
     "workspace_prepare",
@@ -78,7 +78,7 @@ test("plugin entrypoint initializes with the full tool set outside Git", async (
     client: client(),
     directory,
     serverUrl: new URL("http://127.0.0.1:40201"),
-  }, { stateDirectory, skillRoots: [] })
+  }, { stateDirectory, skillRoots: [], aioConfig: { version: 1 } })
 
   assert.deepEqual(Object.keys(plugin.tool), [
     "execution_preflight",

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises"
+import { copyFile, mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -17,17 +17,22 @@ export async function isolatedOpenCodeEnv(testContext, repository, inheritedEnvi
   }
   const configDirectory = join(paths.config, "opencode")
   await Promise.all([...Object.values(paths), configDirectory].map((path) => mkdir(path, { recursive: true })))
+  await mkdir(join(configDirectory, "agents"), { recursive: true })
+  const agentNames = await readdir(join(repository, "opencode", "agents"))
+  await Promise.all(agentNames.map((name) => symlink(
+    join(repository, "opencode", "agents", name),
+    join(configDirectory, "agents", name),
+    "file",
+  )))
   await Promise.all([
-    ["agents", "agents"],
     ["commands", "commands"],
     ["plugins", "plugins"],
     ["skills", "skills"],
     ["node_modules", "node_modules"],
   ].map(([source, target]) => symlink(join(repository, "opencode", source), join(configDirectory, target), "dir")))
-  await Promise.all(["package.json", "package-lock.json"].map((name) => symlink(
+  await Promise.all(["package.json", "package-lock.json"].map((name) => copyFile(
     join(repository, "opencode", name),
     join(configDirectory, name),
-    "file",
   )))
   testContext.after(() => rm(root, { recursive: true, force: true }))
 

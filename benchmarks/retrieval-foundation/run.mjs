@@ -144,7 +144,7 @@ async function main() {
       console.log(`run ${key}: ${caseById.get(item.caseId).query}`)
       const record = await executeOpenCode(caseById.get(item.caseId), { ...item, config: isolated })
       record.benchmarkName = benchmarkName
-      record.configIsolation = "temporary XDG config/data/state/cache homes plus OPENCODE_CONFIG"
+      record.configIsolation = "temporary HOME/XDG config/data/state/cache homes plus OPENCODE_CONFIG"
       record.opencodeVersion = opencodeVersion
       await appendFile(resultsPath, `${JSON.stringify(record)}\n`)
       console.log(`  exit=${record.processExitCode} searches=${record.searchCalls} fetches=${record.fetchCalls} steps=${record.stepCount} durationMs=${record.durationMs}`)

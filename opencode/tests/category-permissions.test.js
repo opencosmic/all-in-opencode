@@ -120,6 +120,19 @@ test("non-Git implementation categories cannot mutate the Git index", () => {
       }), "deny", `${category} must not stage files: ${command}`)
     }
   }
+  for (const profile of [
+    { category: "family-git", family: "git" },
+    { category: "family-video", family: "video-analysis" },
+  ]) {
+    assert.equal(categoryPermission(profile, {
+      type: "bash",
+      pattern: "git add -- src/a.js",
+    }), "deny", `${profile.category} must not inherit Git permissions from family ${profile.family}`)
+  }
+  assert.equal(categoryPermission({ category: "family-video", family: "video-analysis" }, {
+    type: "skill",
+    pattern: "watch",
+  }), "deny", "category families must not inherit video permissions")
   assert.equal(categoryPermission({ category: "git" }, {
     type: "bash",
     pattern: "git add -- src/a.js",

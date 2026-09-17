@@ -61,6 +61,7 @@ test("linked-worktree plugin instances acquire one repository control plane and 
     client: fakeClient(),
     serverUrl: new URL("http://127.0.0.1:40123"),
     stateDirectory,
+    aioConfig: { version: 1 },
   }
   const [canonical, child] = await Promise.all([
     acquireDelegationControlPlane({ ...input, directory: repository }),
@@ -88,10 +89,10 @@ test("linked-worktree plugin instances acquire one repository control plane and 
 test("control planes do not cross repository-server identities", async (t) => {
   const { repository, sibling, stateDirectory } = await fixture(t)
   const first = await acquireDelegationControlPlane({
-    client: fakeClient(), directory: repository, serverUrl: new URL("http://127.0.0.1:40124"), stateDirectory,
+    client: fakeClient(), directory: repository, serverUrl: new URL("http://127.0.0.1:40124"), stateDirectory, aioConfig: { version: 1 },
   })
   const otherServer = await acquireDelegationControlPlane({
-    client: fakeClient(), directory: sibling, serverUrl: new URL("http://127.0.0.1:40125"), stateDirectory,
+    client: fakeClient(), directory: sibling, serverUrl: new URL("http://127.0.0.1:40125"), stateDirectory, aioConfig: { version: 1 },
   })
   assert.notStrictEqual(first, otherServer)
   assert.notEqual(first.key, otherServer.key)
@@ -103,17 +104,26 @@ test("one control plane rejects divergent category configuration", async (t) => 
     client: fakeClient(),
     serverUrl: new URL("http://127.0.0.1:40127"),
     stateDirectory,
+    aioConfig: { version: 1 },
   }
-  await acquireDelegationControlPlane({ ...input, directory: repository, categories: { one: { model: "example/one" } } })
+  await acquireDelegationControlPlane({
+    ...input,
+    directory: repository,
+    aioConfig: { version: 1, categories: { one: { model: "example/one" } } },
+  })
   await assert.rejects(
-    acquireDelegationControlPlane({ ...input, directory: sibling, categories: { two: { model: "example/two" } } }),
-    /category configuration differs/,
+    acquireDelegationControlPlane({
+      ...input,
+      directory: sibling,
+      aioConfig: { version: 1, categories: { two: { model: "example/two" } } },
+    }),
+    /AIO configuration differs/,
   )
 })
 
 test("a child-directory chat.params adapter preserves the shared profile hook", async (t) => {
   const { repository, sibling, stateDirectory } = await fixture(t)
-  const input = { client: fakeClient(), serverUrl: new URL("http://127.0.0.1:40126"), stateDirectory }
+  const input = { client: fakeClient(), serverUrl: new URL("http://127.0.0.1:40126"), stateDirectory, aioConfig: { version: 1 } }
   const canonical = await acquireDelegationControlPlane({ ...input, directory: repository })
   const child = await acquireDelegationControlPlane({ ...input, directory: sibling })
   canonical.runtime.profiles.set("child-session", { category: "standard", model: "example/model", variant: "high" })
@@ -135,7 +145,7 @@ test("non-Git directories get stable isolated control planes", async (t) => {
     await rm(root, { recursive: true })
   })
 
-  const input = { client: fakeClient(), serverUrl: new URL("http://127.0.0.1:40128"), stateDirectory, skillRoots: [] }
+  const input = { client: fakeClient(), serverUrl: new URL("http://127.0.0.1:40128"), stateDirectory, skillRoots: [], aioConfig: { version: 1 } }
   const first = await acquireDelegationControlPlane({ ...input, directory: firstDirectory })
   const sameFirst = await acquireDelegationControlPlane({ ...input, client: fakeClient(), directory: firstDirectory })
   const second = await acquireDelegationControlPlane({ ...input, directory: secondDirectory })

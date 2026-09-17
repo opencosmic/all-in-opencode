@@ -1,6 +1,7 @@
 import { realpath } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
+import { normalizeAioConfig, loadAioConfig } from "./aio-config.js"
 import { AgentDispatcher } from "./agent-dispatcher.js"
 import { CategoryEngine } from "./category-engine.js"
 import {
@@ -70,8 +71,12 @@ export class DelegationRuntime {
     client,
     stateDirectory = defaultStateDirectory(),
     registryStorePath,
+    aioConfig,
+    aioConfigPath,
     categories,
-    categoryConfigPath,
+    agents,
+    delegation,
+    availableAgents,
     directory,
     skillEntries,
     skillRoots,
@@ -125,7 +130,15 @@ export class DelegationRuntime {
     const skills = skillEntries
       ? new SkillResolver({ entries: skillEntries })
       : new SkillResolver({ entries: directory ? await discoverSkills({ directory, roots: skillRoots }) : [] })
-    const categoryEngine = new CategoryEngine(categories, { configPath: categoryConfigPath })
+    const config = aioConfig !== undefined
+      ? normalizeAioConfig(aioConfig, { configPath: aioConfigPath })
+      : categories !== undefined || agents !== undefined || delegation !== undefined
+        ? normalizeAioConfig({ version: 1, categories: categories ?? {}, agents: agents ?? {}, delegation: delegation ?? {} }, { configPath: "<injected>" })
+        : loadAioConfig({ configPath: aioConfigPath })
+    const categoryEngine = new CategoryEngine(config.categories)
+    const agentDiscovery = availableAgents === undefined && typeof client?.app?.agents === "function"
+      ? ({ directory: targetDirectory }) => AgentDispatcher.discoverAgents({ client, directory: targetDirectory })
+      : null
     return new DelegationRuntime({
       client,
       registry,
@@ -133,16 +146,32 @@ export class DelegationRuntime {
       runner,
       coordinator,
       workspaces,
-      dispatcher: new AgentDispatcher(categoryEngine),
+      dispatcher: new AgentDispatcher(categoryEngine, { aioConfig: config, availableAgents }),
       skills,
       profiles,
+      agentDiscovery,
     })
   }
 
-  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills }) {
-    Object.assign(this, { client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills })
+  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, agentDiscovery }) {
+    Object.assign(this, { client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, agentDiscovery })
     this.activeConsultationSessions = new Set()
     this.preflights = new Map()
+    this.agentDiscoveryPromise = null
+  }
+
+  async ensureAgentPolicy(directory) {
+    if (!this.agentDiscovery && !this.agentDiscoveryPromise) return
+    this.agentDiscoveryPromise ??= this.agentDiscovery({ directory })
+    try {
+      const agents = await this.agentDiscoveryPromise
+      this.dispatcher.setAvailableAgents(agents)
+      this.agentDiscovery = null
+    } catch (error) {
+      this.agentDiscoveryPromise = null
+      throw error
+    }
+    this.agentDiscoveryPromise = null
   }
 
   async executionPreflight(args, context) {
@@ -305,6 +334,7 @@ export class DelegationRuntime {
     }
     const requestedSkills = args.load_skills ?? []
     assertDelegatedSkillsAllowed(requestedSkills)
+    await this.ensureAgentPolicy(context.directory)
     const route = this.dispatcher.resolve({ ...args, parentAgent: context?.agent })
     const skills = this.skills.resolve(requestedSkills)
     const referencedWorkspaces = `${args.description}\n${args.prompt}`.match(/\bws_[0-9a-f-]+\b/g) ?? []
@@ -379,6 +409,7 @@ export class DelegationRuntime {
     if (context?.agent !== "Implementer") {
       throw new Error("consult_agents may only be called by Implementer")
     }
+    await this.ensureAgentPolicy(context.directory)
     if (!args || typeof args !== "object" || !Array.isArray(args.requests)) {
       throw new Error("consult_agents requires a requests array")
     }
@@ -633,7 +664,7 @@ export class DelegationRuntime {
     const skillList = skills.length
       ? skills.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
       : "- none"
-    return `Delegate one scoped assignment through a category or an allowlisted named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. If a selected skill is required by the assignment but unavailable, surface the capability or setup failure instead of retrying the same assignment without it; omit a skill only when it is explicitly optional and the fallback remains semantically valid. Git mechanics require category="git". Video-content analysis normally requires category="video-analysis" with load_skills=["watch"]; use it when evidence must come from the video itself rather than the surrounding website. For frontend/UI/design work that benefits from OpenDesign design-system or design-skill references, use category="visual-engineering" with load_skills=["open-design"]. This optional skill provides read-only design context; OpenCode remains responsible for implementation. Pass workspace_id for a managed workspace.`
+    return `Delegate one scoped assignment through a category or a configured named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. If a selected skill is required by the assignment but unavailable, surface the capability or setup failure instead of retrying the same assignment without it; omit a skill only when it is explicitly optional and the fallback remains semantically valid. Git mechanics require category="git". Video-content analysis normally requires category="video-analysis" with load_skills=["watch"]; use it when evidence must come from the video itself rather than the surrounding website. For frontend/UI/design work that benefits from OpenDesign design-system or design-skill references, use category="visual-engineering" with load_skills=["open-design"]. This optional skill provides read-only design context; OpenCode remains responsible for implementation. Pass workspace_id for a managed workspace.`
   }
 
   async handleEvent(event) {

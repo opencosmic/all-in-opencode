@@ -5,7 +5,7 @@
 | Runtime code uses stock public OpenCode plugin and SDK APIs only. | Static dependency guard and loader test |
 | Nine project-owned delegation tools are exposed, including the Executor-only `execution_preflight`, bounded `workspace_checkpoint_update`, and restricted `consult_agents` facades. | Plugin and runtime policy tests |
 | Category selection is deterministic and implementation categories route to Implementer. | CategoryEngine tests |
-| Named delegation accepts only project-owned read-only specialists. | AgentDispatcher tests |
+| Named delegation is fail closed: effective OpenCode discovery gates existence, AIO opt-in and caller lists gate custom agents, and workflow-specific built-in ceilings remain hard. | Delegation policy tests |
 | `consult_agents` is Implementer-only, accepts only bounded Explorer/Librarian requests, waits for all outcomes in input order, and consultation children cannot recurse. | Consultation runtime, profile, and effective-agent permission tests |
 | Ordinary Implementers cannot mutate Git topology or history. | Effective-agent permission test |
 | Git and video capabilities are scoped to sessions launched through their exact categories; video additionally requires the explicitly selected `watch` skill. Browser capability is scoped to the dedicated Browser primary route. | Category permission and Browser agent tests |

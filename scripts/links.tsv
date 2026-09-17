@@ -1,5 +1,23 @@
 # repository source|live path relative to $HOME|kind
-opencode/agents|.config/opencode/agents|directory
+opencode/agents/assistant.md|.config/opencode/agents/assistant.md|file
+opencode/agents/blender.md|.config/opencode/agents/blender.md|file
+opencode/agents/browser.md|.config/opencode/agents/browser.md|file
+opencode/agents/executor.md|.config/opencode/agents/executor.md|file
+opencode/agents/explorer.md|.config/opencode/agents/explorer.md|file
+opencode/agents/implementer.md|.config/opencode/agents/implementer.md|file
+opencode/agents/librarian.md|.config/opencode/agents/librarian.md|file
+opencode/agents/plan-reviewer.md|.config/opencode/agents/plan-reviewer.md|file
+opencode/agents/planner.md|.config/opencode/agents/planner.md|file
+opencode/agents/producer.md|.config/opencode/agents/producer.md|file
+opencode/agents/professor.md|.config/opencode/agents/professor.md|file
+opencode/agents/qa.md|.config/opencode/agents/qa.md|file
+opencode/agents/researcher.md|.config/opencode/agents/researcher.md|file
+opencode/agents/reviewer.md|.config/opencode/agents/reviewer.md|file
+opencode/agents/searcher.md|.config/opencode/agents/searcher.md|file
+opencode/agents/strategist.md|.config/opencode/agents/strategist.md|file
+opencode/agents/technical-advisor.md|.config/opencode/agents/technical-advisor.md|file
+opencode/agents/validator.md|.config/opencode/agents/validator.md|file
+opencode/agents/verifier.md|.config/opencode/agents/verifier.md|file
 opencode/commands|.config/opencode/commands|directory
 opencode/plugins|.config/opencode/plugins|directory
 opencode/tests|.config/opencode/tests|directory

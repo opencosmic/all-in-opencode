@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { copyFile, mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises"
+import { copyFile, mkdtemp, mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { promisify } from "node:util"
@@ -223,11 +223,13 @@ export async function createIsolatedConfig(repoRoot, inheritedEnvironment = proc
   const dataHome = join(root, "data")
   const stateHome = join(root, "state")
   const cacheHome = join(root, "cache")
+  const homeConfigDir = join(root, ".config", "opencode")
   await Promise.all([
     configDir,
     join(dataHome, "opencode"),
     stateHome,
     cacheHome,
+    homeConfigDir,
   ].map((path) => mkdir(path, { recursive: true })))
   if (!("OPENCODE_AUTH_CONTENT" in inheritedEnvironment)) {
     const sourceDataHome = inheritedEnvironment.XDG_DATA_HOME
@@ -241,16 +243,20 @@ export async function createIsolatedConfig(repoRoot, inheritedEnvironment = proc
       if (error.code !== "ENOENT") throw error
     }
   }
+  await writeFile(join(homeConfigDir, "aio.json"), JSON.stringify({ version: 1 }))
   const links = [
-    ["agents", join(repoRoot, "opencode/agents")],
     ["commands", join(repoRoot, "opencode/commands")],
     ["plugins", join(repoRoot, "opencode/plugins")],
     ["tests", join(repoRoot, "opencode/tests")],
-    ["categories.json", join(repoRoot, "opencode/categories.json")],
     ["tui.json", join(repoRoot, "opencode/tui.json")],
     ["opencode.jsonc", join(repoRoot, "opencode/opencode.jsonc")],
   ]
   for (const [name, target] of links) await symlink(target, join(configDir, name))
+  const agentsDirectory = join(configDir, "agents")
+  await mkdir(agentsDirectory)
+  for (const name of await readdir(join(repoRoot, "opencode/agents"))) {
+    await symlink(join(repoRoot, "opencode/agents", name), join(agentsDirectory, name))
+  }
   return {
     root,
     configDir,
@@ -259,6 +265,7 @@ export async function createIsolatedConfig(repoRoot, inheritedEnvironment = proc
       XDG_DATA_HOME: dataHome,
       XDG_STATE_HOME: stateHome,
       XDG_CACHE_HOME: cacheHome,
+      HOME: root,
       OPENCODE_CONFIG: join(repoRoot, "opencode/opencode.jsonc"),
     },
   }

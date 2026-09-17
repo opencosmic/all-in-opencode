@@ -1,6 +1,7 @@
 export const DEFAULT_CATEGORIES = Object.freeze({
   quick: {
     description: "Small contained implementation work",
+    family: "implementation",
     model: "openai/gpt-5.6-luna-fast",
     variant: "low",
     prompt_append: `<Category_Context name="quick">
@@ -9,6 +10,7 @@ You are working on a small, contained task. Move quickly, inspect only the conte
   },
   standard: {
     description: "Normal scoped implementation work",
+    family: "implementation",
     model: "openai/gpt-5.6-sol",
     variant: "medium",
     prompt_append: `<Category_Context name="standard">
@@ -17,6 +19,7 @@ You are working on ordinary implementation work. Understand the local context an
   },
   deep: {
     description: "Complex implementation requiring deeper analysis",
+    family: "implementation",
     model: "openai/gpt-5.6-terra",
     variant: "high",
     prompt_append: `<Category_Context name="deep">
@@ -25,6 +28,7 @@ You are working on a complex goal that rewards understanding before action. Trac
   },
   ultrabrain: {
     description: "Genuinely difficult logic or architecture-sensitive implementation",
+    family: "implementation",
     model: "openai/gpt-5.6-sol",
     variant: "xhigh",
     prompt_append: `<Category_Context name="ultrabrain">
@@ -33,6 +37,7 @@ You are working on a genuinely difficult logic or architecture-sensitive problem
   },
   "visual-engineering": {
     description: "Frontend, UI, styling, layout, and interaction implementation",
+    family: "implementation",
     model: "opencode-go/kimi-k3",
     variant: "high",
     prompt_append: `<Category_Context name="visual-engineering">
@@ -41,6 +46,7 @@ You are working on frontend, UI, styling, layout, or interaction work. Inspect t
   },
   writing: {
     description: "Documentation and technical writing",
+    family: "implementation",
     model: "opencode-go/kimi-k3",
     variant: "low",
     prompt_append: `<Category_Context name="writing">
@@ -49,6 +55,7 @@ You are working on documentation or prose. Identify the audience and purpose, us
   },
   artistry: {
     description: "Creative implementation where conventional approaches are insufficient",
+    family: "implementation",
     model: "opencode-go/kimi-k3",
     variant: "high",
     prompt_append: `<Category_Context name="artistry">
@@ -57,6 +64,7 @@ You are working on a creative task where a conventional implementation would mis
   },
   "unspecified-low": {
     description: "Low-effort implementation not covered by a narrower category",
+    family: "implementation",
     model: "openai/gpt-5.6-terra",
     variant: "medium",
     prompt_append: `<Category_Context name="unspecified-low">
@@ -65,6 +73,7 @@ No narrower category fits this contained task. Use a practical, moderate-effort 
   },
   "unspecified-high": {
     description: "High-effort implementation not covered by a narrower category",
+    family: "implementation",
     model: "openai/gpt-5.6-terra",
     variant: "high",
     prompt_append: `<Category_Context name="unspecified-high">
@@ -73,6 +82,7 @@ No narrower category fits this broad task. Survey the affected modules, callers,
   },
   git: {
     description: "Bounded Git mechanics explicitly selected by the caller",
+    family: "git",
     model: "openai/gpt-5.6-luna-fast",
     variant: "low",
     tools: {
@@ -86,6 +96,7 @@ You are working on one explicitly authorized Git operation. Inspect the current 
   },
   "video-analysis": {
     description: "Grounded analysis of spoken and visual video content",
+    family: "video-analysis",
     model: "openai/gpt-5.6-sol",
     variant: "high",
     tools: {
@@ -100,6 +111,7 @@ You are working on VIDEO ANALYSIS tasks. Analyze evidence from the actual video,
   },
   migration: {
     description: "Compatibility-sensitive migration work",
+    family: "implementation",
     model: "openai/gpt-5.6-sol",
     variant: "high",
     prompt_append: `<Category_Context name="migration">
@@ -108,6 +120,7 @@ You are working on a compatibility-sensitive migration. Understand the current s
   },
   database: {
     description: "Schema, query, and persistence implementation",
+    family: "implementation",
     model: "openai/gpt-5.6-sol",
     variant: "high",
     prompt_append: `<Category_Context name="database">
@@ -116,6 +129,7 @@ You are working on schema, query, or persistence behavior. Inspect the current d
   },
   testing: {
     description: "Focused automated test implementation",
+    family: "implementation",
     model: "openai/gpt-5.6-luna-fast",
     variant: "medium",
     prompt_append: `<Category_Context name="testing">
@@ -124,6 +138,7 @@ You are working on tests. Reproduce or characterize the behavior first, identify
   },
   bugfix: {
     description: "Reproduce and repair a bounded defect",
+    family: "implementation",
     model: "openai/gpt-5.6-sol",
     variant: "high",
     prompt_append: `<Category_Context name="bugfix">
@@ -132,6 +147,7 @@ You are working on a reported defect. Reproduce or concretely understand the sym
   },
   "tiny-refactor": {
     description: "Small behavior-preserving refactor",
+    family: "implementation",
     model: "openai/gpt-5.6-luna-fast",
     variant: "low",
     prompt_append: `<Category_Context name="tiny-refactor">
