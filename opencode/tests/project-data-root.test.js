@@ -8,7 +8,7 @@ import {
   LEGACY_PROJECT_DATA_ROOT_ENV,
   PROJECT_DATA_ROOT_ENV,
   resolveProjectDataRoot,
-} from "../plugins/project-data-root.js"
+} from "../plugins/shared/project-data-root.js"
 
 test("AIO_DATA_ROOT is preferred while the legacy environment variable remains supported", () => {
   assert.equal(

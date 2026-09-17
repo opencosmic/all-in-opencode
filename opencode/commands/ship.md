@@ -10,6 +10,8 @@ Finish this OpenSpec change safely:
 
 Every invocation is an independent shipping gate. Resolve exactly one current change, inspect the current git/worktree state and comparison basis, and ALWAYS dispatch a new `Verifier` against the current OpenSpec artifacts, repository tree, diff, and fresh evidence before presenting any archive or integration choice. A previous `/verify` result or `VERIFIED` message is advisory only and never satisfies this gate; any code, artifact, base, or worktree change after an earlier verdict makes that verdict stale by definition.
 
+Before dispatching the fresh `Verifier`, CALL the `workspace_inspect` tool directly from the tool catalog and use its structured result for the current workspace/branch comparison. `workspace_inspect` is a callable OpenCode/AIO tool, not an executable or shell command. Do not use Bash, `command -v workspace_inspect`, `git status`, `git worktree`, or `git rev-parse`; shell Git inspection is not a substitute. If the `workspace_inspect` tool is unavailable or its call fails, STOP before archive or integration and report a tool/runtime blocker.
+
 `/execute` must leave the completed logical change on its primary change branch/workspace; `/ship` is the final normal boundary that may integrate that verified primary change into protected `main` or `master`. Confirm that child work has already been integrated into the primary workspace and that whole-change verification covers the primary tree before offering the menu. Never ship a partial child task directly.
 
 Handle the fresh result exactly:
@@ -32,7 +34,7 @@ Any archive or sync mutation of an OpenSpec artifact invalidates the pre-archive
 
 Execute only the selected and approved actions.
 
-- `merge locally`: verify the worktree again, merge into the user-confirmed base, then verify the merged result. If merged verification fails, preserve the feature branch/workspace and stop. After successful local integration of an in-place primary, finalize its manifest with `workspace_release(finalize_in_place=true, integration_branch=<confirmed main or master>)`; this is manifest-only and preserves the current checkout. Do not finalize when the selected path intentionally keeps the change branch/workspace alive.
+- `merge locally`: only after fresh shipping verification and this explicit choice, the current Executor directly performs the final protected-base integration under its existing `bash: "*": ask` permission. Do not delegate the final protected-base switch/merge to `category="git"`. Verify the worktree again, run `git switch <confirmed-base>`, then run `git merge --ff-only <verified-feature-branch>` as separate commands. If the fast-forward merge fails because the protected base diverged, STOP, preserve the feature branch/workspace, and require reconciliation and re-verification; never fall back to an unrestricted merge. Then verify the merged result. If merged verification fails, preserve the feature branch/workspace and stop. After successful local integration of an in-place primary, finalize its manifest with `workspace_release(finalize_in_place=true, integration_branch=<confirmed main or master>)`; this is manifest-only and preserves the current checkout. Do not finalize when the selected path intentionally keeps the change branch/workspace alive.
 - `push + PR`: push/create the PR only after this explicit choice and KEEP the worktree for CI/review fixes.
 - `keep branch`: preserve both branch and worktree.
 

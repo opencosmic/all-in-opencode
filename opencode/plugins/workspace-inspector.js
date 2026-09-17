@@ -9,7 +9,7 @@ export default async function WorkspaceInspector() {
     tool: {
       workspace_inspect: tool({
         description:
-          "Read-only Git workspace preflight for the current session: repository root, HEAD, status, linked-worktree versus submodule detection, registered Git worktrees, and optional strategy-source availability from an intended base. It does not create, copy, move, reset, stash, commit, or remove anything and does not claim security isolation.",
+          "Callable read-only workspace preflight for AIO workflow placement. Invoke this tool directly from the tool catalog; it is not an executable or shell command, and shell Git inspection is not a substitute. It reports the current session's repository root, HEAD, status, linked-worktree versus submodule detection, registered Git worktrees, and optional strategy-source availability from an intended base. It does not create, copy, move, reset, stash, commit, or remove anything and does not claim security isolation.",
         args: {
           strategyPath: tool.schema.string().optional().describe("Selected strategy file to check before a change-worktree handoff"),
           baseRef: tool.schema.string().optional().describe("Intended worktree base ref; defaults to HEAD"),

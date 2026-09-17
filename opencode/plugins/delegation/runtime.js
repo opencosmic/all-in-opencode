@@ -12,7 +12,7 @@ import {
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
-import { resolveProjectDataRoot } from "../project-data-root.js"
+import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
 import { SkillResolver, discoverSkills } from "./skill-resolver.js"
 import { TaskRegistry, TERMINAL_STATUSES } from "./task-registry.js"
@@ -305,7 +305,7 @@ export class DelegationRuntime {
     }
     const requestedSkills = args.load_skills ?? []
     assertDelegatedSkillsAllowed(requestedSkills)
-    const route = this.dispatcher.resolve(args)
+    const route = this.dispatcher.resolve({ ...args, parentAgent: context?.agent })
     const skills = this.skills.resolve(requestedSkills)
     const referencedWorkspaces = `${args.description}\n${args.prompt}`.match(/\bws_[0-9a-f-]+\b/g) ?? []
     if (!args.workspace_id && referencedWorkspaces.length) {

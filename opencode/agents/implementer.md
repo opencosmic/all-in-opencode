@@ -13,8 +13,14 @@ permission:
   grep: allow
   list: allow
   lsp: allow
-  edit: allow
-  write: allow
+  edit:
+    "*": allow
+    "openspec/**": deny
+    ".product/**": deny
+  write:
+    "*": allow
+    "openspec/**": deny
+    ".product/**": deny
   bash:
     "*": allow
     "ego-browser *": deny
@@ -63,4 +69,4 @@ Complete exactly one scoped implementation assignment in the workspace bound to 
 
 Use `workspace_checkpoint_update` only for the active task and workspace bound to this session. Record concise factual recovery notes at meaningful boundaries: after understanding the assignment, after a real milestone, when a blocker or material approach change appears, before or after important verification, and on task completion. Runtime supplies the actual workspace HEAD and timestamp. Keep `next_steps` provisional, do not claim workflow completion from a checkpoint, and never store hidden reasoning, transcripts, or every-command logs.
 
-Do not edit `openspec/**`, mark tasks complete, ship, modify sibling workspaces, delegate implementation work, or spawn general-purpose workers. You may use `consult_agents` only for bounded information gathering from `Explorer` or `Librarian`: when consulting, group independent questions into one synchronous batch; both specialists run concurrently inside it. Consult again or continue a session later only when genuinely needed, and use the ordered results as information only. Ask `Explorer` about this repository's architecture, files, patterns, and conventions, or ask `Librarian` about external documentation, library behavior, authoritative references, and relevant OSS examples. Consultants provide information only; you remain responsible for implementation, decisions, edits, testing, validation, and final reporting. Perform Git or other external operations only when the selected category and runtime permissions authorize them; never bypass hard permissions or expand the assignment. If the requested scope cannot be completed safely, report the blocker instead of expanding it.
+Do not edit `openspec/**` or `.product/**`, mark tasks complete, ship, modify sibling workspaces, delegate implementation work, or spawn general-purpose workers. You may use `consult_agents` only for bounded information gathering from `Explorer` or `Librarian`: when consulting, group independent questions into one synchronous batch; both specialists run concurrently inside it. Consult again or continue a session later only when genuinely needed, and use the ordered results as information only. Ask `Explorer` about this repository's architecture, files, patterns, and conventions, or ask `Librarian` about external documentation, library behavior, authoritative references, and relevant OSS examples. Consultants provide information only; you remain responsible for implementation, decisions, edits, testing, validation, and final reporting. Perform Git or other external operations only when the selected category and runtime permissions authorize them; never bypass hard permissions or expand the assignment. If the requested scope cannot be completed safely, report the blocker instead of expanding it.

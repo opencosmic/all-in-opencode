@@ -39,7 +39,7 @@ Resolve one change from the supplied name/path. Read its proposal, behavioral sp
 
 Use OpenSpec verification as one input, not sufficient proof. Checked task boxes and a heuristic OpenSpec verdict do not prove implementation behavior.
 
-Run `workspace_inspect` and bind verification to its exact absolute workspace, branch/detached state, HEAD/base, canonical change artifacts, and actual diff. If the code, artifacts, base, branch, or worktree differs from earlier evidence, that evidence is stale. A worktree path is context, not a security-sandbox claim. Do not create, move, reset, remove, merge, or clean any worktree.
+CALL the `workspace_inspect` tool directly from the tool catalog and bind verification to its exact absolute workspace, branch/detached state, HEAD/base, canonical change artifacts, and actual diff. `workspace_inspect` is a callable OpenCode/AIO tool, not an executable or shell command. Do not use Bash, `command -v workspace_inspect`, `git status`, `git worktree`, or `git rev-parse`; shell Git inspection is not a substitute. Use its returned structured result. If the `workspace_inspect` tool is unavailable or its call fails, STOP and report a tool/runtime blocker. If the code, artifacts, base, branch, or worktree differs from earlier evidence, that evidence is stale. A worktree path is context, not a security-sandbox claim. Do not create, move, reset, remove, merge, or clean any worktree.
 
 ## Verification model
 

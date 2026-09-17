@@ -88,6 +88,33 @@ test("spec places the workspace before creating canonical OpenSpec state", async
   assert.match(command, /create no topology ledger or workspace-state file/)
 })
 
+test("mandatory workspace gates require the callable tool rather than shell inspection", async () => {
+  const paths = [
+    "commands/spec.md",
+    "agents/strategist.md",
+    "commands/plan.md",
+    "agents/planner.md",
+    "commands/execute.md",
+    "agents/executor.md",
+    "commands/verify.md",
+    "agents/verifier.md",
+    "commands/ship.md",
+  ]
+
+  for (const path of paths) {
+    const source = await text(path)
+    assert.match(source, /CALL the `workspace_inspect` tool directly from the tool catalog/, path)
+    assert.match(source, /not an executable or shell command/, path)
+    assert.match(source, /shell Git inspection is not a substitute/, path)
+    assert.match(source, /If the `workspace_inspect` tool is unavailable or its call fails, STOP/i, path)
+  }
+
+  const spec = await text("commands/spec.md")
+  assert.match(spec, /Use its returned structured result for the placement decision/)
+  assert.match(spec, /The OpenSpec CLI commands below[\s\S]*are real shell commands under the existing permissions/)
+  assert.match(spec, /that distinction does not apply to `workspace_inspect`/)
+})
+
 test("spec refuses a change-worktree handoff when strategy content is not in the intended base", async () => {
   const command = await text("commands/spec.md")
   assert.match(command, /selected strategy path and intended worktree base/)
@@ -137,6 +164,12 @@ test("ship keeps its exact menu and applies provenance-aware conservative cleanu
   assert.match(command, /verify the merged result/)
   assert.match(command, /finalize its manifest with `workspace_release\(finalize_in_place=true, integration_branch=<confirmed main or master>\)`/)
   assert.match(command, /manifest-only and preserves the current checkout/)
+  assert.match(command, /only after fresh shipping verification and this explicit choice, the current Executor directly performs the final protected-base integration under its existing `bash: "\*": ask` permission/)
+  assert.match(command, /Do not delegate the final protected-base switch\/merge to `category="git"`/)
+  assert.match(command, /`git switch <confirmed-base>`/)
+  assert.match(command, /`git merge --ff-only <verified-feature-branch>`/)
+  assert.match(command, /fast-forward merge fails because the protected base diverged, STOP/)
+  assert.match(command, /never fall back to an unrestricted merge/)
   assert.match(command, /Do not infer merge, push, PR, deploy, cleanup, sync, or archive intent/)
 })
 

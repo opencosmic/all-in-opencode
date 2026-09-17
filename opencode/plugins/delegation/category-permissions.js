@@ -12,6 +12,7 @@ const SAFE_GIT = [
   /^git commit(?:\s|$)/,
   /^git cherry-pick\s+(?:--no-commit\s+)?[0-9a-fA-F]{7,64}\s*$/,
 ]
+const GIT_MUTATION = /^\s*git\s+(?:add|commit|cherry-pick)(?:\s|$)/
 
 const OPEN_DESIGN_SERVER = "open-design"
 // OpenCode sanitizes the hyphen in the configured server name before joining
@@ -41,11 +42,33 @@ function isSafeGitCommand(command) {
 }
 
 function isCategoryScopedGitMutation(command) {
-  return /^git\s+(?:commit|cherry-pick)(?:\s|$)/.test(command.trim())
+  return isGitMutationCommand(command)
 }
 
 export function isGitMutationCommand(command) {
-  return /^git\s+(?:add|commit|cherry-pick)(?:\s|$)/.test(String(command ?? "").trim())
+  const text = String(command ?? "").trim()
+  let quote = ""
+  let segmentStart = 0
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]
+    const escaped = text[index - 1] === "\\"
+    if (quote) {
+      if (character === quote && !escaped) quote = ""
+      continue
+    }
+    if ((character === "'" || character === '"') && !escaped) {
+      quote = character
+      continue
+    }
+    const doubleBoundary = (character === "&" && text[index + 1] === "&")
+      || (character === "|" && text[index + 1] === "|")
+    const boundary = doubleBoundary || character === ";" || character === "\r" || character === "\n"
+    if (!boundary || escaped) continue
+    if (GIT_MUTATION.test(text.slice(segmentStart, index))) return true
+    if (doubleBoundary) index += 1
+    segmentStart = index + 1
+  }
+  return GIT_MUTATION.test(text.slice(segmentStart))
 }
 
 function skillLocation(skill) {
