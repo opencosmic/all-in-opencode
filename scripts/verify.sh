@@ -32,6 +32,9 @@ while IFS='|' read -r source_rel live_rel kind; do
   printf 'PASS link %s -> %s\n' "$live_path" "$source_path"
 done < "$MANIFEST"
 
+[ -d "$HOME/.config/opencode/agents" ] || fail "user-owned agents directory is missing"
+[ ! -L "$HOME/.config/opencode/agents" ] || fail "agents directory is still a symlink"
+
 [ ! -e "$REPO_ROOT/omo/omo.jsonc" ] || fail "obsolete OMO configuration still exists"
 [ ! -e "$REPO_ROOT/opencode/commands/omo.md" ] || fail "obsolete /omo command still exists"
 [ -f "$REPO_ROOT/opencode/agents/browser.md" ] || fail "dedicated Browser agent is missing"

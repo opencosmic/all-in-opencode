@@ -32,22 +32,31 @@ async function createFixtureRepository(root) {
       await mkdir(sourcePath, { recursive: true })
     } else if (kind === "file") {
       await mkdir(dirname(sourcePath), { recursive: true })
-      await writeFile(sourcePath, "")
+      await writeFile(sourcePath, `source:${sourceRelative}\n`)
     }
   }
 
   const canonicalRepository = await realpath(repository)
-
   return {
-    install,
-    manifest,
-    legacySource: join(canonicalRepository, "opencode", "categories.json"),
+    install: join(canonicalRepository, "scripts", "install.sh"),
+    manifest: join(canonicalRepository, "scripts", "links.tsv"),
+    repository: canonicalRepository,
+    agentSource: join(canonicalRepository, "opencode", "agents"),
   }
 }
 
-async function runInstall(root, fixture) {
+function builtinAgentNames(manifest) {
+  return manifest
+    .split("\n")
+    .map((line) => line.split("|"))
+    .filter(([sourceRelative, , kind]) => kind === "file" && sourceRelative?.startsWith("opencode/agents/"))
+    .map(([sourceRelative]) => sourceRelative.slice("opencode/agents/".length))
+}
+
+async function runInstall(root, fixture, backupName = "backup") {
   const home = join(root, "home")
-  const result = await execFileAsync(fixture.install, ["--backup-dir", join(root, "backup")], {
+  const backupDirectory = join(root, backupName)
+  const result = await execFileAsync(fixture.install, ["--backup-dir", backupDirectory], {
     encoding: "utf8",
     env: {
       ...process.env,
@@ -55,90 +64,120 @@ async function runInstall(root, fixture) {
       OPENCODE_WORKFLOW_DATA_ROOT: join(root, "data"),
     },
   })
-  return { home, result }
+  return { backupDirectory, home, result }
 }
 
-function categoryPath(home) {
-  return join(home, ".config", "opencode", "categories.json")
+async function assertBuiltinLinks(home, fixture) {
+  const manifest = await readFile(fixture.manifest, "utf8")
+  for (const name of builtinAgentNames(manifest)) {
+    const livePath = join(home, ".config", "opencode", "agents", name)
+    assert.equal(await readlink(livePath), join(fixture.agentSource, name), name)
+    assert.equal((await lstat(livePath)).isSymbolicLink(), true, name)
+  }
 }
 
-test("installer leaves missing user-local category config absent", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "missing-category-install-test-"))
+test("installer creates a real user-owned agents directory with per-file links", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "agents-install-test-"))
   t.after(() => rm(root, { recursive: true, force: true }))
   const fixture = await createFixtureRepository(root)
 
   const { home, result } = await runInstall(root, fixture)
-  await assert.rejects(lstat(categoryPath(home)), { code: "ENOENT" })
+  const agentsPath = join(home, ".config", "opencode", "agents")
+  assert.equal((await lstat(agentsPath)).isSymbolicLink(), false)
+  assert.equal((await lstat(agentsPath)).isDirectory(), true)
+  await assertBuiltinLinks(home, fixture)
   assert.match(result.stdout, /Migration complete/)
-  assert.doesNotMatch(await readFile(fixture.manifest, "utf8"), /^opencode\/categories\.json\|/m)
 })
 
-test("installer preserves a regular user-local category config", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "regular-category-install-test-"))
+test("installer migrates the exact old agents directory symlink and preserves custom entries", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "agents-migration-test-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const fixture = await createFixtureRepository(root)
+  const customName = "custom-architect.md"
+  const customContent = "user-owned custom agent\n"
+  await writeFile(join(fixture.agentSource, customName), customContent)
+  const builtinNames = builtinAgentNames(await readFile(fixture.manifest, "utf8"))
+  const sourceSnapshot = Object.fromEntries(await Promise.all(
+    builtinNames.map(async (name) => [name, await readFile(join(fixture.agentSource, name), "utf8")]),
+  ))
+  const home = join(root, "home")
+  const agentsPath = join(home, ".config", "opencode", "agents")
+  await mkdir(dirname(agentsPath), { recursive: true })
+  await symlink(fixture.agentSource, agentsPath)
+
+  const { backupDirectory, result } = await runInstall(root, fixture)
+  assert.equal((await lstat(agentsPath)).isSymbolicLink(), false)
+  assert.equal(await readFile(join(agentsPath, customName), "utf8"), customContent)
+  assert.equal((await lstat(join(agentsPath, customName))).isSymbolicLink(), false)
+  await assertBuiltinLinks(home, fixture)
+  assert.equal(await readlink(join(backupDirectory, "files", ".config", "opencode", "agents")), fixture.agentSource)
+  assert.match(result.stdout, /Migrated the old agents directory symlink/)
+
+  for (const [name, content] of Object.entries(sourceSnapshot)) {
+    assert.equal(await readFile(join(fixture.agentSource, name), "utf8"), content, name)
+  }
+  assert.equal(await readFile(join(fixture.agentSource, customName), "utf8"), customContent)
+})
+
+test("installer preserves custom files in an existing user-owned agents directory", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "agents-preservation-test-"))
   t.after(() => rm(root, { recursive: true, force: true }))
   const fixture = await createFixtureRepository(root)
   const home = join(root, "home")
-  const configPath = categoryPath(home)
-  const content = '{"categories":{"local":{"model":"provider/model"}}}\n'
-  const legacyContent = '{"categories":{"legacy":{"model":"provider/legacy"}}}\n'
-  await mkdir(dirname(configPath), { recursive: true })
-  await writeFile(configPath, content)
-  await writeFile(fixture.legacySource, legacyContent)
+  const agentsPath = join(home, ".config", "opencode", "agents")
+  const customPath = join(agentsPath, "local-reviewer.md")
+  const customContent = "local agent survives installation\n"
+  await mkdir(agentsPath, { recursive: true })
+  await writeFile(customPath, customContent)
 
   await runInstall(root, fixture)
-  assert.equal(await readFile(configPath, "utf8"), content)
-  assert.equal((await lstat(configPath)).isSymbolicLink(), false)
-  assert.equal(await readFile(fixture.legacySource, "utf8"), legacyContent)
+  assert.equal((await lstat(agentsPath)).isSymbolicLink(), false)
+  assert.equal(await readFile(customPath, "utf8"), customContent)
+  assert.equal((await lstat(customPath)).isSymbolicLink(), false)
+  await assertBuiltinLinks(home, fixture)
 })
 
-test("installer preserves an unrelated user-managed category symlink", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "linked-category-install-test-"))
+test("installer is idempotent after the per-file migration", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "agents-idempotency-test-"))
   t.after(() => rm(root, { recursive: true, force: true }))
   const fixture = await createFixtureRepository(root)
-  const home = join(root, "home")
-  const configPath = categoryPath(home)
-  const externalPath = join(root, "external-categories.json")
-  const externalContent = '{"categories":{}}\n'
-  const legacyContent = '{"categories":{"legacy":{"model":"provider/legacy"}}}\n'
-  await mkdir(dirname(configPath), { recursive: true })
-  await writeFile(externalPath, externalContent)
-  await writeFile(fixture.legacySource, legacyContent)
-  await symlink(externalPath, configPath)
 
-  await runInstall(root, fixture)
-  assert.equal(await readlink(configPath), externalPath)
-  assert.equal(await readFile(externalPath, "utf8"), externalContent)
-  assert.equal(await readFile(fixture.legacySource, "utf8"), legacyContent)
+  await runInstall(root, fixture, "backup-one")
+  const second = await runInstall(root, fixture, "backup-two")
+  await assertBuiltinLinks(second.home, fixture)
+  assert.equal((await lstat(join(second.home, ".config", "opencode", "agents"))).isSymbolicLink(), false)
 })
 
-test("installer converts the exact legacy category symlink into a local file", async (t) => {
+test("installer rejects an unexpected agents directory symlink without touching its target", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "agents-unexpected-link-test-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const fixture = await createFixtureRepository(root)
+  const externalDirectory = join(root, "external-agents")
+  const externalFile = join(externalDirectory, "keep.md")
+  const content = "external custom directory\n"
+  await mkdir(externalDirectory, { recursive: true })
+  await writeFile(externalFile, content)
+  const agentsPath = join(root, "home", ".config", "opencode", "agents")
+  await mkdir(dirname(agentsPath), { recursive: true })
+  await symlink(externalDirectory, agentsPath)
+
+  await assert.rejects(
+    runInstall(root, fixture),
+    /refusing unexpected agents directory symlink/,
+  )
+  assert.equal(await readFile(externalFile, "utf8"), content)
+  assert.equal(await readlink(agentsPath), externalDirectory)
+})
+
+test("installer leaves legacy categories.json untouched because AIO config is runtime-owned", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "legacy-category-install-test-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
   const fixture = await createFixtureRepository(root)
+  const legacyPath = join(root, "home", ".config", "opencode", "categories.json")
   const content = '{"categories":{"legacy":{"model":"provider/model"}}}\n'
-  t.after(() => rm(root, { recursive: true, force: true }))
-  await writeFile(fixture.legacySource, content)
-  const home = join(root, "home")
-  const configPath = categoryPath(home)
-  await mkdir(dirname(configPath), { recursive: true })
-  await symlink(fixture.legacySource, configPath)
+  await mkdir(dirname(legacyPath), { recursive: true })
+  await writeFile(legacyPath, content)
 
-  const { result } = await runInstall(root, fixture)
-  assert.equal(await readFile(configPath, "utf8"), content)
-  assert.equal((await lstat(configPath)).isSymbolicLink(), false)
-  await assert.rejects(lstat(fixture.legacySource), { code: "ENOENT" })
-  assert.match(result.stdout, /Migrated legacy repository-managed category config/)
-})
-
-test("installer removes only a broken exact legacy category symlink", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "broken-category-install-test-"))
-  const fixture = await createFixtureRepository(root)
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const home = join(root, "home")
-  const configPath = categoryPath(home)
-  await mkdir(dirname(configPath), { recursive: true })
-  await symlink(fixture.legacySource, configPath)
-
-  const { result } = await runInstall(root, fixture)
-  await assert.rejects(lstat(configPath), { code: "ENOENT" })
-  assert.match(result.stdout, /Removed broken legacy repository-managed category config symlink/)
+  await runInstall(root, fixture)
+  assert.equal(await readFile(legacyPath, "utf8"), content)
 })

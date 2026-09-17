@@ -5,8 +5,9 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 MANIFEST="$SCRIPT_DIR/links.tsv"
-CATEGORY_CONFIG_SOURCE="$REPO_ROOT/opencode/categories.json"
-CATEGORY_CONFIG_DEST="$HOME/.config/opencode/categories.json"
+AGENTS_SOURCE="$REPO_ROOT/opencode/agents"
+AGENTS_DEST="$HOME/.config/opencode/agents"
+AGENTS_REL=".config/opencode/agents"
 # AIO_DATA_ROOT is canonical. Keep the legacy variable and directory discoverable
 # so existing backup and migration state is not silently orphaned.
 if [ -n "${AIO_DATA_ROOT:-}" ]; then
@@ -23,6 +24,8 @@ LEGACY_OMO_DEST="$HOME/.omo/omo.jsonc"
 DRY_RUN=0
 BACKUP_DIR=""
 MIGRATING=0
+AGENTS_MIGRATED=0
+AGENTS_DIRECTORY_SYMLINK=0
 
 usage() {
   printf '%s\n' "Usage: $0 [--dry-run] [--backup-dir PATH]"
@@ -35,6 +38,20 @@ fail() {
 
 backup_path() {
   printf '%s/files/%s\n' "$BACKUP_DIR" "$1"
+}
+
+is_builtin_agent_name() {
+  candidate=$1
+  while IFS='|' read -r source_rel live_rel kind; do
+    case "$source_rel" in ''|'#'*) continue ;; esac
+    case "$source_rel" in
+      opencode/agents/*)
+        agent_rel=${source_rel#opencode/agents/}
+        [ "$kind" = "file" ] && [ "$agent_rel" = "$candidate" ] && return 0
+        ;;
+    esac
+  done < "$MANIFEST"
+  return 1
 }
 
 same_source() {
@@ -68,6 +85,18 @@ rollback() {
       fi
     fi
   done < "$MANIFEST"
+  if [ "$AGENTS_MIGRATED" -eq 1 ]; then
+    if [ -L "$AGENTS_DEST" ]; then
+      rm "$AGENTS_DEST"
+    elif [ -d "$AGENTS_DEST" ]; then
+      rm -rf "$AGENTS_DEST"
+    fi
+    saved_agents=$(backup_path "$AGENTS_REL")
+    if [ -L "$saved_agents" ]; then
+      mkdir -p "$(dirname -- "$AGENTS_DEST")"
+      mv "$saved_agents" "$AGENTS_DEST"
+    fi
+  fi
   printf 'Rollback source: %s\n' "$BACKUP_DIR" >&2
 }
 
@@ -93,6 +122,15 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -f "$MANIFEST" ] || fail "link manifest is missing: $MANIFEST"
+
+if [ -L "$AGENTS_DEST" ]; then
+  [ "$(readlink "$AGENTS_DEST")" = "$AGENTS_SOURCE" ] || fail "refusing unexpected agents directory symlink: $AGENTS_DEST"
+  [ -d "$AGENTS_DEST" ] || fail "expected agents directory symlink is broken: $AGENTS_DEST"
+  AGENTS_DIRECTORY_SYMLINK=1
+  printf '%s\n' "$AGENTS_DEST -> migrate to a user-owned directory"
+elif [ -e "$AGENTS_DEST" ] && [ ! -d "$AGENTS_DEST" ]; then
+  fail "expected agents path to be a directory: $AGENTS_DEST"
+fi
 
 if [ -L "$LEGACY_OMO_DEST" ] && [ "$(readlink "$LEGACY_OMO_DEST")" = "$LEGACY_OMO_SOURCE" ]; then
   printf '%s\n' "$LEGACY_OMO_DEST -> remove obsolete repository-managed symlink"
@@ -132,31 +170,6 @@ if [ "$DRY_RUN" -eq 1 ]; then
   exit 0
 fi
 
-if [ -L "$CATEGORY_CONFIG_DEST" ] && [ "$(readlink "$CATEGORY_CONFIG_DEST")" = "$CATEGORY_CONFIG_SOURCE" ]; then
-  if [ -f "$CATEGORY_CONFIG_SOURCE" ]; then
-    category_config_temp=$(mktemp "$CATEGORY_CONFIG_DEST.migration.XXXXXX") ||
-      fail "could not create a temporary local category config"
-    if ! cp -p "$CATEGORY_CONFIG_DEST" "$category_config_temp"; then
-      rm "$category_config_temp"
-      fail "could not preserve the legacy local category config"
-    fi
-    if ! mv -f "$category_config_temp" "$CATEGORY_CONFIG_DEST"; then
-      rm "$category_config_temp"
-      fail "could not migrate the legacy local category config"
-    fi
-    if [ -L "$CATEGORY_CONFIG_DEST" ] || [ ! -f "$CATEGORY_CONFIG_DEST" ]; then
-      fail "could not verify the migrated local category config"
-    fi
-    if ! rm "$CATEGORY_CONFIG_SOURCE"; then
-      fail "could not remove the legacy repository category config"
-    fi
-    printf '%s\n' "Migrated legacy repository-managed category config to $CATEGORY_CONFIG_DEST and removed the legacy repository source"
-  else
-    rm "$CATEGORY_CONFIG_DEST"
-    printf '%s\n' "Removed broken legacy repository-managed category config symlink"
-  fi
-fi
-
 if [ -L "$LEGACY_OMO_DEST" ] && [ "$(readlink "$LEGACY_OMO_DEST")" = "$LEGACY_OMO_SOURCE" ]; then
   rm "$LEGACY_OMO_DEST"
 fi
@@ -171,6 +184,21 @@ mkdir -p "$BACKUP_DIR/files"
 
 MIGRATING=1
 trap 'rollback' HUP INT TERM EXIT
+
+if [ "$AGENTS_DIRECTORY_SYMLINK" -eq 1 ]; then
+  saved_agents=$(backup_path "$AGENTS_REL")
+  mkdir -p "$(dirname -- "$saved_agents")"
+  mv "$AGENTS_DEST" "$saved_agents"
+  AGENTS_MIGRATED=1
+  mkdir -p "$AGENTS_DEST"
+  for source_item in "$AGENTS_SOURCE"/* "$AGENTS_SOURCE"/.[!.]* "$AGENTS_SOURCE"/..?*; do
+    [ -e "$source_item" ] || [ -L "$source_item" ] || continue
+    agent_name=${source_item##*/}
+    is_builtin_agent_name "$agent_name" && continue
+    cp -pPR "$source_item" "$AGENTS_DEST/$agent_name"
+  done
+  printf '%s\n' "Migrated the old agents directory symlink; custom entries were copied into the user-owned directory"
+fi
 
 # Back up every path first. No symlink exists until this phase completes.
 while IFS='|' read -r source_rel live_rel kind; do

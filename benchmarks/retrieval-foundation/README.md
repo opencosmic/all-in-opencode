@@ -9,12 +9,13 @@ future Deep Research agent.
 
 The runner invokes the installed OpenCode CLI with the following isolation:
 
-- temporary `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and
+- temporary `HOME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and
   `XDG_CACHE_HOME` directories; the data/state/cache roots prevent persistent
   OpenCode databases, sessions, logs, and caches from receiving benchmark
   writes;
-- a temporary config directory containing symlinks to this worktree's
-  `opencode/agents`, `commands`, `plugins`, `categories.json`, and `tui.json`;
+- a temporary config directory containing per-file symlinks to this worktree's
+  built-in agents plus symlinks to `commands`, `plugins`, and `tui.json`; the
+  isolated home contains a minimal `aio.json` with no user overrides;
 - `OPENCODE_CONFIG` set to this worktree's `opencode/opencode.jsonc`;
 - `--dir` set to this evaluation worktree;
 - `--agent Searcher --format json`.
