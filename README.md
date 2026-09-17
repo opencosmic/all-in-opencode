@@ -30,7 +30,7 @@ Primary agents are `Assistant`, `Browser`, `Blender`, `Producer`, `Searcher`, `P
 - `Plan Reviewer`: independent `[APPROVED]` / `[REJECTED]` plan gate.
 - `Researcher`, `Validator`, `Reviewer`, and `QA`: bounded product evidence, falsification, code review, and runtime evidence.
 
-Named delegation is fail closed. Only the repository-owned specialist allowlist is accepted; `Verifier` is reserved for Executor's fresh shipping-verification handoff.
+Named delegation is fail closed. Built-in specialists retain their workflow-specific parent ceilings; custom OpenCode agents are eligible only when the public effective-agent list contains them, `aio.json` opts them in with `delegatable: true`, and the caller lists them. `Verifier` remains reserved for Executor's fresh shipping-verification handoff.
 
 `Searcher` is read-only and does bounded adaptive retrieval with native `websearch`/`websearch_*` and `webfetch`. It does not delegate, own OpenSpec, implement code, or replace the distinct `Researcher` and `Librarian` specialist roles. It is intentionally a normal-search route, not Deep Research.
 
@@ -49,7 +49,7 @@ The runtime exposes eight tools:
 - `task_cancel`
 - `workspace_release`
 
-`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are repository-owned in the registry, while the optional user-local `~/.config/opencode/categories.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The file is not tracked by Git and may be absent; in that case only built-ins are used. The `delegate_task` description presents the resolved catalog at startup.
+`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are repository-owned in the registry, while the optional user-local `~/.config/opencode/aio.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The loader reads this file once per control plane; an absent file means only built-ins are used. The `delegate_task` description presents the resolved catalog at startup.
 
 `delegate_task` delegates a real scoped assignment. `consult_agents` is separate: only `Implementer` can call it, and only for a bounded batch of information-gathering requests to `Explorer` or `Librarian`. The batch starts its requests concurrently, waits synchronously for every outcome, and returns results in input order. Explorer reports local repository evidence; Librarian reports external documentation and upstream evidence. Neither consultant can edit, delegate, or consult another agent, and `Implementer` remains responsible for all implementation decisions, edits, and validation. Consultation tasks are always foreground (`background: false`, `completion_group: null`) and never enter the parent-resume lifecycle. A `session_id` may continue a completed consultation only for the same target, parent Implementer, and directory; skills are not exposed by this tool.
 
@@ -57,24 +57,36 @@ Category execution has three separate layers: the shared Implementer contract ho
 
 The Delegation Runtime loads in any directory. Ordinary `delegate_task` work does not require a Git repository; `workspace_prepare` and `workspace_release` remain Git/worktree operations and report a clear error when called outside one.
 
-Categories define the model, optional variant, execution mindset, and optional tool narrowing. The V1 schema is intentionally small:
+Categories define the model, optional variant, execution mindset, optional tool narrowing, and an optional lightweight `family` label. The V1 schema is intentionally small and lives under `~/.config/opencode/aio.json`:
 
 ```json
 {
+  "version": 1,
   "categories": {
-    "deep": { "model": "openai/gpt-5.6-sol", "variant": "max" },
+    "deep": { "model": "openai/gpt-5.6-sol", "variant": "max", "family": "implementation" },
     "backend-heavy": {
       "description": "Complex backend implementation work",
       "model": "provider/model",
       "variant": "high",
+      "family": "implementation",
       "prompt_append": "Check failure and data-integrity paths."
     },
     "unused-category": { "disable": true }
+  },
+  "agents": {
+    "Security Reviewer": { "delegatable": true }
+  },
+  "delegation": {
+    "My Architect": {
+      "categories": ["backend-heavy"],
+      "category_families": ["implementation"],
+      "agents": ["Explorer", "Security Reviewer"]
+    }
   }
 }
 ```
 
-Each enabled category has exactly one configured `model` and may have one string `variant`; there are no model arrays, fallback models, or category-level `reasoning` fields. A category still routes only to the reusable Implementer. Skills are separate specialized instructions and are injected only when selected, for example `delegate_task(category="deep", load_skills=["debugging"], ...)`.
+Each enabled category has exactly one configured `model` and may have one string `variant`; there are no model arrays, fallback models, category-level `reasoning`, presets, catalogs, overlays, or inheritance. `family` is an authorization grouping for configured callers; it does not grant the exact-category Git, video, or other runtime permissions. A category still routes only to the reusable Implementer. The `categories`, `category_families`, and `agents` lists in each `delegation` entry are unioned; built-in Assistant/Executor category access and Strategist/Planner named-agent ceilings remain hard boundaries. Custom callers and targets must be present in OpenCode's public effective-agent discovery, and custom targets additionally require the `agents` opt-in. Skills are separate specialized instructions and are injected only when selected, for example `delegate_task(category="deep", load_skills=["debugging"], ...)`.
 
 Independent background launches in one parent turn form one completion group. The parent does unrelated work or yields. `CompletionTracker` records terminal state and `ParentResumeCoordinator` resumes the idle parent exactly once after the group is terminal. The parent then retrieves bounded results with `task_output`; it does not run a model-driven polling loop.
 

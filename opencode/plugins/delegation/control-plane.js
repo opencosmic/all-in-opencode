@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { realpath } from "node:fs/promises"
 import { resolve } from "node:path"
 
+import { loadAioConfig, normalizeAioConfig } from "./aio-config.js"
 import { DelegationRuntime, defaultStateDirectory } from "./runtime.js"
 import { isNotGitRepositoryError, WorkspaceManager } from "./workspace-manager.js"
 
@@ -36,8 +37,8 @@ function registryStorePath(stateDirectory, projectKey) {
   return resolve(stateDirectory, "tasks", projectKey, "tasks.json")
 }
 
-function configurationFingerprint({ categories, categoryConfigPath, skillRoots }) {
-  return createHash("sha256").update(JSON.stringify({ categories, categoryConfigPath, skillRoots })).digest("hex")
+function configurationFingerprint({ aioConfig, skillRoots }) {
+  return createHash("sha256").update(JSON.stringify({ aioConfig, skillRoots })).digest("hex")
 }
 
 async function controlPlaneFacts(directory, stateDirectory) {
@@ -78,14 +79,22 @@ export async function acquireDelegationControlPlane({
   directory,
   serverUrl,
   stateDirectory = defaultStateDirectory(),
+  aioConfig,
+  aioConfigPath,
   categories,
-  categoryConfigPath,
+  agents,
+  delegation,
   skillRoots,
   now,
 } = {}) {
   if (!directory) throw new Error("delegation control plane requires a plugin directory")
   const descriptor = await describeControlPlane({ directory, serverUrl, stateDirectory })
-  const fingerprint = configurationFingerprint({ categories, categoryConfigPath, skillRoots })
+  const config = aioConfig !== undefined
+    ? normalizeAioConfig(aioConfig, { configPath: aioConfigPath })
+    : categories !== undefined || agents !== undefined || delegation !== undefined
+      ? normalizeAioConfig({ version: 1, categories: categories ?? {}, agents: agents ?? {}, delegation: delegation ?? {} }, { configPath: "<injected>" })
+      : loadAioConfig({ configPath: aioConfigPath })
+  const fingerprint = configurationFingerprint({ aioConfig: config, skillRoots })
   const planes = sharedControlPlanes()
   let pending = planes.get(descriptor.key)
   if (!pending) {
@@ -97,8 +106,8 @@ export async function acquireDelegationControlPlane({
         client,
         stateDirectory: descriptor.stateDirectory,
         registryStorePath: descriptor.registryStorePath,
-        categories,
-        categoryConfigPath,
+        aioConfig: config,
+        availableAgents: undefined,
         directory,
         skillRoots,
         now,
@@ -111,7 +120,7 @@ export async function acquireDelegationControlPlane({
   }
   const controlPlane = await pending
   if (controlPlane.configurationFingerprint !== fingerprint) {
-    throw new Error("delegation category configuration differs across plugin instances for one control plane")
+    throw new Error("delegation AIO configuration differs across plugin instances for one control plane")
   }
   return controlPlane
 }

@@ -7,8 +7,11 @@ export default async function DelegationRuntimePlugin({ client, directory, serve
     directory,
     serverUrl,
     stateDirectory: options.stateDirectory,
+    aioConfig: options.aioConfig,
+    aioConfigPath: options.aioConfigPath,
     categories: options.categories,
-    categoryConfigPath: options.categoryConfigPath,
+    agents: options.agents,
+    delegation: options.delegation,
     skillRoots: options.skillRoots,
   })
   return delegationPluginHooks(controlPlane.runtime)

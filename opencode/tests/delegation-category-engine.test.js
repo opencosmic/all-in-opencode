@@ -1,11 +1,8 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises"
-import { homedir, tmpdir } from "node:os"
-import { join } from "node:path"
 
 import { AgentDispatcher } from "../plugins/delegation/agent-dispatcher.js"
-import { CategoryEngine, DEFAULT_CATEGORIES, DEFAULT_CATEGORY_CONFIG_PATH } from "../plugins/delegation/category-engine.js"
+import { CategoryEngine, DEFAULT_CATEGORIES } from "../plugins/delegation/category-engine.js"
 
 test("built-in categories resolve to Implementer with model, variant, description, and prompt append", () => {
   const engine = new CategoryEngine({})
@@ -17,21 +14,15 @@ test("built-in categories resolve to Implementer with model, variant, descriptio
     assert.equal(result.profile.variant, expected.variant)
     assert.equal(result.profile.description, expected.description)
     assert.equal(result.profile.prompt_append, expected.prompt_append ?? "")
+    assert.equal(result.profile.family, expected.family)
     assert.match(result.profile.prompt_append, new RegExp(`<Category_Context name="${name}">`))
   }
 })
 
-test("missing user-local category config keeps built-ins available without creating a file", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "missing-category-config-test-"))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const missingPath = join(root, "missing", "categories.json")
-
-  assert.equal(DEFAULT_CATEGORY_CONFIG_PATH, join(homedir(), ".config", "opencode", "categories.json"))
-  assert.equal(DEFAULT_CATEGORY_CONFIG_PATH.includes("/opencode-workflow/opencode/categories.json"), false)
-  const engine = new CategoryEngine(undefined, { configPath: missingPath })
+test("category engine consumes injected categories and does not read a config file", () => {
+  const engine = new CategoryEngine({ userCategories: {} })
   assert.equal(engine.has("quick"), true)
   assert.equal(engine.resolve("quick").agent, "Implementer")
-  await assert.rejects(access(missingPath), { code: "ENOENT" })
 })
 
 test("category context meaningfully specializes the shared executor", () => {
@@ -73,25 +64,32 @@ test("user category fields override built-ins without recursive merging", () => 
   assert.equal(profile.description, DEFAULT_CATEGORIES.deep.description)
 })
 
-test("custom categories load from explicit local configuration without editing JavaScript", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "category-config-test-"))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const configPath = join(root, "categories.json")
-  await writeFile(configPath, JSON.stringify({ categories: {
+test("family labels can override a built-in without changing its category identity", () => {
+  const engine = new CategoryEngine({ deep: { family: "backend" } })
+  const result = engine.resolve("deep")
+  assert.equal(result.category, "deep")
+  assert.equal(result.agent, "Implementer")
+  assert.equal(result.profile.family, "backend")
+})
+
+test("custom categories and families are accepted through injected AIO config", () => {
+  const engine = new CategoryEngine({
     "backend-heavy": {
+      family: " backend ",
       description: "Complex backend implementation work",
       model: "provider/model",
       variant: "high",
     },
-  }}))
-  const engine = new CategoryEngine(undefined, { configPath })
+  })
   assert.deepEqual(engine.list().find((entry) => entry.name === "backend-heavy"), {
     name: "backend-heavy",
     description: "Complex backend implementation work",
     model: "provider/model",
     variant: "high",
+    family: "backend",
   })
   assert.equal(engine.resolve("backend-heavy").profile.model, "provider/model")
+  assert.equal(engine.resolve("backend-heavy").profile.family, "backend")
 })
 
 test("disabled categories are absent from presentation and fail when explicitly selected", () => {
@@ -124,23 +122,11 @@ test("category schema has one model and variant, with no fallback or reasoning f
   assert.throws(() => new CategoryEngine({ bad: { fallback_models: [] } }), /unsupported field "fallback_models"/)
 })
 
-test("invalid existing category config still fails clearly", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "invalid-category-config-test-"))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const configPath = join(root, "categories.json")
-  await writeFile(configPath, JSON.stringify({ categories: { broken: { model: 42 } } }))
-
-  assert.throws(
-    () => new CategoryEngine(undefined, { configPath }),
-    /invalid category config .*category "broken" field "model" must be a string/,
-  )
-})
-
 test("dispatcher enforces category XOR named agent and allowlists specialists", () => {
   const dispatcher = new AgentDispatcher(new CategoryEngine({}))
   assert.throws(() => dispatcher.resolve({}), /exactly one/)
   assert.throws(() => dispatcher.resolve({ category: "quick", agent: "Reviewer" }), /exactly one/)
-  assert.equal(dispatcher.resolve({ category: "quick" }).agent, "Implementer")
+  assert.equal(dispatcher.resolve({ category: "quick", parentAgent: "Assistant" }).agent, "Implementer")
   for (const agent of [
     "Explorer",
     "Librarian",
@@ -150,10 +136,10 @@ test("dispatcher enforces category XOR named agent and allowlists specialists", 
     "Validator",
     "Reviewer",
     "QA",
-  ]) assert.equal(dispatcher.resolve({ agent }).agent, agent)
-  assert.throws(() => dispatcher.resolve({ agent: "Browser" }), /not allowed/)
-  assert.throws(() => dispatcher.resolve({ agent: "Executor" }), /not allowed/)
-  assert.throws(() => dispatcher.resolve({ agent: "RandomAgent" }), /not allowed/)
+  ]) assert.equal(dispatcher.resolve({ agent, parentAgent: "Assistant" }).agent, agent)
+  assert.throws(() => dispatcher.resolve({ agent: "Browser", parentAgent: "Assistant" }), /not allowed/)
+  assert.throws(() => dispatcher.resolve({ agent: "Executor", parentAgent: "Assistant" }), /not allowed/)
+  assert.throws(() => dispatcher.resolve({ agent: "RandomAgent", parentAgent: "Assistant" }), /not (?:allowed|available)/)
   assert.throws(() => dispatcher.resolve({ agent: "Verifier" }), /only be delegated by Executor/)
 })
 

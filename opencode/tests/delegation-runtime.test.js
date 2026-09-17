@@ -17,10 +17,11 @@ async function git(directory, args) {
   return stdout.trim()
 }
 
-function fakeClient() {
+function fakeClient({ agents } = {}) {
   const state = {
     creates: [],
     prompts: [],
+    agentQueries: [],
     aborts: [],
     statuses: {},
     messages: {},
@@ -29,7 +30,7 @@ function fakeClient() {
     promptThrows: 0,
     parentPromptThrows: 0,
   }
-  return {
+  const client = {
     state,
     session: {
       create: async (request) => {
@@ -58,6 +59,15 @@ function fakeClient() {
       messages: async (request) => ({ data: state.messages[request.path.id] ?? [] }),
     },
   }
+  if (agents !== undefined) {
+    client.app = {
+      agents: async (request) => {
+        state.agentQueries.push(request)
+        return { data: agents }
+      },
+    }
+  }
+  return client
 }
 
 async function fixture(t) {
@@ -213,6 +223,59 @@ test("ordinary delegation works outside Git while workspace operations stay Git-
     runtime.workspaceRelease("ws_missing", context),
     /workspace_release requires a Git repository.*not inside a Git worktree/,
   )
+})
+
+test("runtime discovers and authorizes configured custom agents through the public app API", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "delegation-runtime-custom-agent-test-"))
+  const directory = join(root, "directory")
+  await mkdir(directory)
+  const agents = [
+    { name: "My Architect", mode: "primary", builtIn: false },
+    { name: "Security Reviewer", mode: "subagent", builtIn: false },
+  ]
+  const client = fakeClient({ agents })
+  const runtime = await DelegationRuntime.create({
+    client,
+    stateDirectory: join(root, "state"),
+    directory,
+    skillEntries: [],
+    aioConfig: {
+      version: 1,
+      categories: {
+        "backend-heavy": {
+          family: "implementation",
+          description: "custom implementation route",
+          model: "example/primary",
+        },
+      },
+      agents: { "Security Reviewer": { delegatable: true } },
+      delegation: {
+        "My Architect": {
+          categories: ["backend-heavy"],
+          agents: ["Security Reviewer"],
+        },
+      },
+    },
+  })
+  const context = { sessionID: "architect", messageID: "turn", agent: "My Architect", directory }
+  t.after(() => rm(root, { recursive: true, force: true }))
+  assert.deepEqual(client.state.agentQueries, [])
+
+  await runtime.delegate({
+    category: "backend-heavy",
+    description: "Configured custom category",
+    prompt: "Inspect the backend boundary",
+    run_in_background: true,
+  }, context)
+  await runtime.delegate({
+    agent: "Security Reviewer",
+    description: "Configured custom reviewer",
+    prompt: "Review the backend boundary",
+    run_in_background: true,
+  }, context)
+
+  assert.deepEqual(client.state.agentQueries, [{ query: { directory } }])
+  assert.deepEqual(client.state.prompts.map((request) => request.body.agent), ["Implementer", "Security Reviewer"])
 })
 
 test("delegated ego-browser skill selection is rejected before child launch", async (t) => {

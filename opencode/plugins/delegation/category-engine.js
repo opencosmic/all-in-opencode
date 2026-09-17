@@ -1,7 +1,3 @@
-import { readFileSync } from "node:fs"
-import { homedir } from "node:os"
-import { join } from "node:path"
-
 import { DEFAULT_CATEGORIES } from "./categories.js"
 
 const SUPPORTED_FIELDS = new Set([
@@ -11,9 +7,9 @@ const SUPPORTED_FIELDS = new Set([
   "tools",
   "prompt_append",
   "disable",
+  "family",
 ])
 
-const DEFAULT_CATEGORY_CONFIG_PATH = join(homedir(), ".config", "opencode", "categories.json")
 const RETIRED_CATEGORIES = new Set(["browser-automation"])
 
 function categoryConfigError(configPath, message) {
@@ -34,6 +30,9 @@ function validateCategory(name, source, configPath) {
       throw categoryConfigError(configPath, `category "${name}" field "${field}" must be a string`)
     }
   }
+  if (source.family !== undefined && (typeof source.family !== "string" || !source.family.trim())) {
+    throw categoryConfigError(configPath, `category "${name}" field "family" must be a non-empty string`)
+  }
   if (source.model !== undefined && !source.model.trim()) {
     throw categoryConfigError(configPath, `category "${name}" field "model" must not be empty`)
   }
@@ -50,22 +49,11 @@ function validateCategory(name, source, configPath) {
   }
 }
 
-function readCategoryConfig(configPath) {
-  let parsed
-  try {
-    parsed = JSON.parse(readFileSync(configPath, "utf8"))
-  } catch (error) {
-    if (error?.code === "ENOENT") return {}
-    throw categoryConfigError(configPath, error?.message ?? String(error))
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw categoryConfigError(configPath, "top-level value must be an object")
-  }
-  if (!parsed.categories || typeof parsed.categories !== "object" || Array.isArray(parsed.categories)) {
-    throw categoryConfigError(configPath, "top-level categories must be an object")
-  }
-  for (const [name, source] of Object.entries(parsed.categories)) validateCategory(name, source, configPath)
-  return parsed.categories
+function normalizeCategory(name, source, configPath = "<injected>") {
+  validateCategory(name, source, configPath)
+  const result = structuredClone(source)
+  if (result.family !== undefined) result.family = result.family.trim()
+  return result
 }
 
 function mergeCategory(builtin, override) {
@@ -88,23 +76,23 @@ function validateModel(name, model) {
   }
 }
 
-export { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_CONFIG_PATH, readCategoryConfig, validateCategory }
+export { DEFAULT_CATEGORIES, normalizeCategory, validateCategory }
 
 export class CategoryEngine {
-  constructor(userCategories, { builtins = DEFAULT_CATEGORIES, configPath = DEFAULT_CATEGORY_CONFIG_PATH } = {}) {
-    this.configPath = configPath
-    this.builtins = structuredClone(builtins)
-    this.userCategories = userCategories === undefined
-      ? readCategoryConfig(configPath)
-      : structuredClone(userCategories)
-    if (!this.userCategories || typeof this.userCategories !== "object" || Array.isArray(this.userCategories)) {
-      throw categoryConfigError(configPath, "categories must be an object")
+  constructor(userCategories = {}, { builtins = DEFAULT_CATEGORIES } = {}) {
+    if (userCategories && Object.hasOwn(userCategories, "userCategories") && Object.keys(userCategories).length === 1) {
+      userCategories = userCategories.userCategories
     }
-    for (const [name, source] of Object.entries(this.userCategories)) validateCategory(name, source, configPath)
+    this.builtins = structuredClone(builtins)
+    this.userCategories = structuredClone(userCategories)
+    if (!this.userCategories || typeof this.userCategories !== "object" || Array.isArray(this.userCategories)) {
+      throw categoryConfigError("<injected>", "categories must be an object")
+    }
+    for (const [name, source] of Object.entries(this.userCategories)) validateCategory(name, source, "<injected>")
     this.categories = Object.fromEntries(
       [...new Set([...Object.keys(this.builtins), ...Object.keys(this.userCategories)])]
         .filter((name) => !RETIRED_CATEGORIES.has(name))
-        .map((name) => [name, mergeCategory(this.builtins[name], this.userCategories[name])]),
+        .map((name) => [name, normalizeCategory(name, mergeCategory(this.builtins[name], this.userCategories[name]))]),
     )
   }
 
@@ -120,6 +108,7 @@ export class CategoryEngine {
         description: source.description ?? "",
         model: source.model,
         variant: source.variant,
+        ...(source.family === undefined ? {} : { family: source.family }),
       }))
   }
 

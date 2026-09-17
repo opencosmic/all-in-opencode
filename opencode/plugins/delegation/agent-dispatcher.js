@@ -1,24 +1,4 @@
-const NAMED_AGENTS = new Set([
-  "Explorer",
-  "Librarian",
-  "Technical Advisor",
-  "Plan Reviewer",
-  "Researcher",
-  "Validator",
-  "Reviewer",
-  "QA",
-  "Verifier",
-])
-
-const CONSULTATION_AGENTS = new Set(["Explorer", "Librarian"])
-
-const PARENT_AGENT_NAMED_AGENTS = new Map([
-  ["Strategist", new Set(["Explorer", "Librarian", "Researcher", "Validator"])],
-  ["Planner", new Set(["Explorer", "Librarian", "Technical Advisor", "Plan Reviewer"])],
-  ["Executor", new Set(["Plan Reviewer", "Reviewer", "QA", "Verifier"])],
-])
-
-const CATEGORY_RESTRICTED_PARENTS = new Set(["Strategist", "Planner"])
+import { DelegationPolicy, discoverAgents } from "./delegation-policy.js"
 
 function namedAgentRoute(agent) {
   return {
@@ -43,35 +23,36 @@ function namedAgentRoute(agent) {
 }
 
 export class AgentDispatcher {
-  constructor(categoryEngine) {
+  static discoverAgents = discoverAgents
+
+  constructor(categoryEngine, { policy, aioConfig, config, availableAgents } = {}) {
     this.categoryEngine = categoryEngine
+    this.policy = policy ?? new DelegationPolicy({
+      aioConfig: aioConfig ?? config,
+      categoryEngine,
+      availableAgents,
+    })
+  }
+
+  setAvailableAgents(agents) {
+    this.policy.setAvailableAgents(agents)
   }
 
   resolve({ category, agent, parentAgent }) {
     if (Boolean(category) === Boolean(agent)) {
       throw new Error("delegate_task requires exactly one of category or agent")
     }
-    const allowedNamedAgents = PARENT_AGENT_NAMED_AGENTS.get(parentAgent)
-    if (allowedNamedAgents) {
-      if (category && CATEGORY_RESTRICTED_PARENTS.has(parentAgent)) {
-        throw new Error(`${parentAgent} may only delegate its allowlisted named agents; category routes are not allowed`)
-      }
-      if (!category && !allowedNamedAgents.has(agent)) {
-        throw new Error(`${parentAgent} cannot delegate named agent ${agent}; allowed: ${[...allowedNamedAgents].join(", ")}`)
-      }
+    if (category) {
+      const route = this.categoryEngine.resolve(category)
+      this.policy.assertCategory({ caller: parentAgent, category, profile: route.profile })
+      return route
     }
-    if (!category && agent === "Verifier" && parentAgent !== "Executor") {
-      throw new Error("Verifier may only be delegated by Executor")
-    }
-    if (category) return this.categoryEngine.resolve(category)
-    if (!NAMED_AGENTS.has(agent)) throw new Error(`named agent is not allowed: ${agent}`)
+    this.policy.assertAgent({ caller: parentAgent, agent })
     return namedAgentRoute(agent)
   }
 
   resolveConsultation(agent) {
-    if (!CONSULTATION_AGENTS.has(agent)) {
-      throw new Error(`consult_agents target is not allowed: ${agent}`)
-    }
+    this.policy.assertConsultationAgent(agent)
     return namedAgentRoute(agent)
   }
 }
