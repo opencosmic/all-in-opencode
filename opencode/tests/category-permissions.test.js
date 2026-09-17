@@ -32,6 +32,8 @@ test("git category allows bounded mechanics and denies destructive operations", 
     "git branch -D task",
     "git push --force origin main",
     "git rebase main",
+    "git switch main",
+    "git checkout main",
     "git merge feature",
     "git commit --amend -m rewrite",
     "git add src/a.js && git commit -m unsafe-compound",
@@ -86,6 +88,9 @@ test("permission decisions are scoped to the exact category session", () => {
   assert.equal(categoryPermission({ category: "quick" }, request), "deny")
   assert.equal(categoryPermission(undefined, request), null)
   assert.equal(categoryPermission({ category: "git" }, { type: "bash", pattern: "git reset --hard HEAD" }), "deny")
+  for (const command of ["git switch main", "git checkout main", "git merge feature"]) {
+    assert.equal(categoryPermission({ category: "git" }, { type: "bash", pattern: command }), "deny", command)
+  }
   assert.equal(categoryPermission({ category: "git" }, {
     permission: "bash",
     patterns: ["git commit -m reviewed-task"],

@@ -178,6 +178,34 @@ test("failed local integration preserves the in-place primary manifest", async (
   assert.equal(await git(repository, ["branch", "--list", primary.branch]), primary.branch)
 })
 
+test("diverged protected base fails closed before in-place finalization", async (t) => {
+  const { repository, manager } = await fixture(t)
+  const primary = await manager.prepare({ change_id: "diverged-ship", task_id: "diverged-task" }, repository)
+  await writeFile(join(primary.directory, "feature.txt"), "feature\n")
+  await git(primary.directory, ["add", "feature.txt"])
+  await git(primary.directory, ["commit", "-m", "feature change"])
+
+  await git(repository, ["switch", "main"])
+  await writeFile(join(repository, "base-divergence.txt"), "base divergence\n")
+  await git(repository, ["add", "base-divergence.txt"])
+  await git(repository, ["commit", "-m", "diverge protected base"])
+
+  await assert.rejects(
+    execFileAsync("git", ["merge", "--ff-only", primary.branch], { cwd: repository, encoding: "utf8" }),
+    /Not possible to fast-forward|fatal:.*fast-forward/i,
+  )
+  await assert.rejects(
+    manager.release(primary.workspace_id, repository, {
+      finalize_in_place: true,
+      integration_branch: "main",
+    }),
+    /not integrated into main.*preserving/,
+  )
+  assert.equal((await manager.get(primary.workspace_id, { validate: false })).status, "active")
+  assert.equal(await git(repository, ["branch", "--show-current"]), "main")
+  assert.equal(await git(repository, ["branch", "--list", primary.branch]), primary.branch)
+})
+
 test("in-place primary finalization refuses active child and task ownership", async (t) => {
   const { root, repository } = await fixture(t)
   let activeWorkspaceID = null

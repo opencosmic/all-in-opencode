@@ -53,6 +53,8 @@ test("effective Executor policy uses only project-owned delegation and Git integ
   assert.equal(effectiveAction(executor.permission, "bash", "git worktree add /tmp/fallback"), "deny")
   assert.equal(effectiveAction(executor.permission, "bash", "git worktree remove /tmp/fallback"), "deny")
   assert.equal(effectiveAction(executor.permission, "bash", "git status --short"), "ask")
+  assert.equal(effectiveAction(executor.permission, "bash", "git switch main"), "ask")
+  assert.equal(effectiveAction(executor.permission, "bash", "git merge --ff-only feature"), "ask")
   assert.equal(
     effectiveAction(executor.permission, "external_directory", "/tmp/delegation/workspaces/task/src/index.js"),
     "allow",
@@ -77,6 +79,12 @@ test("effective Executor policy uses only project-owned delegation and Git integ
   assert.match(executor.prompt, /preserve\/isolate according to existing safety behavior/)
   assert.match(executor.prompt, /Prefer reuse and serialization by default/)
   assert.match(executor.prompt, /delegate_task\(category="git"\)/)
+  assert.match(executor.prompt, /During normal execution, task-local commits and source-derived child-to-Primary integration require/)
+  assert.match(executor.prompt, /final protected-base local integration is the narrow `\/ship` exception/)
+  assert.match(executor.prompt, /fresh shipping verification and the user's explicit `merge locally` choice/)
+  assert.match(executor.prompt, /directly performs the confirmed-base switch and `--ff-only` merge under its existing ask-level Bash permission/)
+  assert.match(executor.prompt, /Do not delegate the final protected-base switch\/merge to `category="git"`/)
+  assert.match(executor.prompt, /Never make this exception available during `\/execute`/)
   assert.match(executor.prompt, /For Executor, use `Plan Reviewer`, `Reviewer`, `QA`, and `Verifier`/)
   assert.match(executor.prompt, /Never launch a normal implementation category merely to re-apply/)
   assert.match(executor.prompt, /dynamically presented category and skill catalog/)
