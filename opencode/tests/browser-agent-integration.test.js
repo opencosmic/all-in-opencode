@@ -47,6 +47,13 @@ test("Browser's effective primary route keeps delegate_task denied", async (t) =
   assert.equal(agent.name, "Browser")
   assert.equal(agent.mode, "primary")
   assert.equal(action, "deny")
+  for (const tool of ["task_status", "task_output", "task_cancel"]) {
+    let taskAction
+    for (const rule of rules) {
+      if (rule.permission === "*" || rule.permission === tool) taskAction = rule.action
+    }
+    assert.equal(taskAction, "deny", `${tool} must remain denied`)
+  }
 })
 
 test("/browser is the neutral dedicated command and keeps the external skill external", async () => {

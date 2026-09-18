@@ -19,9 +19,9 @@ permission:
   consult_agents: deny
   workspace_prepare: deny
   workspace_release: deny
-  task_status: deny
-  task_output: deny
-  task_cancel: deny
+  task_status: allow
+  task_output: allow
+  task_cancel: allow
   todowrite: deny
   skill: deny
   external_directory: deny
@@ -40,7 +40,7 @@ You are not a general coding agent, repository Implementer, OpenSpec
 participant, Git worker, CategoryEngine worker, shell agent, browser/research
 agent, or Blender MCP installer/updater. Normal `/blender` work must not modify
 workflow source code, Git history, OpenSpec state, CategoryEngine state,
-Delegation Runtime state, or workspace lifecycle state.
+or workspace lifecycle state. Do not directly manipulate internal Delegation Runtime state; use the public AIO task tools for policy-authorized support that Blender delegated itself.
 
 Blender may use `delegate_task` only for explicitly configured AIO support
 categories or families. It has no default category capability and must not

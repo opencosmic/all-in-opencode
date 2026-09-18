@@ -172,7 +172,7 @@ test("category delegation routes to Implementer with parent and managed workspac
   assert.match(client.state.prompts[0].body.system, /append/)
   assert.doesNotMatch(client.state.prompts[0].body.parts[0].text, /append/)
   const params = {}
-  runtime.applyChatParams(result.child_session_id, params)
+  await runtime.applyChatParams(result.child_session_id, params)
   assert.deepEqual(params, {})
   assert.equal(workspace.directory, await realpath(repository))
 })
@@ -834,13 +834,52 @@ test("task_cancel aborts the correct child and preserves its workspace", async (
     prompt: "Wait",
     run_in_background: true,
   }, context)
-  const cancelled = await runtime.taskCancel(delegated.task_id)
+  const cancelled = await runtime.taskCancel(delegated.task_id, context)
   assert.equal(cancelled.status, "cancelled")
   assert.equal(client.state.aborts[0].path.id, delegated.child_session_id)
   assert.equal(await readFile(join(workspace.directory, "evidence.txt"), "utf8"), "keep\n")
-  const duplicate = await runtime.taskCancel(delegated.task_id)
+  const duplicate = await runtime.taskCancel(delegated.task_id, context)
   assert.equal(duplicate.status, "cancelled")
   assert.equal(client.state.aborts.length, 1)
+})
+
+test("task controls are parent-session-owned and foreign access does not leak or mutate", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const workspace = await runtime.workspacePrepare({ task_id: "owned-task" }, context)
+  const delegated = await runtime.delegate({
+    workspace_id: workspace.workspace_id,
+    category: "test",
+    description: "Owned task",
+    prompt: "Wait",
+    run_in_background: true,
+  }, context)
+  const foreign = { ...context, sessionID: "other-parent", messageID: "other-turn" }
+  const foreignDelegated = await runtime.delegate({
+    category: "test",
+    description: "Foreign task",
+    prompt: "Wait",
+    run_in_background: true,
+  }, foreign)
+
+  for (const operation of [
+    () => runtime.taskStatus(foreignDelegated.task_id, context),
+    () => Promise.resolve().then(() => runtime.taskOutput(foreignDelegated.task_id, undefined, context)),
+    () => runtime.taskCancel(foreignDelegated.task_id, context),
+  ]) {
+    await assert.rejects(operation, /task is not owned by the current parent session/)
+  }
+
+  assert.deepEqual((await runtime.taskStatus(undefined, context)).tasks.map((task) => task.task_id), [delegated.task_id])
+  assert.deepEqual((await runtime.taskStatus(undefined, foreign)).tasks.map((task) => task.task_id), [foreignDelegated.task_id])
+  assert.deepEqual(await runtime.taskStatus(undefined, context, delegated.workspace_id), [
+    await runtime.taskStatus(delegated.task_id, context),
+  ])
+  assert.deepEqual(await runtime.taskStatus(undefined, foreign, delegated.workspace_id), [])
+  assert.equal(client.state.aborts.length, 0)
+  assert.equal((await runtime.taskStatus(delegated.task_id, context)).status, "running")
+  assert.equal(runtime.taskOutput(delegated.task_id, undefined, context).task_id, delegated.task_id)
+  assert.equal((await runtime.taskCancel(delegated.task_id, context)).status, "cancelled")
+  assert.equal((await runtime.taskCancel(foreignDelegated.task_id, foreign)).status, "cancelled")
 })
 
 test("restart surfaces persisted tasks and surviving managed workspaces without guessing completion", async (t) => {
@@ -865,5 +904,5 @@ test("restart surfaces persisted tasks and surviving managed workspaces without 
   const recovery = await restarted.taskStatus(undefined, context)
   assert.equal(recovery.preserved_workspaces[0].workspace_id, workspace.workspace_id)
   assert.equal(recovery.preserved_workspaces[0].status, "active")
-  assert.equal((await restarted.taskCancel(delegated.task_id)).status, "cancelled")
+  assert.equal((await restarted.taskCancel(delegated.task_id, context)).status, "cancelled")
 })

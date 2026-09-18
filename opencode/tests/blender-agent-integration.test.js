@@ -30,7 +30,7 @@ test("Blender is a dedicated primary agent with an explicit MCP boundary", async
   for (const tool of coreTools) assert.match(source, new RegExp(`^  ${tool}: allow$`, "m"))
 
   const allowed = [...source.matchAll(/^  ([A-Za-z0-9_*-]+): allow$/gm)].map((match) => match[1])
-  assert.deepEqual(allowed.sort(), [...coreTools, "question", "delegate_task"].sort())
+  assert.deepEqual(allowed.sort(), [...coreTools, "question", "delegate_task", "task_status", "task_output", "task_cancel"].sort())
 
   for (const denied of [
     "bash",
@@ -40,9 +40,6 @@ test("Blender is a dedicated primary agent with an explicit MCP boundary", async
     "consult_agents",
     "workspace_prepare",
     "workspace_release",
-    "task_status",
-    "task_output",
-    "task_cancel",
     "skill",
     "external_directory",
   ]) {
@@ -55,7 +52,8 @@ test("Blender is a dedicated primary agent with an explicit MCP boundary", async
   assert.match(source, /Safe Mode is an\s+additional guard, not a complete operating-system sandbox/i)
   assert.match(source, /must not modify\s+workflow source code, Git history, OpenSpec state/i)
   assert.match(source, /CategoryEngine state/i)
-  assert.match(source, /Delegation Runtime state/i)
+  assert.match(source, /Do not directly manipulate internal Delegation Runtime state/i)
+  assert.match(source, /public AIO task tools/i)
   assert.match(source, /explicitly configured AIO support\s+categories or families/i)
   assert.match(source, /no default category capability/i)
   assert.match(source, /Do not use Blender Python\s+for generic filesystem, process, network, or shell\s+access/is)
@@ -71,7 +69,13 @@ test("Blender's effective route allows only its bounded delegation tool", async 
   assert.equal(agent.mode, "primary")
   assert.equal(agent.tools.task, false)
   assert.equal(agent.tools.edit, false)
+  for (const tool of ["delegate_task", "task_status", "task_output", "task_cancel"]) {
+    assert.equal(agent.tools[tool], true, `${tool} must remain available`)
+  }
   assert.equal(effectivePermission(agent, "delegate_task"), "allow")
+  assert.equal(effectivePermission(agent, "task_status"), "allow")
+  assert.equal(effectivePermission(agent, "task_output"), "allow")
+  assert.equal(effectivePermission(agent, "task_cancel"), "allow")
 })
 
 function effectivePermission(agent, type) {

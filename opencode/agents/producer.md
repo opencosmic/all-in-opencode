@@ -54,9 +54,9 @@ permission:
   delegate_task: allow
   workspace_prepare: deny
   workspace_release: deny
-  task_status: deny
-  task_output: deny
-  task_cancel: deny
+  task_status: allow
+  task_output: allow
+  task_cancel: allow
   external_directory: ask
 ---
 
@@ -132,9 +132,8 @@ The upstream `--skip-skills` flag is currently ignored and is not a substitute.
 
 ## HyperFrames workers
 
-Do not use the project-owned workspace lifecycle or task control tools for
-HyperFrames workers. OpenCode's native `task` permission is also intentionally
-disabled here because its target selection is not narrow
+Use the public AIO task controls (`task_status`, `task_output`, and `task_cancel`) only for AIO children that Producer created. Never use them to manage HyperFrames internal workers. Do not use the project-owned workspace lifecycle for HyperFrames workers. OpenCode's native `task` permission is also
+intentionally disabled here because its target selection is not narrow
 enough to bind a child to the upstream frame-worker contract. The upstream
 video workflows provide a serial fallback when a delegation channel is not
 available; follow that fallback and do not build a scheduler, worker pool, or

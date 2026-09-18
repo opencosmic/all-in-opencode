@@ -55,7 +55,9 @@ test("Searcher remains read-only when discovered as a delegated-capable agent", 
   assert.equal(agent.mode, "all")
   assert.equal(agent.tools.websearch, true)
   assert.equal(agent.tools.webfetch, true)
-  assert.equal(effectivePermission(agent, "delegate_task"), "deny")
+  for (const tool of ["delegate_task", "task_status", "task_output", "task_cancel"]) {
+    assert.equal(effectivePermission(agent, tool), "deny", `${tool} must remain denied`)
+  }
   assert.equal(effectivePermission(agent, "read"), "deny")
   assert.equal(effectivePermission(agent, "write"), "deny")
 })

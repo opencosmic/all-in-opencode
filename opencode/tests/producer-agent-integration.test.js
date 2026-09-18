@@ -27,6 +27,9 @@ test("Producer is a dedicated HyperFrames primary route", async (t) => {
   assert.match(producer, /question: allow/)
   assert.match(producer, /websearch: allow/)
   assert.match(producer, /^  delegate_task: allow$/m)
+  for (const tool of ["task_status", "task_output", "task_cancel"]) {
+    assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"), tool)
+  }
   assert.match(producer, /bounded supporting capabilities.*AIO delegation policy/s)
   assert.match(producer, /default capability is the\s+`video-analysis` category/s)
   assert.match(producer, /edit:\n    "\*": allow/)
@@ -50,14 +53,11 @@ test("Producer is a dedicated HyperFrames primary route", async (t) => {
     "figma",
   ]) assert.match(producer, new RegExp(`"${skill.replace("*", "\\*")}": allow`), skill)
 
-  for (const tool of [
-    "task",
-    "workspace_prepare",
-    "workspace_release",
-    "task_status",
-    "task_output",
-    "task_cancel",
-  ]) assert.match(producer, new RegExp(`  ${tool}: deny`), tool)
+  for (const tool of ["task", "workspace_prepare", "workspace_release"]) {
+    assert.match(producer, new RegExp(`  ${tool}: deny`), tool)
+  }
+  assert.match(producer, /AIO task controls.*only for AIO children that Producer created/s)
+  assert.match(producer, /Never use them to manage HyperFrames internal workers/s)
 
   assert.match(producer, /"git \*": deny/)
   assert.doesNotMatch(producer, /"git \*": allow/)
@@ -90,6 +90,9 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(agent.mode, "primary")
   assert.equal(agent.tools.websearch, true)
   assert.equal(agent.tools.task, false)
+  for (const tool of ["delegate_task", "task_status", "task_output", "task_cancel"]) {
+    assert.equal(agent.tools[tool], true, `${tool} must remain available`)
+  }
 
   const permission = (type, value) => {
     let action
@@ -100,6 +103,9 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   }
 
   assert.equal(permission("delegate_task", "anything"), "allow")
+  assert.equal(permission("task_status", "anything"), "allow")
+  assert.equal(permission("task_output", "anything"), "allow")
+  assert.equal(permission("task_cancel", "anything"), "allow")
   assert.equal(permission("workspace_prepare", "anything"), "deny")
   assert.equal(permission("workspace_release", "anything"), "deny")
   assert.equal(permission("bash", "npx hyperframes lint"), "allow")
