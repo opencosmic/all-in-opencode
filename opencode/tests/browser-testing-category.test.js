@@ -41,15 +41,26 @@ test("browser-testing is a built-in Implementer category using the testing model
   assert.equal(engine.has("browser-testing"), true)
   assert.equal(engine.resolve("browser-testing").agent, "Implementer")
   assert.match(category.prompt_append, /agent-browser/)
-  assert.match(category.prompt_append, /agent-browser skills get core/)
+  assert.match(category.prompt_append, /agent-browser --session "<session-id>" skills get core/)
+  assert.match(category.prompt_append, /agent-browser --session "<session-id>" skills get dogfood/)
   assert.match(category.prompt_append, /open -> wait -> snapshot -> interact -> re-snapshot/i)
-  assert.match(category.prompt_append, /isolated named agent-browser session/i)
-  assert.match(category.prompt_append, /agent-browser session id --scope worktree --prefix task/)
+  assert.match(category.prompt_append, /unique, short, shell-safe named session for this assignment/i)
+  assert.match(category.prompt_append, /browser-testing-\$\(date \+%s\)-\$\$/)
+  assert.match(category.prompt_append, /upstream worktree-scoped session-ID mechanism.*unique suffix/i)
+  assert.match(category.prompt_append, /do not use a fixed --prefix task/i)
+  assert.match(category.prompt_append, /fresh processes/i)
+  assert.match(category.prompt_append, /do not rely on a shell variable or exported AGENT_BROWSER_SESSION persisting/i)
+  assert.doesNotMatch(category.prompt_append, /export AGENT_BROWSER_SESSION=/)
+  assert.match(category.prompt_append, /prefix every invocation with agent-browser --session "<session-id>"/)
+  assert.match(category.prompt_append, /reuse that same literal ID throughout the assignment/i)
   assert.match(category.prompt_append, /shared unnamed\/default agent-browser session/i)
-  assert.match(category.prompt_append, /agent-browser close/)
-  assert.match(category.prompt_append, /browser startup fails or runtime readiness is uncertain/i)
-  assert.match(category.prompt_append, /agent-browser doctor --offline --quick/)
-  assert.match(category.prompt_append, /only then; do not run doctor on every task/i)
+  assert.match(category.prompt_append, /agent-browser --session "<session-id>" close/)
+  assert.match(category.prompt_append, /runtime readiness is uncertain/i)
+  assert.match(category.prompt_append, /agent-browser --session "<session-id>" doctor --offline --quick/)
+  assert.match(category.prompt_append, /lightweight check may skip browser launch validation/i)
+  assert.match(category.prompt_append, /browser startup actually fails and the quick check is insufficient/i)
+  assert.match(category.prompt_append, /agent-browser --session "<session-id>" doctor\./)
+  assert.match(category.prompt_append, /do not run doctor unconditionally/i)
   assert.match(category.prompt_append, /distinguish a browser\/runtime setup failure from an application failure/i)
   assert.match(category.prompt_append, /existing Playwright, Cypress, WebdriverIO, or other project-native E2E suite/i)
   assert.match(category.prompt_append, /do not rewrite existing tests.*agent-browser scripts/i)
@@ -100,7 +111,7 @@ test("browser-testing reuses ordinary Implementer permissions", () => {
   assert.equal(categorySessionPermission("browser-testing"), undefined)
   assert.equal(categoryPermission({ category: "browser-testing" }, {
     type: "bash",
-    pattern: "agent-browser open http://localhost:3000",
+    pattern: "agent-browser --session browser-testing-id open http://localhost:3000",
   }), null)
   assert.equal(categoryPermission({ category: "browser-testing" }, {
     type: "bash",
