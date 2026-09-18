@@ -126,6 +126,8 @@ The dedicated `Browser` route is the All-in OpenCode-facing browser agent. It in
 
 Engineering verification of a web implementation uses the separate `browser-testing` CategoryEngine profile through the shared Implementer. It prefers the external [Vercel Labs `agent-browser` CLI](https://github.com/vercel-labs/agent-browser) for runtime verification, exploratory QA, reproduction, console or network evidence, screenshots, and accessibility checks. Persistent regression, E2E, and CI work extends an existing project-native framework when one exists; AIO does not install a new framework or make Playwright the default. `browser-testing` is not the `/browser` route and never uses Browser or `ego-browser` as its backend.
 
+Each `browser-testing` task must use an isolated named `agent-browser` session and close it when verification is complete; never use the shared unnamed/default session. If the CLI exists but browser startup is uncertain, use `agent-browser doctor --offline --quick` before attributing the failure to the application.
+
 Provision the current backend explicitly, then verify it:
 
 ```sh
