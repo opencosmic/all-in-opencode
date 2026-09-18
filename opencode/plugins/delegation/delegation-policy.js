@@ -1,4 +1,4 @@
-import { normalizeAioConfig } from "./aio-config.js"
+import { normalizeAioConfig, withDefaultDelegation } from "./aio-config.js"
 import { sdkData } from "./sdk.js"
 
 const BUILTIN_NAMED_AGENTS = new Set([
@@ -10,6 +10,7 @@ const BUILTIN_NAMED_AGENTS = new Set([
   "Validator",
   "Reviewer",
   "QA",
+  "Searcher",
 ])
 
 const CONSULTATION_AGENTS = new Set(["Explorer", "Librarian"])
@@ -41,13 +42,15 @@ function isObject(value) {
 
 function normalizedConfig(config) {
   const source = isObject(config) ? config : {}
-  if (Object.hasOwn(source, "version")) return normalizeAioConfig(source, { configPath: "<injected>" })
-  return normalizeAioConfig({
-    version: 1,
-    categories: source.categories ?? {},
-    agents: source.agents ?? {},
-    delegation: source.delegation ?? {},
-  }, { configPath: "<injected>" })
+  const normalized = Object.hasOwn(source, "version")
+    ? normalizeAioConfig(source, { configPath: "<injected>" })
+    : normalizeAioConfig({
+        version: 1,
+        categories: source.categories ?? {},
+        agents: source.agents ?? {},
+        delegation: source.delegation ?? {},
+      }, { configPath: "<injected>" })
+  return withDefaultDelegation(normalized)
 }
 
 function agentMap(agents) {
@@ -114,7 +117,7 @@ export class DelegationPolicy {
 
   canUseCategory({ caller, category, profile } = {}) {
     if (!this.isKnownCaller(caller) || CATEGORY_RESTRICTED_PARENTS.has(caller)) return false
-    if (caller === "Implementer" || caller === "Browser" || caller === "Blender" || caller === "Producer") return false
+    if (caller === "Implementer" || caller === "Browser") return false
     if (BROAD_CATEGORY_PARENTS.has(caller)) return true
     const entry = this.aioConfig.delegation[caller]
     if (!entry) return false

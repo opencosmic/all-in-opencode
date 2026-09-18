@@ -121,12 +121,12 @@ export function delegationPluginHooks(runtime) {
           task_id: tool.schema.string().min(1),
           max_chars: tool.schema.number().int().min(1000).max(50000).optional(),
         },
-        execute: async (args) => json(runtime.taskOutput(args.task_id, args.max_chars)),
+        execute: async (args, context) => json(runtime.taskOutput(args.task_id, args.max_chars, context)),
       }),
       task_cancel: tool({
         description: "Abort a child session and mark its task cancelled while preserving its workspace.",
         args: { task_id: tool.schema.string().min(1) },
-        execute: async (args) => json(await runtime.taskCancel(args.task_id)),
+        execute: async (args, context) => json(await runtime.taskCancel(args.task_id, context)),
       }),
       workspace_release: tool({
         description: "Safely release a managed, terminal, clean, integrated workspace, or finalize an in-place primary only after successful local integration; never use force operations.",
@@ -139,7 +139,9 @@ export function delegationPluginHooks(runtime) {
       }),
     },
     event: async ({ event }) => runtime.handleEvent(event),
-    "chat.params": async (input, output) => runtime.applyChatParams(input.sessionID, output),
+    "chat.message": async (input) => runtime.observeSessionAgent(input),
+    "chat.params": async (input, output) => runtime.applyChatParams(input.sessionID, output, input.agent),
+    "experimental.chat.system.transform": async (input, output) => runtime.applyChatSystem(input.sessionID, output),
     "tool.execute.before": async (input, output) => runtime.applyToolExecutionBefore(input, output),
     "permission.ask": async (input, output) => runtime.applyPermission(input, output),
   }

@@ -22,6 +22,15 @@ import { isProtectedBranch, WorkspaceManager } from "./workspace-manager.js"
 const SESSION_PROFILES = Symbol.for("aio.delegation.session-profiles")
 const MAX_CONSULTATION_REQUESTS = 4
 const RESERVED_DELEGATED_SKILL = "ego-browser"
+const CATEGORY_CATALOG_AGENTS = new Set([
+  "Assistant",
+  "Executor",
+  "Planner",
+  "Strategist",
+  "Producer",
+  "Blender",
+])
+const CATEGORY_CATALOG_MARKER = "<AIO_Delegation_Categories>"
 
 function assertDelegatedSkillsAllowed(names) {
   if (Array.isArray(names) && names.includes(RESERVED_DELEGATED_SKILL)) {
@@ -155,6 +164,7 @@ export class DelegationRuntime {
 
   constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, agentDiscovery }) {
     Object.assign(this, { client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, agentDiscovery })
+    this.sessionAgents = new Map()
     this.activeConsultationSessions = new Set()
     this.preflights = new Map()
     this.agentDiscoveryPromise = null
@@ -521,7 +531,7 @@ export class DelegationRuntime {
     } catch (error) {
       if (task) {
         try {
-          return this.consultationOutcome(request.agent, this.taskOutput(task.task_id), error)
+          return this.consultationOutcome(request.agent, this.taskOutputForTask(this.registry.get(task.task_id)), error)
         } catch {
           // Fall through to the bounded error outcome below.
         }
@@ -580,14 +590,15 @@ export class DelegationRuntime {
       }
     }
     await this.tracker.wait(task.task_id)
-    return this.taskOutput(task.task_id)
+    return this.taskOutputForTask(this.registry.get(task.task_id))
   }
 
   async taskStatus(taskID, context, workspaceID) {
-    if (taskID) return publicTask(this.registry.get(taskID))
+    const parentSessionID = this.requireParentSession(context)
+    if (taskID) return publicTask(this.assertTaskOwned(taskID, parentSessionID))
     if (workspaceID) await this.workspaces.get(workspaceID)
     const tasks = this.registry.list({
-      parent_session_id: workspaceID ? undefined : context.sessionID,
+      parent_session_id: parentSessionID,
       workspace_id: workspaceID,
     }).map(publicTask)
     if (workspaceID) return tasks
@@ -622,8 +633,12 @@ export class DelegationRuntime {
     return transition.task
   }
 
-  taskOutput(taskID, maxChars = 20_000) {
-    const task = this.registry.get(taskID)
+  taskOutput(taskID, maxChars = 20_000, context) {
+    const task = this.assertTaskOwned(taskID, this.requireParentSession(context))
+    return this.taskOutputForTask(task, maxChars)
+  }
+
+  taskOutputForTask(task, maxChars = 20_000) {
     const bounded = Math.min(Math.max(Number(maxChars) || 20_000, 1_000), 50_000)
     const result = structuredClone(task.result)
     let truncated = false
@@ -639,7 +654,9 @@ export class DelegationRuntime {
     }
   }
 
-  async taskCancel(taskID) {
+  async taskCancel(taskID, context) {
+    const parentSessionID = this.requireParentSession(context)
+    this.assertTaskOwned(taskID, parentSessionID)
     const requested = await this.registry.requestCancel(taskID)
     if (["completed", "error", "cancelled"].includes(requested.status)) return publicTask(requested)
     await this.runner.abort(requested)
@@ -651,20 +668,35 @@ export class DelegationRuntime {
     return publicTask(this.registry.get(taskID))
   }
 
+  requireParentSession(context) {
+    const sessionID = typeof context?.sessionID === "string" ? context.sessionID.trim() : ""
+    if (!sessionID) throw new Error("task access requires the current parent session")
+    return sessionID
+  }
+
+  assertTaskOwned(taskID, parentSessionID) {
+    let task
+    try {
+      task = this.registry.get(taskID)
+    } catch {
+      throw new Error("task is not owned by the current parent session")
+    }
+    if (task.parent_session_id !== parentSessionID) {
+      throw new Error("task is not owned by the current parent session")
+    }
+    return task
+  }
+
   async workspaceRelease(workspaceID, context, options = {}) {
     return this.workspaces.release(workspaceID, context?.directory, options)
   }
 
   delegateTaskDescription() {
-    const categories = this.dispatcher.categoryEngine.list()
     const skills = this.skills.list().filter((entry) => entry.name !== RESERVED_DELEGATED_SKILL)
-    const categoryList = categories.length
-      ? categories.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
-      : "- none"
     const skillList = skills.length
       ? skills.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
       : "- none"
-    return `Delegate one scoped assignment through a category or a configured named specialist. Provide exactly one of category or agent.\n\nAvailable categories:\n${categoryList}\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. If a selected skill is required by the assignment but unavailable, surface the capability or setup failure instead of retrying the same assignment without it; omit a skill only when it is explicitly optional and the fallback remains semantically valid. Git mechanics require category="git". Video-content analysis normally requires category="video-analysis" with load_skills=["watch"]; use it when evidence must come from the video itself rather than the surrounding website. For frontend/UI/design work that benefits from OpenDesign design-system or design-skill references, use category="visual-engineering" with load_skills=["open-design"]. This optional skill provides read-only design context; OpenCode remains responsible for implementation. Pass workspace_id for a managed workspace.`
+    return `Delegate one scoped assignment through a category or a configured named specialist. Provide exactly one of category or agent. Category routes execute through the shared Implementer contract; named specialists use their configured route. The caller-specific AIO delegation context supplied to this agent is the authorization source, so use only a category or named agent that it permits. A foreground assignment waits for its bounded result. A background assignment returns a task_id and running status for later task_status, task_output, or task_cancel calls; those task controls are limited to children created by this parent session. Pass workspace_id for a managed workspace.\n\nAvailable skills (selective; full contents are loaded only when selected):\n${skillList}\n\nUse load_skills: ["skill-name"] only when the assignment needs that skill. If a selected skill is required by the assignment but unavailable, surface the capability or setup failure instead of retrying the same assignment without it; omit a skill only when it is explicitly optional and the fallback remains semantically valid. For frontend/UI/design work that benefits from optional OpenDesign context, use category="visual-engineering" with load_skills=["open-design"] only when that caller's catalog authorizes it.`
   }
 
   async handleEvent(event) {
@@ -679,10 +711,40 @@ export class DelegationRuntime {
     await this.coordinator.onParentIdle(sessionID)
   }
 
-  applyChatParams(sessionID, output) {
-    // Category V1 uses the public session model selector for model and variant.
-    // Keep the hook present for plugin compatibility; there are no legacy
-    // category request-parameter overrides to apply.
+  async applyChatParams(sessionID, output, agent) {
+    this.observeSessionAgent({ sessionID, agent })
+    if (!agent) return
+    try {
+      await this.ensureAgentPolicy()
+    } catch {
+      // Prompt decoration is advisory; an unavailable discovery endpoint must
+      // not prevent an otherwise valid chat from starting.
+    }
+  }
+
+  observeSessionAgent({ sessionID, agent } = {}) {
+    if (typeof sessionID !== "string" || !sessionID.trim()) return
+    if (typeof agent !== "string" || !agent.trim()) return
+    this.sessionAgents.set(sessionID, agent.trim())
+  }
+
+  applyChatSystem(sessionID, output) {
+    const agent = this.sessionAgents.get(sessionID) ?? this.profiles?.get(sessionID)?.agent
+    const categories = agent ? this.dispatcher.authorizedCategories(agent) : []
+    if (!agent || (agent !== "Searcher" && agent !== "Browser" && !CATEGORY_CATALOG_AGENTS.has(agent) && !categories.length)) return
+    if (agent === "Searcher" || agent === "Browser") return
+
+    const categoryList = categories.length
+      ? categories.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
+      : "- none"
+    const context = `${CATEGORY_CATALOG_MARKER}\nCaller-authorized AIO categories for ${agent} (disabled categories omitted):\n${categoryList}\n</AIO_Delegation_Categories>`
+    const system = Array.isArray(output?.system)
+      ? output.system
+      : typeof output?.system === "string"
+        ? [output.system]
+        : []
+    if (system.some((entry) => typeof entry === "string" && entry.includes(CATEGORY_CATALOG_MARKER))) return
+    output.system = [...system, context]
   }
 
   async applyPermission(input, output) {

@@ -6,8 +6,10 @@ import { tmpdir } from "node:os"
 
 import {
   DEFAULT_AIO_CONFIG_PATH,
+  DEFAULT_DELEGATION,
   loadAioConfig,
   normalizeAioConfig,
+  withDefaultDelegation,
 } from "../plugins/delegation/aio-config.js"
 
 async function fixture(t) {
@@ -104,6 +106,27 @@ test("delegation fields default independently to empty arrays", async (t) => {
     "Agents Only": { categories: [], category_families: [], agents: ["Explorer"] },
     "Empty Entry": { categories: [], category_families: [], agents: [] },
     "Full Entry": { categories: ["standard"], category_families: ["implementation"], agents: ["Explorer"] },
+  })
+})
+
+test("default delegation is normalized and user lists extend it by union", () => {
+  const normalized = normalizeAioConfig({
+    version: 1,
+    delegation: {
+      Producer: { categories: ["standard"], agents: ["Searcher"] },
+    },
+  })
+  const withDefaults = withDefaultDelegation(normalized)
+
+  assert.deepEqual(DEFAULT_DELEGATION.Producer, {
+    categories: ["video-analysis"],
+    category_families: [],
+    agents: [],
+  })
+  assert.deepEqual(withDefaults.delegation.Producer, {
+    categories: ["video-analysis", "standard"],
+    category_families: [],
+    agents: ["Searcher"],
   })
 })
 

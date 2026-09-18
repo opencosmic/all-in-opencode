@@ -59,6 +59,7 @@ test("Assistant owns general routing without silently entering OpenSpec", async 
   assert.match(source, /^name: Assistant$/m)
   assert.match(source, /Do not create or mutate OpenSpec state unless the user explicitly requests/)
   assert.match(source, /delegate_task\(category=\.\.\.\)/)
+  assert.match(source, /use `Searcher` for general or current web search/i)
   assert.match(source, /category="git"/)
   assert.doesNotMatch(source, /browser-automation/)
   assert.match(source, /^  skill: deny$/m)

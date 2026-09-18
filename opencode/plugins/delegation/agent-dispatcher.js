@@ -38,6 +38,14 @@ export class AgentDispatcher {
     this.policy.setAvailableAgents(agents)
   }
 
+  authorizedCategories(parentAgent) {
+    return this.categoryEngine.list().filter((entry) => this.policy.canUseCategory({
+      caller: parentAgent,
+      category: entry.name,
+      profile: entry,
+    }))
+  }
+
   resolve({ category, agent, parentAgent }) {
     if (Boolean(category) === Boolean(agent)) {
       throw new Error("delegate_task requires exactly one of category or agent")

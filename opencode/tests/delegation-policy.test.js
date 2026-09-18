@@ -6,9 +6,9 @@ import { CategoryEngine } from "../plugins/delegation/category-engine.js"
 import { DelegationPolicy, discoverAgents } from "../plugins/delegation/delegation-policy.js"
 
 const effectiveAgents = [
-  ...["Assistant", "Strategist", "Planner", "Executor", "Implementer"].map((name) => ({
+  ...["Assistant", "Strategist", "Planner", "Executor", "Implementer", "Browser", "Blender", "Producer", "Searcher"].map((name) => ({
     name,
-    mode: name === "Implementer" ? "subagent" : "primary",
+    mode: name === "Implementer" ? "subagent" : name === "Searcher" ? "all" : "primary",
     builtIn: true,
   })),
   ...[
@@ -76,6 +76,119 @@ test("Assistant and Executor preserve broad category orchestration defaults", ()
   const route = dispatcher()
   assert.equal(route.resolve({ category: "backend-heavy", parentAgent: "Assistant" }).agent, "Implementer")
   assert.equal(route.resolve({ category: "backend-heavy", parentAgent: "Executor" }).agent, "Implementer")
+})
+
+test("Searcher is available as an Assistant leaf but not to formal workflow parents", () => {
+  const route = dispatcher()
+  const searcher = route.resolve({ agent: "Searcher", parentAgent: "Assistant" })
+  assert.equal(searcher.agent, "Searcher")
+  assert.equal(searcher.category, null)
+  for (const caller of ["Strategist", "Planner", "Executor"]) {
+    assert.throws(
+      () => route.resolve({ agent: "Searcher", parentAgent: caller }),
+      new RegExp(caller + " cannot delegate named agent Searcher"),
+    )
+  }
+  assert.throws(
+    () => route.resolve({ agent: "Browser", parentAgent: "Assistant" }),
+    /named agent is not allowed: Browser/,
+  )
+  assert.throws(
+    () => route.resolve({ agent: "Browser", parentAgent: "Executor" }),
+    /(?:named agent is not allowed: Browser|Executor cannot delegate named agent Browser)/,
+  )
+})
+
+test("configured callers may opt into Searcher while Searcher remains a leaf", () => {
+  const caller = { name: "Search Coordinator", mode: "primary", builtIn: false }
+  const route = new AgentDispatcher(new CategoryEngine(config().categories), {
+    aioConfig: {
+      version: 1,
+      delegation: { [caller.name]: { agents: ["Searcher"] } },
+    },
+    availableAgents: [...effectiveAgents, caller],
+  })
+  assert.equal(route.resolve({ agent: "Searcher", parentAgent: caller.name }).agent, "Searcher")
+  assert.throws(
+    () => route.resolve({ agent: "Reviewer", parentAgent: "Searcher" }),
+    /named agent is not allowed: Reviewer/,
+  )
+})
+
+test("Producer receives only its default video-analysis category until config extends it", () => {
+  const route = dispatcher()
+  assert.equal(route.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
+  for (const category of ["standard", "quick", "git", "database"]) {
+    assert.throws(
+      () => route.resolve({ category, parentAgent: "Producer" }),
+      new RegExp("Producer is not allowed to delegate category " + category),
+    )
+  }
+
+  const extendedConfig = config()
+  extendedConfig.delegation.Producer = {
+    categories: ["standard"],
+    category_families: [],
+    agents: [],
+  }
+  const extended = new AgentDispatcher(new CategoryEngine(extendedConfig.categories), {
+    aioConfig: extendedConfig,
+    availableAgents: effectiveAgents,
+  })
+  assert.equal(extended.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
+  assert.equal(extended.resolve({ category: "standard", parentAgent: "Producer" }).agent, "Implementer")
+  assert.throws(
+    () => extended.resolve({ category: "quick", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category quick/,
+  )
+})
+
+test("Blender has no default category capability but accepts explicit categories and families", () => {
+  const route = dispatcher()
+  assert.throws(
+    () => route.resolve({ category: "video-analysis", parentAgent: "Blender" }),
+    /Blender is not allowed to delegate category video-analysis/,
+  )
+
+  const explicitConfig = config()
+  explicitConfig.delegation.Blender = {
+    categories: ["video-analysis"],
+    category_families: ["git"],
+    agents: [],
+  }
+  const explicit = new AgentDispatcher(new CategoryEngine(explicitConfig.categories), {
+    aioConfig: explicitConfig,
+    availableAgents: effectiveAgents,
+  })
+  assert.equal(explicit.resolve({ category: "video-analysis", parentAgent: "Blender" }).agent, "Implementer")
+  assert.equal(explicit.resolve({ category: "git", parentAgent: "Blender" }).agent, "Implementer")
+  assert.throws(
+    () => explicit.resolve({ category: "standard", parentAgent: "Blender" }),
+    /Blender is not allowed to delegate category standard/,
+  )
+})
+
+test("Implementer, Strategist, and Planner category ceilings remain hard while broad parents stay broad", () => {
+  const ceilingConfig = config()
+  for (const caller of ["Implementer", "Strategist", "Planner", "Browser"]) {
+    ceilingConfig.delegation[caller] = { categories: ["standard"], category_families: [], agents: [] }
+  }
+  const route = new AgentDispatcher(new CategoryEngine(ceilingConfig.categories), {
+    aioConfig: ceilingConfig,
+    availableAgents: effectiveAgents,
+  })
+  for (const caller of ["Implementer", "Strategist", "Planner"]) {
+    assert.throws(
+      () => route.resolve({ category: "standard", parentAgent: caller }),
+      new RegExp(caller === "Implementer" ? caller + " is not allowed to delegate category standard" : caller + ".*category routes are not allowed"),
+    )
+  }
+  assert.throws(
+    () => route.resolve({ category: "standard", parentAgent: "Browser" }),
+    /Browser is not allowed to delegate category standard/,
+  )
+  assert.equal(route.resolve({ category: "database", parentAgent: "Assistant" }).agent, "Implementer")
+  assert.equal(route.resolve({ category: "database", parentAgent: "Executor" }).agent, "Implementer")
 })
 
 test("Strategist and Planner category restrictions remain hard ceilings", () => {

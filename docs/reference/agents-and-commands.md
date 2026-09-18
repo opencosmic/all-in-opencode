@@ -6,9 +6,9 @@
 |---|---|---|
 | Assistant | Ordinary questions, investigation, bounded work, and routing | Small direct edits or delegated implementation; no implicit OpenSpec state |
 | Browser | Direct browser navigation, interaction, visual inspection, and Task Spaces | Browser backend only; no application or workflow-file mutation |
-| Blender | Blender scene inspection, authoring, rendering, and visual verification through Blender MCP | Live Blender scene only; no repository, Git, OpenSpec, CategoryEngine, or Delegation Runtime ownership |
-| Producer | HyperFrames-backed video creation, editing, animation, preview, and rendering | Active-project artifacts; no Git/history or workflow-runtime ownership |
-| Searcher | Normal web Search / Answer Engine with grounded current answers | Read-only native web retrieval; no delegation or OpenSpec ownership |
+| Blender | Blender scene inspection, authoring, rendering, and visual verification through Blender MCP | Live Blender scene only; no repository, Git, OpenSpec, CategoryEngine, or Delegation Runtime ownership; explicit AIO support categories/families only |
+| Producer | HyperFrames-backed video creation, editing, animation, preview, and rendering | Active-project artifacts; no Git/history or workflow-runtime ownership; bounded delegation with default `video-analysis` |
+| Searcher | Normal web Search / Answer Engine with grounded current answers | Read-only native web retrieval; direct or delegated leaf, no onward delegation or OpenSpec ownership |
 | Professor | Stateful evidence-first Deep Research with adaptive verification | Read-only native retrieval plus Professor ResearchState tools; no filesystem, Git, delegation, or browser access |
 | Strategist | Product WHAT, WHY, WHO, behavior, and scope | Product strategy, proposal, and specs only |
 | Planner | Engineering HOW and executable tasks | Active change's `design.md` and `tasks.md` only |

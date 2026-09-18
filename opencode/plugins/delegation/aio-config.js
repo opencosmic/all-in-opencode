@@ -10,6 +10,17 @@ const SUPPORTED_TOP_LEVEL_FIELDS = new Set(["version", "categories", "agents", "
 const SUPPORTED_AGENT_FIELDS = new Set(["delegatable"])
 const SUPPORTED_DELEGATION_FIELDS = new Set(["categories", "category_families", "agents"])
 
+// Built-in delegation capabilities use the same normalized shape as user
+// delegation entries. User entries extend these defaults by list union; they
+// do not silently broaden callers that have no configured capability.
+export const DEFAULT_DELEGATION = Object.freeze({
+  Producer: Object.freeze({
+    categories: Object.freeze(["video-analysis"]),
+    category_families: Object.freeze([]),
+    agents: Object.freeze([]),
+  }),
+})
+
 function configError(configPath, message) {
   return new Error(`invalid AIO config ${configPath}: ${message}`)
 }
@@ -110,6 +121,23 @@ function normalizeDelegation(value, configPath) {
     result[caller] = entry
   }
   return result
+}
+
+function union(values, additions) {
+  return [...new Set([...additions, ...values])]
+}
+
+export function withDefaultDelegation(config, defaults = DEFAULT_DELEGATION) {
+  const delegation = { ...config.delegation }
+  for (const [caller, defaultEntry] of Object.entries(defaults)) {
+    const configuredEntry = delegation[caller] ?? {}
+    delegation[caller] = {
+      categories: union(configuredEntry.categories ?? [], defaultEntry.categories ?? []),
+      category_families: union(configuredEntry.category_families ?? [], defaultEntry.category_families ?? []),
+      agents: union(configuredEntry.agents ?? [], defaultEntry.agents ?? []),
+    }
+  }
+  return { ...config, delegation }
 }
 
 export function normalizeAioConfig(value, { configPath = DEFAULT_AIO_CONFIG_PATH } = {}) {
