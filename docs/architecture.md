@@ -88,7 +88,7 @@ Workspace release is conservative: tasks must be terminal, identity and provenan
 
 Explorer answers questions about this codebase. Librarian answers questions about external dependencies and platforms. Technical Advisor helps choose among genuinely difficult technical approaches but has no approval authority. Plan Reviewer independently audits a completed plan and returns `[APPROVED]` or `[REJECTED]` without repairing it.
 
-Searcher is a primary user-facing normal web Search / Answer Engine. It uses bounded adaptive retrieval through native `websearch`/`websearch_*` and `webfetch`, remains read-only, and does not delegate or own OpenSpec. `/search` is the concise normal-search route.
+Searcher is a reusable user-facing normal web Search / Answer Engine. It uses bounded adaptive retrieval through native `websearch`/`websearch_*` and `webfetch`, remains read-only, may be invoked directly or as an explicitly authorized Assistant/configured-caller leaf, and never delegates onward or owns OpenSpec. `/search` is the concise normal-search route.
 
 Professor is a separate primary `/research` route for long-horizon Deep Research. Professor uses the same native retrieval tools directly, while the Professor runtime persists ResearchState outside the repository: structured questions, a deterministic one-task frontier, sources, evidence, findings, contradictions, claims, budgets, events, and the final report. The report remains canonical in its run directory; completion adds a runtime-controlled symlink under `/Users/code/Documents/Research/` and returns metadata for a concise conversational handoff, while `research_report` provides safe lazy reload by run ID. `Researcher` remains the bounded product/market specialist for Strategist; Professor is not a CategoryEngine category, delegation profile, skill, or wrapper around another agent.
 
@@ -108,9 +108,9 @@ The dedicated `/video` route launches the `Producer` primary agent. Producer loa
 User -> /video -> Producer -> /hyperframes -> selected workflow/domain skills -> HyperFrames CLI/project artifacts
 ```
 
-Producer can edit and write active-project artifacts, ask the user at upstream interaction gates, and run the normal `npx hyperframes ...` path. It is denied access to protected `.env`-style files, Git history mutation, the project-owned Delegation Runtime, and unrelated global skills. External skill directories remain approval-gated because the official installer may place them under different supported global roots.
+Producer can edit and write active-project artifacts, ask the user at upstream interaction gates, and run the normal `npx hyperframes ...` path. It is denied access to protected `.env`-style files, Git history mutation, broad workflow-runtime ownership, and unrelated global skills. Its `delegate_task` permission is bounded by the policy default `Producer -> video-analysis`; user configuration may extend the category or family lists. External skill directories remain approval-gated because the official installer may place them under different supported global roots.
 
-Current OpenCode exposes native `task` as a broad flat permission rather than a target-scoped frame-worker channel. Producer therefore leaves native task/delegation disabled and follows HyperFrames' documented serial fallback when a workflow has no usable delegation channel. No HyperFrames-specific scheduler, worker pool, or CategoryEngine exception is introduced. `video-production` is intentionally not a CategoryEngine category in this phase: HyperFrames is an interactive primary route, not a bounded Implementer execution profile.
+Current OpenCode exposes native `task` as a broad flat permission rather than a target-scoped frame-worker channel. Producer therefore keeps native `task` disabled and uses `delegate_task` only for policy-authorized bounded support; HyperFrames workers still follow the documented serial fallback when no suitable channel is available. No HyperFrames-specific scheduler, worker pool, or CategoryEngine exception is introduced. `video-production` is intentionally not a CategoryEngine category in this phase: HyperFrames is an interactive primary route, not a bounded Implementer execution profile.
 
 ## Blender capability
 
@@ -129,7 +129,8 @@ addon are not copied or wrapped here. The route is intentionally primary
 rather than a CategoryEngine category because Blender controls a live,
 stateful application and needs a dedicated inspect -> bounded change -> fresh
 evidence loop. It does not enter Implementer, OpenSpec, Git, workspace, or
-Delegation Runtime ownership.
+Delegation Runtime ownership; explicit AIO configuration may authorize bounded
+support categories or families, with no default category grant.
 
 The Phase 1 allowlist is exactly `blender_get_addon_status`,
 `blender_get_scene_info`, `blender_get_object_info`,

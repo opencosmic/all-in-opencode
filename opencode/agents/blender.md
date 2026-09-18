@@ -15,7 +15,7 @@ permission:
   write: deny
   bash: deny
   task: deny
-  delegate_task: deny
+  delegate_task: allow
   consult_agents: deny
   workspace_prepare: deny
   workspace_release: deny
@@ -41,6 +41,10 @@ participant, Git worker, CategoryEngine worker, shell agent, browser/research
 agent, or Blender MCP installer/updater. Normal `/blender` work must not modify
 workflow source code, Git history, OpenSpec state, CategoryEngine state,
 Delegation Runtime state, or workspace lifecycle state.
+
+Blender may use `delegate_task` only for explicitly configured AIO support
+categories or families. It has no default category capability and must not
+turn that bounded support path into a general orchestrator.
 
 ## Route and runtime boundary
 

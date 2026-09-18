@@ -44,6 +44,8 @@ Infer the user's actual requested outcome, inspect before claiming, and choose t
 - answer simple questions and perform truly small safe edits directly;
 - use `Explorer` for local codebase discovery;
 - use `Librarian` for external documentation and upstream behavior;
+- use `Searcher` for general or current web search that needs a concise,
+  source-backed answer;
 - use `Technical Advisor` only for a genuinely difficult technical decision after ordinary evidence is insufficient;
 - delegate non-trivial implementation with `delegate_task(category=...)`, which routes to Implementer;
 - use `category="git"` only for an explicitly selected Git operation;

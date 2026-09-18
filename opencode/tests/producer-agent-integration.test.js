@@ -26,6 +26,9 @@ test("Producer is a dedicated HyperFrames primary route", async (t) => {
   assert.match(producer, /User -> \/video -> Producer -> \/hyperframes/s)
   assert.match(producer, /question: allow/)
   assert.match(producer, /websearch: allow/)
+  assert.match(producer, /^  delegate_task: allow$/m)
+  assert.match(producer, /bounded supporting capabilities.*AIO delegation policy/s)
+  assert.match(producer, /default capability is the\s+`video-analysis` category/s)
   assert.match(producer, /edit:\n    "\*": allow/)
   assert.match(producer, /write:\n    "\*": allow/)
   assert.match(producer, /external_directory: ask/)
@@ -49,7 +52,6 @@ test("Producer is a dedicated HyperFrames primary route", async (t) => {
 
   for (const tool of [
     "task",
-    "delegate_task",
     "workspace_prepare",
     "workspace_release",
     "task_status",
@@ -88,9 +90,6 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(agent.mode, "primary")
   assert.equal(agent.tools.websearch, true)
   assert.equal(agent.tools.task, false)
-  assert.equal(agent.tools.delegate_task, false)
-  assert.equal(agent.tools.workspace_prepare, false)
-  assert.equal(agent.tools.workspace_release, false)
 
   const permission = (type, value) => {
     let action
@@ -100,6 +99,9 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
     return action
   }
 
+  assert.equal(permission("delegate_task", "anything"), "allow")
+  assert.equal(permission("workspace_prepare", "anything"), "deny")
+  assert.equal(permission("workspace_release", "anything"), "deny")
   assert.equal(permission("bash", "npx hyperframes lint"), "allow")
   assert.equal(permission("bash", "npx hyperframes skills"), "deny")
   assert.equal(permission("bash", "npx hyperframes skills update"), "ask")

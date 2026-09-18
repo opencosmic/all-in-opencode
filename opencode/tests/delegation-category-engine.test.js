@@ -136,6 +136,7 @@ test("dispatcher enforces category XOR named agent and allowlists specialists", 
     "Validator",
     "Reviewer",
     "QA",
+    "Searcher",
   ]) assert.equal(dispatcher.resolve({ agent, parentAgent: "Assistant" }).agent, agent)
   assert.throws(() => dispatcher.resolve({ agent: "Browser", parentAgent: "Assistant" }), /not allowed/)
   assert.throws(() => dispatcher.resolve({ agent: "Executor", parentAgent: "Assistant" }), /not allowed/)

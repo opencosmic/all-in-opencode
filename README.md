@@ -6,7 +6,7 @@ In this documentation, `OpenCode` means the upstream coding agent/runtime; `All-
 
 ## Workflows
 
-`Assistant` handles ordinary work: explanations, investigation, bounded implementation, documentation, reviews, dependency research, Git mechanics, and video analysis. It answers or edits directly when work is truly small, consults read-only specialists when evidence improves correctness, and routes non-trivial implementation through `delegate_task(category=...)` to `Implementer`. `Searcher` and `/search` provide a separate user-facing normal web Search / Answer Engine route for grounded current answers; `Professor` and `/research` provide stateful Deep Research with durable evidence and verification.
+`Assistant` handles ordinary work: explanations, investigation, bounded implementation, documentation, reviews, dependency research, Git mechanics, and video analysis. It answers or edits directly when work is truly small, consults read-only specialists when evidence improves correctness, can delegate general or current web search to the read-only `Searcher` leaf, and routes non-trivial implementation through `delegate_task(category=...)` to `Implementer`. `Searcher` and `/search` provide a separate user-facing normal web Search / Answer Engine route for grounded current answers; `Professor` and `/research` provide stateful Deep Research with durable evidence and verification.
 
 The formal lifecycle is:
 
@@ -32,7 +32,7 @@ Primary agents are `Assistant`, `Browser`, `Blender`, `Producer`, `Searcher`, `P
 
 Named delegation is fail closed. Built-in specialists retain their workflow-specific parent ceilings; custom OpenCode agents are eligible only when the public effective-agent list contains them, `aio.json` opts them in with `delegatable: true`, and the caller lists them. `Verifier` remains reserved for Executor's fresh shipping-verification handoff.
 
-`Searcher` is read-only and does bounded adaptive retrieval with native `websearch`/`websearch_*` and `webfetch`. It does not delegate, own OpenSpec, implement code, or replace the distinct `Researcher` and `Librarian` specialist roles. It is intentionally a normal-search route, not Deep Research.
+`Searcher` is read-only and does bounded adaptive retrieval with native `websearch`/`websearch_*` and `webfetch`. It may run directly through `/search` or as an explicitly authorized Assistant/configured-caller leaf, but it never delegates onward, owns OpenSpec, implements code, or replaces the distinct `Researcher` and `Librarian` specialist roles. It is intentionally a normal-search route, not Deep Research.
 
 `Professor` is read-only and owns the user-facing `/research` route. It uses native `websearch`/`websearch_*` and selective `webfetch` through a small persistent runtime. The runtime owns ResearchState, the priority frontier, evidence and claim IDs, budgets, contradictions, verification, events, and reports. The canonical report remains in the Professor run directory; completed runs expose a runtime-controlled symlink under `/Users/code/Documents/Research/`, and later follow-ups can reload a clearly identified completed report with `research_report`. Professor's final response is a concise localized handoff with runtime metrics and the report path, not a duplicate full report. `Researcher` remains a bounded product and market specialist for Strategist; `Librarian` remains a bounded external technical evidence specialist.
 
@@ -49,7 +49,7 @@ The runtime exposes eight tools:
 - `task_cancel`
 - `workspace_release`
 
-`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are repository-owned in the registry, while the optional user-local `~/.config/opencode/aio.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The loader reads this file once per control plane; an absent file means only built-ins are used. The `delegate_task` description presents the resolved catalog at startup.
+`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are repository-owned in the registry, while the optional user-local `~/.config/opencode/aio.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The loader reads this file once per control plane; an absent file means only built-ins are used. Delegation policy also supplies the bounded built-in `Producer -> video-analysis` capability; user delegation lists extend that default by union, while Blender has no default category capability. The `delegate_task` description presents the resolved catalog at startup.
 
 `delegate_task` delegates a real scoped assignment. `consult_agents` is separate: only `Implementer` can call it, and only for a bounded batch of information-gathering requests to `Explorer` or `Librarian`. The batch starts its requests concurrently, waits synchronously for every outcome, and returns results in input order. Explorer reports local repository evidence; Librarian reports external documentation and upstream evidence. Neither consultant can edit, delegate, or consult another agent, and `Implementer` remains responsible for all implementation decisions, edits, and validation. Consultation tasks are always foreground (`background: false`, `completion_group: null`) and never enter the parent-resume lifecycle. A `session_id` may continue a completed consultation only for the same target, parent Implementer, and directory; skills are not exposed by this tool.
 
@@ -141,7 +141,7 @@ Video production has its own primary route:
 User -> /video -> Producer -> /hyperframes -> HyperFrames workflows and domain skills
 ```
 
-`Producer` is dedicated to HyperFrames-backed creation, editing, animation, composition, preview, and rendering. It is not a general coding agent, OpenSpec worker, CategoryEngine `Implementer`, Git worker, or video-content analysis route. It preserves the upstream brief, review, preview, and final-render approval gates and writes project artifacts in the active project.
+`Producer` is dedicated to HyperFrames-backed creation, editing, animation, composition, preview, and rendering. It is not a general coding agent, OpenSpec worker, CategoryEngine `Implementer`, Git worker, or video-content analysis route. It preserves the upstream brief, review, preview, and final-render approval gates, writes project artifacts in the active project, and may use only policy-authorized bounded delegation (default: `video-analysis`).
 
 HyperFrames is an external upstream framework and skill set. The repository does not vendor or fork it. Run the explicit provisioning flow when the skill set is missing or needs an update:
 
@@ -165,8 +165,10 @@ User -> /blender -> Blender -> Blender MCP -> Blender addon -> Blender scene
 `Blender` is dedicated to scene inspection, modeling, materials, lighting,
 cameras, supported animation, rendering, requested saves/exports, and fresh
 visual verification. It is not a general coding agent, Implementer, OpenSpec,
-Git, CategoryEngine, or Delegation Runtime worker. Assistant routes Blender
-scene work to `/blender` and does not call Blender MCP directly.
+Git, CategoryEngine owner, or Delegation Runtime owner. Explicitly configured
+AIO categories or families may provide bounded support; Blender has no default
+category capability. Assistant routes Blender scene work to `/blender` and does
+not call Blender MCP directly.
 
 Blender MCP remains the external `ahujasid/blender-mcp` dependency. The
 repository owns only the route, MCP configuration, least-privilege agent
