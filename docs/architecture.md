@@ -8,6 +8,7 @@ User
  |                                            +-- consult_agents --> Explorer / Librarian
  |                                            +-- git
  |                                            +-- video-analysis + watch
+ |                                            +-- browser-testing + agent-browser CLI
  |                                            +-- visual-engineering + open-design (optional resources)
  +-- /browser -------> Browser --> ego-browser backend
  +-- /blender -------> Blender --> Blender MCP --> Blender addon
@@ -40,7 +41,9 @@ The runtime also initializes outside Git repositories. In that case, ordinary de
 
 Categories are small execution profiles: one `model`, an optional string `variant`, an execution-mindset `prompt_append`, optional tool narrowing, and an optional `family` label. Built-ins are repository-owned in `categories.js`. The optional user-local `~/.config/opencode/aio.json` is loaded by the shared loader once at the control-plane boundary and field-merges user category entries over built-ins. It may be absent, in which case built-ins alone are used. The V1 file has only `version`, `categories`, `agents`, and `delegation` sections. `delegation[caller].categories`, `category_families`, and `agents` are unioned, while broad Assistant/Executor category access and the Strategist/Planner/Verifier ceilings remain hard-coded policy boundaries. Families are labels for delegation policy only and do not widen exact-category session permissions. There are no presets, catalogs, overlays, inheritance, model fallback chains, or category-level reasoning fields. Every enabled category uses the same Implementer contract. Category context changes the executor's mindset and completion bar; it is not a second executor or a skill binding.
 
-`load_skills` is an explicit list of installed/local skill names. The runtime advertises only name/description metadata and injects full content plus the selected skill's location for bundled runtime resolution into the child Implementer system context. Unknown names fail closed. Skill choice remains independent from category choice, while hard runtime authorization remains category-scoped: the current `watch` runtime boundary is available only to `video-analysis`.
+`load_skills` is an explicit list of installed/local skill names. The runtime advertises only name/description metadata and injects full content plus the selected skill's location for bundled runtime resolution into the child Implementer system context. Unknown names fail closed. Skill choice remains independent from category choice, while hard runtime authorization remains category-scoped: the current `watch` runtime boundary is available only to `video-analysis`. `browser-testing` uses the external `agent-browser` CLI's version-matched skill guidance at runtime rather than copying that upstream content into AIO.
+
+Every `browser-testing` browser run starts with `agent-browser session id --scope worktree --prefix "browser-testing-$(date +%s)-$$"`, captures the literal stdout ID, carries that exact value across fresh Bash processes, passes `--session <id>` explicitly on every subsequent invocation, never uses the shared unnamed/default session, and closes that same session. If runtime readiness is uncertain, the category uses the lightweight `doctor --offline --quick` diagnostic; if startup fails and the quick check is insufficient, it uses the full official doctor diagnostic.
 
 Workspace release accepts either ancestry or Git-proven patch equivalence. A cherry-picked workspace is removed normally while its non-ancestor branch is retained when safe `git branch -d` refuses; release never force-deletes it.
 
@@ -99,6 +102,12 @@ The public CodeGraph CLI is provisioned independently and connected through `cod
 ## Browser capability
 
 The dedicated `/browser` route launches the purpose-built `Browser` primary agent for direct navigation, interaction, visual inspection, Task Spaces, and browser evidence. It independently uses the external `ego-browser` skill/runtime. Browser remains outside CategoryEngine and the reusable Implementer; Assistant-to-Browser delegation is not part of this phase.
+
+## Browser-testing category
+
+`browser-testing` is a built-in CategoryEngine profile that routes to the shared Implementer for technical browser verification of web implementations. It prefers the external [Vercel Labs `agent-browser` CLI](https://github.com/vercel-labs/agent-browser) for runtime verification, exploratory QA, reproduction, console or network inspection, screenshots, accessibility checks, and concise evidence. After establishing the assignment's unique session ID, load current CLI guidance with an explicit session such as `agent-browser --session <id> skills get core`; AIO does not vendor that upstream guidance, install the CLI at runtime, or pin a tool-specific category model.
+
+When a persistent regression, E2E, or CI test is required, the category extends an existing project-native Playwright, Cypress, WebdriverIO, or other E2E suite. It does not rewrite existing tests, install a new framework automatically, or make Playwright mandatory. If `agent-browser` is unavailable and no valid native suite applies, the assignment reports the missing prerequisite instead of silently switching backends. This category is separate from `/browser` and never uses Browser or `ego-browser` as its backend.
 
 ## HyperFrames video capability
 

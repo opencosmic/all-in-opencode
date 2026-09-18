@@ -43,6 +43,10 @@ Run `./scripts/setup-ego-browser.sh`, finish the Ego Lite GUI onboarding, then r
 
 Use `/browser` for the dedicated Browser route; it requires the external backend health described above.
 
+## Browser-testing CLI is not ready
+
+The `browser-testing` category uses the external [Vercel Labs `agent-browser` CLI](https://github.com/vercel-labs/agent-browser) for runtime and exploratory browser verification. Check whether it is available with `command -v agent-browser`. If it is missing, install the official CLI once with `npm install -g agent-browser`, then download its managed Chrome runtime with `agent-browser install`. AIO does not install this dependency during delegation or copy its versioned skills into the repository; first run `agent-browser session id --scope worktree --prefix "browser-testing-$(date +%s)-$$"` in its own Bash call and copy the literal stdout ID. Use that exact literal with `--session <id>` on every subsequent invocation, including `agent-browser --session <id> skills get core`, diagnostics, browser actions, and close. Do not rely on shell variables or exported `AGENT_BROWSER_SESSION` surviving across calls, and never use the shared unnamed/default session. If runtime readiness is uncertain, run `agent-browser --session <id> doctor --offline --quick`; if browser startup fails and the quick check is insufficient, run the full `agent-browser --session <id> doctor` diagnostic. When a persistent regression is required, use the repository's existing E2E framework instead. Do not silently substitute another browser backend or install a new framework.
+
 ## Blender MCP is unavailable
 
 Run `./scripts/check-blender-mcp.sh` for a read-only report. It checks `uv`/
