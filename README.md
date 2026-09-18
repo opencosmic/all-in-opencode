@@ -128,6 +128,8 @@ Engineering verification of a web implementation uses the separate `browser-test
 
 Each `browser-testing` task must run `agent-browser session id --scope worktree --prefix "browser-testing-$(date +%s)-$$"` in its own Bash call and copy the literal stdout value. Use that exact literal with `--session <id>` on every later invocation, including guidance, browser actions, diagnostics, and close; do not rely on shell variables or exported `AGENT_BROWSER_SESSION` surviving across calls or use the unnamed/default session. If runtime readiness is uncertain, use `agent-browser --session <id> doctor --offline --quick`; if startup fails and the quick check is insufficient, use the full `agent-browser --session <id> doctor` diagnostic.
 
+Browser-command success is not equivalent to application success. For meaningful interactions, verify the smallest relevant observable postcondition, use one bounded normal retry with a fresh ref or semantic locator when it is missing, and report a suspected no-op when the effect is still absent. DOM-level event dispatch is diagnostic-only and must not turn an unverified normal interaction into a pass.
+
 Provision the current backend explicitly, then verify it:
 
 ```sh
