@@ -78,6 +78,8 @@ Before first browser use, run:
 
 The dedicated user-facing route is `/browser`, backed by Ego Lite. Assistant-to-Browser delegation is not part of this phase. Login, CAPTCHA, MFA, payment, security confirmation, and user takeover remain human-control boundaries. Browser work must verify the resulting page state and must not mutate repository files.
 
+For engineering verification of a web implementation, Executor may route a bounded assignment through `delegate_task(category="browser-testing")`. This is the shared Implementer category, not the dedicated Browser agent. It prefers the external `agent-browser` CLI for runtime verification, exploratory QA, reproduction, console or network evidence, screenshots, and accessibility checks. For persistent regression, E2E, or CI coverage, extend the repository's existing project-native framework; do not install a new E2E framework automatically or make Playwright the default. If a runtime assignment requires `agent-browser` and it is unavailable, report the actionable prerequisite rather than silently switching to another backend.
+
 ## OpenDesign references
 
 When a UI task benefits from an existing OpenDesign design system or functional skill reference, use the shared Implementer route with the optional skill:

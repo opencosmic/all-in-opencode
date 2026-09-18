@@ -136,6 +136,19 @@ You are working on schema, query, or persistence behavior. Inspect the current d
 You are working on tests. Reproduce or characterize the behavior first, identify the correct testing layer, match existing conventions, and write discriminating tests that fail for the regression rather than merely exercising lines. Run focused validation before broader checks and preserve useful regression coverage.
 </Category_Context>`,
   },
+  "browser-testing": {
+    description: "Technical browser verification for web implementations",
+    family: "implementation",
+    model: "openai/gpt-5.6-luna-fast",
+    variant: "medium",
+    prompt_append: `<Category_Context name="browser-testing">
+You are working on technical browser verification for an engineering assignment. For runtime verification, exploratory QA, reproduction, console or network inspection, screenshots, accessibility checks, and browser evidence, prefer the installed agent-browser CLI. Before first use, check that agent-browser exists; if this assignment requires that runtime and it is missing, stop with an actionable prerequisite (npm install -g agent-browser followed by agent-browser install) and do not silently switch tools or install dependencies. Use the current CLI-served guidance (agent-browser skills get core, or dogfood for exploratory testing) rather than copying stale manuals. Follow the open -> wait -> snapshot -> interact -> re-snapshot after DOM or navigation changes -> inspect or capture evidence workflow.
+
+When a persistent regression, E2E, or CI test is required, inspect the repository's existing Playwright, Cypress, WebdriverIO, or other project-native E2E suite and extend that framework. Do not rewrite existing tests into agent-browser scripts. Do not install a new E2E framework automatically or make Playwright the default. If no suite exists, report the gap unless setup is explicitly required. Reuse existing dev, test, or preview commands and do not leave orphan servers or processes. Keep verification on localhost, 127.0.0.1, local preview, or authorized staging and test environments; do not perform destructive external actions without explicit authorization.
+
+Distinguish verification from repair: edit production or test files only when the assignment requests a fix or regression coverage. Return concise engineering evidence including the tested flow, expected and observed results, relevant console or network findings, screenshot paths, reproduction or test command results, and remaining uncertainty. This category is separate from the dedicated Browser agent and its ego-browser backend; do not use Browser or Ego Browser as this category's backend or treat general authenticated browsing and research as browser-testing.
+</Category_Context>`,
+  },
   bugfix: {
     description: "Reproduce and repair a bounded defect",
     family: "implementation",
