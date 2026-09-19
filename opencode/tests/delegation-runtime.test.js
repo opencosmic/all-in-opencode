@@ -580,7 +580,7 @@ test("stage-specific parents use only their contract collaborators", async (t) =
   assert.deepEqual(client.state.prompts.map((call) => call.body.agent), ["Researcher", "Technical Advisor"])
 })
 
-test("Executor can route every declared review and verification handoff", async (t) => {
+test("Executor can route Blender plus every declared review and verification handoff", async (t) => {
   const { client, runtime, context } = await fixture(t)
   const executor = { ...context, agent: "Executor" }
   const workspace = await runtime.workspacePrepare({
@@ -590,7 +590,7 @@ test("Executor can route every declared review and verification handoff", async 
   const shipCommand = await readFile(new URL("../commands/ship.md", import.meta.url), "utf8")
   assert.match(shipCommand, /ALWAYS dispatch a new `Verifier`/)
 
-  const agents = ["Plan Reviewer", "Reviewer", "QA", "Verifier"]
+  const agents = ["Blender", "Plan Reviewer", "Reviewer", "QA", "Verifier"]
   const results = []
   for (const agent of agents) {
     results.push(await runtime.delegate({
@@ -605,6 +605,28 @@ test("Executor can route every declared review and verification handoff", async 
 
   assert.deepEqual(results.map((result) => runtime.registry.get(result.task_id).agent), agents)
   assert.deepEqual(client.state.prompts.map((call) => call.body.agent), agents)
+})
+
+test("Producer can route Blender while Blender cannot route a category", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const producer = { ...context, sessionID: "producer", messageID: "producer-turn", agent: "Producer" }
+
+  const result = await runtime.delegate({
+    agent: "Blender",
+    description: "Producer previs handoff",
+    prompt: "Block the shot and validate camera timing.",
+    run_in_background: true,
+  }, producer)
+
+  assert.equal(runtime.registry.get(result.task_id).agent, "Blender")
+  assert.equal(client.state.prompts[0].body.agent, "Blender")
+  await assert.rejects(runtime.delegate({
+    category: "test",
+    description: "Blender must remain a leaf",
+    prompt: "Do not run",
+    run_in_background: true,
+  }, { ...context, sessionID: "blender", messageID: "blender-turn", agent: "Blender" }),
+  /Blender may only delegate its allowlisted named agents; category routes are not allowed/)
 })
 
 test("configured model failure is surfaced without fallback", async (t) => {

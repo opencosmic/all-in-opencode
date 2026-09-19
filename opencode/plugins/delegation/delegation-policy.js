@@ -1,4 +1,4 @@
-import { normalizeAioConfig, withDefaultDelegation } from "./aio-config.js"
+import { DEFAULT_DELEGATION, normalizeAioConfig, withDefaultDelegation } from "./aio-config.js"
 import { sdkData } from "./sdk.js"
 
 const BUILTIN_NAMED_AGENTS = new Set([
@@ -18,11 +18,11 @@ const CONSULTATION_AGENTS = new Set(["Explorer", "Librarian"])
 const PARENT_AGENT_NAMED_AGENTS = new Map([
   ["Strategist", new Set(["Explorer", "Librarian", "Researcher", "Validator"])],
   ["Planner", new Set(["Explorer", "Librarian", "Technical Advisor", "Plan Reviewer"])],
-  ["Executor", new Set(["Plan Reviewer", "Reviewer", "QA", "Verifier"])],
+  ["Executor", new Set(["Plan Reviewer", "Reviewer", "QA", "Verifier", "Blender"])],
 ])
 
 const BUILTIN_PRIMARY_AGENTS = new Set(["Assistant", "Strategist", "Planner", "Executor"])
-const CATEGORY_RESTRICTED_PARENTS = new Set(["Strategist", "Planner"])
+const CATEGORY_RESTRICTED_PARENTS = new Set(["Strategist", "Planner", "Blender"])
 const BROAD_CATEGORY_PARENTS = new Set(["Assistant", "Executor"])
 const BUILTIN_AGENT_NAMES = new Set([
   ...BUILTIN_PRIMARY_AGENTS,
@@ -106,10 +106,12 @@ export class DelegationPolicy {
     return BUILTIN_PRIMARY_AGENTS.has(caller) || Object.hasOwn(this.aioConfig.delegation, caller)
   }
 
-  customAgentIsDelegatable(agent) {
+  customAgentIsDelegatable(agent, caller) {
     if (!this.isKnownAgent(agent)) return false
     if (BUILTIN_NAMED_AGENTS.has(agent)) return true
-    if (BUILTIN_AGENT_NAMES.has(agent)) return false
+    if (BUILTIN_AGENT_NAMES.has(agent)) {
+      return DEFAULT_DELEGATION[caller]?.agents?.includes(agent) === true
+    }
     const info = this.availableAgents?.get(agent)
     if (info?.mode === "primary") return false
     return this.aioConfig.agents[agent]?.delegatable === true
@@ -135,7 +137,7 @@ export class DelegationPolicy {
     if (caller === "Assistant" && BUILTIN_NAMED_AGENTS.has(agent)) return true
     const entry = this.aioConfig.delegation[caller]
     if (!entry?.agents.includes(agent)) return false
-    return this.customAgentIsDelegatable(agent)
+    return this.customAgentIsDelegatable(agent, caller)
   }
 
   assertCategory({ caller, category, profile } = {}) {

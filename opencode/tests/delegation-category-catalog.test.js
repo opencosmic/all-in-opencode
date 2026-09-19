@@ -76,8 +76,7 @@ test("primary and formal workflow ceilings shape the injected catalog", async ()
 
   assert.match(producer[1], /- video-analysis:/)
   assert.doesNotMatch(producer[1], /- quick:|- caller-only:/)
-  assert.match(blenderDefault[1], /- none/)
-  assert.doesNotMatch(blenderDefault[1], /- quick:|- video-analysis:|- caller-only:/)
+  assert.deepEqual(blenderDefault, ["authored system instructions"])
   for (const system of [planner, strategist]) {
     assert.match(system[1], /- none/)
     assert.doesNotMatch(system[1], /- quick:|- video-analysis:|- caller-only:/)
@@ -91,8 +90,7 @@ test("primary and formal workflow ceilings shape the injected catalog", async ()
   const blenderExtended = await systemFor(explicit, "Blender")
   assert.match(producerExtended[1], /- video-analysis:/)
   assert.match(producerExtended[1], /- standard:/)
-  assert.match(blenderExtended[1], /- video-analysis:/)
-  assert.match(blenderExtended[1], /- caller-only: Caller-only support/)
+  assert.deepEqual(blenderExtended, ["authored system instructions"])
 })
 
 test("Searcher and Browser remain catalog-free leaves", async () => {

@@ -31,7 +31,11 @@ test("Producer is a dedicated HyperFrames primary route", async (t) => {
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"), tool)
   }
   assert.match(producer, /bounded supporting capabilities.*AIO delegation policy/s)
-  assert.match(producer, /default capability is the\s+`video-analysis` category/s)
+  assert.match(producer, /default capabilities are\s+the `video-analysis` category and the named `Blender` specialist/s)
+  assert.match(producer, /delegate_task\(agent="Blender"\)/)
+  assert.match(producer, /scene\s+blocking, subject staging, camera placement or movement/s)
+  assert.match(producer, /fast, rough previews for validation/s)
+  assert.match(producer, /Blender\s+does not receive that category/s)
   assert.match(producer, /edit:\n    "\*": allow/)
   assert.match(producer, /write:\n    "\*": allow/)
   assert.match(producer, /external_directory: ask/)

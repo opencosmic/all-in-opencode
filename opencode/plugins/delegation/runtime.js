@@ -28,7 +28,6 @@ const CATEGORY_CATALOG_AGENTS = new Set([
   "Planner",
   "Strategist",
   "Producer",
-  "Blender",
 ])
 const CATEGORY_CATALOG_MARKER = "<AIO_Delegation_Categories>"
 
@@ -730,8 +729,9 @@ export class DelegationRuntime {
 
   applyChatSystem(sessionID, output) {
     const agent = this.sessionAgents.get(sessionID) ?? this.profiles?.get(sessionID)?.agent
+    if (!agent || agent === "Blender") return
     const categories = agent ? this.dispatcher.authorizedCategories(agent) : []
-    if (!agent || (agent !== "Searcher" && agent !== "Browser" && !CATEGORY_CATALOG_AGENTS.has(agent) && !categories.length)) return
+    if (agent !== "Searcher" && agent !== "Browser" && !CATEGORY_CATALOG_AGENTS.has(agent) && !categories.length) return
     if (agent === "Searcher" || agent === "Browser") return
 
     const categoryList = categories.length

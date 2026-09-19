@@ -19,27 +19,31 @@ const coreTools = [
 ]
 const execFileAsync = promisify(execFile)
 
-test("Blender is a dedicated primary agent with an explicit MCP boundary", async () => {
+test("Blender is a reusable all-mode leaf with an explicit MCP boundary", async () => {
   const source = await readFile(agentPath, "utf8")
 
   assert.match(source, /^name: Blender$/m)
-  assert.match(source, /^mode: primary$/m)
+  assert.match(source, /^mode: all$/m)
   assert.match(source, /permission:\n  "\*": deny/)
   assert.doesNotMatch(source, /blender_[^\s:]+\*: allow/)
 
   for (const tool of coreTools) assert.match(source, new RegExp(`^  ${tool}: allow$`, "m"))
 
   const allowed = [...source.matchAll(/^  ([A-Za-z0-9_*-]+): allow$/gm)].map((match) => match[1])
-  assert.deepEqual(allowed.sort(), [...coreTools, "question", "delegate_task", "task_status", "task_output", "task_cancel"].sort())
+  assert.deepEqual(allowed.sort(), [...coreTools, "question"].sort())
 
   for (const denied of [
     "bash",
     "edit",
     "write",
     "task",
+    "delegate_task",
     "consult_agents",
     "workspace_prepare",
     "workspace_release",
+    "task_status",
+    "task_output",
+    "task_cancel",
     "skill",
     "external_directory",
   ]) {
@@ -52,30 +56,33 @@ test("Blender is a dedicated primary agent with an explicit MCP boundary", async
   assert.match(source, /Safe Mode is an\s+additional guard, not a complete operating-system sandbox/i)
   assert.match(source, /must not modify\s+workflow source code, Git history, OpenSpec state/i)
   assert.match(source, /CategoryEngine state/i)
-  assert.match(source, /Do not directly manipulate internal Delegation Runtime state/i)
-  assert.match(source, /public AIO task tools/i)
-  assert.match(source, /explicitly configured AIO support\s+categories or families/i)
-  assert.match(source, /no default category capability/i)
+  assert.match(source, /reusable 3D leaf specialist/i)
+  assert.match(source, /never create or\s+manage child AIO tasks/i)
+  assert.match(source, /If external work is needed, return the\s+requirement to the parent/i)
+  assert.match(source, /GLB\/glTF\/FBX/i)
+  assert.match(source, /animation names, material slots, constraints/i)
+  assert.match(source, /fast, rough validation/i)
+  assert.match(source, /4K beauty render/i)
   assert.match(source, /Do not use Blender Python\s+for generic filesystem, process, network, or shell\s+access/is)
   assert.doesNotMatch(source, /oh-my-openagent|call_omo_agent|Sisyphus-Junior/i)
 })
 
-test("Blender's effective route allows only its bounded delegation tool", async (t) => {
+test("Blender's effective route denies child-task controls", async (t) => {
   const env = await isolatedOpenCodeEnv(t, repository)
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Blender"], { env, encoding: "utf8" })
   const agent = JSON.parse(stdout)
 
   assert.equal(agent.name, "Blender")
-  assert.equal(agent.mode, "primary")
+  assert.equal(agent.mode, "all")
   assert.equal(agent.tools.task, false)
   assert.equal(agent.tools.edit, false)
   for (const tool of ["delegate_task", "task_status", "task_output", "task_cancel"]) {
-    assert.equal(agent.tools[tool], true, `${tool} must remain available`)
+    assert.equal(agent.tools[tool], false, `${tool} must remain denied`)
   }
-  assert.equal(effectivePermission(agent, "delegate_task"), "allow")
-  assert.equal(effectivePermission(agent, "task_status"), "allow")
-  assert.equal(effectivePermission(agent, "task_output"), "allow")
-  assert.equal(effectivePermission(agent, "task_cancel"), "allow")
+  assert.equal(effectivePermission(agent, "delegate_task"), "deny")
+  assert.equal(effectivePermission(agent, "task_status"), "deny")
+  assert.equal(effectivePermission(agent, "task_output"), "deny")
+  assert.equal(effectivePermission(agent, "task_cancel"), "deny")
 })
 
 function effectivePermission(agent, type) {
@@ -86,7 +93,7 @@ function effectivePermission(agent, type) {
   return action
 }
 
-test("Blender command targets the standalone primary route", async () => {
+test("Blender command targets the standalone direct route", async () => {
   const source = await readFile(join(repository, "opencode/commands/blender.md"), "utf8")
   assert.match(source, /^agent: Blender$/m)
   assert.match(source, /^subtask: false$/m)
