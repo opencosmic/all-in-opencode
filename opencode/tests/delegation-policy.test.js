@@ -118,6 +118,11 @@ test("configured callers may opt into Searcher while Searcher remains a leaf", (
 test("Producer receives only its default video-analysis category until config extends it", () => {
   const route = dispatcher()
   assert.equal(route.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
+  assert.equal(route.resolve({ agent: "Blender", parentAgent: "Producer" }).agent, "Blender")
+  assert.throws(
+    () => route.resolve({ agent: "Searcher", parentAgent: "Producer" }),
+    /named agent is not allowed: Searcher/,
+  )
   for (const category of ["standard", "quick", "git", "database"]) {
     assert.throws(
       () => route.resolve({ category, parentAgent: "Producer" }),
@@ -129,7 +134,7 @@ test("Producer receives only its default video-analysis category until config ex
   extendedConfig.delegation.Producer = {
     categories: ["standard"],
     category_families: [],
-    agents: [],
+    agents: ["Searcher", "Security Reviewer"],
   }
   const extended = new AgentDispatcher(new CategoryEngine(extendedConfig.categories), {
     aioConfig: extendedConfig,
@@ -137,6 +142,9 @@ test("Producer receives only its default video-analysis category until config ex
   })
   assert.equal(extended.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
   assert.equal(extended.resolve({ category: "standard", parentAgent: "Producer" }).agent, "Implementer")
+  assert.equal(extended.resolve({ agent: "Blender", parentAgent: "Producer" }).agent, "Blender")
+  assert.equal(extended.resolve({ agent: "Searcher", parentAgent: "Producer" }).agent, "Searcher")
+  assert.equal(extended.resolve({ agent: "Security Reviewer", parentAgent: "Producer" }).agent, "Security Reviewer")
   assert.throws(
     () => extended.resolve({ category: "quick", parentAgent: "Producer" }),
     /Producer is not allowed to delegate category quick/,
@@ -168,7 +176,7 @@ test("Blender is a category-free leaf even when config tries to add categories",
   }
 })
 
-test("Executor and Producer receive only the Blender named route", () => {
+test("Executor and Producer receive the default Blender named route", () => {
   const route = dispatcher()
   for (const caller of ["Executor", "Producer"]) {
     assert.equal(route.resolve({ agent: "Blender", parentAgent: caller }).agent, "Blender")

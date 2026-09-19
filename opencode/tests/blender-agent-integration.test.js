@@ -93,7 +93,7 @@ function effectivePermission(agent, type) {
   return action
 }
 
-test("Blender command targets the standalone primary route", async () => {
+test("Blender command targets the standalone direct route", async () => {
   const source = await readFile(join(repository, "opencode/commands/blender.md"), "utf8")
   assert.match(source, /^agent: Blender$/m)
   assert.match(source, /^subtask: false$/m)
