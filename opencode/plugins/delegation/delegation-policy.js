@@ -18,11 +18,12 @@ const CONSULTATION_AGENTS = new Set(["Explorer", "Librarian"])
 const PARENT_AGENT_NAMED_AGENTS = new Map([
   ["Strategist", new Set(["Explorer", "Librarian", "Researcher", "Validator"])],
   ["Planner", new Set(["Explorer", "Librarian", "Technical Advisor", "Plan Reviewer"])],
-  ["Executor", new Set(["Plan Reviewer", "Reviewer", "QA", "Verifier"])],
+  ["Executor", new Set(["Plan Reviewer", "Reviewer", "QA", "Verifier", "Blender"])],
+  ["Producer", new Set(["Blender"])],
 ])
 
 const BUILTIN_PRIMARY_AGENTS = new Set(["Assistant", "Strategist", "Planner", "Executor"])
-const CATEGORY_RESTRICTED_PARENTS = new Set(["Strategist", "Planner"])
+const CATEGORY_RESTRICTED_PARENTS = new Set(["Strategist", "Planner", "Blender"])
 const BROAD_CATEGORY_PARENTS = new Set(["Assistant", "Executor"])
 const BUILTIN_AGENT_NAMES = new Set([
   ...BUILTIN_PRIMARY_AGENTS,

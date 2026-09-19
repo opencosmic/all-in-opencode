@@ -14,7 +14,7 @@ Use `/research <question>` or select `Professor` when the question needs a durab
 
 Non-trivial implementation flows through `delegate_task(category=...)` to Implementer. Use `load_skills=["skill-name"]` only for selected specialized instructions. Use `git` only when the Git operation and authority are explicit. Browser work uses the dedicated `/browser` route and Browser agent; it is not routed through the Implementer category catalog.
 
-The category catalog is dynamic. Built-ins are centrally defined; the optional user-local `~/.config/opencode/aio.json` can add, override, or disable entries and may be absent. It is read once by the shared loader at the control-plane boundary. Each enabled entry uses one `model`, an optional `variant`, an optional `family`, an optional `prompt_append`, and optional tool narrowing. The file also supports explicit custom-agent opt-in and per-caller `categories`, `category_families`, and `agents` lists. These lists are unioned, including with the built-in `Producer -> video-analysis` default; Blender has no default category entry. Built-in Assistant/Executor breadth and Strategist/Planner/Verifier workflow ceilings remain in force. OpenCode's public effective-agent discovery is required for custom callers and targets; a custom target additionally needs `delegatable: true`. The schema has no model arrays, fallback models, `reasoning`, presets, catalogs, overlays, or inheritance. All category entries route to the shared Implementer. The category's `prompt_append` supplies its execution specialization, while `load_skills` remains an independent explicit capability selection and families do not grant exact-category runtime permissions.
+The category catalog is dynamic. Built-ins are centrally defined; the optional user-local `~/.config/opencode/aio.json` can add, override, or disable entries and may be absent. It is read once by the shared loader at the control-plane boundary. Each enabled entry uses one `model`, an optional `variant`, an optional `family`, an optional `prompt_append`, and optional tool narrowing. The file also supports explicit custom-agent opt-in and per-caller `categories`, `category_families`, and `agents` lists. These lists are unioned, including with the built-in `Producer -> video-analysis` default; Blender is a hard category-free leaf and receives no category catalog. Built-in Assistant/Executor breadth and Strategist/Planner/Verifier workflow ceilings remain in force. OpenCode's public effective-agent discovery is required for custom callers and targets; a custom target additionally needs `delegatable: true`. The schema has no model arrays, fallback models, `reasoning`, presets, catalogs, overlays, or inheritance. All category entries route to the shared Implementer. The category's `prompt_append` supplies its execution specialization, while `load_skills` remains an independent explicit capability selection and families do not grant exact-category runtime permissions.
 
 Assistant uses todos for meaningful multi-step work and verifies results before reporting completion. It does not silently create OpenSpec changes.
 
@@ -107,10 +107,13 @@ requested saves/exports, and visual verification:
 User -> /blender -> Blender -> Blender MCP -> Blender addon -> Blender scene
 ```
 
-This is a standalone primary route, not a CategoryEngine category or an
-Implementer assignment. Normal Blender work does not own repository files,
-Git, OpenSpec, workspace lifecycle, or Delegation Runtime state. Assistant
-does not call Blender MCP directly; route scene work to `/blender`.
+This is a reusable all-mode leaf route, not a CategoryEngine category or an
+Implementer assignment. The same Blender specialist is available to Executor
+for product/asset work and Producer for previs/blocking/camera/timing work.
+Normal Blender work does not own repository files, Git, OpenSpec, workspace
+lifecycle, or Delegation Runtime state. Blender does not delegate child AIO
+tasks or receive a category catalog. Assistant does not call Blender MCP
+directly; route scene work to `/blender`.
 
 Blender MCP is external. Set it up explicitly with:
 
@@ -168,4 +171,4 @@ Provision the core skill family explicitly:
 
 Setup uses the official `npx hyperframes skills update` command to refresh the core skill set and workflows that are already installed; it does not eagerly install every creation workflow. The check is read-only and confirms Node.js 22+, `npx`, FFmpeg, `ffprobe`, the `hyperframes` entry skill, OpenCode discovery, and the upstream `hyperframes skills check` result. If the upstream router selects a workflow that is missing or stale, it can request the named `npx hyperframes skills update <workflow-name>` refresh with user approval. Ordinary `/video` work must not update global skills silently. Use `HYPERFRAMES_SKIP_SKILLS=1` for normal initialization where appropriate.
 
-The route has normal active-project edit/write access and user-question access for brief choices, storyboard or preview review, and final render approval. Git/history mutation, protected `.env`-style files, unrelated skills, workspace lifecycle, and native `task` remain outside its boundary. AIO task status/output/cancel controls are available only for children Producer created; they never manage HyperFrames internal workers. `delegate_task` is available only for policy-authorized bounded support, with `video-analysis` as the default category capability; use the upstream workflow's documented serial fallback for HyperFrames frame workers when no suitable channel is available. No new orchestration runtime is added, and `video-production` remains outside CategoryEngine for this phase.
+The route has normal active-project edit/write access and user-question access for brief choices, storyboard or preview review, and final render approval. Git/history mutation, protected `.env`-style files, unrelated skills, workspace lifecycle, and native `task` remain outside its boundary. AIO task status/output/cancel controls are available only for children Producer created; they never manage HyperFrames internal workers. `delegate_task` is available only for policy-authorized bounded support, with `video-analysis` as the default category capability and named `Blender` for 3D previs; use the upstream workflow's documented serial fallback for HyperFrames frame workers when no suitable channel is available. No new orchestration runtime is added, and `video-production` remains outside CategoryEngine for this phase.

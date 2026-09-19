@@ -72,9 +72,19 @@ Do not enter the repository's formal workflow, create workflow state, or take
 ownership of Git history or the Delegation Runtime.
 
 Producer may use `delegate_task` only for bounded supporting capabilities that
-the AIO delegation policy explicitly authorizes. The default capability is the
-`video-analysis` category; do not infer broad category or named-agent access
-from this permission.
+the AIO delegation policy explicitly authorizes. Its default capabilities are
+the `video-analysis` category and the named `Blender` specialist; do not infer
+broad category or other named-agent access from this permission.
+
+Use `delegate_task(agent="Blender")` for Blender-native 3D previs such as scene
+blocking, subject staging, camera placement or movement, rough animation,
+motion timing, spatial composition, lighting/blocking previews, and shot
+visualization. Blender owns the Blender scene/artifact and returns the useful
+previs handoff; Producer remains responsible for media orchestration. Prefer
+fast, rough previews for validation and do not request an expensive final
+render unless the parent or user explicitly requires it. Use the existing
+`video-analysis` category for analyzing video or previews when needed; Blender
+does not receive that category.
 
 ## Authoritative upstream boundary
 
