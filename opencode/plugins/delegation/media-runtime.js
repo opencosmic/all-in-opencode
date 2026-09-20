@@ -152,17 +152,27 @@ function unwrapData(payload) {
   return payload
 }
 
+function finiteNumber(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null
+  if (typeof value !== "string" || !value.trim()) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 function normalizeCost(payload) {
   const data = unwrapData(payload)
-  if (!data || typeof data !== "object" || typeof data.price !== "number" || !Number.isFinite(data.price) || data.price < 0) {
+  const hasOriginPrice = data?.origin_price !== undefined && data?.origin_price !== null
+  const hasDiscount = data?.discount !== undefined && data?.discount !== null
+  const price = finiteNumber(data?.price)
+  const originPrice = hasOriginPrice ? finiteNumber(data.origin_price) : null
+  const discount = hasDiscount ? finiteNumber(data.discount) : null
+  if (!data || typeof data !== "object" || price === null || price < 0) {
     throw new Error("Atlas calculate returned a malformed response: missing non-negative data.price")
   }
-  if (data.origin_price !== undefined && data.origin_price !== null
-    && (typeof data.origin_price !== "number" || !Number.isFinite(data.origin_price) || data.origin_price < 0)) {
+  if (hasOriginPrice && (originPrice === null || originPrice < 0)) {
     throw new Error("Atlas calculate returned a malformed response: origin_price must be non-negative")
   }
-  if (data.discount !== undefined && data.discount !== null
-    && (typeof data.discount !== "number" || !Number.isFinite(data.discount) || data.discount < 0 || data.discount > 100)) {
+  if (hasDiscount && (discount === null || discount < 0 || discount > 100)) {
     throw new Error("Atlas calculate returned a malformed response: discount must be between 0 and 100")
   }
   if (data.estimated_tokens !== undefined && data.estimated_tokens !== null
@@ -170,9 +180,9 @@ function normalizeCost(payload) {
     throw new Error("Atlas calculate returned a malformed response: estimated_tokens must be a non-negative integer")
   }
   const cost = {
-    price_usd: data.price,
-    origin_price_usd: typeof data.origin_price === "number" ? data.origin_price : null,
-    discount: typeof data.discount === "number" ? data.discount : null,
+    price_usd: price,
+    origin_price_usd: originPrice,
+    discount,
     estimated: data.estimated === true,
   }
   if (typeof data.estimated_tokens === "number") cost.estimated_tokens = data.estimated_tokens
@@ -269,9 +279,6 @@ async function buildEffectiveAtlasRequest(mediaType, args, resolveReferenceURL) 
 
   const imageAssetIDs = assetIDs(args.reference_image_asset_ids, "reference_image_asset_ids", 9)
   const videoAssetIDs = assetIDs(args.reference_video_asset_ids, "reference_video_asset_ids", 3)
-  if (imageAssetIDs.length + videoAssetIDs.length === 0) {
-    throw new Error("video generation requires at least one reference image or reference video asset")
-  }
   if (!Number.isInteger(args.duration_seconds) || !VIDEO_DURATIONS.has(args.duration_seconds)) {
     throw new Error("duration_seconds must be an integer from 4 through 15 for Seedance reference-to-video")
   }

@@ -340,6 +340,72 @@ test("media_calculate uses Atlas preflight, records the manifest job, and video 
   }
 })
 
+test("media_calculate normalizes Atlas numeric cost strings without relaxing validation", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient()
+    client.calculate = async () => ({
+      data: {
+        price: "0.072",
+        origin_price: "0.09",
+        discount: "80",
+        estimated: false,
+      },
+    })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A matte white geometric cube",
+      manifest_path: manifestRequestPath,
+    })
+    assert.equal(calculated.price_usd, 0.072)
+    assert.equal(calculated.origin_price_usd, 0.09)
+    assert.equal(calculated.discount, 80)
+
+    const malformed = fakeClient()
+    malformed.calculate = async () => ({ data: { price: "not-a-number" } })
+    const malformedRuntime = createAtlasMediaRuntime({ directory: root, client: malformed })
+    await assert.rejects(
+      malformedRuntime.media_calculate({
+        shot_id: "shot_01",
+        media_type: "image",
+        prompt: "A matte white geometric cube",
+        manifest_path: manifestRequestPath,
+      }),
+      /malformed response: missing non-negative data.price/,
+    )
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("media_calculate accepts the documented no-reference Seedance preflight", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      prompt: "A matte white geometric object slowly rotates in a clean studio",
+      manifest_path: manifestRequestPath,
+      duration_seconds: 4,
+      resolution: "480p",
+      ratio: "16:9",
+    })
+    assert.equal(calculated.model, ATLAS_VIDEO_MODEL)
+    const request = client.calls.find((call) => call.operation === "calculate").body
+    assert.equal(request.reference_images, undefined)
+    assert.equal(request.reference_videos, undefined)
+    assert.equal(request.duration, 4)
+    assert.equal(request.resolution, "480p")
+    assert.equal(request.ratio, "16:9")
+  } finally {
+    await cleanup(root)
+  }
+})
+
 test("generation rejects changed approvals and increased preflight cost without calling paid endpoints", async () => {
   const { root, manifestRequestPath } = await fixture()
   try {
