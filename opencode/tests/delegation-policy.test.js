@@ -72,10 +72,21 @@ test("configured callers receive explicit and family category union", () => {
   )
 })
 
-test("Assistant and Executor preserve broad category orchestration defaults", () => {
+test("Assistant remains broad while Executor is limited to implementation categories", () => {
   const route = dispatcher()
   assert.equal(route.resolve({ category: "backend-heavy", parentAgent: "Assistant" }).agent, "Implementer")
-  assert.equal(route.resolve({ category: "backend-heavy", parentAgent: "Executor" }).agent, "Implementer")
+  for (const category of ["standard", "quick", "testing", "browser-testing", "database", "git"]) {
+    assert.equal(route.resolve({ category, parentAgent: "Executor" }).agent, "Implementer", category)
+  }
+  for (const category of ["video-analysis", "media-generation"]) {
+    assert.throws(
+      () => route.resolve({ category, parentAgent: "Executor" }),
+      new RegExp("Executor is not allowed to delegate category " + category),
+    )
+  }
+  for (const category of ["standard", "git", "browser-testing", "video-analysis", "media-generation"]) {
+    assert.equal(route.resolve({ category, parentAgent: "Assistant" }).agent, "Implementer", category)
+  }
 })
 
 test("Searcher is available as an Assistant leaf but not to formal workflow parents", () => {
@@ -115,9 +126,10 @@ test("configured callers may opt into Searcher while Searcher remains a leaf", (
   )
 })
 
-test("Producer receives only its default video-analysis category until config extends it", () => {
+test("Producer receives its default video-analysis and media-generation categories", () => {
   const route = dispatcher()
   assert.equal(route.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
+  assert.equal(route.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
   assert.equal(route.resolve({ agent: "Blender", parentAgent: "Producer" }).agent, "Blender")
   assert.throws(
     () => route.resolve({ agent: "Searcher", parentAgent: "Producer" }),
@@ -141,13 +153,79 @@ test("Producer receives only its default video-analysis category until config ex
     availableAgents: effectiveAgents,
   })
   assert.equal(extended.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
-  assert.equal(extended.resolve({ category: "standard", parentAgent: "Producer" }).agent, "Implementer")
+  assert.equal(extended.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
+  assert.throws(
+    () => extended.resolve({ category: "standard", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category standard/,
+  )
   assert.equal(extended.resolve({ agent: "Blender", parentAgent: "Producer" }).agent, "Blender")
   assert.equal(extended.resolve({ agent: "Searcher", parentAgent: "Producer" }).agent, "Searcher")
   assert.equal(extended.resolve({ agent: "Security Reviewer", parentAgent: "Producer" }).agent, "Security Reviewer")
   assert.throws(
     () => extended.resolve({ category: "quick", parentAgent: "Producer" }),
     /Producer is not allowed to delegate category quick/,
+  )
+})
+
+test("role category ceilings override explicit aio.json category grants", () => {
+  const ceilingConfig = config()
+  ceilingConfig.delegation.Executor = {
+    categories: ["media-generation"],
+    category_families: [],
+    agents: [],
+  }
+  ceilingConfig.delegation.Producer = {
+    categories: ["standard"],
+    category_families: [],
+    agents: [],
+  }
+  const route = new AgentDispatcher(new CategoryEngine(ceilingConfig.categories), {
+    aioConfig: ceilingConfig,
+    availableAgents: effectiveAgents,
+  })
+
+  assert.throws(
+    () => route.resolve({ category: "media-generation", parentAgent: "Executor" }),
+    /Executor is not allowed to delegate category media-generation/,
+  )
+  assert.throws(
+    () => route.resolve({ category: "standard", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category standard/,
+  )
+  assert.doesNotThrow(() => route.resolve({ category: "standard", parentAgent: "Assistant" }))
+})
+
+test("category family ceilings admit future categories without name allowlists", () => {
+  const categories = {
+    "implementation-future": {
+      family: "implementation",
+      model: "provider/implementation-future",
+    },
+    "media-future": {
+      family: "media",
+      model: "provider/media-future",
+    },
+  }
+  const route = new AgentDispatcher(new CategoryEngine(categories), {
+    aioConfig: {
+      version: 1,
+      categories,
+      delegation: {},
+    },
+    availableAgents: effectiveAgents,
+  })
+
+  assert.doesNotThrow(() => route.resolve({ category: "implementation-future", parentAgent: "Executor" }))
+  assert.doesNotThrow(() => route.resolve({ category: "media-future", parentAgent: "Producer" }))
+  assert.doesNotThrow(() => route.resolve({ category: "implementation-future", parentAgent: "Assistant" }))
+  assert.doesNotThrow(() => route.resolve({ category: "media-future", parentAgent: "Assistant" }))
+  assert.throws(
+    () => route.resolve({ category: "media-future", parentAgent: "Executor" }),
+    /Executor is not allowed to delegate category media-future/,
+  )
+  assert.throws(
+    () => route.resolve({ category: "implementation-future", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category implementation-future/,
   )
 })
 

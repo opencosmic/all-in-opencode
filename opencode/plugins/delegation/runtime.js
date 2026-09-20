@@ -12,6 +12,7 @@ import {
 } from "./category-permissions.js"
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
+import { isMediaRuntimeTool } from "./media-runtime.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
 import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
@@ -727,6 +728,21 @@ export class DelegationRuntime {
     this.sessionAgents.set(sessionID, agent.trim())
   }
 
+  async assertMediaToolAccess(sessionID, toolName) {
+    let profile = this.profiles?.get(sessionID)
+    if (!profile && this.registry?.storePath) {
+      const persisted = await readJson(this.registry.storePath, { tasks: {} })
+      const task = Object.values(persisted?.tasks ?? {}).find(
+        (candidate) => candidate.child_session_id === sessionID,
+      )
+      if (task) profile = { category: task.category, agent: task.agent }
+    }
+    const decision = categoryPermission(profile, { type: toolName, pattern: "*" })
+    if (decision !== "allow") {
+      throw new Error("media runtime tools require an Implementer child in category=media-generation")
+    }
+  }
+
   applyChatSystem(sessionID, output) {
     const agent = this.sessionAgents.get(sessionID) ?? this.profiles?.get(sessionID)?.agent
     if (!agent || agent === "Blender") return
@@ -775,6 +791,9 @@ export class DelegationRuntime {
   }
 
   async applyToolExecutionBefore(input, output) {
+    if (isMediaRuntimeTool(input.tool)) {
+      await this.assertMediaToolAccess(input.sessionID, input.tool)
+    }
     const decision = openDesignResourceDecision(
       this.profiles.get(input.sessionID),
       input.tool,

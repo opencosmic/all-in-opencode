@@ -23,7 +23,11 @@ const PARENT_AGENT_NAMED_AGENTS = new Map([
 
 const BUILTIN_PRIMARY_AGENTS = new Set(["Assistant", "Strategist", "Planner", "Executor"])
 const CATEGORY_RESTRICTED_PARENTS = new Set(["Strategist", "Planner", "Blender"])
-const BROAD_CATEGORY_PARENTS = new Set(["Assistant", "Executor"])
+const BROAD_CATEGORY_PARENTS = new Set(["Assistant"])
+const CATEGORY_FAMILY_CEILINGS = new Map([
+  ["Executor", "implementation"],
+  ["Producer", "media"],
+])
 const BUILTIN_AGENT_NAMES = new Set([
   ...BUILTIN_PRIMARY_AGENTS,
   "Browser",
@@ -121,6 +125,11 @@ export class DelegationPolicy {
     if (!this.isKnownCaller(caller) || CATEGORY_RESTRICTED_PARENTS.has(caller)) return false
     if (caller === "Implementer" || caller === "Browser") return false
     if (BROAD_CATEGORY_PARENTS.has(caller)) return true
+    const familyCeiling = CATEGORY_FAMILY_CEILINGS.get(caller)
+    if (familyCeiling) {
+      const categoryProfile = profile ?? this.categoryEngine?.resolve(category)?.profile
+      return categoryProfile?.family === familyCeiling
+    }
     const entry = this.aioConfig.delegation[caller]
     if (!entry) return false
     if (entry.categories.includes(category)) return true
@@ -178,6 +187,7 @@ export {
   BUILTIN_AGENT_NAMES,
   BUILTIN_NAMED_AGENTS,
   CATEGORY_RESTRICTED_PARENTS,
+  CATEGORY_FAMILY_CEILINGS,
   CONSULTATION_AGENTS,
   PARENT_AGENT_NAMED_AGENTS,
 }

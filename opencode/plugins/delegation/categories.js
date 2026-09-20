@@ -82,7 +82,7 @@ No narrower category fits this broad task. Survey the affected modules, callers,
   },
   git: {
     description: "Bounded Git mechanics explicitly selected by the caller",
-    family: "git",
+    family: "implementation",
     model: "openai/gpt-5.6-luna",
     variant: "low",
     tools: {
@@ -96,7 +96,7 @@ You are working on one explicitly authorized Git operation. Inspect the current 
   },
   "video-analysis": {
     description: "Grounded analysis of spoken and visual video content",
-    family: "video-analysis",
+    family: "media",
     model: "opencode-go/kimi-k3",
     variant: "high",
     tools: {
@@ -107,6 +107,28 @@ You are working on one explicitly authorized Git operation. Inspect the current 
     },
     prompt_append: `<Category_Context name="video-analysis">
 You are working on VIDEO ANALYSIS tasks. Analyze evidence from the actual video, not from metadata or assumptions. Use transcript or audio evidence for what is said, and visual-frame evidence for what is shown, movement, UI state, editing, composition, actions, demonstrations, or on-screen text. Prefer transcript-first analysis when visuals are unnecessary, and use focused timestamp ranges when the request identifies a moment or section. For long videos, avoid unnecessarily dense full-video extraction. Distinguish spoken from visual evidence, use timestamps when they support the conclusion, never invent unobserved events, and return the requested analysis rather than a raw transcript or frame dump.
+    </Category_Context>`,
+  },
+  "media-generation": {
+    description: "Bounded provider-neutral media runtime execution",
+    family: "media",
+    model: "openai/gpt-5.6-sol",
+    variant: "medium",
+    tools: {
+      edit: false,
+      write: false,
+      bash: false,
+      skill: false,
+      external_directory: false,
+      media_calculate: true,
+      media_upload: true,
+      media_generate_image: true,
+      media_generate_video: true,
+      media_prediction: true,
+      media_wait_prediction: true,
+    },
+    prompt_append: `<Category_Context name="media-generation">
+You are the bounded media-generation Implementer. Execute only the provider-neutral media runtime operations explicitly required by the assignment. The current runtime is a deterministic mock and does not call a provider, use the network, spend money, or perform automatic rerolls. Treat ShotSpec and ProductionManifest data as structured inputs, preserve request digests and job identifiers, and return concrete runtime results to the authorized parent. Do not delegate, edit project files, use Git, run shell commands, browse, or invoke unrelated MCP tools.
 </Category_Context>`,
   },
   migration: {

@@ -74,15 +74,10 @@ test("Blender's effective route denies child-task controls", async (t) => {
 
   assert.equal(agent.name, "Blender")
   assert.equal(agent.mode, "all")
-  assert.equal(agent.tools.task, false)
-  assert.equal(agent.tools.edit, false)
-  for (const tool of ["delegate_task", "task_status", "task_output", "task_cancel"]) {
-    assert.equal(agent.tools[tool], false, `${tool} must remain denied`)
+  for (const tool of ["task", "edit", "delegate_task", "task_status", "task_output", "task_cancel"]) {
+    assert.notEqual(agent.tools[tool], true, `${tool} must remain unavailable`)
+    assert.equal(effectivePermission(agent, tool), "deny", `${tool} must remain denied`)
   }
-  assert.equal(effectivePermission(agent, "delegate_task"), "deny")
-  assert.equal(effectivePermission(agent, "task_status"), "deny")
-  assert.equal(effectivePermission(agent, "task_output"), "deny")
-  assert.equal(effectivePermission(agent, "task_cancel"), "deny")
 })
 
 function effectivePermission(agent, type) {

@@ -16,7 +16,11 @@ const availableAgents = [
   "Browser",
 ].map((name) => ({ name, mode: name === "Searcher" ? "all" : "primary" }))
 
-function runtime(delegation = {}) {
+function runtime(delegation = {}, extraCategories = {}) {
+  if (delegation?.categories && !delegation?.delegation) {
+    extraCategories = delegation.categories
+    delegation = {}
+  }
   const aioConfig = {
     version: 1,
     categories: {
@@ -30,6 +34,7 @@ function runtime(delegation = {}) {
         model: "example/disabled",
         disable: true,
       },
+      ...extraCategories,
     },
     delegation,
   }
@@ -62,9 +67,14 @@ test("catalogs are caller-specific and omit disabled categories", async () => {
     assert.equal(system.length, 2)
     assert.match(system[1], /<AIO_Delegation_Categories>/)
     assert.match(system[1], /- quick:/)
-    assert.match(system[1], /- caller-only: Caller-only support/)
     assert.doesNotMatch(system[1], /- disabled:/)
   }
+  assert.match(assistant[1], /- caller-only: Caller-only support/)
+  assert.match(assistant[1], /- git:/)
+  assert.match(assistant[1], /- media-generation:/)
+  assert.doesNotMatch(executor[1], /- caller-only:|- video-analysis:|- media-generation:/)
+  assert.match(executor[1], /- browser-testing:/)
+  assert.match(executor[1], /- git:/)
 })
 
 test("primary and formal workflow ceilings shape the injected catalog", async () => {
@@ -75,7 +85,8 @@ test("primary and formal workflow ceilings shape the injected catalog", async ()
   const strategist = await systemFor(defaults, "Strategist")
 
   assert.match(producer[1], /- video-analysis:/)
-  assert.doesNotMatch(producer[1], /- quick:|- caller-only:/)
+  assert.match(producer[1], /- media-generation:/)
+  assert.doesNotMatch(producer[1], /- quick:|- caller-only:|- git:/)
   assert.deepEqual(blenderDefault, ["authored system instructions"])
   for (const system of [planner, strategist]) {
     assert.match(system[1], /- none/)
@@ -89,8 +100,36 @@ test("primary and formal workflow ceilings shape the injected catalog", async ()
   const producerExtended = await systemFor(explicit, "Producer")
   const blenderExtended = await systemFor(explicit, "Blender")
   assert.match(producerExtended[1], /- video-analysis:/)
-  assert.match(producerExtended[1], /- standard:/)
+  assert.match(producerExtended[1], /- media-generation:/)
+  assert.doesNotMatch(producerExtended[1], /- standard:/)
   assert.deepEqual(blenderExtended, ["authored system instructions"])
+})
+
+test("catalog family ceilings follow future category families", async () => {
+  const instance = runtime({
+    categories: {
+      "implementation-future": {
+        description: "Future implementation",
+        family: "implementation",
+        model: "example/implementation-future",
+      },
+      "media-future": {
+        description: "Future media",
+        family: "media",
+        model: "example/media-future",
+      },
+    },
+  })
+  const assistant = await systemFor(instance, "Assistant")
+  const executor = await systemFor(instance, "Executor")
+  const producer = await systemFor(instance, "Producer")
+
+  assert.match(assistant[1], /- implementation-future:/)
+  assert.match(assistant[1], /- media-future:/)
+  assert.match(executor[1], /- implementation-future:/)
+  assert.doesNotMatch(executor[1], /- media-future:/)
+  assert.match(producer[1], /- media-future:/)
+  assert.doesNotMatch(producer[1], /- implementation-future:/)
 })
 
 test("Searcher and Browser remain catalog-free leaves", async () => {

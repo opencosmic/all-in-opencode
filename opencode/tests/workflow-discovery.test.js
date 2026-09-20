@@ -12,6 +12,7 @@ const commandTargets = new Map([
   ["ship.md", "Executor"],
   ["browser.md", "Browser"],
   ["video.md", "Producer"],
+  ["film.md", "Producer"],
   ["search.md", "Searcher"],
   ["research.md", "Professor"],
   ["blender.md", "Blender"],

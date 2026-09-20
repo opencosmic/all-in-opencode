@@ -22,6 +22,7 @@ opencode/commands|.config/opencode/commands|directory
 opencode/plugins|.config/opencode/plugins|directory
 opencode/tests|.config/opencode/tests|directory
 opencode/skills/open-design|.config/opencode/skills/open-design|directory
+opencode/skills/film-production|.config/opencode/skills/film-production|directory
 opencode/open-design-mcp.sh|.config/opencode/open-design-mcp.sh|file
 opencode/opencode.jsonc|.config/opencode/opencode.jsonc|file
 opencode/tui.json|.config/opencode/tui.json|file

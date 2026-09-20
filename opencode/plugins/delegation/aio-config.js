@@ -2,7 +2,8 @@ import { lstatSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
-import { normalizeCategory, validateCategory } from "./category-engine.js"
+import { DEFAULT_CATEGORIES } from "./categories.js"
+import { builtinFamilyConflict, normalizeCategory, validateCategory } from "./category-engine.js"
 
 const DEFAULT_AIO_CONFIG_PATH = join(homedir(), ".config", "opencode", "aio.json")
 const DEFAULT_LEGACY_CATEGORY_CONFIG_PATH = join(homedir(), ".config", "opencode", "categories.json")
@@ -15,8 +16,8 @@ const SUPPORTED_DELEGATION_FIELDS = new Set(["categories", "category_families", 
 // do not silently broaden callers that have no configured capability.
 export const DEFAULT_DELEGATION = Object.freeze({
   Producer: Object.freeze({
-    categories: Object.freeze(["video-analysis"]),
-    category_families: Object.freeze([]),
+    categories: Object.freeze(["video-analysis", "media-generation"]),
+    category_families: Object.freeze(["media"]),
     agents: Object.freeze(["Blender"]),
   }),
 })
@@ -75,7 +76,10 @@ function normalizeCategories(value, configPath) {
     const name = normalizedName(rawName, "category", configPath)
     if (Object.hasOwn(result, name)) throw configError(configPath, `duplicate category name after normalization: ${name}`)
     validateConfigCategory(name, source, configPath)
-    result[name] = normalizeCategory(name, source, configPath)
+    const normalized = normalizeCategory(name, source, configPath)
+    const conflict = builtinFamilyConflict(name, DEFAULT_CATEGORIES[name], normalized)
+    if (conflict) throw configError(configPath, conflict)
+    result[name] = normalized
   }
   return result
 }

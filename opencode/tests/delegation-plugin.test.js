@@ -40,6 +40,12 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
     "task_output",
     "task_cancel",
     "workspace_release",
+    "media_calculate",
+    "media_upload",
+    "media_generate_image",
+    "media_generate_video",
+    "media_prediction",
+    "media_wait_prediction",
   ])
   assert.match(plugin.tool.execution_preflight.description, /current Git.*persisted task.*source-overlap/i)
   assert.ok(plugin.tool.execution_preflight.args.change_id)
@@ -93,6 +99,12 @@ test("plugin entrypoint initializes with the full tool set outside Git", async (
     "task_output",
     "task_cancel",
     "workspace_release",
+    "media_calculate",
+    "media_upload",
+    "media_generate_image",
+    "media_generate_video",
+    "media_prediction",
+    "media_wait_prediction",
   ])
 })
 

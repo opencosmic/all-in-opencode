@@ -12,14 +12,14 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repository = resolve(here, "../..")
 const execFileAsync = promisify(execFile)
 
-test("Producer is a dedicated HyperFrames primary route", async (t) => {
+test("Producer is the shared HyperFrames and film-production primary route", async (t) => {
   const env = await isolatedOpenCodeEnv(t, repository)
   const producer = await readFile(`${repository}/opencode/agents/producer.md`, "utf8")
   const command = await readFile(`${repository}/opencode/commands/video.md`, "utf8")
 
   assert.match(producer, /^name: Producer$/m)
   assert.match(producer, /^mode: primary$/m)
-  assert.match(producer, /dedicated primary agent for HyperFrames/i)
+  assert.match(producer, /single primary orchestration owner for AIO video\s+production/i)
   assert.match(producer, /not a general coding agent/i)
   assert.match(producer, /OpenSpec planner or executor/i)
   assert.match(producer, /official upstream\s+`hyperframes` skill/i)
@@ -31,11 +31,11 @@ test("Producer is a dedicated HyperFrames primary route", async (t) => {
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"), tool)
   }
   assert.match(producer, /bounded supporting capabilities.*AIO delegation policy/s)
-  assert.match(producer, /default capabilities are\s+the `video-analysis` category and the named `Blender` specialist/s)
+  assert.match(producer, /category ceiling is the\s+`media` family, currently `video-analysis` and `media-generation`; its named\s+specialist route is `Blender`/s)
   assert.match(producer, /delegate_task\(agent="Blender"\)/)
   assert.match(producer, /scene\s+blocking, subject staging, camera placement or movement/s)
   assert.match(producer, /fast, rough previews for validation/s)
-  assert.match(producer, /Blender\s+does not receive that category/s)
+  assert.match(producer, /Blender\s+does not receive categor(?:y|ies)/s)
   assert.match(producer, /edit:\n    "\*": allow/)
   assert.match(producer, /write:\n    "\*": allow/)
   assert.match(producer, /external_directory: ask/)
@@ -71,6 +71,7 @@ test("Producer is a dedicated HyperFrames primary route", async (t) => {
   assert.match(command, /^agent: Producer$/m)
   assert.match(command, /^subtask: false$/m)
   assert.match(command, /\$ARGUMENTS/)
+  assert.doesNotMatch(command, /film-production|media-generation|paid media generation/i)
   assert.doesNotMatch(`${producer}\n${command}`, /oh-my-openagent|call_omo_agent|Sisyphus-Junior/i)
   assert.doesNotMatch(`${producer}\n${command}`, /fal[.]ai|fal-mcp|seedance|kling|veo/i)
 

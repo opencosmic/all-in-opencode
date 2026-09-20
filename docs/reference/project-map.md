@@ -3,7 +3,7 @@
 | Path | Purpose |
 |---|---|
 | [`opencode/agents/`](../../opencode/agents/) | Assistant, Browser, Blender, Producer, Searcher, Professor, formal lifecycle roles, specialists, and Implementer. |
-| [`opencode/commands/`](../../opencode/commands/) | `/spec`, `/plan`, `/execute`, `/verify`, `/ship`, `/browser`, `/blender`, `/video`, `/search`, and `/research`. |
+| [`opencode/commands/`](../../opencode/commands/) | `/spec`, `/plan`, `/execute`, `/verify`, `/ship`, `/browser`, `/blender`, `/video`, `/film`, `/search`, and `/research`. |
 | [`opencode/plugins/delegation-runtime.js`](../../opencode/plugins/delegation-runtime.js) | Loader-safe Delegation Runtime entrypoint. |
 | [`opencode/plugins/delegation/`](../../opencode/plugins/delegation/) | Execution preflight, change-centric WorkspaceManager, dynamic CategoryEngine, selective SkillResolver, TaskRegistry, SessionRunner, CompletionTracker, ParentResumeCoordinator, dispatch, and category permissions. |
 | [`opencode/plugins/workspace-inspector.js`](../../opencode/plugins/workspace-inspector.js) | Read-only workspace placement and provenance evidence. |
@@ -11,6 +11,8 @@
 | [`opencode/plugins/professor/`](../../opencode/plugins/professor/) | Deterministic ResearchState, persistence, frontier, evidence, verification, and report runtime. |
 | [`opencode/opencode.jsonc`](../../opencode/opencode.jsonc) | Public CodeGraph MCP configuration plus the bounded OpenDesign MCP launcher and raw-tool deny ceiling. |
 | [`opencode/skills/open-design/`](../../opencode/skills/open-design/) | Repository-owned optional OpenDesign resource capability instructions. |
+| [`opencode/skills/film-production/`](../../opencode/skills/film-production/) | Repository-owned advanced filmmaking methodology, shotcraft, contracts, routing, assets, and revision references. |
+| [`opencode/plugins/film-production/contracts.js`](../../opencode/plugins/film-production/contracts.js) | Validated provider-neutral `ShotSpec` and `ProductionManifest` contracts and lifecycle helpers. |
 | [`opencode/open-design-mcp.sh`](../../opencode/open-design-mcp.sh), [`scripts/lib/run-open-design-mcp.mjs`](../../scripts/lib/run-open-design-mcp.mjs) | Runtime launcher that consumes the validated user-local upstream launch spec; CLI identity discovery remains setup-only. |
 | [`scripts/setup-cache-stats.sh`](../../scripts/setup-cache-stats.sh), [`scripts/check-cache-stats.sh`](../../scripts/check-cache-stats.sh) | Pinned external `/cache-stats` TUI plugin provisioning and read-only readiness check. |
 | [`opencode/tests/`](../../opencode/tests/) | Deterministic discovery, policy, runtime, workspace, completion, and host tests. |
