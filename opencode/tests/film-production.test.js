@@ -53,6 +53,17 @@ test("/film is a thin Producer command for the film-production-first route", asy
   assert.ok(command.length < 1_200, "the command should remain a thin route declaration")
 })
 
+test("Producer keeps /video HyperFrames-first and /film film-production-first", async () => {
+  const producer = await readFile(join(repository, "opencode/agents/producer.md"), "utf8")
+  const video = await readFile(join(repository, "opencode/commands/video.md"), "utf8")
+  assert.match(producer, /\/video\s+-> Producer -> HyperFrames-first workflow/)
+  assert.match(producer, /\/film\s+-> Producer -> film-production -> ShotSpec\[\]/)
+  assert.match(producer, /For `\/video`, load the official upstream `hyperframes` skill at the start/i)
+  assert.match(producer, /For `\/film`, keep\s+`film-production` first/i)
+  assert.match(producer, /load `hyperframes` only when film planning and\s+production routing are complete and composition\/render begins/i)
+  assert.match(video, /At the start of the request, load and follow the official upstream\s+`hyperframes` skill/i)
+})
+
 test("film-production is repository-owned and discoverable with focused references", async () => {
   const skillRoot = join(repository, "opencode/skills")
   const skill = await readFile(join(skillRoot, "film-production/SKILL.md"), "utf8")
@@ -212,4 +223,75 @@ test("ProductionManifest.shots stays a complete ShotSpec[] and lifecycle transit
     ["planning->previs", "previs->production", "production->assets-ready", "assets-ready->composition", "composition->qa"],
   )
   assert.equal(qa.revision, 5)
+})
+
+test("ProductionManifest validation enforces persisted lifecycle invariants", () => {
+  const manifest = createProductionManifest({
+    project: "lifecycle-film",
+    shots: [shot],
+    assets: [],
+    generation_jobs: [],
+  })
+
+  const complete = ["previs", "production", "assets-ready", "composition", "qa", "completed"]
+    .reduce((current, status) => transitionProductionManifest(current, status), manifest)
+  assert.equal(complete.revision, 6)
+  assert.equal(complete.history.length, 6)
+  assert.doesNotThrow(() => validateProductionManifest(complete))
+
+  const invalidInitialState = structuredClone(manifest)
+  invalidInitialState.project.status = "qa"
+  assert.throws(
+    () => validateProductionManifest(invalidInitialState),
+    /must be planning when history is empty/,
+  )
+
+  const invalidJump = structuredClone(manifest)
+  invalidJump.project.status = "qa"
+  invalidJump.revision = 1
+  invalidJump.history = [{ from: "planning", status: "qa" }]
+  assert.throws(
+    () => validateProductionManifest(invalidJump),
+    /cannot transition from planning to qa/,
+  )
+
+  const invalidStatus = structuredClone(manifest)
+  invalidStatus.project.status = "banana"
+  assert.throws(
+    () => validateProductionManifest(invalidStatus),
+    /project\.status must be one of/,
+  )
+
+  const brokenChain = structuredClone(manifest)
+  brokenChain.project.status = "composition"
+  brokenChain.revision = 2
+  brokenChain.history = [
+    { from: "planning", status: "previs" },
+    { from: "production", status: "composition" },
+  ]
+  assert.throws(
+    () => validateProductionManifest(brokenChain),
+    /history\[1\]\.from must match previous status previs/,
+  )
+
+  const revisionMismatch = structuredClone(manifest)
+  revisionMismatch.project.status = "production"
+  revisionMismatch.revision = 99
+  revisionMismatch.history = [
+    { from: "planning", status: "previs" },
+    { from: "previs", status: "production" },
+  ]
+  assert.throws(
+    () => validateProductionManifest(revisionMismatch),
+    /revision must equal history\.length/,
+  )
+
+  const currentStatusMismatch = structuredClone(manifest)
+  currentStatusMismatch.project.status = "qa"
+  currentStatusMismatch.revision = 1
+  currentStatusMismatch.history = [{ from: "planning", status: "previs" }]
+  assert.throws(
+    () => validateProductionManifest(currentStatusMismatch),
+    /project\.status must match history\[last\]\.status \(previs\)/,
+  )
 })

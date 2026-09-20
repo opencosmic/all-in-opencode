@@ -39,6 +39,8 @@ const PRODUCTION_TRANSITIONS = Object.freeze({
   failed: ["planning"],
 })
 
+const INITIAL_PRODUCTION_STATUS = "planning"
+
 function contractError(path, message) {
   throw new Error(`${path} ${message}`)
 }
@@ -222,10 +224,27 @@ function validateHistory(value, path) {
   if (!Array.isArray(value)) contractError(path, "must be an array")
   for (const [index, event] of value.entries()) {
     const entry = object(event, `${path}[${index}]`)
-    nonEmptyString(entry.status, `${path}[${index}].status`, 80)
+    const from = nonEmptyString(entry.from, `${path}[${index}].from`, 80)
+    const status = nonEmptyString(entry.status, `${path}[${index}].status`, 80)
+    if (!PRODUCTION_STATUSES.includes(from)) {
+      contractError(`${path}[${index}].from`, `must be one of: ${PRODUCTION_STATUSES.join(", ")}`)
+    }
+    if (!PRODUCTION_STATUSES.includes(status)) {
+      contractError(`${path}[${index}].status`, `must be one of: ${PRODUCTION_STATUSES.join(", ")}`)
+    }
+    if (index === 0 && from !== INITIAL_PRODUCTION_STATUS) {
+      contractError(`${path}[${index}].from`, `must start from ${INITIAL_PRODUCTION_STATUS}`)
+    }
+    if (index > 0 && from !== value[index - 1].status) {
+      contractError(`${path}[${index}].from`, `must match previous status ${value[index - 1].status}`)
+    }
+    if (!PRODUCTION_TRANSITIONS[from].includes(status)) {
+      contractError(`${path}[${index}]`, `cannot transition from ${from} to ${status}`)
+    }
     if (entry.at !== undefined) nonEmptyString(entry.at, `${path}[${index}].at`, 80)
     if (entry.note !== undefined) nonEmptyString(entry.note, `${path}[${index}].note`, 1_000)
   }
+  return value
 }
 
 export function validateProductionManifest(manifest, path = "ProductionManifest") {
@@ -238,6 +257,22 @@ export function validateProductionManifest(manifest, path = "ProductionManifest"
   identifier(project.id, `${path}.project.id`)
   if (!PRODUCTION_STATUSES.includes(project.status)) {
     contractError(`${path}.project.status`, `must be one of: ${PRODUCTION_STATUSES.join(", ")}`)
+  }
+
+  if (!Object.hasOwn(manifest, "revision")) contractError(`${path}.revision`, "must be present")
+  if (!Number.isInteger(manifest.revision) || manifest.revision < 0) {
+    contractError(`${path}.revision`, "must be a non-negative integer")
+  }
+  if (!Object.hasOwn(manifest, "history")) contractError(`${path}.history`, "must be present")
+  const history = validateHistory(manifest.history, `${path}.history`)
+  if (manifest.revision !== history.length) {
+    contractError(`${path}.revision`, `must equal history.length (${history.length})`)
+  }
+  if (history.length === 0 && project.status !== INITIAL_PRODUCTION_STATUS) {
+    contractError(`${path}.project.status`, `must be ${INITIAL_PRODUCTION_STATUS} when history is empty`)
+  }
+  if (history.length > 0 && history.at(-1).status !== project.status) {
+    contractError(`${path}.project.status`, `must match history[last].status (${history.at(-1).status})`)
   }
 
   validateShotSpecs(manifest.shots, `${path}.shots`)
@@ -284,13 +319,9 @@ export function validateProductionManifest(manifest, path = "ProductionManifest"
     validateArtifact(outputs[field], `${path}.outputs.${field}`)
   }
 
-  if (manifest.revision !== undefined && (!Number.isInteger(manifest.revision) || manifest.revision < 0)) {
-    contractError(`${path}.revision`, "must be a non-negative integer")
-  }
   for (const field of ["created_at", "updated_at", "request_digest"]) {
     if (manifest[field] !== undefined && manifest[field] !== null) nonEmptyString(manifest[field], `${path}.${field}`, 4_000)
   }
-  if (manifest.history !== undefined) validateHistory(manifest.history, `${path}.history`)
   return manifest
 }
 
@@ -331,7 +362,7 @@ export function normalizeProductionManifest(manifest) {
 
 export function createProductionManifest({ project, ...rest } = {}) {
   return normalizeProductionManifest({
-    project: typeof project === "string" ? { id: project, status: "planning" } : project,
+    project: typeof project === "string" ? { id: project, status: INITIAL_PRODUCTION_STATUS } : project,
     ...rest,
   })
 }

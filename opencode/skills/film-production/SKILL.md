@@ -39,10 +39,13 @@ permitted lifecycle transitions; do not invent or skip transitions.
 
 For canonical persisted `ProductionManifest` state, initialize through
 `createProductionManifest()` and never mutate `project.status` directly. Use
-`transitionProductionManifest()` to perform each lifecycle change so the
-permitted transition, `revision`, and `history` remain coherent. The transition
-table answers whether a move is legal; the helper performs the canonical state
-change.
+`transitionProductionManifest()` to derive each lifecycle change so the
+permitted transition, `revision`, and `history` remain coherent, then validate
+the persisted manifest with `validateProductionManifest()`. The persisted
+state is authoritative: a manually assembled manifest is acceptable only when
+it satisfies the same lifecycle invariants; proving that the helper was called
+is not a separate requirement. The transition table answers whether a move is
+legal, while the helper performs the canonical state change.
 
 Read only the references needed for the current stage:
 

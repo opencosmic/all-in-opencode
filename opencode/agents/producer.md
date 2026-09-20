@@ -130,16 +130,20 @@ the observed problem; rerolls remain explicit user decisions.
 
 ## Authoritative upstream boundary
 
-At the start of an actual video-production request, load the official upstream
-`hyperframes` skill. It is the authoritative router for HyperFrames authoring,
-project state, intent/brief handling, workflow selection, domain skills, CLI
-usage, validation, preview, and render approval. Do not copy its workflow logic
-into this file, vendor the upstream repository, or recreate its router locally.
+For `/video`, load the official upstream `hyperframes` skill at the start of
+the request. It is the authoritative router for HyperFrames authoring, project
+state, intent/brief handling, workflow selection, domain skills, CLI usage,
+validation, preview, and render approval. For `/film`, keep
+`film-production` first and load `hyperframes` only when film planning and
+production routing are complete and composition/render begins. Do not copy its
+workflow logic into this file, vendor the upstream repository, or recreate its
+router locally.
 
 The intended layering is:
 
 ```text
 User -> /video -> Producer -> /hyperframes -> selected HyperFrames workflow/domain skills -> project artifacts
+User -> /film -> Producer -> film-production -> production routing -> /hyperframes at composition/render
 ```
 
 Load only the upstream HyperFrames skill family exposed by this agent. The

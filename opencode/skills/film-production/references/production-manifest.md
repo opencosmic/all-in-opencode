@@ -10,6 +10,8 @@ schema_version: 1
 project:
   id: example-film
   status: planning
+revision: 0
+history: []
 shots: []
 assets: []
 generation_jobs: []
@@ -23,8 +25,8 @@ outputs:
 ```
 
 Keep shot IDs unique. Assets and generation jobs should point back to shots;
-request digests, job IDs, output references, revision, and optional history
-make a run resumable and debuggable. Cost fields are reserved for a later
+request digests, job IDs, output references, revision, and history make a run
+resumable and debuggable. Cost fields are reserved for a later
 calculate/approval/submit flow and must remain null until a real approved
 runtime exists. The current mock reports zero estimated cost and never submits
 paid work.
@@ -74,5 +76,9 @@ For canonical persisted state, initialize with `createProductionManifest()`
 and use `transitionProductionManifest()` for every lifecycle change. Never
 mutate `project.status` directly: the table checks whether a transition is
 legal, while the helper performs the change and keeps `revision` and `history`
-coherent. The validator continues to accept arbitrary valid manifests without
-requiring those optional bookkeeping fields.
+coherent. After every persisted update, `validateProductionManifest()` must
+pass. The validator enforces the persisted state directly: empty history means
+`planning` at revision `0`; otherwise revision equals history length, the
+history is a legal chain from `planning`, and its final status matches the
+project status. The helper is the preferred way to derive transitions, but
+helper invocation itself is not a separate validation requirement.
