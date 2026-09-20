@@ -14,7 +14,7 @@ Use `/research <question>` or select `Professor` when the question needs a durab
 
 Non-trivial implementation flows through `delegate_task(category=...)` to Implementer. Use `load_skills=["skill-name"]` only for selected specialized instructions. Use `git` only when the Git operation and authority are explicit. Browser work uses the dedicated `/browser` route and Browser agent; it is not routed through the Implementer category catalog.
 
-The category catalog is dynamic. Built-ins are centrally defined; the optional user-local `~/.config/opencode/aio.json` can add, override, or disable entries and may be absent. It is read once by the shared loader at the control-plane boundary. Each enabled entry uses one `model`, an optional `variant`, an optional `family`, an optional `prompt_append`, and optional tool narrowing. The file also supports explicit custom-agent opt-in and per-caller `categories`, `category_families`, and `agents` lists. These lists are unioned, including with the built-in `Producer -> video-analysis` default; Blender is a hard category-free leaf and receives no category catalog. Built-in Assistant/Executor breadth and Strategist/Planner/Verifier workflow ceilings remain in force. OpenCode's public effective-agent discovery is required for custom callers and targets; a custom target additionally needs `delegatable: true`. The schema has no model arrays, fallback models, `reasoning`, presets, catalogs, overlays, or inheritance. All category entries route to the shared Implementer. The category's `prompt_append` supplies its execution specialization, while `load_skills` remains an independent explicit capability selection and families do not grant exact-category runtime permissions.
+The category catalog is dynamic. Built-ins are centrally defined; the optional user-local `~/.config/opencode/aio.json` can add, override, or disable entries and may be absent. It is read once by the shared loader at the control-plane boundary. Each enabled entry uses one `model`, an optional `variant`, an optional `family`, an optional `prompt_append`, and optional tool narrowing. The file also supports explicit custom-agent opt-in and per-caller `categories`, `category_families`, and `agents` lists. These lists are unioned before hard role ceilings apply: Assistant remains broad, Executor receives only family `implementation`, and Producer receives only family `media` (currently `video-analysis` and `media-generation`). The built-in `git` category belongs to `implementation`, so Executor's existing Git route remains available without a separate Git family. Built-in family labels are canonical architecture metadata: `aio.json` may repeat the canonical family but cannot reclassify it; custom categories may choose their own family. Blender is a hard category-free leaf and receives no category catalog. OpenCode's public effective-agent discovery is required for custom callers and targets; a custom target additionally needs `delegatable: true`. The schema has no model arrays, fallback models, `reasoning`, presets, catalogs, overlays, or inheritance. All category entries route to the shared Implementer. The category's `prompt_append` supplies its execution specialization, while `load_skills` remains an independent explicit capability selection and families do not grant exact-category runtime permissions.
 
 Assistant uses todos for meaningful multi-step work and verifies results before reporting completion. It does not silently create OpenSpec changes.
 
@@ -171,4 +171,26 @@ Provision the core skill family explicitly:
 
 Setup uses the official `npx hyperframes skills update` command to refresh the core skill set and workflows that are already installed; it does not eagerly install every creation workflow. The check is read-only and confirms Node.js 22+, `npx`, FFmpeg, `ffprobe`, the `hyperframes` entry skill, OpenCode discovery, and the upstream `hyperframes skills check` result. If the upstream router selects a workflow that is missing or stale, it can request the named `npx hyperframes skills update <workflow-name>` refresh with user approval. Ordinary `/video` work must not update global skills silently. Use `HYPERFRAMES_SKIP_SKILLS=1` for normal initialization where appropriate.
 
-The route has normal active-project edit/write access and user-question access for brief choices, storyboard or preview review, and final render approval. Git/history mutation, protected `.env`-style files, unrelated skills, workspace lifecycle, and native `task` remain outside its boundary. AIO task status/output/cancel controls are available only for children Producer created; they never manage HyperFrames internal workers. `delegate_task` is available only for policy-authorized bounded support, with `video-analysis` as the default category capability and named `Blender` for 3D previs; use the upstream workflow's documented serial fallback for HyperFrames frame workers when no suitable channel is available. No new orchestration runtime is added, and `video-production` remains outside CategoryEngine for this phase.
+The route has normal active-project edit/write access and user-question access for brief choices, storyboard or preview review, and final render approval. Git/history mutation, protected `.env`-style files, unrelated skills, workspace lifecycle, and native `task` remain outside its boundary. AIO task status/output/cancel controls are available only for children Producer created; they never manage HyperFrames internal workers. Producer's category delegation is capped at family `media`, currently `video-analysis` and `media-generation`; its named `Blender` route remains separate for 3D previs. Assistant retains broad technical category access, but `/video` and `/film` workflow ownership remains with Producer. Use the upstream workflow's documented serial fallback for HyperFrames frame workers when no suitable channel is available. No new orchestration runtime is added, and `video-production` remains outside CategoryEngine for this phase.
+
+## Advanced AI filmmaking
+
+Use `/film <goal>` when the request needs cinematic shot planning, references,
+previs, generated media routing, and a later composed film. It still launches
+the same Producer; it does not create a Film Producer or a second storyboard
+orchestration layer:
+
+```text
+/film -> Producer -> film-production -> ShotSpec[] -> production routing
+      -> Blender / media-generation / video-analysis -> HyperFrames composition
+```
+
+The repository-owned `film-production` skill defines renderer-neutral
+shotcraft, the validated provider-neutral `ShotSpec` and `ProductionManifest`
+contracts, reference-asset tracking, and revision routing. Blender handles
+camera/blocking/staging/previs, HyperFrames handles composition/render, and
+Watch-backed `video-analysis` handles grounded review. The media category is
+least-privilege and currently exposes only deterministic mock operations; it
+cannot delegate, use shell/Git, browse, edit files, or call arbitrary HTTP.
+Real Atlas Cloud generation, billing, approval, polling, and automatic paid
+rerolls are intentionally deferred.

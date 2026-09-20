@@ -1,9 +1,52 @@
 import { tool } from "@opencode-ai/plugin"
 
+import { createMockMediaRuntime } from "./media-runtime.js"
 import { CHECKPOINT_STATUSES } from "./workspace-manager.js"
 
 function json(value) {
   return JSON.stringify(value, null, 2)
+}
+
+function mediaRuntimeTools(runtime) {
+  const z = tool.schema
+  const mock = createMockMediaRuntime()
+  const shotRequest = z.object({
+    shot_id: z.string().min(1),
+    request_digest: z.string().min(1),
+  }).strict()
+  const guarded = (name, args, execute) => tool({
+    description: `Deterministic provider-neutral mock for ${name}; it never calls a media provider or network service. Available only to the media-generation Implementer category.`,
+    args,
+    execute: async (args, context) => {
+      await runtime.assertMediaToolAccess(context?.sessionID, name)
+      return json(execute(args))
+    },
+  })
+
+  return {
+    media_calculate: guarded("media_calculate", z.object({
+      shot_id: z.string().min(1),
+      media_type: z.enum(["image", "video"]),
+      duration_seconds: z.number().positive().max(3_600).optional(),
+      request_digest: z.string().min(1).optional(),
+    }).strict(), mock.media_calculate),
+    media_upload: guarded("media_upload", z.object({
+      asset_id: z.string().min(1),
+      filename: z.string().min(1),
+    }).strict(), mock.media_upload),
+    media_generate_image: guarded("media_generate_image", shotRequest, mock.media_generate_image),
+    media_generate_video: guarded("media_generate_video", z.object({
+      shot_id: z.string().min(1),
+      request_digest: z.string().min(1),
+      duration_seconds: z.number().positive().max(3_600),
+    }).strict(), mock.media_generate_video),
+    media_prediction: guarded("media_prediction", z.object({
+      job_id: z.string().min(1),
+    }).strict(), mock.media_prediction),
+    media_wait_prediction: guarded("media_wait_prediction", z.object({
+      job_id: z.string().min(1),
+    }).strict(), mock.media_wait_prediction),
+  }
 }
 
 export function delegationPluginHooks(runtime) {
@@ -137,6 +180,7 @@ export function delegationPluginHooks(runtime) {
         },
         execute: async (args, context) => json(await runtime.workspaceRelease(args.workspace_id, context, args)),
       }),
+      ...mediaRuntimeTools(runtime),
     },
     event: async ({ event }) => runtime.handleEvent(event),
     "chat.message": async (input) => runtime.observeSessionAgent(input),

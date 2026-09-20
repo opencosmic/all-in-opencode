@@ -38,7 +38,7 @@ Named delegation is fail closed. Built-in specialists retain their workflow-spec
 
 ## Delegation Runtime
 
-The runtime exposes eight tools:
+The runtime exposes the core delegation tools plus six bounded mock media tools:
 
 - `execution_preflight`
 - `workspace_prepare`
@@ -48,8 +48,14 @@ The runtime exposes eight tools:
 - `task_output`
 - `task_cancel`
 - `workspace_release`
+- `media_calculate`
+- `media_upload`
+- `media_generate_image`
+- `media_generate_video`
+- `media_prediction`
+- `media_wait_prediction`
 
-`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are repository-owned in the registry, while the optional user-local `~/.config/opencode/aio.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The loader reads this file once per control plane; an absent file means only built-ins are used. Delegation policy supplies the bounded built-in `Producer -> video-analysis` capability and the narrow named-agent routes `Executor -> Blender` and `Producer -> Blender`. Blender is category-free and receives no category catalog. The static `delegate_task` description is caller-neutral; each delegating agent receives only the enabled categories it is authorized to use in its AIO system context. That catalog is derived from `CategoryEngine` and `DelegationPolicy`, not maintained as a separate allowlist.
+`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are repository-owned in the registry, while the optional user-local `~/.config/opencode/aio.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The loader reads this file once per control plane; an absent file means only built-ins are used. Delegation policy keeps Assistant broad, caps Executor at the `implementation` family, and caps Producer at the `media` family (`video-analysis` and `media-generation`), while preserving the narrow named-agent routes `Executor -> Blender` and `Producer -> Blender`. Blender is category-free and receives no category catalog. The static `delegate_task` description is caller-neutral; each delegating agent receives only the enabled categories it is authorized to use in its AIO system context. That catalog is derived from `CategoryEngine` and `DelegationPolicy`, not maintained as a separate allowlist.
 
 `delegate_task` delegates a real scoped assignment. `consult_agents` is separate: only `Implementer` can call it, and only for a bounded batch of information-gathering requests to `Explorer` or `Librarian`. The batch starts its requests concurrently, waits synchronously for every outcome, and returns results in input order. Explorer reports local repository evidence; Librarian reports external documentation and upstream evidence. Neither consultant can edit, delegate, or consult another agent, and `Implementer` remains responsible for all implementation decisions, edits, and validation. Consultation tasks are always foreground (`background: false`, `completion_group: null`) and never enter the parent-resume lifecycle. A `session_id` may continue a completed consultation only for the same target, parent Implementer, and directory; skills are not exposed by this tool.
 
@@ -86,7 +92,7 @@ Categories define the model, optional variant, execution mindset, optional tool 
 }
 ```
 
-Each enabled category has exactly one configured `model` and may have one string `variant`; there are no model arrays, fallback models, category-level `reasoning`, presets, catalogs, overlays, or inheritance. `family` is an authorization grouping for configured callers; it does not grant the exact-category Git, video, or other runtime permissions. A category still routes only to the reusable Implementer. The `categories`, `category_families`, and `agents` lists in each `delegation` entry are unioned; built-in Assistant/Executor category access, Strategist/Planner named-agent ceilings, and Blender's category-free leaf boundary remain hard boundaries. Custom callers and targets must be present in OpenCode's public effective-agent discovery, and custom targets additionally require the `agents` opt-in. Skills are separate specialized instructions and are injected only when selected, for example `delegate_task(category="deep", load_skills=["debugging"], ...)`.
+Each enabled category has exactly one configured `model` and may have one string `variant`; there are no model arrays, fallback models, category-level `reasoning`, presets, catalogs, overlays, or inheritance. `family` is an authorization grouping for configured callers; it does not grant the exact-category Git, video, or other runtime permissions. A category still routes only to the reusable Implementer. The built-in family catalog is `implementation` (`quick`, `standard`, `deep`, `ultrabrain`, `visual-engineering`, `writing`, `artistry`, `unspecified-low`, `unspecified-high`, `migration`, `database`, `testing`, `browser-testing`, `bugfix`, `tiny-refactor`, and `git`) plus `media` (`video-analysis` and `media-generation`). A built-in category's family is canonical architecture metadata: `aio.json` may repeat the same family, but cannot reclassify it; other built-in fields remain configurable. Custom categories may choose their own family. The `categories`, `category_families`, and `agents` lists in each `delegation` entry are unioned, then the hard role ceilings apply: Assistant remains broad, Executor may use only `implementation`, Producer only `media`, and Strategist/Planner/Blender retain their existing restrictions. Named-agent ceilings and Blender's category-free leaf boundary remain separate hard boundaries. Custom callers and targets must be present in OpenCode's public effective-agent discovery, and custom targets additionally require the `agents` opt-in. Skills are separate specialized instructions and are injected only when selected, for example `delegate_task(category="deep", load_skills=["debugging"], ...)`.
 
 Independent background launches in one parent turn form one completion group. The parent does unrelated work or yields. `CompletionTracker` records terminal state and `ParentResumeCoordinator` resumes the idle parent exactly once after the group is terminal. The parent then retrieves bounded results with `task_output`; it does not run a model-driven polling loop.
 
@@ -147,7 +153,7 @@ Video production has its own primary route:
 User -> /video -> Producer -> /hyperframes -> HyperFrames workflows and domain skills
 ```
 
-`Producer` is dedicated to HyperFrames-backed creation, editing, animation, composition, preview, and rendering. It is not a general coding agent, OpenSpec worker, CategoryEngine `Implementer`, Git worker, or video-content analysis route. It preserves the upstream brief, review, preview, and final-render approval gates, writes project artifacts in the active project, and may use only policy-authorized bounded delegation (default: `video-analysis` plus named `Blender` for 3D previs).
+`Producer` remains the single video-production orchestration owner. `/video` is the lightweight HyperFrames-first route for deterministic motion graphics, product/UI showcases, explainers, screen recordings, captions, existing footage, and simple social videos. It does not load the film methodology or invoke media generation.
 
 HyperFrames is an external upstream framework and skill set. The repository does not vendor or fork it. Run the explicit provisioning flow when the skill set is missing or needs an update:
 
@@ -159,6 +165,30 @@ HyperFrames is an external upstream framework and skill set. The repository does
 The setup script uses the official `npx hyperframes skills update` path to refresh the core skill set and workflows that are already installed. It does not eagerly install every creation workflow. When `/hyperframes` selects a workflow that is not installed, the upstream router can request the named `npx hyperframes skills update <workflow-name>` refresh; Producer keeps that global mutation approval-gated. Ordinary `/video` work never silently updates global skills, and normal `init` work should use `HYPERFRAMES_SKIP_SKILLS=1` where appropriate. Workflow skills remain available on demand through the upstream router.
 
 HyperFrames is intentionally not a `video-production` CategoryEngine category in this phase. The shared CategoryEngine -> `Implementer` path remains for bounded execution profiles, while HyperFrames owns an interactive orchestration flow that may pause for brief, storyboard, preview, or render decisions. Video-content questions remain separate: `Assistant` -> `video-analysis` -> `watch`.
+
+## Advanced AI filmmaking
+
+Use `/film` for the advanced film-production workflow:
+
+```text
+/film -> Producer -> film-production -> ShotSpec[] -> production routing
+      -> Blender / media-generation / video-analysis -> HyperFrames composition
+```
+
+`film-production` is a repository-owned methodology skill. It defines
+renderer-neutral shotcraft, validated `ShotSpec` entries, one resumable
+`ProductionManifest`, reference-asset handling, routing, and revision guidance.
+Producer plans the film before entering HyperFrames composition. Blender remains
+the reusable camera/blocking/previs leaf, `media-generation` is a bounded
+provider-neutral Implementer category, HyperFrames remains the composition and
+render authority, and `video-analysis`/Watch provides grounded QA.
+
+Assistant remains technically able to delegate enabled media categories as part
+of its broad orchestration role; `/film` ownership still belongs to Producer.
+
+This foundation includes only a deterministic mock media runtime. Real Atlas
+Cloud integration, billing, approval, provider calls, job polling, and paid
+rerolls are intentionally deferred to a later phase.
 
 ## Blender 3D leaf work
 

@@ -86,6 +86,7 @@ async function fixture(t) {
     categories: {
       test: {
         description: "test route",
+        family: "implementation",
         model: "example/primary",
         variant: "focused",
         tools: { delegate_task: false },
@@ -126,6 +127,7 @@ async function crossRepositoryFixture(t) {
     categories: {
       test: {
         description: "test route",
+        family: "implementation",
         model: "example/primary",
         variant: "focused",
         tools: { delegate_task: false },
@@ -324,7 +326,7 @@ test("category profiles are shared across per-worktree plugin instances", async 
     client,
     stateDirectory: join(root, "state"),
     categories: {
-      test: { description: "test route", model: "example/primary" },
+      test: { description: "test route", family: "implementation", model: "example/primary" },
     },
   })
   sibling.profiles.delete(result.child_session_id)
@@ -919,7 +921,7 @@ test("restart surfaces persisted tasks and surviving managed workspaces without 
     client,
     stateDirectory: join(root, "state"),
     categories: {
-      test: { description: "test route", model: "example/primary" },
+      test: { description: "test route", family: "implementation", model: "example/primary" },
     },
   })
   assert.equal((await restarted.taskStatus(delegated.task_id, context)).status, "running")

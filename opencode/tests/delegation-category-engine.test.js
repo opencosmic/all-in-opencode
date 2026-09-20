@@ -64,12 +64,31 @@ test("user category fields override built-ins without recursive merging", () => 
   assert.equal(profile.description, DEFAULT_CATEGORIES.deep.description)
 })
 
-test("family labels can override a built-in without changing its category identity", () => {
-  const engine = new CategoryEngine({ deep: { family: "backend" } })
+test("built-in family labels are canonical while other fields remain overridable", () => {
+  const engine = new CategoryEngine({
+    deep: {
+      family: " implementation ",
+      model: "example/replacement",
+      variant: "max",
+    },
+  })
   const result = engine.resolve("deep")
   assert.equal(result.category, "deep")
   assert.equal(result.agent, "Implementer")
-  assert.equal(result.profile.family, "backend")
+  assert.equal(result.profile.family, "implementation")
+  assert.equal(result.profile.model, "example/replacement")
+  assert.equal(result.profile.variant, "max")
+})
+
+test("conflicting built-in family overrides fail at the CategoryEngine boundary", () => {
+  assert.throws(
+    () => new CategoryEngine({ standard: { family: "media" } }),
+    /Built-in category "standard" has immutable family "implementation"; received "media"/,
+  )
+  assert.throws(
+    () => new CategoryEngine({ "media-generation": { family: "implementation" } }),
+    /Built-in category "media-generation" has immutable family "media"; received "implementation"/,
+  )
 })
 
 test("custom categories and families are accepted through injected AIO config", () => {

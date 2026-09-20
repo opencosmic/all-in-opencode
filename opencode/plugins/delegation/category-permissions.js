@@ -1,6 +1,8 @@
 import { dirname, relative, resolve } from "node:path"
 import { tmpdir } from "node:os"
 
+import { MEDIA_RUNTIME_TOOL_NAMES, isMediaRuntimeTool } from "./media-runtime.js"
+
 const SAFE_GIT = [
   /^git status(?:\s|$)/,
   /^git log(?:\s|$)/,
@@ -133,7 +135,7 @@ export function openDesignResourceDecision(profile, tool, args = {}) {
 
 export function requiresPreservedSessionPermissions(agent, category, skills = []) {
   return agent === "Implementer" && (
-    ["git", "video-analysis"].includes(category)
+    ["git", "video-analysis", "media-generation"].includes(category)
     || (category === "visual-engineering" && hasSkill(skills, "open-design"))
   )
 }
@@ -220,6 +222,10 @@ export function categoryPermission(profile, input = {}) {
     return hasOpenDesignCapability(profile) && profile.tools?.read !== false ? "allow" : "deny"
   }
 
+  if (isMediaRuntimeTool(type)) {
+    return profile?.category === "media-generation" && profile.tools?.[type] !== false ? "allow" : "deny"
+  }
+
   if (!profile?.category) return null
 
   if (profile.category === "git" && type === "bash") {
@@ -230,6 +236,24 @@ export function categoryPermission(profile, input = {}) {
   if (profile.category !== "git" && type === "bash" && isCategoryScopedGitMutation(value)) {
     return "deny"
   }
+
+  if (profile.category === "media-generation" && [
+    "edit",
+    "write",
+    "bash",
+    "skill",
+    "external_directory",
+    "delegate_task",
+    "task",
+    "workspace_prepare",
+    "execution_preflight",
+    "workspace_checkpoint_update",
+    "task_status",
+    "task_output",
+    "task_cancel",
+    "workspace_release",
+    "consult_agents",
+  ].includes(type)) return "deny"
 
   if (profile.category === "video-analysis") {
     const skillPaths = watchSkillPaths(profile)
@@ -325,6 +349,29 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
           action: "deny",
         })))
       }
+    }
+    return rules
+  }
+  if (category === "media-generation") {
+    const rules = [
+      { permission: "edit", pattern: "*", action: "deny" },
+      { permission: "write", pattern: "*", action: "deny" },
+      { permission: "bash", pattern: "*", action: "deny" },
+      { permission: "skill", pattern: "*", action: "deny" },
+      { permission: "external_directory", pattern: "*", action: "deny" },
+      { permission: "delegate_task", pattern: "*", action: "deny" },
+      { permission: "task", pattern: "*", action: "deny" },
+      { permission: "workspace_prepare", pattern: "*", action: "deny" },
+      { permission: "execution_preflight", pattern: "*", action: "deny" },
+      { permission: "workspace_checkpoint_update", pattern: "*", action: "deny" },
+      { permission: "task_status", pattern: "*", action: "deny" },
+      { permission: "task_output", pattern: "*", action: "deny" },
+      { permission: "task_cancel", pattern: "*", action: "deny" },
+      { permission: "workspace_release", pattern: "*", action: "deny" },
+      { permission: "consult_agents", pattern: "*", action: "deny" },
+    ]
+    for (const name of MEDIA_RUNTIME_TOOL_NAMES) {
+      if (tools[name] !== false) rules.push({ permission: name, pattern: "*", action: "allow" })
     }
     return rules
   }

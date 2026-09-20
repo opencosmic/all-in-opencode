@@ -49,6 +49,18 @@ function validateCategory(name, source, configPath) {
   }
 }
 
+function builtinFamilyConflict(name, builtin, override) {
+  if (!builtin || override?.family === undefined || builtin.family === undefined) return null
+  const received = typeof override.family === "string" ? override.family.trim() : override.family
+  if (received === builtin.family) return null
+  return `Built-in category "${name}" has immutable family "${builtin.family}"; received "${received}"`
+}
+
+function assertBuiltinFamilyOverride(name, builtin, override, configPath = "<injected>") {
+  const conflict = builtinFamilyConflict(name, builtin, override)
+  if (conflict) throw categoryConfigError(configPath, conflict)
+}
+
 function normalizeCategory(name, source, configPath = "<injected>") {
   validateCategory(name, source, configPath)
   const result = structuredClone(source)
@@ -62,6 +74,7 @@ function mergeCategory(builtin, override) {
   return {
     ...structuredClone(builtin),
     ...structuredClone(override),
+    ...(builtin.family !== undefined && override.family === undefined ? { family: builtin.family } : {}),
     ...(override.tools === undefined && builtin.tools ? { tools: { ...builtin.tools } } : {}),
   }
 }
@@ -76,7 +89,7 @@ function validateModel(name, model) {
   }
 }
 
-export { DEFAULT_CATEGORIES, normalizeCategory, validateCategory }
+export { DEFAULT_CATEGORIES, assertBuiltinFamilyOverride, builtinFamilyConflict, normalizeCategory, validateCategory }
 
 export class CategoryEngine {
   constructor(userCategories = {}, { builtins = DEFAULT_CATEGORIES } = {}) {
@@ -88,7 +101,10 @@ export class CategoryEngine {
     if (!this.userCategories || typeof this.userCategories !== "object" || Array.isArray(this.userCategories)) {
       throw categoryConfigError("<injected>", "categories must be an object")
     }
-    for (const [name, source] of Object.entries(this.userCategories)) validateCategory(name, source, "<injected>")
+    for (const [name, source] of Object.entries(this.userCategories)) {
+      validateCategory(name, source, "<injected>")
+      assertBuiltinFamilyOverride(name, this.builtins[name], source)
+    }
     this.categories = Object.fromEntries(
       [...new Set([...Object.keys(this.builtins), ...Object.keys(this.userCategories)])]
         .filter((name) => !RETIRED_CATEGORIES.has(name))

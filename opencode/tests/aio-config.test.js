@@ -83,6 +83,36 @@ test("valid V1 aio.json is normalized and defaults missing sections", async (t) 
   })
 })
 
+test("built-in family labels are immutable while model and variant overrides remain configurable", () => {
+  const normalized = normalizeAioConfig({
+    version: 1,
+    categories: {
+      standard: {
+        family: " implementation ",
+        model: "provider/replacement",
+        variant: "high",
+      },
+      "media-generation": { family: "media" },
+      "custom-implementation": { family: "implementation" },
+      "custom-media": { family: "media" },
+    },
+  })
+
+  assert.equal(normalized.categories.standard.family, "implementation")
+  assert.equal(normalized.categories.standard.model, "provider/replacement")
+  assert.equal(normalized.categories.standard.variant, "high")
+  assert.equal(normalized.categories["media-generation"].family, "media")
+  assert.equal(normalized.categories["custom-implementation"].family, "implementation")
+  assert.equal(normalized.categories["custom-media"].family, "media")
+
+  for (const [name, family] of [["standard", "media"], ["media-generation", "implementation"]]) {
+    assert.throws(
+      () => normalizeAioConfig({ version: 1, categories: { [name]: { family } } }),
+      new RegExp(`Built-in category "${name}" has immutable family`),
+    )
+  }
+})
+
 test("delegation fields default independently to empty arrays", async (t) => {
   const { configPath } = await fixture(t)
   await writeFile(configPath, JSON.stringify({
@@ -119,13 +149,13 @@ test("default delegation is normalized and user lists extend it by union", () =>
   const withDefaults = withDefaultDelegation(normalized)
 
   assert.deepEqual(DEFAULT_DELEGATION.Producer, {
-    categories: ["video-analysis"],
-    category_families: [],
+    categories: ["video-analysis", "media-generation"],
+    category_families: ["media"],
     agents: ["Blender"],
   })
   assert.deepEqual(withDefaults.delegation.Producer, {
-    categories: ["video-analysis", "standard"],
-    category_families: [],
+    categories: ["video-analysis", "media-generation", "standard"],
+    category_families: ["media"],
     agents: ["Blender", "Searcher"],
   })
 })
