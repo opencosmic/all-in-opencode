@@ -56,10 +56,15 @@ test("/film is a thin Producer command for the film-production-first route", asy
 test("film-production is repository-owned and discoverable with focused references", async () => {
   const skillRoot = join(repository, "opencode/skills")
   const skill = await readFile(join(skillRoot, "film-production/SKILL.md"), "utf8")
+  const manifestGuidance = await readFile(join(skillRoot, "film-production/references/production-manifest.md"), "utf8")
   assert.match(skill, /^name: film-production$/m)
   assert.match(skill, /request -> creative intent -> shot decomposition -> ShotSpec\[\]/)
   assert.match(skill, /HyperFrames remains authoritative/i)
   assert.match(skill, /Atlas Cloud integration is deferred/i)
+  assert.match(skill, /createProductionManifest\(\)/)
+  assert.match(skill, /transitionProductionManifest\(\)/)
+  assert.match(manifestGuidance, /never\s+mutate `project\.status` directly/i)
+  assert.match(manifestGuidance, /revision` and `history`\s+coherent/i)
   for (const reference of [
     "cinematic-shotcraft",
     "shot-spec",
@@ -127,6 +132,8 @@ test("ProductionManifest validates one resumable state and its lifecycle", () =>
     }],
   })
   assert.equal(manifest.project.status, "planning")
+  assert.equal(manifest.revision, 0)
+  assert.deepEqual(manifest.history, [])
   assert.equal(manifest.costs.estimated_usd, null)
   assert.equal(manifest.outputs.final, null)
   assert.equal(isProductionManifest(manifest), true)
@@ -139,8 +146,14 @@ test("ProductionManifest validates one resumable state and its lifecycle", () =>
   assert.equal(previs.project.status, "previs")
   assert.equal(previs.revision, 1)
   assert.equal(previs.history.at(-1).from, "planning")
+  assert.equal(previs.history.at(-1).status, "previs")
   const production = transitionProductionManifest(previs, "production")
   assert.equal(production.project.status, "production")
+  assert.equal(production.revision, 2)
+  assert.deepEqual(
+    production.history.map(({ from, status }) => `${from}->${status}`),
+    ["planning->previs", "previs->production"],
+  )
   assert.equal(normalizeProductionManifest(production).project.id, "example-film")
   assert.throws(() => transitionProductionManifest(manifest, "completed"), /cannot transition/)
 

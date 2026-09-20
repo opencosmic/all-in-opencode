@@ -9,11 +9,11 @@ function json(value) {
 
 function mediaRuntimeTools(runtime) {
   const z = tool.schema
-  const mock = createMockMediaRuntime()
-  const shotRequest = z.object({
+  const shotRequestArgs = {
     shot_id: z.string().min(1),
     request_digest: z.string().min(1),
-  }).strict()
+  }
+  const mock = createMockMediaRuntime()
   const guarded = (name, args, execute) => tool({
     description: `Deterministic provider-neutral mock for ${name}; it never calls a media provider or network service. Available only to the media-generation Implementer category.`,
     args,
@@ -24,28 +24,28 @@ function mediaRuntimeTools(runtime) {
   })
 
   return {
-    media_calculate: guarded("media_calculate", z.object({
+    media_calculate: guarded("media_calculate", {
       shot_id: z.string().min(1),
       media_type: z.enum(["image", "video"]),
       duration_seconds: z.number().positive().max(3_600).optional(),
       request_digest: z.string().min(1).optional(),
-    }).strict(), mock.media_calculate),
-    media_upload: guarded("media_upload", z.object({
+    }, mock.media_calculate),
+    media_upload: guarded("media_upload", {
       asset_id: z.string().min(1),
       filename: z.string().min(1),
-    }).strict(), mock.media_upload),
-    media_generate_image: guarded("media_generate_image", shotRequest, mock.media_generate_image),
-    media_generate_video: guarded("media_generate_video", z.object({
+    }, mock.media_upload),
+    media_generate_image: guarded("media_generate_image", shotRequestArgs, mock.media_generate_image),
+    media_generate_video: guarded("media_generate_video", {
       shot_id: z.string().min(1),
       request_digest: z.string().min(1),
       duration_seconds: z.number().positive().max(3_600),
-    }).strict(), mock.media_generate_video),
-    media_prediction: guarded("media_prediction", z.object({
+    }, mock.media_generate_video),
+    media_prediction: guarded("media_prediction", {
       job_id: z.string().min(1),
-    }).strict(), mock.media_prediction),
-    media_wait_prediction: guarded("media_wait_prediction", z.object({
+    }, mock.media_prediction),
+    media_wait_prediction: guarded("media_wait_prediction", {
       job_id: z.string().min(1),
-    }).strict(), mock.media_wait_prediction),
+    }, mock.media_wait_prediction),
   }
 }
 

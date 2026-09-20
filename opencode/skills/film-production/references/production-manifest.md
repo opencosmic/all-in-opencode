@@ -69,3 +69,10 @@ transition such as `previs -> assets-ready`. Before treating ShotSpecs or a
 ProductionManifest as persisted canonical state, validate the persisted
 representation against the contract, then persist/use it and advance the
 stage only through a permitted transition.
+
+For canonical persisted state, initialize with `createProductionManifest()`
+and use `transitionProductionManifest()` for every lifecycle change. Never
+mutate `project.status` directly: the table checks whether a transition is
+legal, while the helper performs the change and keeps `revision` and `history`
+coherent. The validator continues to accept arbitrary valid manifests without
+requiring those optional bookkeeping fields.

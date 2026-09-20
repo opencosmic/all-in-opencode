@@ -37,6 +37,13 @@ routing records. Author the canonical shape, validate the persisted
 ShotSpecs/ProductionManifest, then use it and advance stages only through the
 permitted lifecycle transitions; do not invent or skip transitions.
 
+For canonical persisted `ProductionManifest` state, initialize through
+`createProductionManifest()` and never mutate `project.status` directly. Use
+`transitionProductionManifest()` to perform each lifecycle change so the
+permitted transition, `revision`, and `history` remain coherent. The transition
+table answers whether a move is legal; the helper performs the canonical state
+change.
+
 Read only the references needed for the current stage:
 
 - [cinematic-shotcraft](references/cinematic-shotcraft.md)

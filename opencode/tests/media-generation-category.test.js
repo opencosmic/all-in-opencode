@@ -9,6 +9,7 @@ import { createMockMediaRuntime } from "../plugins/delegation/media-runtime.js"
 import { delegationPluginHooks } from "../plugins/delegation/plugin-hooks.js"
 import { DelegationRuntime } from "../plugins/delegation/runtime.js"
 import { systemFor, toolsFor } from "../plugins/delegation/session-runner.js"
+import { tool } from "@opencode-ai/plugin"
 
 const availableAgents = [
   "Assistant",
@@ -109,6 +110,42 @@ test("mock media runtime is deterministic and exposes only bounded operations", 
     request_digest: "digest-03",
   }).estimated_usd, 0)
   assert.throws(() => first.media_upload({ asset_id: "asset" }), /filename/)
+})
+
+test("media tool registrations expose raw OpenCode argument schema maps", () => {
+  const runtime = new DelegationRuntime({
+    profiles: new Map(),
+    registry: { list: () => [] },
+    skills: { list: () => [] },
+  })
+  const registered = delegationPluginHooks(runtime).tool
+
+  const fields = {
+    media_calculate: ["shot_id", "media_type"],
+    media_upload: ["asset_id", "filename"],
+    media_generate_image: ["shot_id", "request_digest"],
+    media_generate_video: ["shot_id", "request_digest", "duration_seconds"],
+    media_prediction: ["job_id"],
+    media_wait_prediction: ["job_id"],
+  }
+
+  for (const [name, requiredFields] of Object.entries(fields)) {
+    for (const field of requiredFields) {
+      assert.equal(typeof registered[name].args[field]?.safeParse, "function", `${name}.${field}`)
+    }
+  }
+
+  const calculateSchema = tool.schema.object(registered.media_calculate.args)
+  const videoSchema = tool.schema.object(registered.media_generate_video.args)
+  const predictionSchema = tool.schema.object(registered.media_prediction.args)
+  assert.doesNotThrow(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video" }))
+  assert.doesNotThrow(() => videoSchema.parse({
+    shot_id: "shot_01",
+    request_digest: "digest-01",
+    duration_seconds: 3.5,
+  }))
+  assert.doesNotThrow(() => predictionSchema.parse({ job_id: "mock-job-01" }))
+  assert.throws(() => calculateSchema.parse({ shot_id: "", media_type: "video" }))
 })
 
 test("plugin media tools enforce the category boundary at execution time", async () => {
