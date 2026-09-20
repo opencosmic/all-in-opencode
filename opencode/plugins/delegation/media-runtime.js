@@ -342,6 +342,12 @@ async function resolveManifestPath(root, requested) {
   return resolveExistingUnderRoot(root, requested, "manifest_path")
 }
 
+function requireManifestArgument(args, operation) {
+  if (typeof args?.manifest_path !== "string" || !args.manifest_path.trim()) {
+    throw new Error(`manifest_path is required for ${operation}`)
+  }
+}
+
 async function resolveKnownManifestPath(root, requested) {
   const candidate = resolve(requested)
   let resolvedPath
@@ -485,8 +491,10 @@ export function createAtlasMediaRuntime({
   }
 
   async function calculate(args = {}, context) {
+    requireManifestArgument(args, "media_calculate")
     const shotID = identifier(args.shot_id, "shot_id")
     const { root, manifestPath } = await rootAndManifest(args, context)
+    const manifest = await readManifest(manifestPath)
     const { body, inputAssetIds } = await buildEffectiveAtlasRequest(
       args.media_type,
       args,
@@ -494,8 +502,7 @@ export function createAtlasMediaRuntime({
     )
     const digest = requestDigest(body)
     const cost = normalizeCost(await client.calculate(body))
-    const manifest = manifestPath ? await readManifest(manifestPath) : null
-    const reusable = manifest?.generation_jobs.find((job) =>
+    const reusable = manifest.generation_jobs.find((job) =>
       job.shot_id === shotID
       && job.media_type === args.media_type
       && job.request_digest === digest
@@ -548,16 +555,23 @@ export function createAtlasMediaRuntime({
   }
 
   async function upload(args = {}, context) {
+    requireManifestArgument(args, "media upload")
     const assetID = identifier(args.asset_id, "asset_id")
     const { root, manifestPath } = await rootAndManifest(args, context)
-    const manifest = manifestPath ? await readManifest(manifestPath) : null
-    const manifestAsset = manifest?.assets.find((asset) => asset.asset_id === assetID)
-    if (manifestPath && !manifestAsset) throw new Error(`ProductionManifest has no asset ${assetID}`)
-    const requestedPath = args.path ?? manifestAsset?.path
-    if (requestedPath === undefined) {
-      throw new Error("media_upload requires path or a manifest asset with a local path")
+    const manifest = await readManifest(manifestPath)
+    const manifestAsset = manifest.assets.find((asset) => asset.asset_id === assetID)
+    if (!manifestAsset) throw new Error(`ProductionManifest has no asset ${assetID}`)
+    if (typeof manifestAsset.path !== "string" || !manifestAsset.path.trim()) {
+      throw new Error(`ProductionManifest asset ${assetID} has no local path`)
     }
-    const localPath = await resolveExistingUnderRoot(root, requestedPath, "path")
+    const manifestAssetPath = await resolveExistingUnderRoot(root, manifestAsset.path, "ProductionManifest asset path")
+    if (args.path !== undefined) {
+      const providedPath = await resolveExistingUnderRoot(root, args.path, "path")
+      if (providedPath !== manifestAssetPath) {
+        throw new Error("Provided upload path does not match ProductionManifest asset path")
+      }
+    }
+    const localPath = manifestAssetPath
     const extension = extname(localPath).toLowerCase()
     const inferredType = IMAGE_EXTENSIONS.has(extension) ? "image" : VIDEO_EXTENSIONS.has(extension) ? "video" : null
     if (!inferredType) throw new Error("path must identify a supported image or video file")
@@ -624,11 +638,12 @@ export function createAtlasMediaRuntime({
   }
 
   async function generate(mediaType, args = {}, context) {
+    requireManifestArgument(args, `media_generate_${mediaType}`)
     const jobID = identifier(args.job_id, "job_id")
     const local = jobs.get(jobID)
     const { root, manifestPath } = await rootAndManifest(args, context, local?.manifestPath ?? null)
-    const manifest = manifestPath ? await readManifest(manifestPath) : null
-    const existing = manifest ? findManifestJob(manifest, jobID) : local?.record
+    const manifest = await readManifest(manifestPath)
+    const existing = findManifestJob(manifest, jobID)
     if (!existing) throw new Error(`Unknown Atlas media generation job: ${jobID}; call media_calculate first`)
     if (existing.media_type !== mediaType) throw new Error(`Atlas media job ${jobID} is for ${existing.media_type}, not ${mediaType}`)
     if (!["calculated", "awaiting_approval"].includes(existing.status)) {

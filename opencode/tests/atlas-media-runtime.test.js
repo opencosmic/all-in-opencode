@@ -30,6 +30,8 @@ const shot = {
   output: { aspect_ratio: "16:9", fps: 24 },
 }
 
+const ROOT_MANIFEST_PATH = "production-manifest.json"
+
 function jsonResponse(body, status = 200, headers = {}) {
   const text = JSON.stringify(body)
   return {
@@ -129,9 +131,12 @@ async function fixture({ manifestInProduction = false } = {}) {
   const manifestPath = manifestInProduction
     ? join(root, "production", "production-manifest.json")
     : join(root, "production-manifest.json")
+  const manifestRequestPath = manifestInProduction
+    ? "production/production-manifest.json"
+    : ROOT_MANIFEST_PATH
   if (manifestInProduction) await mkdir(join(root, "production"), { recursive: true })
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
-  return { root, manifestPath }
+  return { root, manifestPath, manifestRequestPath }
 }
 
 async function cleanup(root) {
@@ -225,7 +230,7 @@ test("canonical request digests are stable and change for meaningful generation 
 })
 
 test("media requests accept only fields for their selected modality", async () => {
-  const { root } = await fixture()
+  const { root, manifestRequestPath } = await fixture()
   try {
     const client = fakeClient()
     const runtime = createAtlasMediaRuntime({ directory: root, client })
@@ -233,6 +238,7 @@ test("media requests accept only fields for their selected modality", async () =
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A premium speaker",
+      manifest_path: manifestRequestPath,
       size: "1024*1024",
       output_format: "png",
       thinking: "enabled",
@@ -250,7 +256,7 @@ test("media requests accept only fields for their selected modality", async () =
       ["reference_video_asset_ids", ["previs"]],
     ]) {
       await assert.rejects(
-        runtime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A speaker", [field]: value }),
+        runtime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A speaker", manifest_path: manifestRequestPath, [field]: value }),
         new RegExp(`${field} is not supported for image generation`),
       )
     }
@@ -259,6 +265,7 @@ test("media requests accept only fields for their selected modality", async () =
         job_id: image.job_id,
         shot_id: "shot_01",
         prompt: "A premium speaker",
+        manifest_path: manifestRequestPath,
         duration_seconds: 4,
         approved_request_digest: image.request_digest,
         approved_max_usd: 1,
@@ -266,11 +273,12 @@ test("media requests accept only fields for their selected modality", async () =
       /duration_seconds is not supported for image generation/,
     )
 
-    await runtime.media_upload({ asset_id: "speaker_front", path: "references/speaker.png" })
+    await runtime.media_upload({ asset_id: "speaker_front", path: "references/speaker.png", manifest_path: manifestRequestPath })
     const videoArgs = {
       shot_id: "shot_01",
       media_type: "video",
       prompt: "The speaker rotates slowly",
+      manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front"],
       duration_seconds: 4,
       resolution: "720p",
@@ -333,7 +341,7 @@ test("media_calculate uses Atlas preflight, records the manifest job, and video 
 })
 
 test("generation rejects changed approvals and increased preflight cost without calling paid endpoints", async () => {
-  const { root } = await fixture()
+  const { root, manifestRequestPath } = await fixture()
   try {
     const client = fakeClient({ costs: [{ price: 0.045, estimated: false }, { price: 0.045, estimated: false }, { price: 0.06, estimated: false }] })
     const runtime = createAtlasMediaRuntime({ directory: root, client })
@@ -341,6 +349,7 @@ test("generation rejects changed approvals and increased preflight cost without 
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A premium speaker",
+      manifest_path: manifestRequestPath,
     })
     await assert.rejects(
       runtime.media_generate_image({
@@ -348,6 +357,7 @@ test("generation rejects changed approvals and increased preflight cost without 
         shot_id: "shot_01",
         media_type: "image",
         prompt: "A changed speaker",
+        manifest_path: manifestRequestPath,
         approved_request_digest: calculated.request_digest,
         approved_max_usd: 1,
       }),
@@ -361,6 +371,7 @@ test("generation rejects changed approvals and increased preflight cost without 
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A second premium speaker",
+      manifest_path: manifestRequestPath,
     })
     await assert.rejects(
       runtime.media_generate_image({
@@ -368,6 +379,7 @@ test("generation rejects changed approvals and increased preflight cost without 
         shot_id: "shot_01",
         media_type: "image",
         prompt: "A second premium speaker",
+        manifest_path: manifestRequestPath,
         approved_request_digest: approved.request_digest,
         approved_max_usd: 0.05,
         approved_price_usd: 0.045,
@@ -381,18 +393,19 @@ test("generation rejects changed approvals and increased preflight cost without 
 })
 
 test("ambiguous paid generation submission is not retried", async () => {
-  const { root } = await fixture()
+  const { root, manifestRequestPath } = await fixture()
   try {
     const client = fakeClient({
       costs: [{ price: 0.24, estimated: true }, { price: 0.24, estimated: true }],
       generateVideoError: new Error("socket dropped after submission"),
     })
     const runtime = createAtlasMediaRuntime({ directory: root, client })
-    await runtime.media_upload({ asset_id: "speaker_front", path: "references/speaker.png" })
+    await runtime.media_upload({ asset_id: "speaker_front", path: "references/speaker.png", manifest_path: manifestRequestPath })
     const calculated = await runtime.media_calculate({
       shot_id: "shot_01",
       media_type: "video",
       prompt: "A slow product reveal",
+      manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front"],
       duration_seconds: 4,
     })
@@ -401,6 +414,7 @@ test("ambiguous paid generation submission is not retried", async () => {
       shot_id: "shot_01",
       media_type: "video",
       prompt: "A slow product reveal",
+      manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front"],
       duration_seconds: 4,
       approved_request_digest: calculated.request_digest,
@@ -411,6 +425,7 @@ test("ambiguous paid generation submission is not retried", async () => {
       shot_id: "shot_01",
       media_type: "video",
       prompt: "A slow product reveal",
+      manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front"],
       duration_seconds: 4,
       approved_request_digest: calculated.request_digest,
@@ -423,7 +438,7 @@ test("ambiguous paid generation submission is not retried", async () => {
 })
 
 test("ambiguous image submission is also not retried", async () => {
-  const { root } = await fixture()
+  const { root, manifestRequestPath } = await fixture()
   try {
     const client = fakeClient({
       costs: [{ price: 0.045, estimated: false }, { price: 0.045, estimated: false }],
@@ -434,12 +449,14 @@ test("ambiguous image submission is also not retried", async () => {
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A premium speaker",
+      manifest_path: manifestRequestPath,
     })
     await assert.rejects(runtime.media_generate_image({
       job_id: calculated.job_id,
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A premium speaker",
+      manifest_path: manifestRequestPath,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 0.1,
     }), /connection closed/)
@@ -448,6 +465,7 @@ test("ambiguous image submission is also not retried", async () => {
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A premium speaker",
+      manifest_path: manifestRequestPath,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 0.1,
     }), /cannot be submitted again/)
@@ -457,20 +475,26 @@ test("ambiguous image submission is also not retried", async () => {
   }
 })
 
-test("media_upload allows only real files under the project root", async () => {
-  const { root } = await fixture()
+test("media_upload allows only manifest-approved real files under the project root", async () => {
+  const { root, manifestRequestPath } = await fixture()
   const outside = await mkdtemp(join(tmpdir(), "aio-atlas-outside-"))
   try {
     await writeFile(join(outside, "secret.png"), Buffer.from("secret"))
     await symlink(join(outside, "secret.png"), join(root, "escape.png"))
     const client = fakeClient()
     const runtime = createAtlasMediaRuntime({ directory: root, client })
-    const valid = await runtime.media_upload({ asset_id: "speaker_front", path: "references/speaker.png" })
+    const valid = await runtime.media_upload({ asset_id: "speaker_front", path: "references/speaker.png", manifest_path: manifestRequestPath })
     assert.equal(valid.status, "uploaded")
     for (const path of ["../secret.png", "/etc/passwd", "missing.png", "references"]) {
-      await assert.rejects(runtime.media_upload({ asset_id: "bad_asset", path }), /workspace|traversal|does not exist|must identify a file/)
+      await assert.rejects(
+        runtime.media_upload({ asset_id: "speaker_front", manifest_path: manifestRequestPath, path }),
+        /workspace|traversal|does not exist|must identify a file/,
+      )
     }
-    await assert.rejects(runtime.media_upload({ asset_id: "bad_asset", path: "escape.png" }), /outside the project workspace/)
+    await assert.rejects(
+      runtime.media_upload({ asset_id: "speaker_front", manifest_path: manifestRequestPath, path: "escape.png" }),
+      /outside the project workspace/,
+    )
     assert.equal(client.calls.filter((call) => call.operation === "uploadMedia").length, 1)
   } finally {
     await cleanup(root)
@@ -478,8 +502,113 @@ test("media_upload allows only real files under the project root", async () => {
   }
 })
 
+test("media_upload requires a manifest asset and rejects arbitrary or mismatched workspace files", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    await mkdir(join(root, "private"), { recursive: true })
+    await writeFile(join(root, "private", "secret.png"), Buffer.from("secret"))
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+
+    await assert.rejects(
+      runtime.media_upload({ asset_id: "speaker_front", path: "references/speaker.png" }),
+      /manifest_path is required for media upload/,
+    )
+    await assert.rejects(
+      runtime.media_upload({ asset_id: "unknown_asset", manifest_path: manifestRequestPath, path: "private/secret.png" }),
+      /ProductionManifest has no asset unknown_asset/,
+    )
+    await assert.rejects(
+      runtime.media_upload({ asset_id: "speaker_front", manifest_path: manifestRequestPath, path: "private/secret.png" }),
+      /Provided upload path does not match ProductionManifest asset path/,
+    )
+    assert.equal(client.calls.filter((call) => call.operation === "uploadMedia").length, 0)
+
+    const matching = await runtime.media_upload({
+      asset_id: "speaker_front",
+      manifest_path: manifestRequestPath,
+      path: "references/speaker.png",
+    })
+    assert.equal(matching.status, "uploaded")
+    assert.equal(client.calls.filter((call) => call.operation === "uploadMedia").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("real Atlas paid flow requires persisted ProductionManifest context", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+
+    await assert.rejects(
+      runtime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A speaker" }),
+      /manifest_path is required for media_calculate/,
+    )
+    assert.equal(client.calls.length, 0)
+
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A speaker",
+      manifest_path: manifestRequestPath,
+    })
+    await assert.rejects(
+      runtime.media_generate_image({
+        job_id: calculated.job_id,
+        shot_id: "shot_01",
+        media_type: "image",
+        prompt: "A speaker",
+        approved_request_digest: calculated.request_digest,
+        approved_max_usd: 0.1,
+      }),
+      /manifest_path is required for media_generate_image/,
+    )
+    await assert.rejects(
+      runtime.media_generate_video({
+        job_id: calculated.job_id,
+        shot_id: "shot_01",
+        media_type: "video",
+        prompt: "A speaker",
+        approved_request_digest: calculated.request_digest,
+        approved_max_usd: 0.1,
+      }),
+      /manifest_path is required for media_generate_video/,
+    )
+    assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 0)
+
+    await assert.rejects(
+      runtime.media_generate_image({
+        job_id: "ephemeral-image-job",
+        shot_id: "shot_01",
+        media_type: "image",
+        prompt: "A speaker",
+        manifest_path: manifestRequestPath,
+        approved_request_digest: calculated.request_digest,
+        approved_max_usd: 0.1,
+      }),
+      /Unknown Atlas media generation job: ephemeral-image-job/,
+    )
+    await assert.rejects(
+      runtime.media_generate_video({
+        job_id: "ephemeral-video-job",
+        shot_id: "shot_01",
+        media_type: "video",
+        prompt: "A speaker",
+        manifest_path: manifestRequestPath,
+        approved_request_digest: calculated.request_digest,
+        approved_max_usd: 0.1,
+      }),
+      /Unknown Atlas media generation job: ephemeral-video-job/,
+    )
+  } finally {
+    await cleanup(root)
+  }
+})
+
 test("prediction polling maps processing to completed and materializes local output", async () => {
-  const { root } = await fixture()
+  const { root, manifestRequestPath } = await fixture()
   try {
     let clock = 0
     const client = fakeClient({
@@ -495,17 +624,19 @@ test("prediction polling maps processing to completed and materializes local out
       now: () => clock,
       sleepImpl: async (ms) => { clock += ms },
     })
-    const calculated = await runtime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A speaker" })
+    const calculated = await runtime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A speaker", manifest_path: manifestRequestPath })
     const submitted = await runtime.media_generate_image({
       job_id: calculated.job_id,
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A speaker",
+      manifest_path: manifestRequestPath,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 0.1,
     })
     const completed = await runtime.media_wait_prediction({
       job_id: submitted.job_id,
+      manifest_path: manifestRequestPath,
       interval_ms: 250,
       timeout_ms: 2_000,
     })
@@ -516,7 +647,7 @@ test("prediction polling maps processing to completed and materializes local out
     const materialized = resolve(root, completed.output_paths[0])
     assert.equal((await readFile(materialized, "utf8")).startsWith("materialized:"), true)
     assert.equal(client.calls.filter((call) => call.operation === "download").length, 2)
-    const repeated = await runtime.media_prediction({ job_id: submitted.job_id })
+    const repeated = await runtime.media_prediction({ job_id: submitted.job_id, manifest_path: manifestRequestPath })
     assert.deepEqual(repeated.output_asset_ids, completed.output_asset_ids)
     assert.equal(client.calls.filter((call) => call.operation === "download").length, 2)
   } finally {
@@ -525,7 +656,7 @@ test("prediction polling maps processing to completed and materializes local out
 })
 
 test("materialization keeps the canonical output directory for a production manifest", async () => {
-  const { root, manifestPath } = await fixture({ manifestInProduction: true })
+  const { root, manifestPath, manifestRequestPath } = await fixture({ manifestInProduction: true })
   try {
     const client = fakeClient({
       predictions: [{ status: "completed", outputs: ["https://atlas.example/nested-output.png"] }],
@@ -535,16 +666,17 @@ test("materialization keeps the canonical output directory for a production mani
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A speaker in the production manifest location",
-      manifest_path: "production/production-manifest.json",
+      manifest_path: manifestRequestPath,
     })
     const submitted = await runtime.media_generate_image({
       job_id: calculated.job_id,
       shot_id: "shot_01",
       prompt: "A speaker in the production manifest location",
+      manifest_path: manifestRequestPath,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 0.1,
     })
-    const completed = await runtime.media_prediction({ job_id: submitted.job_id })
+    const completed = await runtime.media_prediction({ job_id: submitted.job_id, manifest_path: manifestRequestPath })
     assert.equal(completed.output_paths.length, 1)
     assert.match(completed.output_paths[0], /^production\/assets\/generated\//)
     assert.doesNotMatch(completed.output_paths[0], /production\/production\//)
@@ -562,7 +694,7 @@ test("materialization keeps the canonical output directory for a production mani
 })
 
 test("failed and provider-timeout predictions persist terminal states without rerolling", async () => {
-  const { root, manifestPath } = await fixture()
+  const { root, manifestPath, manifestRequestPath } = await fixture()
   try {
     const client = fakeClient({ predictions: [{ status: "failed", error: "content rejected", outputs: [] }] })
     const runtime = createAtlasMediaRuntime({ directory: root, client })
@@ -570,18 +702,18 @@ test("failed and provider-timeout predictions persist terminal states without re
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A speaker",
-      manifest_path: "production-manifest.json",
+      manifest_path: manifestRequestPath,
     })
     const submitted = await runtime.media_generate_image({
       job_id: calculated.job_id,
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A speaker",
-      manifest_path: "production-manifest.json",
+      manifest_path: manifestRequestPath,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 0.1,
     })
-    const failed = await runtime.media_prediction({ job_id: submitted.job_id, manifest_path: "production-manifest.json" })
+    const failed = await runtime.media_prediction({ job_id: submitted.job_id, manifest_path: manifestRequestPath })
     assert.equal(failed.status, "failed")
     assert.equal(failed.error, "content rejected")
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
@@ -590,16 +722,22 @@ test("failed and provider-timeout predictions persist terminal states without re
 
     const timeoutClient = fakeClient({ predictions: [{ status: "timeout", outputs: [] }] })
     const timeoutRuntime = createAtlasMediaRuntime({ directory: root, client: timeoutClient })
-    const timeoutCalc = await timeoutRuntime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A timeout speaker" })
+    const timeoutCalc = await timeoutRuntime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A timeout speaker",
+      manifest_path: manifestRequestPath,
+    })
     const timeoutSubmit = await timeoutRuntime.media_generate_image({
       job_id: timeoutCalc.job_id,
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A timeout speaker",
+      manifest_path: manifestRequestPath,
       approved_request_digest: timeoutCalc.request_digest,
       approved_max_usd: 0.1,
     })
-    const timeout = await timeoutRuntime.media_prediction({ job_id: timeoutSubmit.job_id })
+    const timeout = await timeoutRuntime.media_prediction({ job_id: timeoutSubmit.job_id, manifest_path: manifestRequestPath })
     assert.equal(timeout.status, "timeout")
   } finally {
     await cleanup(root)
@@ -607,7 +745,7 @@ test("failed and provider-timeout predictions persist terminal states without re
 })
 
 test("local wait timeout remains resumable and does not claim provider cancellation", async () => {
-  const { root } = await fixture()
+  const { root, manifestRequestPath } = await fixture()
   try {
     let clock = 0
     const client = fakeClient({ predictions: [{ status: "processing", outputs: [] }] })
@@ -617,16 +755,27 @@ test("local wait timeout remains resumable and does not claim provider cancellat
       now: () => clock,
       sleepImpl: async (ms) => { clock += ms },
     })
-    const calculated = await runtime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A slow speaker" })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A slow speaker",
+      manifest_path: manifestRequestPath,
+    })
     const submitted = await runtime.media_generate_image({
       job_id: calculated.job_id,
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A slow speaker",
+      manifest_path: manifestRequestPath,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 0.1,
     })
-    const timedOut = await runtime.media_wait_prediction({ job_id: submitted.job_id, interval_ms: 250, timeout_ms: 1_000 })
+    const timedOut = await runtime.media_wait_prediction({
+      job_id: submitted.job_id,
+      manifest_path: manifestRequestPath,
+      interval_ms: 250,
+      timeout_ms: 1_000,
+    })
     assert.equal(timedOut.status, "processing")
     assert.equal(timedOut.wait_timed_out, true)
     assert.equal(timedOut.cancellation_requested, false)
@@ -637,46 +786,55 @@ test("local wait timeout remains resumable and does not claim provider cancellat
 })
 
 test("malformed Atlas responses fail closed", async () => {
-  const { root } = await fixture()
+  const { root, manifestRequestPath } = await fixture()
   try {
     const malformed = fakeClient()
     malformed.calculate = async () => ({ data: { estimated: false } })
     const runtime = createAtlasMediaRuntime({ directory: root, client: malformed })
     await assert.rejects(
-      runtime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A speaker" }),
+      runtime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A speaker", manifest_path: manifestRequestPath }),
       /malformed response: missing non-negative data.price/,
     )
     const unknownStatus = fakeClient({ predictions: [{ status: "mysterious", outputs: [] }] })
     const unknownRuntime = createAtlasMediaRuntime({ directory: root, client: unknownStatus })
-    const calculated = await unknownRuntime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A speaker" })
+    const calculated = await unknownRuntime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A speaker",
+      manifest_path: manifestRequestPath,
+    })
     const submitted = await unknownRuntime.media_generate_image({
       job_id: calculated.job_id,
       shot_id: "shot_01",
       media_type: "image",
       prompt: "A speaker",
+      manifest_path: manifestRequestPath,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 0.1,
     })
-    await assert.rejects(unknownRuntime.media_prediction({ job_id: submitted.job_id }), /unsupported status: mysterious/)
+    await assert.rejects(
+      unknownRuntime.media_prediction({ job_id: submitted.job_id, manifest_path: manifestRequestPath }),
+      /unsupported status: mysterious/,
+    )
   } finally {
     await cleanup(root)
   }
 })
 
 test("completed video output is materialized and linked from ProductionManifest", async () => {
-  const { root, manifestPath } = await fixture()
+  const { root, manifestPath, manifestRequestPath } = await fixture()
   try {
     const client = fakeClient({
       predictions: [{ status: "completed", outputs: ["https://atlas.example/output.mp4"] }],
       costs: [{ price: 0.24, estimated: true }, { price: 0.24, estimated: true }],
     })
     const runtime = createAtlasMediaRuntime({ directory: root, client })
-    await runtime.media_upload({ asset_id: "speaker_front", manifest_path: "production-manifest.json" })
+    await runtime.media_upload({ asset_id: "speaker_front", manifest_path: manifestRequestPath })
     const calculated = await runtime.media_calculate({
       shot_id: "shot_01",
       media_type: "video",
       prompt: "The speaker rotates slowly",
-      manifest_path: "production-manifest.json",
+      manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front"],
       duration_seconds: 4,
       resolution: "720p",
@@ -687,6 +845,7 @@ test("completed video output is materialized and linked from ProductionManifest"
       shot_id: "shot_01",
       media_type: "video",
       prompt: "The speaker rotates slowly",
+      manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front"],
       duration_seconds: 4,
       resolution: "720p",
@@ -695,7 +854,7 @@ test("completed video output is materialized and linked from ProductionManifest"
       approved_max_usd: 0.3,
       approved_price_usd: calculated.price_usd,
     })
-    const completed = await runtime.media_prediction({ job_id: submitted.job_id })
+    const completed = await runtime.media_prediction({ job_id: submitted.job_id, manifest_path: manifestRequestPath })
     assert.equal(completed.status, "completed")
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
     assert.equal(manifest.generation_jobs[0].status, "completed")

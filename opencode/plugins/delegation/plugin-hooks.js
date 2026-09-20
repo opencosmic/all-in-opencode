@@ -12,7 +12,7 @@ function mediaRuntimeTools(runtime) {
   const commonGenerationArgs = {
     shot_id: z.string().min(1),
     prompt: z.string().min(1),
-    manifest_path: z.string().min(1).optional(),
+    manifest_path: z.string().min(1),
   }
   const imageGenerationArgs = {
     ...commonGenerationArgs,
@@ -72,7 +72,7 @@ function mediaRuntimeTools(runtime) {
     media_upload: guarded("media_upload", {
       asset_id: z.string().min(1),
       path: z.string().min(1).optional(),
-      manifest_path: z.string().min(1).optional(),
+      manifest_path: z.string().min(1),
       media_type: z.enum(["image", "video"]).optional(),
     }, media.media_upload),
     media_generate_image: guarded("media_generate_image", {

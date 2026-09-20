@@ -56,6 +56,11 @@ test("media-generation has a bounded session ceiling and no recursive delegation
     pattern: "*",
   }), "deny")
   for (const type of [
+    "read",
+    "glob",
+    "grep",
+    "list",
+    "lsp",
     "edit",
     "write",
     "bash",
@@ -67,6 +72,9 @@ test("media-generation has a bounded session ceiling and no recursive delegation
   ]) assert.equal(categoryPermission({ category: "media-generation" }, { type, pattern: "*" }), "deny", type)
 
   const rules = categorySessionPermission("media-generation", profile.tools)
+  for (const permission of ["read", "glob", "grep", "list", "lsp"]) {
+    assert.ok(rules.some((rule) => rule.permission === permission && rule.pattern === "*" && rule.action === "deny"), permission)
+  }
   for (const name of [
     "media_calculate",
     "media_upload",
@@ -124,9 +132,9 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
 
   const fields = {
     media_calculate: ["shot_id", "media_type", "prompt"],
-    media_upload: ["asset_id", "path"],
-    media_generate_image: ["job_id", "shot_id", "prompt", "approved_request_digest", "approved_max_usd"],
-    media_generate_video: ["job_id", "shot_id", "prompt", "approved_request_digest", "approved_max_usd"],
+    media_upload: ["asset_id", "path", "manifest_path"],
+    media_generate_image: ["job_id", "shot_id", "prompt", "manifest_path", "approved_request_digest", "approved_max_usd"],
+    media_generate_video: ["job_id", "shot_id", "prompt", "manifest_path", "approved_request_digest", "approved_max_usd"],
     media_prediction: ["job_id"],
     media_wait_prediction: ["job_id"],
   }
@@ -138,6 +146,7 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   }
 
   const calculateSchema = tool.schema.object(registered.media_calculate.args)
+  const uploadSchema = tool.schema.object(registered.media_upload.args)
   const imageSchema = tool.schema.object(registered.media_generate_image.args)
   const videoSchema = tool.schema.object(registered.media_generate_video.args)
   const predictionSchema = tool.schema.object(registered.media_prediction.args)
@@ -149,11 +158,14 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     assert.equal(typeof registered.media_generate_video.args[field]?.safeParse, "function", `video.${field}`)
     assert.equal(registered.media_generate_image.args[field], undefined, `image must not expose ${field}`)
   }
-  assert.doesNotThrow(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal" }))
+  assert.doesNotThrow(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal", manifest_path: "production-manifest.json" }))
+  assert.throws(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal" }), /manifest_path/)
+  assert.throws(() => uploadSchema.parse({ asset_id: "asset-01" }), /manifest_path/)
   assert.doesNotThrow(() => imageSchema.parse({
     job_id: "job-01",
     shot_id: "shot_01",
     prompt: "a reveal",
+    manifest_path: "production-manifest.json",
     approved_request_digest: "a".repeat(64),
     approved_max_usd: 1,
     size: "1024*1024",
@@ -162,6 +174,7 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     job_id: "job-01",
     shot_id: "shot_01",
     prompt: "a reveal",
+    manifest_path: "production-manifest.json",
     approved_request_digest: "a".repeat(64),
     approved_max_usd: 1,
     duration_seconds: 4,
@@ -180,7 +193,13 @@ test("plugin media tools enforce the category boundary at execution time", async
     skills: { list: () => [] },
   })
   const hooks = delegationPluginHooks(runtime)
-  const args = { shot_id: "shot_03", media_type: "video", prompt: "a reveal", duration_seconds: 6 }
+  const args = {
+    shot_id: "shot_03",
+    media_type: "video",
+    prompt: "a reveal",
+    manifest_path: "production-manifest.json",
+    duration_seconds: 6,
+  }
   const result = await hooks.tool.media_calculate.execute(args, { sessionID: "media-session" })
   assert.match(result, /"estimated_usd": 0/)
   await assert.rejects(
