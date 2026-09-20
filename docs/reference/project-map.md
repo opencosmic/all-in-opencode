@@ -6,6 +6,8 @@
 | [`opencode/commands/`](../../opencode/commands/) | `/spec`, `/plan`, `/execute`, `/verify`, `/ship`, `/browser`, `/blender`, `/video`, `/film`, `/search`, and `/research`. |
 | [`opencode/plugins/delegation-runtime.js`](../../opencode/plugins/delegation-runtime.js) | Loader-safe Delegation Runtime entrypoint. |
 | [`opencode/plugins/delegation/`](../../opencode/plugins/delegation/) | Execution preflight, change-centric WorkspaceManager, dynamic CategoryEngine, selective SkillResolver, TaskRegistry, SessionRunner, CompletionTracker, ParentResumeCoordinator, dispatch, and category permissions. |
+| [`opencode/plugins/delegation/atlas-client.js`](../../opencode/plugins/delegation/atlas-client.js) | Small Atlas Cloud HTTP client for calculate, upload, generation submission, prediction checks, and output downloads. |
+| [`opencode/plugins/delegation/media-runtime.js`](../../opencode/plugins/delegation/media-runtime.js) | Bounded Atlas media operations, request digests, upload/materialization safety, polling, and ProductionManifest integration. |
 | [`opencode/plugins/workspace-inspector.js`](../../opencode/plugins/workspace-inspector.js) | Read-only workspace placement and provenance evidence. |
 | [`opencode/plugins/professor-runtime.js`](../../opencode/plugins/professor-runtime.js) | Default-only stateful Deep Research tool entrypoint. |
 | [`opencode/plugins/professor/`](../../opencode/plugins/professor/) | Deterministic ResearchState, persistence, frontier, evidence, verification, and report runtime. |

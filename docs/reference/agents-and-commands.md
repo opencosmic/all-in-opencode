@@ -52,8 +52,9 @@ technically, but `/video` and `/film` remain Producer-owned workflows.
 `/film` also deliberately does not use a `video-production` category. It loads
 the repository-owned `film-production` methodology, plans `ShotSpec[]` and a
 single `ProductionManifest`, then routes camera/blocking to Blender, bounded
-media execution to `media-generation`, QA to `video-analysis`, and composition
-and rendering to HyperFrames. Real paid provider integration is deferred.
+Atlas media execution to `media-generation`, QA to `video-analysis`, and
+composition and rendering to HyperFrames. Atlas is the only implemented media
+provider; paid submissions remain behind the calculate/approval boundary.
 
 Blender is the single reusable 3D specialist. Use `/blender` directly, or let
 Executor delegate Blender-native product/artifact work and Producer delegate

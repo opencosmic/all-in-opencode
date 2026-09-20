@@ -21,9 +21,11 @@ const GENERATION_JOB_STATUSES = new Set([
   "calculated",
   "awaiting_approval",
   "submitted",
+  "processing",
   "running",
   "completed",
   "failed",
+  "timeout",
 ])
 
 const ASSET_STATUSES = new Set(["required", "pending", "ready", "used", "failed"])
@@ -195,14 +197,50 @@ function validateGenerationJob(job, path) {
   if (job.status !== undefined && !GENERATION_JOB_STATUSES.has(job.status)) {
     contractError(`${path}.status`, `must be one of: ${[...GENERATION_JOB_STATUSES].join(", ")}`)
   }
-  for (const field of ["request_digest", "output", "error"]) {
+  if (job.media_type !== undefined && !["image", "video"].includes(job.media_type)) {
+    contractError(`${path}.media_type`, "must be image or video")
+  }
+  for (const field of ["request_digest", "model", "provider_prediction_id", "provider_status", "output", "error", "provider_error", "manifest_path"]) {
     if (job[field] !== undefined && job[field] !== null) {
       if (field === "output" && typeof job[field] === "object" && !Array.isArray(job[field])) continue
       nonEmptyString(job[field], `${path}.${field}`)
     }
   }
-  if (job.estimated_usd !== undefined) nullableNonNegativeNumber(job.estimated_usd, `${path}.estimated_usd`)
-  if (job.actual_usd !== undefined) nullableNonNegativeNumber(job.actual_usd, `${path}.actual_usd`)
+  for (const field of [
+    "estimated_usd",
+    "origin_price_usd",
+    "approved_usd",
+    "approved_max_usd",
+    "approved_price_usd",
+    "actual_usd",
+  ]) {
+    if (job[field] !== undefined) nullableNonNegativeNumber(job[field], `${path}.${field}`)
+  }
+  if (job.discount !== undefined && job.discount !== null) {
+    if (typeof job.discount !== "number" || !Number.isFinite(job.discount) || job.discount < 0 || job.discount > 100) {
+      contractError(`${path}.discount`, "must be null or a number between 0 and 100")
+    }
+  }
+  if (job.estimated !== undefined && typeof job.estimated !== "boolean") {
+    contractError(`${path}.estimated`, "must be a boolean")
+  }
+  if (job.estimated_tokens !== undefined) {
+    if (!Number.isInteger(job.estimated_tokens) || job.estimated_tokens < 0) {
+      contractError(`${path}.estimated_tokens`, "must be a non-negative integer")
+    }
+  }
+  for (const field of ["input_asset_ids", "output_asset_ids"]) {
+    if (job[field] !== undefined) {
+      stringArray(job[field], `${path}.${field}`)
+      for (const [index, assetId] of job[field].entries()) identifier(assetId, `${path}.${field}[${index}]`)
+    }
+  }
+  if (job.wait_timed_out !== undefined && typeof job.wait_timed_out !== "boolean") {
+    contractError(`${path}.wait_timed_out`, "must be a boolean")
+  }
+  for (const field of ["created_at", "updated_at", "submitted_at", "completed_at"]) {
+    if (job[field] !== undefined && job[field] !== null) nonEmptyString(job[field], `${path}.${field}`, 80)
+  }
 }
 
 function validateArtifact(value, path) {

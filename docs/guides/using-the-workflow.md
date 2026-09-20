@@ -190,7 +190,9 @@ shotcraft, the validated provider-neutral `ShotSpec` and `ProductionManifest`
 contracts, reference-asset tracking, and revision routing. Blender handles
 camera/blocking/staging/previs, HyperFrames handles composition/render, and
 Watch-backed `video-analysis` handles grounded review. The media category is
-least-privilege and currently exposes only deterministic mock operations; it
-cannot delegate, use shell/Git, browse, edit files, or call arbitrary HTTP.
-Real Atlas Cloud generation, billing, approval, polling, and automatic paid
-rerolls are intentionally deferred.
+least-privilege and exposes only six bounded Atlas Cloud operations; it cannot
+delegate, use shell/Git, browse, edit files, or call arbitrary HTTP.
+`media_calculate` is the no-charge preflight, generation tools require an
+unchanged approved digest and cost ceiling, prediction tools poll boundedly,
+and completed Atlas outputs are materialized locally. Automatic paid rerolls
+and provider fallback do not exist.

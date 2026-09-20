@@ -90,7 +90,7 @@ previs handoff; Producer remains responsible for media orchestration. Prefer
 fast, rough previews for validation and do not request an expensive final
 render unless the parent or user explicitly requires it. Use the existing
 `video-analysis` category for analyzing video or previews when needed, and the
-bounded `media-generation` category only for its explicit mock/runtime media
+bounded `media-generation` category only for its six explicit Atlas Cloud media
 operations. Blender does not receive categories.
 
 ## Two production routes
@@ -117,16 +117,22 @@ transitions, audio assembly, and rendering.
 
 Use the routing vocabulary from `film-production`: generated footage goes to
 `media-generation`; complex camera, blocking, staging, lens, and spatial work
-goes to Blender; grounded review goes to `video-analysis`. The current media
-runtime is a deterministic provider-neutral mock. Do not call Atlas, calculate
-real billing, submit paid requests, or automatically reroll media in this
-phase.
+goes to Blender; grounded review goes to `video-analysis`. Atlas Cloud is the
+only implemented media provider. Before any paid image or video submission,
+call `media_calculate`, present the effective price and whether it is an
+estimate, obtain explicit user approval, then pass the unchanged request digest
+and approved cost ceiling to `media_generate_image` or `media_generate_video`.
+Use `media_prediction` for one check or `media_wait_prediction` for bounded
+polling; completed outputs are materialized into project assets. Never call
+Atlas through arbitrary HTTP, change parameters after approval, or
+automatically reroll a failed/ambiguous job.
 
 Keep structured state in `ShotSpec` and `ProductionManifest`, not only prose.
-Design future media work around `calculate -> explicit approval -> request
-digest -> submit`, but do not implement that paid flow yet. Watch results may
-route revisions back to Blender, media-generation, or HyperFrames according to
-the observed problem; rerolls remain explicit user decisions.
+The runtime enforces request and cost integrity, while human approval remains
+an orchestration invariant unless OpenCode supplies a native approval proof.
+Watch results may route revisions back to Blender, media-generation, or
+HyperFrames according to the observed problem; rerolls remain explicit user
+decisions with a new calculate/approval cycle.
 
 ## Authoritative upstream boundary
 

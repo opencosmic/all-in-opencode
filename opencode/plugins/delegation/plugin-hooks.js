@@ -9,43 +9,79 @@ function json(value) {
 
 function mediaRuntimeTools(runtime) {
   const z = tool.schema
-  const shotRequestArgs = {
+  const generationRequestArgs = {
     shot_id: z.string().min(1),
-    request_digest: z.string().min(1),
+    prompt: z.string().min(1),
+    manifest_path: z.string().min(1).optional(),
+    reference_image_asset_ids: z.array(z.string().min(1)).max(9).optional(),
+    reference_video_asset_ids: z.array(z.string().min(1)).max(3).optional(),
+    duration_seconds: z.number().int().min(4).max(15).optional(),
+    size: z.enum([
+      "2048*2048",
+      "2304*1728",
+      "1728*2304",
+      "2720*1530",
+      "1530*2720",
+      "2496*1664",
+      "1664*2496",
+      "1024*1024",
+      "1536*1536",
+      "1776*1328",
+      "1328*1776",
+      "2048*1152",
+      "1152*2048",
+    ]).optional(),
+    output_format: z.enum(["jpeg", "png"]).optional(),
+    thinking: z.enum(["enabled", "disabled"]).optional(),
+    prompt_optimization_mode: z.enum(["standard", "fast"]).optional(),
+    resolution: z.enum(["480p", "720p", "720p-SR", "1080p-SR", "1440p-SR"]).optional(),
+    ratio: z.enum(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"]).optional(),
   }
-  const mock = createMockMediaRuntime()
+  const media = runtime.mediaRuntime ?? createMockMediaRuntime()
   const guarded = (name, args, execute) => tool({
-    description: `Deterministic provider-neutral mock for ${name}; it never calls a media provider or network service. Available only to the media-generation Implementer category.`,
+    description: `Bounded Atlas Cloud media operation ${name}; available only to the media-generation Implementer category.`,
     args,
     execute: async (args, context) => {
       await runtime.assertMediaToolAccess(context?.sessionID, name)
-      return json(execute(args))
+      return json(await execute(args, context))
     },
   })
 
   return {
     media_calculate: guarded("media_calculate", {
-      shot_id: z.string().min(1),
       media_type: z.enum(["image", "video"]),
-      duration_seconds: z.number().positive().max(3_600).optional(),
-      request_digest: z.string().min(1).optional(),
-    }, mock.media_calculate),
+      ...generationRequestArgs,
+    }, media.media_calculate),
     media_upload: guarded("media_upload", {
       asset_id: z.string().min(1),
-      filename: z.string().min(1),
-    }, mock.media_upload),
-    media_generate_image: guarded("media_generate_image", shotRequestArgs, mock.media_generate_image),
+      path: z.string().min(1).optional(),
+      manifest_path: z.string().min(1).optional(),
+      media_type: z.enum(["image", "video"]).optional(),
+    }, media.media_upload),
+    media_generate_image: guarded("media_generate_image", {
+      ...generationRequestArgs,
+      job_id: z.string().min(1),
+      approved_request_digest: z.string().length(64),
+      approved_max_usd: z.number().nonnegative(),
+      approved_price_usd: z.number().nonnegative().optional(),
+    }, media.media_generate_image),
     media_generate_video: guarded("media_generate_video", {
-      shot_id: z.string().min(1),
-      request_digest: z.string().min(1),
-      duration_seconds: z.number().positive().max(3_600),
-    }, mock.media_generate_video),
+      ...generationRequestArgs,
+      job_id: z.string().min(1),
+      approved_request_digest: z.string().length(64),
+      approved_max_usd: z.number().nonnegative(),
+      approved_price_usd: z.number().nonnegative().optional(),
+    }, media.media_generate_video),
     media_prediction: guarded("media_prediction", {
       job_id: z.string().min(1),
-    }, mock.media_prediction),
+      manifest_path: z.string().min(1).optional(),
+    }, media.media_prediction),
     media_wait_prediction: guarded("media_wait_prediction", {
       job_id: z.string().min(1),
-    }, mock.media_wait_prediction),
+      manifest_path: z.string().min(1).optional(),
+      interval_ms: z.number().int().min(250).max(30_000).optional(),
+      timeout_ms: z.number().int().min(1_000).max(900_000).optional(),
+    }, media.media_wait_prediction),
   }
 }
 

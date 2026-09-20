@@ -30,7 +30,8 @@ test("media-generation is a built-in Implementer category authorized for Assista
   assert.equal(resolved.agent, "Implementer")
   assert.equal(resolved.category, "media-generation")
   assert.equal(resolved.profile.family, "media")
-  assert.match(resolved.profile.prompt_append, /deterministic mock/i)
+  assert.match(resolved.profile.prompt_append, /Atlas Cloud/i)
+  assert.match(resolved.profile.prompt_append, /approved request digest/i)
   assert.equal(DEFAULT_DELEGATION.Producer.categories.includes("media-generation"), true)
 
   assert.doesNotThrow(() => route.resolve({ category: "media-generation", parentAgent: "Assistant" }))
@@ -79,7 +80,8 @@ test("media-generation has a bounded session ceiling and no recursive delegation
   assert.equal(toolsFor("Implementer", profile.tools, "media-generation"), undefined)
   const contract = systemFor("Implementer", "media-generation", profile)
   assert.match(contract, /project-owned Implementer/)
-  assert.match(contract, /deterministic mock/)
+  assert.match(contract, /Atlas Cloud/)
+  assert.match(contract, /media_calculate does not create a job or charge/)
 })
 
 test("mock media runtime is deterministic and exposes only bounded operations", () => {
@@ -121,10 +123,10 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   const registered = delegationPluginHooks(runtime).tool
 
   const fields = {
-    media_calculate: ["shot_id", "media_type"],
-    media_upload: ["asset_id", "filename"],
-    media_generate_image: ["shot_id", "request_digest"],
-    media_generate_video: ["shot_id", "request_digest", "duration_seconds"],
+    media_calculate: ["shot_id", "media_type", "prompt"],
+    media_upload: ["asset_id", "path"],
+    media_generate_image: ["job_id", "shot_id", "prompt", "approved_request_digest", "approved_max_usd"],
+    media_generate_video: ["job_id", "shot_id", "prompt", "approved_request_digest", "approved_max_usd"],
     media_prediction: ["job_id"],
     media_wait_prediction: ["job_id"],
   }
@@ -138,14 +140,17 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   const calculateSchema = tool.schema.object(registered.media_calculate.args)
   const videoSchema = tool.schema.object(registered.media_generate_video.args)
   const predictionSchema = tool.schema.object(registered.media_prediction.args)
-  assert.doesNotThrow(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video" }))
+  assert.doesNotThrow(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal" }))
   assert.doesNotThrow(() => videoSchema.parse({
+    job_id: "job-01",
     shot_id: "shot_01",
-    request_digest: "digest-01",
-    duration_seconds: 3.5,
+    prompt: "a reveal",
+    approved_request_digest: "a".repeat(64),
+    approved_max_usd: 1,
+    duration_seconds: 4,
   }))
   assert.doesNotThrow(() => predictionSchema.parse({ job_id: "mock-job-01" }))
-  assert.throws(() => calculateSchema.parse({ shot_id: "", media_type: "video" }))
+  assert.throws(() => calculateSchema.parse({ shot_id: "", media_type: "video", prompt: "a reveal" }))
 })
 
 test("plugin media tools enforce the category boundary at execution time", async () => {
@@ -158,7 +163,7 @@ test("plugin media tools enforce the category boundary at execution time", async
     skills: { list: () => [] },
   })
   const hooks = delegationPluginHooks(runtime)
-  const args = { shot_id: "shot_03", media_type: "video", duration_seconds: 6 }
+  const args = { shot_id: "shot_03", media_type: "video", prompt: "a reveal", duration_seconds: 6 }
   const result = await hooks.tool.media_calculate.execute(args, { sessionID: "media-session" })
   assert.match(result, /"estimated_usd": 0/)
   await assert.rejects(
