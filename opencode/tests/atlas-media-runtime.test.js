@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { mkdtemp, mkdir, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises"
+import { mkdtemp, mkdir, readFile, readlink, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
@@ -109,7 +109,7 @@ function fakeClient({
   }
 }
 
-async function fixture() {
+async function fixture({ manifestInProduction = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "aio-atlas-media-"))
   await mkdir(join(root, "references"), { recursive: true })
   await writeFile(join(root, "references", "speaker.png"), Buffer.from("png fixture"))
@@ -126,7 +126,10 @@ async function fixture() {
     }],
     generation_jobs: [],
   })
-  const manifestPath = join(root, "production-manifest.json")
+  const manifestPath = manifestInProduction
+    ? join(root, "production", "production-manifest.json")
+    : join(root, "production-manifest.json")
+  if (manifestInProduction) await mkdir(join(root, "production"), { recursive: true })
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   return { root, manifestPath }
 }
@@ -219,6 +222,81 @@ test("canonical request digests are stable and change for meaningful generation 
   assert.notEqual(requestDigest(base), requestDigest({ ...base, duration: 6 }))
   assert.notEqual(requestDigest(base), requestDigest({ ...base, reference_images: ["https://atlas.example/b.png"] }))
   assert.equal(canonicalJson({ z: 1, a: [true, null] }), '{"a":[true,null],"z":1}')
+})
+
+test("media requests accept only fields for their selected modality", async () => {
+  const { root } = await fixture()
+  try {
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const image = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A premium speaker",
+      size: "1024*1024",
+      output_format: "png",
+      thinking: "enabled",
+      prompt_optimization_mode: "standard",
+    })
+    assert.match(image.request_digest, /^[a-f0-9]{64}$/)
+    const imageRequest = client.calls.find((call) => call.operation === "calculate").body
+    assert.equal(imageRequest.size, "1024*1024")
+    assert.equal(imageRequest.output_format, "png")
+
+    for (const [field, value] of [
+      ["duration_seconds", 4],
+      ["resolution", "720p"],
+      ["ratio", "16:9"],
+      ["reference_video_asset_ids", ["previs"]],
+    ]) {
+      await assert.rejects(
+        runtime.media_calculate({ shot_id: "shot_01", media_type: "image", prompt: "A speaker", [field]: value }),
+        new RegExp(`${field} is not supported for image generation`),
+      )
+    }
+    await assert.rejects(
+      runtime.media_generate_image({
+        job_id: image.job_id,
+        shot_id: "shot_01",
+        prompt: "A premium speaker",
+        duration_seconds: 4,
+        approved_request_digest: image.request_digest,
+        approved_max_usd: 1,
+      }),
+      /duration_seconds is not supported for image generation/,
+    )
+
+    await runtime.media_upload({ asset_id: "speaker_front", path: "references/speaker.png" })
+    const videoArgs = {
+      shot_id: "shot_01",
+      media_type: "video",
+      prompt: "The speaker rotates slowly",
+      reference_image_asset_ids: ["speaker_front"],
+      duration_seconds: 4,
+      resolution: "720p",
+      ratio: "16:9",
+    }
+    const video = await runtime.media_calculate(videoArgs)
+    assert.match(video.request_digest, /^[a-f0-9]{64}$/)
+    const videoRequest = client.calls.filter((call) => call.operation === "calculate").at(-1).body
+    assert.equal(videoRequest.duration, 4)
+    assert.equal(videoRequest.resolution, "720p")
+    assert.equal(videoRequest.ratio, "16:9")
+
+    for (const [field, value] of [
+      ["size", "1024*1024"],
+      ["output_format", "png"],
+      ["thinking", "enabled"],
+      ["prompt_optimization_mode", "standard"],
+    ]) {
+      await assert.rejects(
+        runtime.media_calculate({ ...videoArgs, [field]: value }),
+        new RegExp(`${field} is not supported for video generation`),
+      )
+    }
+  } finally {
+    await cleanup(root)
+  }
 })
 
 test("media_calculate uses Atlas preflight, records the manifest job, and video references resolve through uploaded assets", async () => {
@@ -433,12 +511,51 @@ test("prediction polling maps processing to completed and materializes local out
     })
     assert.equal(completed.status, "completed")
     assert.equal(completed.output_asset_ids.length, 2)
+    assert.equal(completed.output_paths.every((path) => path.startsWith("production/assets/generated/")), true)
+    assert.equal(completed.output_paths.some((path) => path.includes("production/production/")), false)
     const materialized = resolve(root, completed.output_paths[0])
     assert.equal((await readFile(materialized, "utf8")).startsWith("materialized:"), true)
     assert.equal(client.calls.filter((call) => call.operation === "download").length, 2)
     const repeated = await runtime.media_prediction({ job_id: submitted.job_id })
     assert.deepEqual(repeated.output_asset_ids, completed.output_asset_ids)
     assert.equal(client.calls.filter((call) => call.operation === "download").length, 2)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("materialization keeps the canonical output directory for a production manifest", async () => {
+  const { root, manifestPath } = await fixture({ manifestInProduction: true })
+  try {
+    const client = fakeClient({
+      predictions: [{ status: "completed", outputs: ["https://atlas.example/nested-output.png"] }],
+    })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A speaker in the production manifest location",
+      manifest_path: "production/production-manifest.json",
+    })
+    const submitted = await runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      prompt: "A speaker in the production manifest location",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 0.1,
+    })
+    const completed = await runtime.media_prediction({ job_id: submitted.job_id })
+    assert.equal(completed.output_paths.length, 1)
+    assert.match(completed.output_paths[0], /^production\/assets\/generated\//)
+    assert.doesNotMatch(completed.output_paths[0], /production\/production\//)
+    assert.equal((await readFile(resolve(root, completed.output_paths[0]), "utf8")).startsWith("materialized:"), true)
+    await stat(resolve(root, "production", "assets", "generated"))
+    await assert.rejects(
+      stat(resolve(root, "production", "production", "assets", "generated")),
+      /ENOENT/,
+    )
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.match(manifest.assets.at(-1).path, /^production\/assets\/generated\//)
   } finally {
     await cleanup(root)
   }

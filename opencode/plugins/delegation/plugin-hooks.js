@@ -9,13 +9,13 @@ function json(value) {
 
 function mediaRuntimeTools(runtime) {
   const z = tool.schema
-  const generationRequestArgs = {
+  const commonGenerationArgs = {
     shot_id: z.string().min(1),
     prompt: z.string().min(1),
     manifest_path: z.string().min(1).optional(),
-    reference_image_asset_ids: z.array(z.string().min(1)).max(9).optional(),
-    reference_video_asset_ids: z.array(z.string().min(1)).max(3).optional(),
-    duration_seconds: z.number().int().min(4).max(15).optional(),
+  }
+  const imageGenerationArgs = {
+    ...commonGenerationArgs,
     size: z.enum([
       "2048*2048",
       "2304*1728",
@@ -34,8 +34,25 @@ function mediaRuntimeTools(runtime) {
     output_format: z.enum(["jpeg", "png"]).optional(),
     thinking: z.enum(["enabled", "disabled"]).optional(),
     prompt_optimization_mode: z.enum(["standard", "fast"]).optional(),
+  }
+  const videoGenerationArgs = {
+    ...commonGenerationArgs,
+    reference_image_asset_ids: z.array(z.string().min(1)).max(9).optional(),
+    reference_video_asset_ids: z.array(z.string().min(1)).max(3).optional(),
+    duration_seconds: z.number().int().min(4).max(15).optional(),
     resolution: z.enum(["480p", "720p", "720p-SR", "1080p-SR", "1440p-SR"]).optional(),
     ratio: z.enum(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"]).optional(),
+  }
+  const approvalArgs = {
+    job_id: z.string().min(1),
+    approved_request_digest: z.string().length(64),
+    approved_max_usd: z.number().nonnegative(),
+    approved_price_usd: z.number().nonnegative().optional(),
+  }
+  const generationRequestArgs = {
+    ...commonGenerationArgs,
+    ...imageGenerationArgs,
+    ...videoGenerationArgs,
   }
   const media = runtime.mediaRuntime ?? createMockMediaRuntime()
   const guarded = (name, args, execute) => tool({
@@ -59,18 +76,12 @@ function mediaRuntimeTools(runtime) {
       media_type: z.enum(["image", "video"]).optional(),
     }, media.media_upload),
     media_generate_image: guarded("media_generate_image", {
-      ...generationRequestArgs,
-      job_id: z.string().min(1),
-      approved_request_digest: z.string().length(64),
-      approved_max_usd: z.number().nonnegative(),
-      approved_price_usd: z.number().nonnegative().optional(),
+      ...imageGenerationArgs,
+      ...approvalArgs,
     }, media.media_generate_image),
     media_generate_video: guarded("media_generate_video", {
-      ...generationRequestArgs,
-      job_id: z.string().min(1),
-      approved_request_digest: z.string().length(64),
-      approved_max_usd: z.number().nonnegative(),
-      approved_price_usd: z.number().nonnegative().optional(),
+      ...videoGenerationArgs,
+      ...approvalArgs,
     }, media.media_generate_video),
     media_prediction: guarded("media_prediction", {
       job_id: z.string().min(1),

@@ -67,6 +67,19 @@ const MIME_EXTENSIONS = Object.freeze({
   "video/webm": ".webm",
 })
 const SENSITIVE_KEYS = new Set(["api_key", "apikey", "authorization", "secret", "token"])
+const IMAGE_ONLY_FIELDS = Object.freeze([
+  "size",
+  "output_format",
+  "thinking",
+  "prompt_optimization_mode",
+])
+const VIDEO_ONLY_FIELDS = Object.freeze([
+  "reference_image_asset_ids",
+  "reference_video_asset_ids",
+  "duration_seconds",
+  "resolution",
+  "ratio",
+])
 
 function shortDigest(value) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 24)
@@ -231,11 +244,15 @@ function assetIDs(value, name, maximum) {
 }
 
 async function buildEffectiveAtlasRequest(mediaType, args, resolveReferenceURL) {
+  if (!["image", "video"].includes(mediaType)) throw new Error("media_type must be image or video")
+  if (args.media_type !== undefined && args.media_type !== mediaType) {
+    throw new Error(`media_type ${args.media_type} does not match ${mediaType} generation`)
+  }
+  const unsupportedFields = mediaType === "image" ? VIDEO_ONLY_FIELDS : IMAGE_ONLY_FIELDS
+  const unsupportedField = unsupportedFields.find((field) => args[field] !== undefined)
+  if (unsupportedField) throw new Error(`${unsupportedField} is not supported for ${mediaType} generation`)
   const prompt = required(args.prompt, "prompt")
   if (mediaType === "image") {
-    if (args.reference_image_asset_ids?.length || args.reference_video_asset_ids?.length) {
-      throw new Error("image generation does not accept reference assets in the curated Seedream text-to-image runtime")
-    }
     validateChoice(args.size, "size", IMAGE_SIZES)
     validateChoice(args.output_format, "output_format", IMAGE_FORMATS)
     validateChoice(args.thinking, "thinking", THINKING_MODES)
@@ -250,7 +267,6 @@ async function buildEffectiveAtlasRequest(mediaType, args, resolveReferenceURL) 
     return { body, inputAssetIds: [] }
   }
 
-  if (mediaType !== "video") throw new Error("media_type must be image or video")
   const imageAssetIDs = assetIDs(args.reference_image_asset_ids, "reference_image_asset_ids", 9)
   const videoAssetIDs = assetIDs(args.reference_video_asset_ids, "reference_video_asset_ids", 3)
   if (imageAssetIDs.length + videoAssetIDs.length === 0) {
@@ -726,8 +742,7 @@ export function createAtlasMediaRuntime({
       }
     }
 
-    const manifestDirectory = manifestPath ? dirname(manifestPath) : root
-    const outputDirectory = resolve(manifestDirectory, "production", "assets", "generated")
+    const outputDirectory = resolve(root, "production", "assets", "generated")
     await mkdir(outputDirectory, { recursive: true })
     const resolvedOutputDirectory = await realpath(outputDirectory)
     if (!isWithin(root, resolvedOutputDirectory) || !isWithin(root, outputDirectory)) {
