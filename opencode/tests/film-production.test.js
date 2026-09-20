@@ -95,6 +95,20 @@ test("ShotSpec validates the provider-neutral planning fields and keeps extensio
   }
 })
 
+test("ShotSpec references use role-grouped arrays rather than a flat list", () => {
+  assert.doesNotThrow(() => validateShotSpec({
+    ...shot,
+    references: {
+      subject: ["speaker_front", "speaker_three_quarter"],
+      environment: ["dark_studio"],
+    },
+  }))
+  assert.throws(
+    () => validateShotSpec({ ...shot, references: ["speaker_front", "dark_studio"] }),
+    /ShotSpec\.references must be an object/,
+  )
+})
+
 test("ProductionManifest validates one resumable state and its lifecycle", () => {
   const manifest = createProductionManifest({
     project: "example-film",
@@ -154,4 +168,35 @@ test("ProductionManifest validates one resumable state and its lifecycle", () =>
   const duplicateJobs = structuredClone(manifest)
   duplicateJobs.generation_jobs.push(structuredClone(duplicateJobs.generation_jobs[0]))
   assert.throws(() => validateProductionManifest(duplicateJobs), /duplicates job_03/)
+})
+
+test("ProductionManifest.shots stays a complete ShotSpec[] and lifecycle transitions remain canonical", () => {
+  const manifest = createProductionManifest({
+    project: "canonical-film",
+    shots: [shot],
+    assets: [],
+    generation_jobs: [],
+  })
+
+  assert.doesNotThrow(() => validateProductionManifest(manifest))
+  assert.throws(
+    () => validateProductionManifest({ ...manifest, shots: [{ shot_id: "shot_03", route: "Blender" }] }),
+    /ProductionManifest\.shots\[0\]\.purpose must be a non-empty string/,
+  )
+
+  const previs = transitionProductionManifest(manifest, "previs")
+  assert.throws(
+    () => transitionProductionManifest(previs, "assets-ready"),
+    /cannot transition from previs to assets-ready/,
+  )
+  const production = transitionProductionManifest(previs, "production")
+  const assetsReady = transitionProductionManifest(production, "assets-ready")
+  const composition = transitionProductionManifest(assetsReady, "composition")
+  const qa = transitionProductionManifest(composition, "qa")
+
+  assert.deepEqual(
+    qa.history.map(({ from, status }) => `${from}->${status}`),
+    ["planning->previs", "previs->production", "production->assets-ready", "assets-ready->composition", "composition->qa"],
+  )
+  assert.equal(qa.revision, 5)
 })

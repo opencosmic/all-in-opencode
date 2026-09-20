@@ -31,6 +31,12 @@ deterministic mock only: this phase has no paid generation, provider calls,
 billing, or automatic rerolls. Atlas Cloud integration is deferred to a later
 phase.
 
+Treat the repository film-production contract as authoritative. The manifest's
+`shots` field is the complete canonical `ShotSpec[]`, not a parallel set of
+routing records. Author the canonical shape, validate the persisted
+ShotSpecs/ProductionManifest, then use it and advance stages only through the
+permitted lifecycle transitions; do not invent or skip transitions.
+
 Read only the references needed for the current stage:
 
 - [cinematic-shotcraft](references/cinematic-shotcraft.md)

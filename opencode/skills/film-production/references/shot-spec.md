@@ -29,3 +29,17 @@ Optional `references`, `control.previs`, `generation.intent`, and `extensions`
 carry planning decisions without coupling the contract to a provider endpoint.
 Use `control.previs: required` when camera, blocking, or spatial relationships
 need Blender evidence before production routing.
+
+When present, `references` MUST be an object whose values are arrays of stable
+reference IDs grouped by role. Do not use a flat list.
+
+```yaml
+references:
+  subject:
+    - speaker_front
+    - speaker_three_quarter
+  environment:
+    - dark_studio
+  palette:
+    - premium_cyan
+```
