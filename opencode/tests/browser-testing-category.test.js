@@ -30,13 +30,12 @@ async function catalogFor(runtime, agent) {
   return output.system
 }
 
-test("browser-testing is a built-in Implementer category using the testing model profile", () => {
+test("browser-testing is a built-in Implementer category using its configured model profile", () => {
   const category = DEFAULT_CATEGORIES["browser-testing"]
-  const testing = DEFAULT_CATEGORIES.testing
   assert.ok(category)
   assert.equal(category.family, "implementation")
-  assert.equal(category.model, testing.model)
-  assert.equal(category.variant, testing.variant)
+  assert.equal(category.model, "openai/gpt-5.6-terra")
+  assert.equal(category.variant, "medium")
   const engine = new CategoryEngine({})
   assert.equal(engine.has("browser-testing"), true)
   assert.equal(engine.resolve("browser-testing").agent, "Implementer")

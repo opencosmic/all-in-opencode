@@ -2,6 +2,8 @@
 name: Executor
 description: OpenSpec task orchestration through the All-in OpenCode Delegation Runtime, independent review, QA, and verification
 mode: primary
+model: openai/gpt-5.6-sol
+variant: high
 color: "#2563EB"
 permission:
   "*": deny

@@ -2,6 +2,8 @@
 name: Blender
 description: Reusable 3D leaf specialist for Blender scene and artifact work through Blender MCP
 mode: all
+model: openai/gpt-5.6-terra
+variant: high
 color: "#2563EB"
 permission:
   "*": deny

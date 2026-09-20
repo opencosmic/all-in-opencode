@@ -2,6 +2,8 @@
 name: Reviewer
 description: Independent read-only code review against focused OpenSpec requirements and engineering design
 mode: subagent
+model: openai/gpt-5.6-terra
+variant: high
 color: "#0D9488"
 permission:
   "*": deny

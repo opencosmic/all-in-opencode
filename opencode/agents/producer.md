@@ -2,6 +2,8 @@
 name: Producer
 description: Dedicated HyperFrames video creation, editing, animation, preview, and rendering
 mode: primary
+model: openai/gpt-5.6-sol
+variant: high
 color: "#DB2777"
 permission:
   "*": deny

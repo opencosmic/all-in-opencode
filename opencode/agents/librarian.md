@@ -2,6 +2,8 @@
 name: Librarian
 description: Read-only external and upstream technical evidence specialist
 mode: subagent
+model: openai/gpt-5.6-luna
+variant: medium
 color: "#0284C7"
 permission:
   "*": deny

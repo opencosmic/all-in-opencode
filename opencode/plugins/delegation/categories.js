@@ -2,7 +2,7 @@ export const DEFAULT_CATEGORIES = Object.freeze({
   quick: {
     description: "Small contained implementation work",
     family: "implementation",
-    model: "openai/gpt-5.6-luna-fast",
+    model: "opencode-go/glm-5.3-flash",
     variant: "low",
     prompt_append: `<Category_Context name="quick">
 You are working on a small, contained task. Move quickly, inspect only the context needed to make the change, follow an existing pattern, and prefer the simplest direct solution. Avoid new abstractions, unrelated cleanup, and broad exploration. Finish with a focused check of the affected path.
@@ -11,7 +11,7 @@ You are working on a small, contained task. Move quickly, inspect only the conte
   standard: {
     description: "Normal scoped implementation work",
     family: "implementation",
-    model: "openai/gpt-5.6-sol",
+    model: "openai/gpt-5.6-luna",
     variant: "medium",
     prompt_append: `<Category_Context name="standard">
 You are working on ordinary implementation work. Understand the local context and established patterns before editing, make the smallest clean change that meets the goal, and verify the affected behavior. Do not expand a bounded assignment into unrelated improvements.
@@ -20,7 +20,7 @@ You are working on ordinary implementation work. Understand the local context an
   deep: {
     description: "Complex implementation requiring deeper analysis",
     family: "implementation",
-    model: "openai/gpt-5.6-terra",
+    model: "openai/gpt-5.6-luna",
     variant: "high",
     prompt_append: `<Category_Context name="deep">
 You are working on a complex goal that rewards understanding before action. Trace the relevant callers, dependencies, and failure paths broadly enough to explain the mechanism, favor a root-cause fix over a symptom guard, consider important alternatives, and complete the requested goal rather than stopping at a proposal. Validate the affected behavior thoroughly and report the evidence.
@@ -29,8 +29,8 @@ You are working on a complex goal that rewards understanding before action. Trac
   ultrabrain: {
     description: "Genuinely difficult logic or architecture-sensitive implementation",
     family: "implementation",
-    model: "openai/gpt-5.6-sol",
-    variant: "xhigh",
+    model: "opencode-go/deepseek-v4.1-flash",
+    variant: "high",
     prompt_append: `<Category_Context name="ultrabrain">
 You are working on a genuinely difficult logic or architecture-sensitive problem. Establish the constraints and load-bearing assumptions first, compare the strongest viable approaches, and choose the simplest one that preserves correctness and maintainability. Try to disprove the chosen approach with boundary cases, then deliver a decision-complete implementation or conclusion with evidence. Keep the work inside the assignment.
 </Category_Context>`,
@@ -38,7 +38,7 @@ You are working on a genuinely difficult logic or architecture-sensitive problem
   "visual-engineering": {
     description: "Frontend, UI, styling, layout, and interaction implementation",
     family: "implementation",
-    model: "opencode-go/kimi-k3",
+    model: "opencode-go/deepseek-v4.1-flash",
     variant: "high",
     prompt_append: `<Category_Context name="visual-engineering">
 You are working on frontend, UI, styling, layout, or interaction work. Inspect the existing design system, tokens, shared components, and nearby screens before editing. Extend established patterns instead of introducing arbitrary one-off styling, and verify the rendered state at the relevant viewport or interaction points before claiming completion.
@@ -47,7 +47,7 @@ You are working on frontend, UI, styling, layout, or interaction work. Inspect t
   writing: {
     description: "Documentation and technical writing",
     family: "implementation",
-    model: "opencode-go/kimi-k3",
+    model: "openai/gpt-5.6-luna",
     variant: "low",
     prompt_append: `<Category_Context name="writing">
 You are working on documentation or prose. Identify the audience and purpose, use the project's terminology, organize the material so it is easy to scan, and write clearly in a natural human voice. Remove generic filler and verify that examples and claims match the current implementation.
@@ -56,7 +56,7 @@ You are working on documentation or prose. Identify the audience and purpose, us
   artistry: {
     description: "Creative implementation where conventional approaches are insufficient",
     family: "implementation",
-    model: "opencode-go/kimi-k3",
+    model: "opencode-go/deepseek-v4.1-flash",
     variant: "high",
     prompt_append: `<Category_Context name="artistry">
 You are working on a creative task where a conventional implementation would miss the intent. Explore a small number of distinct directions, choose one that is both expressive and coherent with the product, and refine it against the requested experience. Keep novelty purposeful and verify the result rather than leaving a sketch.
@@ -65,7 +65,7 @@ You are working on a creative task where a conventional implementation would mis
   "unspecified-low": {
     description: "Low-effort implementation not covered by a narrower category",
     family: "implementation",
-    model: "openai/gpt-5.6-terra",
+    model: "openai/gpt-5.6-luna",
     variant: "medium",
     prompt_append: `<Category_Context name="unspecified-low">
 No narrower category fits this contained task. Use a practical, moderate-effort implementation mindset: inspect the few relevant files, follow local conventions, avoid unnecessary abstractions, and verify the concrete result.
@@ -83,7 +83,7 @@ No narrower category fits this broad task. Survey the affected modules, callers,
   git: {
     description: "Bounded Git mechanics explicitly selected by the caller",
     family: "git",
-    model: "openai/gpt-5.6-luna-fast",
+    model: "openai/gpt-5.6-luna",
     variant: "low",
     tools: {
       edit: false,
@@ -97,7 +97,7 @@ You are working on one explicitly authorized Git operation. Inspect the current 
   "video-analysis": {
     description: "Grounded analysis of spoken and visual video content",
     family: "video-analysis",
-    model: "openai/gpt-5.6-sol",
+    model: "opencode-go/kimi-k3",
     variant: "high",
     tools: {
       edit: false,
@@ -121,7 +121,7 @@ You are working on a compatibility-sensitive migration. Understand the current s
   database: {
     description: "Schema, query, and persistence implementation",
     family: "implementation",
-    model: "openai/gpt-5.6-sol",
+    model: "openrouter/deepseek/deepseek-v4.1-flash",
     variant: "high",
     prompt_append: `<Category_Context name="database">
 You are working on schema, query, or persistence behavior. Inspect the current data model and nearby database patterns, preserve constraints and compatibility, reason about transaction and data-safety boundaries, and validate query correctness against realistic affected paths. Do not treat a migration or data rewrite as complete without checking its resulting state.
@@ -130,7 +130,7 @@ You are working on schema, query, or persistence behavior. Inspect the current d
   testing: {
     description: "Focused automated test implementation",
     family: "implementation",
-    model: "openai/gpt-5.6-luna-fast",
+    model: "openai/gpt-5.6-luna",
     variant: "medium",
     prompt_append: `<Category_Context name="testing">
 You are working on tests. Reproduce or characterize the behavior first, identify the correct testing layer, match existing conventions, and write discriminating tests that fail for the regression rather than merely exercising lines. Run focused validation before broader checks and preserve useful regression coverage.
@@ -139,7 +139,7 @@ You are working on tests. Reproduce or characterize the behavior first, identify
   "browser-testing": {
     description: "Technical browser verification for web implementations",
     family: "implementation",
-    model: "openai/gpt-5.6-luna-fast",
+    model: "openai/gpt-5.6-terra",
     variant: "medium",
     prompt_append: `<Category_Context name="browser-testing">
 You are working on technical browser verification for an engineering assignment. For runtime verification, exploratory QA, reproduction, console or network inspection, screenshots, accessibility checks, and browser evidence, prefer the installed agent-browser CLI. Before first use, check that agent-browser exists; if this assignment requires that runtime and it is missing, stop with an actionable prerequisite (npm install -g agent-browser followed by agent-browser install) and do not silently switch tools or install dependencies. After session setup, use the current CLI-served guidance (agent-browser --session "<session-id>" skills get core, or agent-browser --session "<session-id>" skills get dogfood for exploratory testing) rather than copying stale manuals. Follow the open -> wait -> snapshot -> interact -> re-snapshot after DOM or navigation changes -> inspect or capture evidence workflow.
@@ -164,7 +164,7 @@ Distinguish verification from repair: edit production or test files only when th
   bugfix: {
     description: "Reproduce and repair a bounded defect",
     family: "implementation",
-    model: "openai/gpt-5.6-sol",
+    model: "openrouter/deepseek/deepseek-v4.1-flash",
     variant: "high",
     prompt_append: `<Category_Context name="bugfix">
 You are working on a reported defect. Reproduce or concretely understand the symptom, trace it to the root cause, and repair the cause instead of hiding the symptom. Add or update regression coverage when appropriate, then verify the actual reported failure path and nearby boundary behavior.
@@ -173,7 +173,7 @@ You are working on a reported defect. Reproduce or concretely understand the sym
   "tiny-refactor": {
     description: "Small behavior-preserving refactor",
     family: "implementation",
-    model: "openai/gpt-5.6-luna-fast",
+    model: "openai/gpt-5.6-luna",
     variant: "low",
     prompt_append: `<Category_Context name="tiny-refactor">
 You are working on a small behavior-preserving refactor. Find the narrowest existing pattern to improve, keep the diff deliberately small, avoid semantic changes or opportunistic cleanup, and run a focused check that demonstrates behavior is unchanged.

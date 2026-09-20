@@ -2,6 +2,8 @@
 name: QA
 description: Read-only runtime and user-facing QA evidence for OpenSpec changes
 mode: subagent
+model: openai/gpt-5.6-terra
+variant: medium
 color: "#0891B2"
 permission:
   "*": deny

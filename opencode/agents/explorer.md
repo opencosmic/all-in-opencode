@@ -2,6 +2,8 @@
 name: Explorer
 description: Read-only local codebase discovery, architecture mapping, and relationship tracing
 mode: subagent
+model: openai/gpt-5.6-luna
+variant: medium
 color: "#0EA5E9"
 permission:
   "*": deny

@@ -43,5 +43,13 @@
   },
   "permission": {
     "open_design_*": "deny"
+  },
+  "provider": {
+    "openrouter": {
+      "whitelist": [
+        "deepseek/deepseek-v4.1-flash",
+        "z-ai/glm-5.3-flash"
+      ]
+    }
   }
 }

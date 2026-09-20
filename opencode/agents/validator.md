@@ -2,6 +2,8 @@
 name: Validator
 description: Adversarial product hypothesis validation for Strategist
 mode: subagent
+model: openai/gpt-5.6-terra
+variant: high
 permission:
   "*": deny
   read:

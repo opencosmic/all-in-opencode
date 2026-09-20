@@ -2,6 +2,8 @@
 name: Researcher
 description: Evidence-first product and market research for Strategist
 mode: subagent
+model: openai/gpt-5.6-terra
+variant: medium
 permission:
   "*": deny
   read:
