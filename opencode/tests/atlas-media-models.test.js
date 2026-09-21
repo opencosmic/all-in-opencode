@@ -2,6 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  ATLAS_GPT_IMAGE_MODEL,
   ATLAS_IMAGE_MODEL,
   ATLAS_VIDEO_MODEL,
   ATLAS_WAN_MODEL,
@@ -31,6 +32,87 @@ test("Seedream 5 Pro keeps the canonical image request", async () => {
     },
     inputAssetIds: [],
   })
+})
+
+test("GPT Image 2 uses the exact Atlas model ID in its minimal request", async () => {
+  const request = await buildAtlasMediaRequest("image", {
+    model: ATLAS_GPT_IMAGE_MODEL,
+    prompt: "A glass sculpture on a black plinth",
+  })
+
+  assert.equal(ATLAS_GPT_IMAGE_MODEL, "openai/gpt-image-2/text-to-image")
+  assert.deepEqual(request, {
+    body: {
+      model: "openai/gpt-image-2/text-to-image",
+      prompt: "A glass sculpture on a black plinth",
+    },
+    inputAssetIds: [],
+  })
+})
+
+test("GPT Image 2 maps the supported AIO image size and output format", async () => {
+  const request = await buildAtlasMediaRequest("image", {
+    model: ATLAS_GPT_IMAGE_MODEL,
+    prompt: "A cinematic product still",
+    size: "2048*1152",
+    output_format: "png",
+  })
+
+  assert.deepEqual(request, {
+    body: {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A cinematic product still",
+      size: "2048x1152",
+      output_format: "png",
+    },
+    inputAssetIds: [],
+  })
+})
+
+test("GPT Image 2 rejects unsupported sizes, quality controls, and Seedream-only fields", async () => {
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A scene",
+      size: "2720*1530",
+    }),
+    /size must map to a documented GPT Image 2 size/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A scene",
+      quality: "high",
+    }),
+    /quality is not supported by the AIO media-generation contract/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A scene",
+      thinking: "enabled",
+    }),
+    /thinking is not supported for GPT Image 2/,
+  )
+})
+
+test("GPT Image 2 rejects video references and unexposed provider fields instead of dropping them", async () => {
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A scene",
+      reference_image_asset_ids: ["reference"],
+    }),
+    /reference_image_asset_ids is not supported for image generation/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A scene",
+      negative_prompt: "blurry",
+    }),
+    /negative_prompt is not supported by the AIO media-generation contract/,
+  )
 })
 
 test("Seedance 2.0 Fast keeps the canonical reference-to-video request", async () => {

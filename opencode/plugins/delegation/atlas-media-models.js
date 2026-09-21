@@ -1,4 +1,5 @@
 export const ATLAS_IMAGE_MODEL = "bytedance/seedream-v5.0-pro/text-to-image"
+export const ATLAS_GPT_IMAGE_MODEL = "openai/gpt-image-2/text-to-image"
 export const ATLAS_VIDEO_MODEL = "bytedance/seedance-2.0-fast/reference-to-video"
 export const ATLAS_WAN_REFERENCE_VIDEO_MODEL = "alibaba/wan-3.0/reference-to-video"
 export const ATLAS_WAN_MODEL = ATLAS_WAN_REFERENCE_VIDEO_MODEL
@@ -19,6 +20,12 @@ const IMAGE_SIZES = new Set([
   "1152*2048",
 ])
 const IMAGE_FORMATS = new Set(["jpeg", "png"])
+const GPT_IMAGE_SIZE_MAPPINGS = new Map([
+  ["2048*2048", "2048x2048"],
+  ["1024*1024", "1024x1024"],
+  ["2048*1152", "2048x1152"],
+  ["1152*2048", "1152x2048"],
+])
 const THINKING_MODES = new Set(["enabled", "disabled"])
 const PROMPT_MODES = new Set(["standard", "fast"])
 const SEEDANCE_DURATIONS = new Set(Array.from({ length: 12 }, (_, index) => index + 4))
@@ -60,6 +67,13 @@ const UNSUPPORTED_PROVIDER_FIELDS = Object.freeze([
   "first_frame",
   "last_frame",
   "duration",
+  "quality",
+  "moderation",
+  "enable_base64_output",
+  "enable_sync_mode",
+  "negative_prompt",
+  "style",
+  "color_hints",
 ])
 
 const MODEL_SPECS = new Map([
@@ -67,6 +81,11 @@ const MODEL_SPECS = new Map([
     model: ATLAS_IMAGE_MODEL,
     mediaType: "image",
     kind: "image",
+  })],
+  [ATLAS_GPT_IMAGE_MODEL, Object.freeze({
+    model: ATLAS_GPT_IMAGE_MODEL,
+    mediaType: "image",
+    kind: "gpt-image-2",
   })],
   [ATLAS_VIDEO_MODEL, Object.freeze({
     model: ATLAS_VIDEO_MODEL,
@@ -209,6 +228,24 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
     }
     for (const field of IMAGE_ONLY_FIELDS) {
       if (args[field] !== undefined) body[field] = args[field]
+    }
+    return { body, inputAssetIds: [] }
+  }
+
+  if (spec.kind === "gpt-image-2") {
+    for (const field of ["thinking", "prompt_optimization_mode"]) {
+      if (args[field] !== undefined) throw new Error(`${field} is not supported for GPT Image 2`)
+    }
+    const providerSize = args.size === undefined ? undefined : GPT_IMAGE_SIZE_MAPPINGS.get(args.size)
+    if (args.size !== undefined && providerSize === undefined) {
+      throw new Error(`size must map to a documented GPT Image 2 size: ${[...GPT_IMAGE_SIZE_MAPPINGS.keys()].join(", ")}`)
+    }
+    validateChoice(args.output_format, "output_format", IMAGE_FORMATS)
+    const body = {
+      model: spec.model,
+      prompt,
+      ...(providerSize === undefined ? {} : { size: providerSize }),
+      ...(args.output_format === undefined ? {} : { output_format: args.output_format }),
     }
     return { body, inputAssetIds: [] }
   }

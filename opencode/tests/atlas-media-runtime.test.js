@@ -7,6 +7,7 @@ import { join, resolve } from "node:path"
 import { createProductionManifest } from "../plugins/film-production/contracts.js"
 import { createAtlasClient } from "../plugins/delegation/atlas-client.js"
 import {
+  ATLAS_GPT_IMAGE_MODEL,
   ATLAS_IMAGE_MODEL,
   ATLAS_VIDEO_MODEL,
   ATLAS_WAN_MODEL,
@@ -455,6 +456,68 @@ test("generation rejects changed approvals and increased preflight cost without 
       /current preflight price 0.06 exceeds approved_max_usd 0.05/,
     )
     assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 0)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("GPT Image 2 preserves the calculated request digest through image generation", async () => {
+  const { root, manifestPath } = await fixture()
+  try {
+    const client = fakeClient({ costs: [{ price: 0.08 }, { price: 0.08 }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A cinematic glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "1024*1024",
+      output_format: "png",
+    })
+    const calculatedRequest = client.calls.find((call) => call.operation === "calculate").body
+    assert.deepEqual(calculatedRequest, {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A cinematic glass sculpture on a black plinth",
+      size: "1024x1024",
+      output_format: "png",
+    })
+    const manifestAfterCalculate = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.equal(manifestAfterCalculate.generation_jobs[0].model, ATLAS_GPT_IMAGE_MODEL)
+    assert.equal(manifestAfterCalculate.generation_jobs[0].request_digest, calculated.request_digest)
+
+    await assert.rejects(runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A cinematic glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "2048*1152",
+      output_format: "png",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 1)
+    assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 0)
+
+    const submitted = await runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A cinematic glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "1024*1024",
+      output_format: "png",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    })
+    assert.equal(submitted.model, ATLAS_GPT_IMAGE_MODEL)
+    assert.equal(submitted.request_digest, calculated.request_digest)
+    assert.deepEqual(client.calls.filter((call) => call.operation === "generateImage").at(-1).body, calculatedRequest)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 2)
+    assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 1)
   } finally {
     await cleanup(root)
   }
