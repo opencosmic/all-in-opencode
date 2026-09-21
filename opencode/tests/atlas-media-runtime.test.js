@@ -56,6 +56,7 @@ function fakeClient({
   costs = [],
   predictions = [],
   uploadURL = "https://atlas.example/uploads/reference.png",
+  uploadResponse = null,
   outputs = ["https://atlas.example/outputs/generated.png"],
   generateImageError = null,
   generateVideoError = null,
@@ -81,7 +82,7 @@ function fakeClient({
     },
     uploadMedia: async (formData) => {
       calls.push({ operation: "uploadMedia", formData })
-      return { url: uploadURL }
+      return uploadResponse ?? { url: uploadURL }
     },
     generateImage: async (body) => {
       calls.push({ operation: "generateImage", body: structuredClone(body) })
@@ -597,6 +598,42 @@ test("media_upload requires a manifest asset and rejects arbitrary or mismatched
     })
     assert.equal(matching.status, "uploaded")
     assert.equal(client.calls.filter((call) => call.operation === "uploadMedia").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("media_upload accepts Atlas temporary URL response variants without weakening URL validation", async () => {
+  const variants = [
+    ["top-level download_url", { download_url: "https://example.invalid/reference.jpg" }],
+    ["top-level url", { url: "https://example.invalid/reference.jpg" }],
+    ["wrapped download_url", { data: { download_url: "https://example.invalid/reference.jpg" } }],
+    ["wrapped url", { data: { url: "https://example.invalid/reference.jpg" } }],
+    ["top-level provider_url", { provider_url: "https://example.invalid/reference.jpg" }],
+  ]
+
+  for (const [label, uploadResponse] of variants) {
+    const { root, manifestPath } = await fixture()
+    try {
+      const runtime = createAtlasMediaRuntime({ directory: root, client: fakeClient({ uploadResponse }) })
+      const result = await runtime.media_upload({ asset_id: "speaker_front", manifest_path: ROOT_MANIFEST_PATH })
+      assert.equal(result.provider_url, "https://example.invalid/reference.jpg", label)
+      const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+      assert.equal(manifest.assets[0].metadata.atlascloud.provider_url, "https://example.invalid/reference.jpg", label)
+    } finally {
+      await cleanup(root)
+    }
+  }
+
+  const { root, manifestPath } = await fixture()
+  try {
+    const runtime = createAtlasMediaRuntime({ directory: root, client: fakeClient({ uploadResponse: { data: {} } }) })
+    await assert.rejects(
+      runtime.media_upload({ asset_id: "speaker_front", manifest_path: ROOT_MANIFEST_PATH }),
+      /missing temporary URL/,
+    )
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.equal(manifest.assets[0].metadata, undefined)
   } finally {
     await cleanup(root)
   }

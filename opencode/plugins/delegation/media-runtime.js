@@ -591,7 +591,7 @@ export function createAtlasMediaRuntime({
     const formData = new FormData()
     formData.append("file", new Blob([bytes], { type: contentType }), basename(localPath))
     const response = unwrapData(await client.uploadMedia(formData))
-    const providerURL = response?.url ?? response?.provider_url
+    const providerURL = response?.download_url ?? response?.url ?? response?.provider_url
     if (typeof providerURL !== "string" || !providerURL.trim()) {
       throw new Error("Atlas upload returned a malformed response: missing temporary URL")
     }
