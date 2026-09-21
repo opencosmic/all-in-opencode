@@ -150,7 +150,7 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   const imageSchema = tool.schema.object(registered.media_generate_image.args)
   const videoSchema = tool.schema.object(registered.media_generate_video.args)
   const predictionSchema = tool.schema.object(registered.media_prediction.args)
-  for (const field of ["size", "output_format", "thinking", "prompt_optimization_mode"]) {
+  for (const field of ["size", "output_format", "quality", "thinking", "prompt_optimization_mode"]) {
     assert.equal(typeof registered.media_generate_image.args[field]?.safeParse, "function", `image.${field}`)
     assert.equal(registered.media_generate_video.args[field], undefined, `video must not expose ${field}`)
   }
@@ -187,6 +187,7 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     approved_request_digest: "a".repeat(64),
     approved_max_usd: 1,
     size: "1024*1024",
+    quality: "xhigh",
   }))
   assert.doesNotThrow(() => videoSchema.parse({
     job_id: "job-01",

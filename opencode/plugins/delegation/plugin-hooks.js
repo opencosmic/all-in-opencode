@@ -33,6 +33,7 @@ function mediaRuntimeTools(runtime) {
       "1152*2048",
     ]).optional(),
     output_format: z.enum(["jpeg", "png"]).optional(),
+    quality: z.enum(["auto", "low", "medium", "high", "xhigh", "max"]).optional(),
     thinking: z.enum(["enabled", "disabled"]).optional(),
     prompt_optimization_mode: z.enum(["standard", "fast"]).optional(),
   }

@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 
 import {
   ATLAS_GPT_IMAGE_MODEL,
+  ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
   ATLAS_IMAGE_MODEL,
   ATLAS_MINIMAX_H3_MODEL,
   ATLAS_VIDEO_MODEL,
@@ -114,6 +115,126 @@ test("GPT Image 2 rejects video references and unexposed provider fields instead
     }),
     /negative_prompt is not supported by the AIO media-generation contract/,
   )
+})
+
+test("GPT Image 2.5 Sunburst uses the exact model ID and provider defaults", async () => {
+  const request = await buildAtlasMediaRequest("image", {
+    model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+    prompt: "A premium cinematic product still",
+  })
+
+  assert.equal(ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL, "openai/gpt-image-2.5-sunburst/text-to-image")
+  assert.deepEqual(request, {
+    body: {
+      model: "openai/gpt-image-2.5-sunburst/text-to-image",
+      prompt: "A premium cinematic product still",
+    },
+    inputAssetIds: [],
+  })
+})
+
+test("GPT Image 2.5 Sunburst maps AIO size and output format exactly", async () => {
+  for (const output_format of ["jpeg", "png"]) {
+    const request = await buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A polished hero image",
+      size: "2048*1152",
+      output_format,
+      quality: "xhigh",
+    })
+
+    assert.deepEqual(request.body, {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A polished hero image",
+      size: "2048x1152",
+      output_format,
+      quality: "xhigh",
+    })
+  }
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A polished hero image",
+      output_format: "webp",
+    }),
+    /output_format must be one of: jpeg, png/,
+  )
+})
+
+test("GPT Image 2.5 Sunburst accepts every documented quality value", async () => {
+  for (const quality of ["auto", "low", "medium", "high", "xhigh", "max"]) {
+    const request = await buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A quality-controlled image",
+      quality,
+    })
+    assert.equal(request.body.quality, quality)
+  }
+})
+
+test("GPT Image 2.5 Sunburst rejects invalid quality and unsupported sizes before network work", async () => {
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A scene",
+      quality: "ultra",
+    }),
+    /quality must be one of: auto, low, medium, high, xhigh, max/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A scene",
+      size: "2720*1530",
+    }),
+    /size must map to a documented GPT Image 2.5 Sunburst size/,
+  )
+})
+
+test("Sunburst quality is model-specific and does not broaden existing image models", async () => {
+  const request = await buildAtlasMediaRequest("image", {
+    model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+    prompt: "A premium image",
+    quality: "max",
+  })
+  assert.equal(request.body.quality, "max")
+
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "An existing GPT Image 2 request",
+      quality: "max",
+    }),
+    /quality is not supported by the AIO media-generation contract/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_IMAGE_MODEL,
+      prompt: "An existing Seedream request",
+      quality: "max",
+    }),
+    /quality is not supported by the AIO media-generation contract/,
+  )
+})
+
+test("GPT Image 2.5 Sunburst rejects Seedream, edit, and unexposed provider fields", async () => {
+  for (const [field, value, message] of [
+    ["thinking", "enabled", /thinking is not supported for GPT Image 2.5 Sunburst/],
+    ["prompt_optimization_mode", "standard", /prompt_optimization_mode is not supported for GPT Image 2.5 Sunburst/],
+    ["reference_image_asset_ids", ["reference"], /reference_image_asset_ids is not supported for image generation/],
+    ["mask", "mask-data", /mask is not supported by the AIO media-generation contract/],
+    ["background", "opaque", /background is not supported by the AIO media-generation contract/],
+    ["n", 2, /n is not supported by the AIO media-generation contract/],
+  ]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("image", {
+        model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+        prompt: "A scene",
+        [field]: value,
+      }),
+      message,
+    )
+  }
 })
 
 test("MiniMax H3 builds the minimal documented reference-to-video request", async () => {

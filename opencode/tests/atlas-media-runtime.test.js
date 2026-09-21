@@ -7,6 +7,7 @@ import { join, resolve } from "node:path"
 import { createProductionManifest } from "../plugins/film-production/contracts.js"
 import { createAtlasClient } from "../plugins/delegation/atlas-client.js"
 import {
+  ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
   ATLAS_GPT_IMAGE_MODEL,
   ATLAS_IMAGE_MODEL,
   ATLAS_MINIMAX_H3_MODEL,
@@ -519,6 +520,88 @@ test("GPT Image 2 preserves the calculated request digest through image generati
     assert.deepEqual(client.calls.filter((call) => call.operation === "generateImage").at(-1).body, calculatedRequest)
     assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 2)
     assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("GPT Image 2.5 Sunburst quality participates in approval digests and recalculation", async () => {
+  const { root, manifestPath } = await fixture()
+  try {
+    const client = fakeClient({ costs: [{ price: 0.14 }, { price: 0.14 }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A premium glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "2048*1152",
+      output_format: "png",
+      quality: "xhigh",
+    })
+    const calculatedRequest = client.calls.find((call) => call.operation === "calculate").body
+    assert.deepEqual(calculatedRequest, {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A premium glass sculpture on a black plinth",
+      size: "2048x1152",
+      output_format: "png",
+      quality: "xhigh",
+    })
+
+    await assert.rejects(runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A premium glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "2048*1152",
+      output_format: "png",
+      quality: "max",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 1)
+    assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 0)
+
+    const submitted = await runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A premium glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "2048*1152",
+      output_format: "png",
+      quality: "xhigh",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    })
+    assert.equal(submitted.model, ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL)
+    assert.equal(submitted.request_digest, calculated.request_digest)
+    assert.deepEqual(client.calls.filter((call) => call.operation === "generateImage").at(-1).body, calculatedRequest)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 2)
+    assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("invalid GPT Image 2.5 Sunburst quality is rejected before Atlas calculate", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    await assert.rejects(runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A scene",
+      manifest_path: manifestRequestPath,
+      quality: "ultra",
+    }), /quality must be one of: auto, low, medium, high, xhigh, max/)
+    assert.equal(client.calls.some((call) => call.operation === "calculate"), false)
   } finally {
     await cleanup(root)
   }

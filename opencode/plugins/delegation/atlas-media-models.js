@@ -2,6 +2,7 @@ import { extname } from "node:path"
 
 export const ATLAS_IMAGE_MODEL = "bytedance/seedream-v5.0-pro/text-to-image"
 export const ATLAS_GPT_IMAGE_MODEL = "openai/gpt-image-2/text-to-image"
+export const ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL = "openai/gpt-image-2.5-sunburst/text-to-image"
 export const ATLAS_VIDEO_MODEL = "bytedance/seedance-2.0-fast/reference-to-video"
 export const ATLAS_WAN_REFERENCE_VIDEO_MODEL = "alibaba/wan-3.0/reference-to-video"
 export const ATLAS_WAN_MODEL = ATLAS_WAN_REFERENCE_VIDEO_MODEL
@@ -29,6 +30,13 @@ const GPT_IMAGE_SIZE_MAPPINGS = new Map([
   ["2048*1152", "2048x1152"],
   ["1152*2048", "1152x2048"],
 ])
+const GPT_IMAGE_2_5_SUNBURST_SIZE_MAPPINGS = new Map([
+  ["2048*2048", "2048x2048"],
+  ["1024*1024", "1024x1024"],
+  ["2048*1152", "2048x1152"],
+  ["1152*2048", "1152x2048"],
+])
+const GPT_IMAGE_2_5_SUNBURST_QUALITIES = new Set(["auto", "low", "medium", "high", "xhigh", "max"])
 const THINKING_MODES = new Set(["enabled", "disabled"])
 const PROMPT_MODES = new Set(["standard", "fast"])
 const SEEDANCE_DURATIONS = new Set(Array.from({ length: 12 }, (_, index) => index + 4))
@@ -70,9 +78,12 @@ const VIDEO_ONLY_FIELDS = Object.freeze([
 ])
 const UNSUPPORTED_PROVIDER_FIELDS = Object.freeze([
   "audio",
+  "background",
   "enable_thinking",
   "file",
   "link",
+  "mask",
+  "n",
   "seed",
   "refers",
   "reference_images",
@@ -80,7 +91,6 @@ const UNSUPPORTED_PROVIDER_FIELDS = Object.freeze([
   "first_frame",
   "last_frame",
   "duration",
-  "quality",
   "moderation",
   "enable_base64_output",
   "enable_sync_mode",
@@ -101,6 +111,11 @@ const MODEL_SPECS = new Map([
     model: ATLAS_GPT_IMAGE_MODEL,
     mediaType: "image",
     kind: "gpt-image-2",
+  })],
+  [ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL, Object.freeze({
+    model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+    mediaType: "image",
+    kind: "gpt-image-2.5-sunburst",
   })],
   [ATLAS_VIDEO_MODEL, Object.freeze({
     model: ATLAS_VIDEO_MODEL,
@@ -262,7 +277,7 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
   if (args.media_type !== undefined && args.media_type !== mediaType) {
     throw new Error(`media_type ${args.media_type} does not match ${mediaType} generation`)
   }
-  const unsupportedFields = mediaType === "image" ? VIDEO_ONLY_FIELDS : IMAGE_ONLY_FIELDS
+  const unsupportedFields = mediaType === "image" ? VIDEO_ONLY_FIELDS : [...IMAGE_ONLY_FIELDS, "quality"]
   const unsupportedField = unsupportedFields.find((field) => args[field] !== undefined)
   if (unsupportedField) throw new Error(`${unsupportedField} is not supported for ${mediaType} generation`)
   validateProviderFields(args)
@@ -277,6 +292,7 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
     : resolveReferenceOption?.resolveReference
 
   if (spec.kind === "image") {
+    if (args.quality !== undefined) throw new Error("quality is not supported by the AIO media-generation contract")
     validateChoice(args.size, "size", IMAGE_SIZES)
     validateChoice(args.output_format, "output_format", IMAGE_FORMATS)
     validateChoice(args.thinking, "thinking", THINKING_MODES)
@@ -292,6 +308,7 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
   }
 
   if (spec.kind === "gpt-image-2") {
+    if (args.quality !== undefined) throw new Error("quality is not supported by the AIO media-generation contract")
     for (const field of ["thinking", "prompt_optimization_mode"]) {
       if (args[field] !== undefined) throw new Error(`${field} is not supported for GPT Image 2`)
     }
@@ -305,6 +322,29 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
       prompt,
       ...(providerSize === undefined ? {} : { size: providerSize }),
       ...(args.output_format === undefined ? {} : { output_format: args.output_format }),
+    }
+    return { body, inputAssetIds: [] }
+  }
+
+  if (spec.kind === "gpt-image-2.5-sunburst") {
+    if (prompt.length > 32_000) {
+      throw new Error("prompt must be at most 32000 characters for GPT Image 2.5 Sunburst")
+    }
+    for (const field of ["thinking", "prompt_optimization_mode"]) {
+      if (args[field] !== undefined) throw new Error(`${field} is not supported for GPT Image 2.5 Sunburst`)
+    }
+    const providerSize = args.size === undefined ? undefined : GPT_IMAGE_2_5_SUNBURST_SIZE_MAPPINGS.get(args.size)
+    if (args.size !== undefined && providerSize === undefined) {
+      throw new Error(`size must map to a documented GPT Image 2.5 Sunburst size: ${[...GPT_IMAGE_2_5_SUNBURST_SIZE_MAPPINGS.keys()].join(", ")}`)
+    }
+    validateChoice(args.quality, "quality", GPT_IMAGE_2_5_SUNBURST_QUALITIES)
+    validateChoice(args.output_format, "output_format", IMAGE_FORMATS)
+    const body = {
+      model: spec.model,
+      prompt,
+      ...(providerSize === undefined ? {} : { size: providerSize }),
+      ...(args.output_format === undefined ? {} : { output_format: args.output_format }),
+      ...(args.quality === undefined ? {} : { quality: args.quality }),
     }
     return { body, inputAssetIds: [] }
   }
