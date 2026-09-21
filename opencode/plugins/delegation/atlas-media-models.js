@@ -3,7 +3,6 @@ import { extname } from "node:path"
 export const ATLAS_IMAGE_MODEL = "bytedance/seedream-v5.0-pro/text-to-image"
 export const ATLAS_GPT_IMAGE_MODEL = "openai/gpt-image-2/text-to-image"
 export const ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL = "openai/gpt-image-2.5-sunburst/text-to-image"
-export const ATLAS_VIDEO_MODEL = "bytedance/seedance-2.0-fast/reference-to-video"
 export const ATLAS_WAN_REFERENCE_VIDEO_MODEL = "alibaba/wan-3.0/reference-to-video"
 export const ATLAS_WAN_MODEL = ATLAS_WAN_REFERENCE_VIDEO_MODEL
 export const ATLAS_MINIMAX_H3_MODEL = "minimax/h3/reference-to-video"
@@ -40,9 +39,6 @@ const GPT_IMAGE_2_5_SUNBURST_SIZE_MAPPINGS = new Map([
 const GPT_IMAGE_2_5_SUNBURST_QUALITIES = new Set(["auto", "low", "medium", "high", "xhigh", "max"])
 const THINKING_MODES = new Set(["enabled", "disabled"])
 const PROMPT_MODES = new Set(["standard", "fast"])
-const SEEDANCE_DURATIONS = new Set(Array.from({ length: 12 }, (_, index) => index + 4))
-const SEEDANCE_RESOLUTIONS = new Set(["480p", "720p", "720p-SR", "1080p-SR", "1440p-SR"])
-const SEEDANCE_RATIOS = new Set(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"])
 const SEEDANCE_2_5_DURATIONS = new Set([-1, ...Array.from({ length: 27 }, (_, index) => index + 4)])
 const SEEDANCE_2_5_RESOLUTIONS = new Set([
   "480p",
@@ -157,13 +153,6 @@ const MODEL_SPECS = new Map([
     mediaType: "image",
     kind: "gpt-image-2.5-sunburst",
   })],
-  [ATLAS_VIDEO_MODEL, Object.freeze({
-    model: ATLAS_VIDEO_MODEL,
-    mediaType: "video",
-    kind: "seedance",
-    maxImages: 9,
-    maxVideos: 3,
-  })],
   [ATLAS_WAN_REFERENCE_VIDEO_MODEL, Object.freeze({
     model: ATLAS_WAN_REFERENCE_VIDEO_MODEL,
     mediaType: "video",
@@ -190,8 +179,8 @@ const MODEL_SPECS = new Map([
 ])
 
 const CURRENT_MODEL_BY_MEDIA_TYPE = Object.freeze({
-  image: ATLAS_IMAGE_MODEL,
-  video: ATLAS_VIDEO_MODEL,
+  image: ATLAS_GPT_IMAGE_MODEL,
+  video: ATLAS_WAN_MODEL,
 })
 
 function required(value, name) {
@@ -237,12 +226,6 @@ function validateProviderFields(args) {
 }
 
 function validateDuration(value, model, kind) {
-  if (kind === "seedance") {
-    if (!Number.isInteger(value) || !SEEDANCE_DURATIONS.has(value)) {
-      throw new Error("duration_seconds must be an integer from 4 through 15 for Seedance reference-to-video")
-    }
-    return
-  }
   if (kind === "h3-reference") {
     if (!Number.isInteger(value) || !H3_DURATIONS.has(value)) {
       throw new Error("duration_seconds must be an integer from 4 through 15 for MiniMax H3 reference-to-video")
@@ -355,6 +338,13 @@ export function resolveAtlasMediaModel(mediaType, requestedModel) {
   return spec
 }
 
+export function listAtlasMediaModels(mediaType) {
+  if (mediaType !== undefined && !["image", "video"].includes(mediaType)) {
+    throw new Error("media_type must be image or video")
+  }
+  return Object.freeze([...MODEL_SPECS.values()].filter((spec) => mediaType === undefined || spec.mediaType === mediaType))
+}
+
 export async function buildAtlasMediaRequest(mediaType, args = {}, resolveReferenceOption) {
   if (!["image", "video"].includes(mediaType)) throw new Error("media_type must be image or video")
   if (args.media_type !== undefined && args.media_type !== mediaType) {
@@ -440,29 +430,6 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
       : `references must contain at most ${spec.maxReferences} asset IDs for ${spec.model}`)
   }
   validateDuration(args.duration_seconds, spec.model, spec.kind)
-
-  if (spec.kind === "seedance") {
-    validateChoice(args.resolution, "resolution", SEEDANCE_RESOLUTIONS)
-    validateChoice(args.ratio, "ratio", SEEDANCE_RATIOS)
-    const body = {
-      model: spec.model,
-      prompt,
-      reference_images: imageAssetIDs.length
-        ? await Promise.all(imageAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "image", spec.kind)))
-        : undefined,
-      reference_videos: videoAssetIDs.length
-        ? await Promise.all(videoAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "video", spec.kind)))
-        : undefined,
-      duration: args.duration_seconds,
-    }
-    for (const field of ["resolution", "ratio"]) {
-      if (args[field] !== undefined) body[field] = args[field]
-    }
-    for (const key of ["reference_images", "reference_videos"]) {
-      if (body[key] === undefined) delete body[key]
-    }
-    return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
-  }
 
   if (spec.kind === "seedance-2.5-reference") {
     if (!imageAssetIDs.length && !videoAssetIDs.length) {

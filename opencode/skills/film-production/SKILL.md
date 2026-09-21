@@ -39,6 +39,24 @@ Completed Atlas outputs are materialized into local production assets and
 linked from the same `ProductionManifest`; Atlas URLs are temporary transport
 metadata only.
 
+## Curated media model routing
+
+Producer applies these intent defaults for the six supported Atlas models:
+
+| Media intent | Model |
+| --- | --- |
+| image: ordinary or value | GPT Image 2 |
+| image: premium, hero, or key visual | GPT Image 2.5 Sunburst |
+| image: photoreal or reference-led | Seedream 5 Pro |
+| video: ordinary or balanced | Wan 3.0 |
+| video: identity or quality-led | MiniMax H3 |
+| video: complex or multi-reference | Seedance 2.5 |
+
+An explicitly supported user model choice wins. If the model is omitted, image
+generation defaults to GPT Image 2 and video generation defaults to Wan 3.0.
+There is no automatic paid fallback; a failed or ambiguous generation remains
+an explicit user decision.
+
 Treat the repository film-production contract as authoritative. The manifest's
 `shots` field is the complete canonical `ShotSpec[]`, not a parallel set of
 routing records. Author the canonical shape, validate the persisted

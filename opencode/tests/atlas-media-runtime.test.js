@@ -12,7 +12,6 @@ import {
   ATLAS_IMAGE_MODEL,
   ATLAS_MINIMAX_H3_MODEL,
   ATLAS_SEEDANCE_2_5_MODEL,
-  ATLAS_VIDEO_MODEL,
   ATLAS_WAN_MODEL,
   canonicalJson,
   createAtlasMediaRuntime,
@@ -74,13 +73,13 @@ function fakeClient({
     calculate: async (body) => {
       calls.push({ operation: "calculate", body: structuredClone(body) })
       const configured = costs[costIndex++]
-      const price = configured?.price ?? (body.model === ATLAS_VIDEO_MODEL ? 0.24 : 0.045)
+      const price = configured?.price ?? (body.model === ATLAS_WAN_MODEL ? 0.24 : 0.045)
       return {
         data: {
           price,
           origin_price: configured?.origin_price ?? price,
           discount: configured?.discount ?? 100,
-          estimated: configured?.estimated ?? body.model === ATLAS_VIDEO_MODEL,
+          estimated: configured?.estimated ?? body.model === ATLAS_WAN_MODEL,
           ...(configured?.estimated_tokens === undefined ? {} : { estimated_tokens: configured.estimated_tokens }),
         },
       }
@@ -240,7 +239,7 @@ test("Atlas client sends the exact calculate body and parses upload, generation,
   form.append("file", new Blob(["fixture"], { type: "image/png" }), "speaker.png")
   assert.deepEqual(await client.uploadMedia(form), { url: "https://atlas.example/uploaded.png" })
   assert.deepEqual(await client.generateImage(body), { data: { id: "prediction-01", status: "processing" } })
-  assert.deepEqual(await client.generateVideo({ model: ATLAS_VIDEO_MODEL, prompt: "A slow reveal", duration: 4 }), {
+  assert.deepEqual(await client.generateVideo({ model: ATLAS_WAN_MODEL, prompt: "A slow reveal", duration: 4 }), {
     data: { id: "prediction-video-01", status: "processing" },
   })
   assert.deepEqual(await client.prediction("prediction-01"), { data: { id: "prediction-01", status: "completed", outputs: ["https://atlas.example/out.png"] } })
@@ -255,7 +254,7 @@ test("Atlas client sends the exact calculate body and parses upload, generation,
 
 test("canonical request digests are stable and change for meaningful generation inputs", () => {
   const base = {
-    model: ATLAS_VIDEO_MODEL,
+    model: ATLAS_WAN_MODEL,
     prompt: "Slow reveal",
     duration: 5,
     reference_images: ["https://atlas.example/a.png"],
@@ -264,7 +263,7 @@ test("canonical request digests are stable and change for meaningful generation 
     reference_images: ["https://atlas.example/a.png"],
     duration: 5,
     prompt: "Slow reveal",
-    model: ATLAS_VIDEO_MODEL,
+    model: ATLAS_WAN_MODEL,
   }))
   assert.equal(requestDigest({ api_key: "one", ...base }), requestDigest({ api_key: "two", ...base }))
   assert.notEqual(requestDigest(base), requestDigest({ ...base, prompt: "Fast reveal" }))
@@ -282,6 +281,7 @@ test("media requests accept only fields for their selected modality", async () =
     const image = await runtime.media_calculate({
       shot_id: "shot_01",
       media_type: "image",
+      model: ATLAS_IMAGE_MODEL,
       prompt: "A premium speaker",
       manifest_path: manifestRequestPath,
       size: "1024*1024",
@@ -369,11 +369,11 @@ test("media_calculate uses Atlas preflight, records the manifest job, and video 
       resolution: "720p",
       ratio: "16:9",
     })
-    assert.equal(calculated.model, ATLAS_VIDEO_MODEL)
+    assert.equal(calculated.model, ATLAS_WAN_MODEL)
     assert.equal(calculated.estimated, true)
     assert.equal(calculated.estimated_tokens, 12345)
     const request = client.calls.find((call) => call.operation === "calculate").body
-    assert.deepEqual(request.reference_images, [uploaded.provider_url])
+    assert.deepEqual(request.refers, [{ url: uploaded.provider_url, type: "image" }])
     assert.equal(request.duration, 5)
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
     assert.equal(manifest.assets[0].metadata.atlascloud.provider_url, uploaded.provider_url)
@@ -425,7 +425,7 @@ test("media_calculate normalizes Atlas numeric cost strings without relaxing val
   }
 })
 
-test("media_calculate accepts the documented no-reference Seedance preflight", async () => {
+test("media_calculate uses Wan 3.0 for an omitted video model", async () => {
   const { root, manifestRequestPath } = await fixture()
   try {
     const client = fakeClient()
@@ -439,7 +439,7 @@ test("media_calculate accepts the documented no-reference Seedance preflight", a
       resolution: "480p",
       ratio: "16:9",
     })
-    assert.equal(calculated.model, ATLAS_VIDEO_MODEL)
+    assert.equal(calculated.model, ATLAS_WAN_MODEL)
     const request = client.calls.find((call) => call.operation === "calculate").body
     assert.equal(request.reference_images, undefined)
     assert.equal(request.reference_videos, undefined)
@@ -770,7 +770,7 @@ test("invalid Seedance 2.5 references and controls are rejected before Atlas cal
       prompt: "A scene",
       manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front"],
-      resolution: "1080p-SR",
+      resolution: "8k-esr",
     }), /resolution must be one of:/)
     await assert.rejects(runtime.media_calculate({
       shot_id: "shot_01",

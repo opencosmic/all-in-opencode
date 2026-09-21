@@ -7,16 +7,49 @@ import {
   ATLAS_IMAGE_MODEL,
   ATLAS_MINIMAX_H3_MODEL,
   ATLAS_SEEDANCE_2_5_MODEL,
-  ATLAS_VIDEO_MODEL,
   ATLAS_WAN_MODEL,
   buildAtlasMediaRequest,
+  listAtlasMediaModels,
   resolveAtlasMediaModel,
 } from "../plugins/delegation/atlas-media-models.js"
 
 const referenceResolver = (references) => async (assetID) => references[assetID]
 
+test("Atlas model definitions contain exactly six active models", () => {
+  const imageModels = listAtlasMediaModels("image").map(({ model }) => model)
+  const videoModels = listAtlasMediaModels("video").map(({ model }) => model)
+  const allModels = listAtlasMediaModels().map(({ model }) => model)
+
+  assert.deepEqual(new Set(imageModels), new Set([
+    ATLAS_IMAGE_MODEL,
+    ATLAS_GPT_IMAGE_MODEL,
+    ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+  ]))
+  assert.deepEqual(new Set(videoModels), new Set([
+    ATLAS_WAN_MODEL,
+    ATLAS_MINIMAX_H3_MODEL,
+    ATLAS_SEEDANCE_2_5_MODEL,
+  ]))
+  assert.equal(allModels.length, 6)
+  assert.equal(new Set(allModels).size, 6)
+})
+
+test("omitted Atlas models default to GPT Image 2 and Wan 3.0", async () => {
+  const image = await buildAtlasMediaRequest("image", { prompt: "A clean product portrait" })
+  const video = await buildAtlasMediaRequest("video", {
+    prompt: "A clean product turntable",
+    duration_seconds: 4,
+    resolution: "480p",
+    ratio: "16:9",
+  })
+
+  assert.equal(image.body.model, ATLAS_GPT_IMAGE_MODEL)
+  assert.equal(video.body.model, ATLAS_WAN_MODEL)
+})
+
 test("Seedream 5 Pro keeps the canonical image request", async () => {
   const request = await buildAtlasMediaRequest("image", {
+    model: ATLAS_IMAGE_MODEL,
     prompt: "A premium speaker in a dark studio",
     size: "2048*1152",
     output_format: "png",
@@ -475,33 +508,6 @@ test("MiniMax H3 rejects unsupported reference formats and preserves explicit ty
   )
 })
 
-test("Seedance 2.0 Fast keeps the canonical reference-to-video request", async () => {
-  const request = await buildAtlasMediaRequest("video", {
-    prompt: "The speaker rotates slowly",
-    reference_image_asset_ids: ["speaker_front"],
-    reference_video_asset_ids: ["previs"],
-    duration_seconds: 5,
-    resolution: "720p-SR",
-    ratio: "16:9",
-  }, referenceResolver({
-    speaker_front: { url: "https://atlas.example/speaker.png", type: "image" },
-    previs: { url: "https://atlas.example/previs.mp4", type: "video" },
-  }))
-
-  assert.deepEqual(request, {
-    body: {
-      model: ATLAS_VIDEO_MODEL,
-      prompt: "The speaker rotates slowly",
-      reference_images: ["https://atlas.example/speaker.png"],
-      reference_videos: ["https://atlas.example/previs.mp4"],
-      duration: 5,
-      resolution: "720p-SR",
-      ratio: "16:9",
-    },
-    inputAssetIds: ["speaker_front", "previs"],
-  })
-})
-
 test("Seedance 2.5 builds the minimal reference-to-video request with the exact model ID", async () => {
   const request = await buildAtlasMediaRequest("video", {
     model: ATLAS_SEEDANCE_2_5_MODEL,
@@ -636,7 +642,6 @@ test("Seedance 2.5 validates duration, resolution, and ratio independently of ex
     ["duration_seconds", 3],
     ["duration_seconds", 31],
     ["duration_seconds", 4.5],
-    ["resolution", "1080p-SR"],
     ["resolution", "8k-esr"],
     ["ratio", "4:5"],
   ]) {
@@ -759,7 +764,7 @@ test("Wan 3.0 maps AIO image and video assets to typed refers entries", async ()
 })
 
 test("unsupported or mismatched Atlas models are rejected before request construction", async () => {
-  assert.throws(() => resolveAtlasMediaModel("video", "alibaba/wan-3.0/text-to-video"), /unsupported Atlas media model/)
+  assert.throws(() => resolveAtlasMediaModel("video", "example/unsupported/model"), /unsupported Atlas media model/)
   await assert.rejects(
     buildAtlasMediaRequest("image", { model: ATLAS_WAN_MODEL, prompt: "wrong modality" }),
     /is not supported for image generation/,
@@ -797,7 +802,7 @@ test("Wan resolution validation happens before reference resolution or network w
       model: ATLAS_WAN_MODEL,
       prompt: "A scene",
       reference_image_asset_ids: ["subject"],
-      resolution: "720p-SR",
+      resolution: "8k-esr",
     }, resolveReference),
     /resolution must be one of:/,
   )

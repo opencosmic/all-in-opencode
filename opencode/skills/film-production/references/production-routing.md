@@ -14,3 +14,12 @@ Choose the owner by the problem the shot presents:
 media agent, Blender-previs category, or `video-production` category. For
 `/film`, film planning comes before HyperFrames; HyperFrames is the later
 composition/render owner, not a duplicate planning control plane.
+
+## Curated media model defaults
+
+Use GPT Image 2 for ordinary/value images, GPT Image 2.5 Sunburst for
+premium/hero/key visuals, and Seedream 5 Pro for photoreal/reference images.
+Use Wan 3.0 for ordinary/balanced video, MiniMax H3 for identity/quality
+video, and Seedance 2.5 for complex/multi-reference video. An explicitly
+supported user model choice wins. Omitted models default to GPT Image 2 for
+images and Wan 3.0 for video; there is no automatic paid fallback.
