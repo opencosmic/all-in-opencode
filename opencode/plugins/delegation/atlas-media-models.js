@@ -7,6 +7,7 @@ export const ATLAS_VIDEO_MODEL = "bytedance/seedance-2.0-fast/reference-to-video
 export const ATLAS_WAN_REFERENCE_VIDEO_MODEL = "alibaba/wan-3.0/reference-to-video"
 export const ATLAS_WAN_MODEL = ATLAS_WAN_REFERENCE_VIDEO_MODEL
 export const ATLAS_MINIMAX_H3_MODEL = "minimax/h3/reference-to-video"
+export const ATLAS_SEEDANCE_2_5_MODEL = "bytedance/seedance-2.5/reference-to-video"
 
 const IMAGE_SIZES = new Set([
   "2048*2048",
@@ -42,6 +43,21 @@ const PROMPT_MODES = new Set(["standard", "fast"])
 const SEEDANCE_DURATIONS = new Set(Array.from({ length: 12 }, (_, index) => index + 4))
 const SEEDANCE_RESOLUTIONS = new Set(["480p", "720p", "720p-SR", "1080p-SR", "1440p-SR"])
 const SEEDANCE_RATIOS = new Set(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"])
+const SEEDANCE_2_5_DURATIONS = new Set([-1, ...Array.from({ length: 27 }, (_, index) => index + 4)])
+const SEEDANCE_2_5_RESOLUTIONS = new Set([
+  "480p",
+  "720p",
+  "720p-sr",
+  "720p-esr",
+  "1080p",
+  "1080p-sr",
+  "1080p-esr",
+  "1080p-esr & 60fps",
+  "1440p-sr",
+  "1440p-esr",
+  "4k-esr",
+])
+const SEEDANCE_2_5_RATIOS = new Set(["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"])
 const WAN_RESOLUTIONS = new Set(["480p", "720p", "1080p", "720p-esr", "1080p-esr", "1440p-esr", "4k-esr"])
 const WAN_RATIOS = new Set(["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16"])
 const H3_RESOLUTION_MAPPINGS = new Map([
@@ -62,6 +78,19 @@ const WAN_REFERENCE_MIME_TYPES = new Set([
   "video/mp4",
   "video/quicktime",
 ])
+const SEEDANCE_2_5_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/bmp",
+  "image/tiff",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+])
+const SEEDANCE_2_5_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/quicktime"])
+const SEEDANCE_2_5_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".gif", ".heic", ".heif"])
+const SEEDANCE_2_5_VIDEO_EXTENSIONS = new Set([".mp4", ".mov"])
 
 const IMAGE_ONLY_FIELDS = Object.freeze([
   "size",
@@ -99,6 +128,17 @@ const UNSUPPORTED_PROVIDER_FIELDS = Object.freeze([
   "color_hints",
   "prompt_expansion",
   "reference_audio_asset_ids",
+  "reference_audios",
+  "omni_reference_task_type",
+  "generate_audio",
+  "watermark",
+  "return_last_frame",
+  "editing",
+  "edit",
+  "extension",
+  "extend",
+  "video_editing",
+  "video_extension",
 ])
 
 const MODEL_SPECS = new Map([
@@ -139,6 +179,13 @@ const MODEL_SPECS = new Map([
     maxImages: 9,
     maxVideos: 3,
     maxReferences: 9,
+  })],
+  [ATLAS_SEEDANCE_2_5_MODEL, Object.freeze({
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    mediaType: "video",
+    kind: "seedance-2.5-reference",
+    maxImages: 30,
+    maxVideos: 10,
   })],
 ])
 
@@ -202,6 +249,12 @@ function validateDuration(value, model, kind) {
     }
     return
   }
+  if (kind === "seedance-2.5-reference") {
+    if (value !== undefined && !SEEDANCE_2_5_DURATIONS.has(value)) {
+      throw new Error("duration_seconds must be -1 or an integer from 4 through 30 for Seedance 2.5 reference-to-video")
+    }
+    return
+  }
   if (value === undefined) return
   if (value !== -1 && (!Number.isInteger(value) || value < 2 || value > 30)) {
     throw new Error(`duration_seconds must be -1 or an integer from 2 through 30 for ${model}`)
@@ -245,6 +298,32 @@ function validateH3Reference(reference, assetID, expectedType, url) {
   }
 }
 
+function validateSeedance25Reference(reference, assetID, expectedType, url) {
+  const type = reference?.type ?? reference?.media_type
+  if (type !== expectedType) {
+    throw new Error(`reference asset ${assetID} must resolve to a ${expectedType} for Seedance 2.5 reference-to-video`)
+  }
+  const mimeType = reference?.mime_type ?? reference?.content_type
+  if (mimeType !== undefined) {
+    const normalizedMimeType = String(mimeType).split(";", 1)[0].trim().toLowerCase()
+    const supported = expectedType === "image" ? SEEDANCE_2_5_IMAGE_MIME_TYPES : SEEDANCE_2_5_VIDEO_MIME_TYPES
+    if (!supported.has(normalizedMimeType)) {
+      throw new Error(`reference asset ${assetID} uses an unsupported Seedance 2.5 ${expectedType} format`)
+    }
+    return
+  }
+  let extension = ""
+  try {
+    extension = extname(new URL(url).pathname).toLowerCase()
+  } catch {
+    throw new Error(`reference asset ${assetID} must use a supported Seedance 2.5 ${expectedType} format`)
+  }
+  const supportedExtensions = expectedType === "image" ? SEEDANCE_2_5_IMAGE_EXTENSIONS : SEEDANCE_2_5_VIDEO_EXTENSIONS
+  if (!supportedExtensions.has(extension)) {
+    throw new Error(`reference asset ${assetID} uses an unsupported Seedance 2.5 ${expectedType} format`)
+  }
+}
+
 async function resolveReference(resolveReference, assetID, expectedType, kind) {
   if (typeof resolveReference !== "function") {
     throw new Error(`reference asset ${assetID} cannot be resolved without an upload resolver`)
@@ -259,6 +338,10 @@ async function resolveReference(resolveReference, assetID, expectedType, kind) {
   if (kind === "h3-reference") {
     validateH3Reference(value, assetID, expectedType, url)
     return { url, type: expectedType }
+  }
+  if (kind === "seedance-2.5-reference") {
+    validateSeedance25Reference(value, assetID, expectedType, url)
+    return url
   }
   return url
 }
@@ -377,6 +460,29 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
     }
     for (const key of ["reference_images", "reference_videos"]) {
       if (body[key] === undefined) delete body[key]
+    }
+    return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
+  }
+
+  if (spec.kind === "seedance-2.5-reference") {
+    if (!imageAssetIDs.length && !videoAssetIDs.length) {
+      throw new Error("Seedance 2.5 reference-to-video requires at least one image or video reference")
+    }
+    validateChoice(args.resolution, "resolution", SEEDANCE_2_5_RESOLUTIONS)
+    validateChoice(args.ratio, "ratio", SEEDANCE_2_5_RATIOS)
+    const body = {
+      model: spec.model,
+      prompt,
+      ...(imageAssetIDs.length
+        ? { reference_images: await Promise.all(imageAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "image", spec.kind))) }
+        : {}),
+      ...(videoAssetIDs.length
+        ? { reference_videos: await Promise.all(videoAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "video", spec.kind))) }
+        : {}),
+      ...(args.duration_seconds === undefined ? {} : { duration: args.duration_seconds }),
+      ...(args.resolution === undefined ? {} : { resolution: args.resolution }),
+      ...(args.ratio === undefined ? {} : { ratio: args.ratio }),
+      omni_reference_task_type: "reference",
     }
     return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
   }

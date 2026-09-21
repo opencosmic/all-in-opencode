@@ -177,6 +177,18 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     duration_seconds: 8,
     resolution: "2k",
   }))
+  assert.doesNotThrow(() => calculateSchema.parse({
+    shot_id: "shot_01",
+    media_type: "video",
+    prompt: "a complex reveal",
+    manifest_path: "production-manifest.json",
+    model: "bytedance/seedance-2.5/reference-to-video",
+    reference_image_asset_ids: Array.from({ length: 30 }, (_, index) => `image-${index}`),
+    reference_video_asset_ids: Array.from({ length: 10 }, (_, index) => `video-${index}`),
+    duration_seconds: 30,
+    resolution: "1080p-esr & 60fps",
+    ratio: "21:9",
+  }))
   assert.throws(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal" }), /manifest_path/)
   assert.throws(() => uploadSchema.parse({ asset_id: "asset-01" }), /manifest_path/)
   assert.doesNotThrow(() => imageSchema.parse({

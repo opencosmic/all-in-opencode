@@ -11,6 +11,7 @@ import {
   ATLAS_GPT_IMAGE_MODEL,
   ATLAS_IMAGE_MODEL,
   ATLAS_MINIMAX_H3_MODEL,
+  ATLAS_SEEDANCE_2_5_MODEL,
   ATLAS_VIDEO_MODEL,
   ATLAS_WAN_MODEL,
   canonicalJson,
@@ -146,6 +147,45 @@ async function fixture({ manifestInProduction = false } = {}) {
 
 async function cleanup(root) {
   await rm(root, { recursive: true, force: true })
+}
+
+async function addManifestProviderReferences(manifestPath) {
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+  manifest.assets[0].metadata = {
+    atlascloud: {
+      provider_url: "https://atlas.example/uploads/front.png",
+      content_type: "image/png",
+    },
+  }
+  manifest.assets.push(
+    {
+      asset_id: "speaker_side",
+      kind: "subject-reference",
+      status: "ready",
+      path: "references/speaker.png",
+      shot_ids: ["shot_01"],
+      metadata: {
+        atlascloud: {
+          provider_url: "https://atlas.example/uploads/side.png",
+          content_type: "image/png",
+        },
+      },
+    },
+    {
+      asset_id: "previs_reference",
+      kind: "motion-reference",
+      status: "ready",
+      path: "references/previs.mp4",
+      shot_ids: ["shot_01"],
+      metadata: {
+        atlascloud: {
+          provider_url: "https://atlas.example/uploads/previs.mp4",
+          content_type: "video/mp4",
+        },
+      },
+    },
+  )
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 }
 
 test("Atlas client requires ATLASCLOUD_API_KEY before network activity", async () => {
@@ -602,6 +642,146 @@ test("invalid GPT Image 2.5 Sunburst quality is rejected before Atlas calculate"
       quality: "ultra",
     }), /quality must be one of: auto, low, medium, high, xhigh, max/)
     assert.equal(client.calls.some((call) => call.operation === "calculate"), false)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("Seedance 2.5 preserves manifest-authorized reference order and fixed task type through approval digests", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    await addManifestProviderReferences(manifestPath)
+    const client = fakeClient({ costs: [{ price: 1.12, estimated: true }, { price: 1.12, estimated: true }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+    })
+    const calculatedRequest = client.calls.filter((call) => call.operation === "calculate").at(-1).body
+    assert.deepEqual(calculatedRequest, {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      reference_images: [
+        "https://atlas.example/uploads/front.png",
+        "https://atlas.example/uploads/side.png",
+      ],
+      reference_videos: ["https://atlas.example/uploads/previs.mp4"],
+      duration: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      omni_reference_task_type: "reference",
+    })
+    const manifestAfterCalculate = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.deepEqual(manifestAfterCalculate.generation_jobs[0].input_asset_ids, [
+      "speaker_front",
+      "speaker_side",
+      "previs_reference",
+    ])
+    assert.equal(manifestAfterCalculate.generation_jobs[0].request_digest, calculated.request_digest)
+    const calculateCountBeforeGeneration = client.calls.filter((call) => call.operation === "calculate").length
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_side", "speaker_front"],
+      reference_video_asset_ids: ["previs_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      duration_seconds: 30,
+      resolution: "1440p-esr",
+      ratio: "21:9",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    const submitted = await runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+      approved_price_usd: calculated.price_usd,
+    })
+    assert.equal(submitted.model, ATLAS_SEEDANCE_2_5_MODEL)
+    assert.equal(submitted.request_digest, calculated.request_digest)
+    assert.deepEqual(client.calls.filter((call) => call.operation === "generateVideo").at(-1).body, calculatedRequest)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration + 1)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("invalid Seedance 2.5 references and controls are rejected before Atlas calculate", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    await assert.rejects(runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A scene",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: Array.from({ length: 31 }, (_, index) => `image_${index}`),
+    }), /reference_image_asset_ids must contain at most 30 asset IDs/)
+    await assert.rejects(runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A scene",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      resolution: "1080p-SR",
+    }), /resolution must be one of:/)
+    await assert.rejects(runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A scene",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      reference_audio_asset_ids: ["audio_ref"],
+    }), /reference_audio_asset_ids is not supported by the AIO media-generation contract/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 0)
   } finally {
     await cleanup(root)
   }

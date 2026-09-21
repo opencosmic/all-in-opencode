@@ -6,6 +6,7 @@ import {
   ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
   ATLAS_IMAGE_MODEL,
   ATLAS_MINIMAX_H3_MODEL,
+  ATLAS_SEEDANCE_2_5_MODEL,
   ATLAS_VIDEO_MODEL,
   ATLAS_WAN_MODEL,
   buildAtlasMediaRequest,
@@ -499,6 +500,215 @@ test("Seedance 2.0 Fast keeps the canonical reference-to-video request", async (
     },
     inputAssetIds: ["speaker_front", "previs"],
   })
+})
+
+test("Seedance 2.5 builds the minimal reference-to-video request with the exact model ID", async () => {
+  const request = await buildAtlasMediaRequest("video", {
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    prompt: "The subject turns toward camera",
+    reference_image_asset_ids: ["subject_front"],
+  }, referenceResolver({
+    subject_front: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+  }))
+
+  assert.equal(ATLAS_SEEDANCE_2_5_MODEL, "bytedance/seedance-2.5/reference-to-video")
+  assert.deepEqual(request, {
+    body: {
+      model: "bytedance/seedance-2.5/reference-to-video",
+      prompt: "The subject turns toward camera",
+      reference_images: ["https://atlas.example/subject.png"],
+      omni_reference_task_type: "reference",
+    },
+    inputAssetIds: ["subject_front"],
+  })
+})
+
+test("Seedance 2.5 maps ordered image and video references to exact provider fields", async () => {
+  const request = await buildAtlasMediaRequest("video", {
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    prompt: "The subject moves through the set",
+    reference_image_asset_ids: ["image_b", "image_a"],
+    reference_video_asset_ids: ["video_b", "video_a"],
+    duration_seconds: 30,
+    resolution: "1080p-esr & 60fps",
+    ratio: "21:9",
+  }, referenceResolver({
+    image_a: { url: "https://atlas.example/image-a.png", type: "image", mime_type: "image/png" },
+    image_b: { url: "https://atlas.example/image-b.webp", type: "image", mime_type: "image/webp" },
+    video_a: { url: "https://atlas.example/video-a.mp4", type: "video", mime_type: "video/mp4" },
+    video_b: { url: "https://atlas.example/video-b.mov", type: "video", mime_type: "video/quicktime" },
+  }))
+
+  assert.deepEqual(request.body, {
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    prompt: "The subject moves through the set",
+    reference_images: ["https://atlas.example/image-b.webp", "https://atlas.example/image-a.png"],
+    reference_videos: ["https://atlas.example/video-b.mov", "https://atlas.example/video-a.mp4"],
+    duration: 30,
+    resolution: "1080p-esr & 60fps",
+    ratio: "21:9",
+    omni_reference_task_type: "reference",
+  })
+  assert.deepEqual(request.inputAssetIds, ["image_b", "image_a", "video_b", "video_a"])
+})
+
+test("Seedance 2.5 accepts the official per-type reference boundaries and rejects overflow before resolving", async () => {
+  const imageIDs = Array.from({ length: 30 }, (_, index) => `image_${index}`)
+  const videoIDs = Array.from({ length: 10 }, (_, index) => `video_${index}`)
+  const references = Object.fromEntries([
+    ...imageIDs.map((assetID) => [assetID, { url: `https://atlas.example/${assetID}.png`, type: "image", mime_type: "image/png" }]),
+    ...videoIDs.map((assetID) => [assetID, { url: `https://atlas.example/${assetID}.mp4`, type: "video", mime_type: "video/mp4" }]),
+  ])
+  const request = await buildAtlasMediaRequest("video", {
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    prompt: "A complex reference composition",
+    reference_image_asset_ids: imageIDs,
+    reference_video_asset_ids: videoIDs,
+  }, referenceResolver(references))
+  assert.equal(request.body.reference_images.length, 30)
+  assert.equal(request.body.reference_videos.length, 10)
+
+  let resolutions = 0
+  const resolveReference = async () => {
+    resolutions += 1
+    return { url: "https://atlas.example/reference.png", type: "image", mime_type: "image/png" }
+  }
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "Too many image references",
+      reference_image_asset_ids: [...imageIDs, "image_overflow"],
+    }, resolveReference),
+    /reference_image_asset_ids must contain at most 30 asset IDs/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "Too many video references",
+      reference_video_asset_ids: [...videoIDs, "video_overflow"],
+    }, resolveReference),
+    /reference_video_asset_ids must contain at most 10 asset IDs/,
+  )
+  assert.equal(resolutions, 0)
+})
+
+test("Seedance 2.5 validates duration, resolution, and ratio independently of existing Seedance models", async () => {
+  const resolveReference = referenceResolver({
+    subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+  })
+  for (const duration_seconds of [-1, 4, 30]) {
+    await assert.doesNotReject(buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A reference generation",
+      reference_image_asset_ids: ["subject"],
+      duration_seconds,
+    }, resolveReference))
+  }
+  for (const resolution of [
+    "480p",
+    "720p",
+    "720p-sr",
+    "720p-esr",
+    "1080p",
+    "1080p-sr",
+    "1080p-esr",
+    "1080p-esr & 60fps",
+    "1440p-sr",
+    "1440p-esr",
+    "4k-esr",
+  ]) {
+    await assert.doesNotReject(buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A reference generation",
+      reference_image_asset_ids: ["subject"],
+      resolution,
+    }, resolveReference))
+  }
+  for (const ratio of ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]) {
+    await assert.doesNotReject(buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A reference generation",
+      reference_image_asset_ids: ["subject"],
+      ratio,
+    }, resolveReference))
+  }
+  for (const [field, value] of [
+    ["duration_seconds", 3],
+    ["duration_seconds", 31],
+    ["duration_seconds", 4.5],
+    ["resolution", "1080p-SR"],
+    ["resolution", "8k-esr"],
+    ["ratio", "4:5"],
+  ]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("video", {
+        model: ATLAS_SEEDANCE_2_5_MODEL,
+        prompt: "A reference generation",
+        reference_image_asset_ids: ["subject"],
+        duration_seconds: field === "duration_seconds" ? value : undefined,
+        resolution: field === "resolution" ? value : undefined,
+        ratio: field === "ratio" ? value : undefined,
+      }, resolveReference),
+      new RegExp(field === "duration_seconds" ? "duration_seconds must be -1 or an integer from 4 through 30" : `${field} must be one of:`),
+    )
+  }
+})
+
+test("Seedance 2.5 validates manifest media kinds and documented reference formats", async () => {
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A scene",
+      reference_image_asset_ids: ["audio"],
+    }, referenceResolver({
+      audio: { url: "https://atlas.example/voice.mp3", type: "audio", mime_type: "audio/mpeg" },
+    })),
+    /must resolve to a image for Seedance 2.5 reference-to-video/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A scene",
+      reference_video_asset_ids: ["webm"],
+    }, referenceResolver({
+      webm: { url: "https://atlas.example/reference.webm", type: "video", mime_type: "video/webm" },
+    })),
+    /unsupported Seedance 2.5 video format/,
+  )
+  await assert.doesNotReject(buildAtlasMediaRequest("video", {
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    prompt: "A scene",
+    reference_image_asset_ids: ["tiff"],
+    reference_video_asset_ids: ["mov"],
+  }, referenceResolver({
+    tiff: { url: "https://atlas.example/reference.tiff", type: "image", mime_type: "image/tiff" },
+    mov: { url: "https://atlas.example/reference.mov", type: "video", mime_type: "video/quicktime" },
+  })))
+})
+
+test("Seedance 2.5 rejects audio, raw provider references, and edit or extension controls", async () => {
+  for (const [field, value, message] of [
+    ["reference_audio_asset_ids", ["audio"], /reference_audio_asset_ids is not supported by the AIO media-generation contract/],
+    ["reference_audios", ["https://atlas.example/audio.mp3"], /reference_audios is not supported by the AIO media-generation contract/],
+    ["reference_images", ["https://atlas.example/reference.png"], /reference_images is not supported by the AIO media-generation contract/],
+    ["reference_videos", ["https://atlas.example/reference.mp4"], /reference_videos is not supported by the AIO media-generation contract/],
+    ["omni_reference_task_type", "edit", /omni_reference_task_type is not supported by the AIO media-generation contract/],
+    ["generate_audio", false, /generate_audio is not supported by the AIO media-generation contract/],
+    ["editing", true, /editing is not supported by the AIO media-generation contract/],
+    ["extend", true, /extend is not supported by the AIO media-generation contract/],
+  ]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("video", {
+        model: ATLAS_SEEDANCE_2_5_MODEL,
+        prompt: "A scene",
+        reference_image_asset_ids: ["subject"],
+        [field]: value,
+      }, referenceResolver({
+        subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+      })),
+      message,
+    )
+  }
 })
 
 test("Wan 3.0 reference-to-video emits the documented minimal request", async () => {

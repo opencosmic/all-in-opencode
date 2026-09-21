@@ -7,7 +7,7 @@ import { readJson, writeJson } from "./json-store.js"
 import { createAtlasClient } from "./atlas-client.js"
 import { buildAtlasMediaRequest } from "./atlas-media-models.js"
 
-export { ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL, ATLAS_GPT_IMAGE_MODEL, ATLAS_IMAGE_MODEL, ATLAS_MINIMAX_H3_MODEL, ATLAS_VIDEO_MODEL, ATLAS_WAN_MODEL, ATLAS_WAN_REFERENCE_VIDEO_MODEL } from "./atlas-media-models.js"
+export { ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL, ATLAS_GPT_IMAGE_MODEL, ATLAS_IMAGE_MODEL, ATLAS_MINIMAX_H3_MODEL, ATLAS_SEEDANCE_2_5_MODEL, ATLAS_VIDEO_MODEL, ATLAS_WAN_MODEL, ATLAS_WAN_REFERENCE_VIDEO_MODEL } from "./atlas-media-models.js"
 
 export const MEDIA_RUNTIME_TOOL_NAMES = Object.freeze([
   "media_calculate",
