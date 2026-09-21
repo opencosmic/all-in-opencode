@@ -105,7 +105,7 @@ test("GPT Image 2 maps the supported AIO image size and output format", async ()
   })
 })
 
-test("GPT Image 2 rejects unsupported sizes, quality controls, and Seedream-only fields", async () => {
+test("GPT Image 2 rejects unsupported sizes and Seedream-only fields", async () => {
   await assert.rejects(
     buildAtlasMediaRequest("image", {
       model: ATLAS_GPT_IMAGE_MODEL,
@@ -118,17 +118,62 @@ test("GPT Image 2 rejects unsupported sizes, quality controls, and Seedream-only
     buildAtlasMediaRequest("image", {
       model: ATLAS_GPT_IMAGE_MODEL,
       prompt: "A scene",
-      quality: "high",
-    }),
-    /quality is not supported by the AIO media-generation contract/,
-  )
-  await assert.rejects(
-    buildAtlasMediaRequest("image", {
-      model: ATLAS_GPT_IMAGE_MODEL,
-      prompt: "A scene",
       thinking: "enabled",
     }),
     /thinking is not supported for GPT Image 2/,
+  )
+})
+
+test("GPT Image 2 accepts only curated quality values and stable size presets", async () => {
+  for (const quality of ["low", "medium", "high"]) {
+    const request = await buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A quality-controlled image",
+      quality,
+    })
+    assert.equal(request.body.quality, quality)
+  }
+  for (const [size, providerSize] of [
+    ["1024*1024", "1024x1024"],
+    ["1024*768", "1024x768"],
+    ["768*1024", "768x1024"],
+    ["1024*1536", "1024x1536"],
+    ["1536*1024", "1536x1024"],
+    ["2048*2048", "2048x2048"],
+    ["2048*1152", "2048x1152"],
+    ["1152*2048", "1152x2048"],
+    ["2560*1088", "2560x1088"],
+    ["1088*2560", "1088x2560"],
+  ]) {
+    const request = await buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A stable curated canvas",
+      size,
+    })
+    assert.equal(request.body.size, providerSize)
+  }
+  const omitted = await buildAtlasMediaRequest("image", {
+    model: ATLAS_GPT_IMAGE_MODEL,
+    prompt: "No explicit quality",
+  })
+  assert.equal("quality" in omitted.body, false)
+  for (const quality of ["auto", "xhigh", "max"]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("image", {
+        model: ATLAS_GPT_IMAGE_MODEL,
+        prompt: "A scene",
+        quality,
+      }),
+      /quality must be one of: low, medium, high/,
+    )
+  }
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "An experimental canvas",
+      size: "2880*2160",
+    }),
+    /size must map to a documented GPT Image 2 size/,
   )
 })
 
@@ -195,6 +240,74 @@ test("GPT Image 2.5 Sunburst maps AIO size and output format exactly", async () 
   )
 })
 
+test("GPT Image 2.5 Sunburst maps stable curated sizes and background controls", async () => {
+  for (const [size, providerSize] of [
+    ["1024*1024", "1024x1024"],
+    ["1024*768", "1024x768"],
+    ["768*1024", "768x1024"],
+    ["1024*1536", "1024x1536"],
+    ["1536*1024", "1536x1024"],
+    ["2048*2048", "2048x2048"],
+    ["2048*1152", "2048x1152"],
+    ["1152*2048", "1152x2048"],
+    ["2560*1088", "2560x1088"],
+    ["1088*2560", "1088x2560"],
+  ]) {
+    const request = await buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A stable curated canvas",
+      size,
+    })
+    assert.equal(request.body.size, providerSize)
+  }
+  for (const background of ["auto", "opaque", "transparent"]) {
+    const request = await buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A composited hero image",
+      background,
+      ...(background === "transparent" ? { output_format: "png" } : {}),
+    })
+    assert.equal(request.body.background, background)
+  }
+  const omitted = await buildAtlasMediaRequest("image", {
+    model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+    prompt: "No explicit background",
+  })
+  assert.equal("background" in omitted.body, false)
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A transparent cutout",
+      background: "transparent",
+      output_format: "jpeg",
+    }),
+    /output_format must be png when background is transparent/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("image", {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "An experimental canvas",
+      size: "2880*2160",
+    }),
+    /size must map to a documented GPT Image 2.5 Sunburst size/,
+  )
+})
+
+test("Sunburst background is not broadened to other image models", async () => {
+  for (const model of [ATLAS_GPT_IMAGE_MODEL, ATLAS_IMAGE_MODEL]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("image", {
+        model,
+        prompt: "A non-Sunburst image",
+        background: "opaque",
+      }),
+      new RegExp(model === ATLAS_IMAGE_MODEL
+        ? "background is not supported for Seedream 5.0 Pro"
+        : "background is not supported for GPT Image 2"),
+    )
+  }
+})
+
 test("GPT Image 2.5 Sunburst accepts every documented quality value", async () => {
   for (const quality of ["auto", "low", "medium", "high", "xhigh", "max"]) {
     const request = await buildAtlasMediaRequest("image", {
@@ -239,7 +352,7 @@ test("Sunburst quality is model-specific and does not broaden existing image mod
       prompt: "An existing GPT Image 2 request",
       quality: "max",
     }),
-    /quality is not supported by the AIO media-generation contract/,
+    /quality must be one of: low, medium, high/,
   )
   await assert.rejects(
     buildAtlasMediaRequest("image", {
@@ -257,7 +370,6 @@ test("GPT Image 2.5 Sunburst rejects Seedream, edit, and unexposed provider fiel
     ["prompt_optimization_mode", "standard", /prompt_optimization_mode is not supported for GPT Image 2.5 Sunburst/],
     ["reference_image_asset_ids", ["reference"], /reference_image_asset_ids is not supported for image generation/],
     ["mask", "mask-data", /mask is not supported by the AIO media-generation contract/],
-    ["background", "opaque", /background is not supported by the AIO media-generation contract/],
     ["n", 2, /n is not supported by the AIO media-generation contract/],
   ]) {
     await assert.rejects(
@@ -468,17 +580,44 @@ test("MiniMax H3 rejects audio references and unsupported provider fields", asyn
     })),
     /must resolve to a image for MiniMax H3 refers/,
   )
-  await assert.rejects(
-    buildAtlasMediaRequest("video", {
+})
+
+test("MiniMax H3 preserves explicit prompt expansion and rejects other new video controls", async () => {
+  const resolveReference = referenceResolver({
+    subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+  })
+  for (const prompt_expansion of [true, false]) {
+    const request = await buildAtlasMediaRequest("video", {
       model: ATLAS_MINIMAX_H3_MODEL,
-      prompt: "Prompt expansion remains unexposed",
+      prompt: "A prompt-controlled scene",
       reference_image_asset_ids: ["subject"],
       resolution: "2k",
       duration_seconds: 8,
-      prompt_expansion: true,
-    }, referenceResolver({})),
-    /prompt_expansion is not supported by the AIO media-generation contract/,
-  )
+      prompt_expansion,
+    }, resolveReference)
+    assert.equal(request.body.prompt_expansion, prompt_expansion)
+  }
+  const omitted = await buildAtlasMediaRequest("video", {
+    model: ATLAS_MINIMAX_H3_MODEL,
+    prompt: "No explicit prompt expansion",
+    reference_image_asset_ids: ["subject"],
+    resolution: "2k",
+    duration_seconds: 8,
+  }, resolveReference)
+  assert.equal("prompt_expansion" in omitted.body, false)
+  for (const [field, value] of [["generate_audio", false], ["seed", 123], ["video_output_format", "mov"]]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("video", {
+        model: ATLAS_MINIMAX_H3_MODEL,
+        prompt: "A scene",
+        reference_image_asset_ids: ["subject"],
+        resolution: "2k",
+        duration_seconds: 8,
+        [field]: value,
+      }, resolveReference),
+      new RegExp(`${field} is not supported for MiniMax H3 reference-to-video`),
+    )
+  }
 })
 
 test("MiniMax H3 rejects unsupported reference formats and preserves explicit types", async () => {
@@ -659,6 +798,58 @@ test("Seedance 2.5 validates duration, resolution, and ratio independently of ex
   }
 })
 
+test("Seedance 2.5 maps normalized audio and video output controls exactly", async () => {
+  const resolveReference = referenceResolver({
+    subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+  })
+  for (const generate_audio of [true, false]) {
+    const request = await buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A soundtrack-aware reference shot",
+      reference_image_asset_ids: ["subject"],
+      generate_audio,
+      video_output_format: "mov",
+    }, resolveReference)
+    assert.equal(request.body.generate_audio, generate_audio)
+    assert.equal(request.body.output_format, "mov")
+  }
+  const omitted = await buildAtlasMediaRequest("video", {
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    prompt: "No explicit soundtrack or container",
+    reference_image_asset_ids: ["subject"],
+  }, resolveReference)
+  assert.equal("generate_audio" in omitted.body, false)
+  assert.equal("output_format" in omitted.body, false)
+  for (const video_output_format of ["mp4", "mov"]) {
+    await assert.doesNotReject(buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A valid container choice",
+      reference_image_asset_ids: ["subject"],
+      video_output_format,
+    }, resolveReference))
+  }
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "An invalid container",
+      reference_image_asset_ids: ["subject"],
+      video_output_format: "webm",
+    }, resolveReference),
+    /video_output_format must be one of: mp4, mov/,
+  )
+  for (const [field, value] of [["seed", 123], ["prompt_expansion", true]]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("video", {
+        model: ATLAS_SEEDANCE_2_5_MODEL,
+        prompt: "A scene",
+        reference_image_asset_ids: ["subject"],
+        [field]: value,
+      }, resolveReference),
+      new RegExp(`${field} is not supported for Seedance 2.5 reference-to-video`),
+    )
+  }
+})
+
 test("Seedance 2.5 validates manifest media kinds and documented reference formats", async () => {
   await assert.rejects(
     buildAtlasMediaRequest("video", {
@@ -698,7 +889,6 @@ test("Seedance 2.5 rejects audio, raw provider references, and edit or extension
     ["reference_images", ["https://atlas.example/reference.png"], /reference_images is not supported by the AIO media-generation contract/],
     ["reference_videos", ["https://atlas.example/reference.mp4"], /reference_videos is not supported by the AIO media-generation contract/],
     ["omni_reference_task_type", "edit", /omni_reference_task_type is not supported by the AIO media-generation contract/],
-    ["generate_audio", false, /generate_audio is not supported by the AIO media-generation contract/],
     ["editing", true, /editing is not supported by the AIO media-generation contract/],
     ["extend", true, /extend is not supported by the AIO media-generation contract/],
   ]) {
@@ -740,6 +930,8 @@ test("Wan 3.0 maps AIO image and video assets to typed refers entries", async ()
     duration_seconds: -1,
     resolution: "1080p-esr",
     ratio: "adaptive",
+    generate_audio: false,
+    seed: -1,
   }, referenceResolver({
     subject_front: { url: "https://atlas.example/front.png", type: "image", mime_type: "image/png" },
     subject_side: { url: "https://atlas.example/side.webp", type: "image", mime_type: "image/webp" },
@@ -758,9 +950,68 @@ test("Wan 3.0 maps AIO image and video assets to typed refers entries", async ()
       resolution: "1080p-esr",
       duration: -1,
       ratio: "adaptive",
+      audio: false,
+      seed: -1,
     },
     inputAssetIds: ["subject_front", "subject_side", "movement_reference"],
   })
+})
+
+test("Wan 3.0 accepts the exact resolution set and normalized audio and seed controls", async () => {
+  const resolveReference = referenceResolver({
+    subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+  })
+  for (const resolution of ["480p", "720p", "1080p", "720p-esr", "1080p-esr", "1440p-esr", "4k-esr"]) {
+    await assert.doesNotReject(buildAtlasMediaRequest("video", {
+      model: ATLAS_WAN_MODEL,
+      prompt: "A supported Wan resolution",
+      reference_image_asset_ids: ["subject"],
+      resolution,
+    }, resolveReference))
+  }
+  for (const generate_audio of [true, false]) {
+    const request = await buildAtlasMediaRequest("video", {
+      model: ATLAS_WAN_MODEL,
+      prompt: "A soundtrack-aware Wan shot",
+      reference_image_asset_ids: ["subject"],
+      generate_audio,
+    }, resolveReference)
+    assert.equal(request.body.audio, generate_audio)
+  }
+  for (const seed of [-1, 0, 123456789]) {
+    const request = await buildAtlasMediaRequest("video", {
+      model: ATLAS_WAN_MODEL,
+      prompt: "A reproducible Wan shot",
+      reference_image_asset_ids: ["subject"],
+      seed,
+    }, resolveReference)
+    assert.equal(request.body.seed, seed)
+  }
+  const omitted = await buildAtlasMediaRequest("video", {
+    model: ATLAS_WAN_MODEL,
+    prompt: "No explicit soundtrack or seed",
+    reference_image_asset_ids: ["subject"],
+  }, resolveReference)
+  assert.equal("audio" in omitted.body, false)
+  assert.equal("seed" in omitted.body, false)
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_WAN_MODEL,
+      prompt: "A noninteger seed",
+      seed: 1.5,
+    }),
+    /seed must be an integer/,
+  )
+  for (const [field, value] of [["prompt_expansion", true], ["video_output_format", "mov"]]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("video", {
+        model: ATLAS_WAN_MODEL,
+        prompt: "A scene",
+        [field]: value,
+      }),
+      new RegExp(`${field} is not supported for Wan reference-to-video`),
+    )
+  }
 })
 
 test("unsupported or mismatched Atlas models are rejected before request construction", async () => {
@@ -842,7 +1093,7 @@ test("Wan validates reference counts, duplicates, and media kinds", async () => 
 })
 
 test("unsupported provider-specific fields are rejected instead of silently omitted", async () => {
-  for (const [field, value] of [["audio", false], ["enable_thinking", true], ["file", "https://example.com/brief.pdf"], ["seed", 1], ["refers", []]]) {
+  for (const [field, value] of [["audio", false], ["enable_thinking", true], ["file", "https://example.com/brief.pdf"], ["refers", []]]) {
     await assert.rejects(
       buildAtlasMediaRequest("video", { model: ATLAS_WAN_MODEL, prompt: "A scene", [field]: value }),
       new RegExp(`${field} is not supported`),

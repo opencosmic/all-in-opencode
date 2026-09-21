@@ -516,6 +516,7 @@ test("GPT Image 2 preserves the calculated request digest through image generati
       manifest_path: ROOT_MANIFEST_PATH,
       size: "1024*1024",
       output_format: "png",
+      quality: "low",
     })
     const calculatedRequest = client.calls.find((call) => call.operation === "calculate").body
     assert.deepEqual(calculatedRequest, {
@@ -523,6 +524,7 @@ test("GPT Image 2 preserves the calculated request digest through image generati
       prompt: "A cinematic glass sculpture on a black plinth",
       size: "1024x1024",
       output_format: "png",
+      quality: "low",
     })
     const manifestAfterCalculate = JSON.parse(await readFile(manifestPath, "utf8"))
     assert.equal(manifestAfterCalculate.generation_jobs[0].model, ATLAS_GPT_IMAGE_MODEL)
@@ -537,6 +539,7 @@ test("GPT Image 2 preserves the calculated request digest through image generati
       manifest_path: ROOT_MANIFEST_PATH,
       size: "2048*1152",
       output_format: "png",
+      quality: "high",
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 1,
     }), /request_digest does not match the approved request/)
@@ -552,6 +555,7 @@ test("GPT Image 2 preserves the calculated request digest through image generati
       manifest_path: ROOT_MANIFEST_PATH,
       size: "1024*1024",
       output_format: "png",
+      quality: "low",
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 1,
     })
@@ -579,6 +583,7 @@ test("GPT Image 2.5 Sunburst quality participates in approval digests and recalc
       size: "2048*1152",
       output_format: "png",
       quality: "xhigh",
+      background: "transparent",
     })
     const calculatedRequest = client.calls.find((call) => call.operation === "calculate").body
     assert.deepEqual(calculatedRequest, {
@@ -587,6 +592,7 @@ test("GPT Image 2.5 Sunburst quality participates in approval digests and recalc
       size: "2048x1152",
       output_format: "png",
       quality: "xhigh",
+      background: "transparent",
     })
 
     await assert.rejects(runtime.media_generate_image({
@@ -599,6 +605,7 @@ test("GPT Image 2.5 Sunburst quality participates in approval digests and recalc
       size: "2048*1152",
       output_format: "png",
       quality: "max",
+      background: "transparent",
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 1,
     }), /request_digest does not match the approved request/)
@@ -615,6 +622,7 @@ test("GPT Image 2.5 Sunburst quality participates in approval digests and recalc
       size: "2048*1152",
       output_format: "png",
       quality: "xhigh",
+      background: "transparent",
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 1,
     })
@@ -664,6 +672,8 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       duration_seconds: 30,
       resolution: "1080p-esr & 60fps",
       ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
     })
     const calculatedRequest = client.calls.filter((call) => call.operation === "calculate").at(-1).body
     assert.deepEqual(calculatedRequest, {
@@ -677,6 +687,8 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       duration: 30,
       resolution: "1080p-esr & 60fps",
       ratio: "21:9",
+      generate_audio: false,
+      output_format: "mov",
       omni_reference_task_type: "reference",
     })
     const manifestAfterCalculate = JSON.parse(await readFile(manifestPath, "utf8"))
@@ -700,6 +712,8 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       duration_seconds: 30,
       resolution: "1080p-esr & 60fps",
       ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 2,
     }), /request_digest does not match the approved request/)
@@ -718,6 +732,28 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       duration_seconds: 30,
       resolution: "1440p-esr",
       ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      generate_audio: true,
+      video_output_format: "mov",
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 2,
     }), /request_digest does not match the approved request/)
@@ -736,6 +772,8 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       duration_seconds: 30,
       resolution: "1080p-esr & 60fps",
       ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 2,
       approved_price_usd: calculated.price_usd,
@@ -807,6 +845,7 @@ test("MiniMax H3 uses manifest-authorized typed references and preserves approva
       resolution: "2k",
       duration_seconds: 8,
       ratio: "16:9",
+      prompt_expansion: true,
     })
     const calculatedRequest = client.calls.filter((call) => call.operation === "calculate").at(-1).body
     assert.deepEqual(calculatedRequest, {
@@ -816,6 +855,7 @@ test("MiniMax H3 uses manifest-authorized typed references and preserves approva
       resolution: "2K",
       duration: 8,
       ratio: "16:9",
+      prompt_expansion: true,
     })
     const manifest = JSON.parse(await readFile(resolve(root, manifestRequestPath), "utf8"))
     assert.deepEqual(manifest.generation_jobs[0].input_asset_ids, ["speaker_front"])
@@ -832,6 +872,7 @@ test("MiniMax H3 uses manifest-authorized typed references and preserves approva
       resolution: "2k",
       duration_seconds: 10,
       ratio: "16:9",
+      prompt_expansion: false,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 1,
     }), /request_digest does not match the approved request/)
@@ -849,6 +890,7 @@ test("MiniMax H3 uses manifest-authorized typed references and preserves approva
       resolution: "2k",
       duration_seconds: 8,
       ratio: "16:9",
+      prompt_expansion: true,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 1,
     })
@@ -878,6 +920,8 @@ test("Wan meaningful request changes invalidate the approved digest before billi
       duration_seconds: 8,
       resolution: "720p",
       ratio: "16:9",
+      generate_audio: false,
+      seed: 123,
     })
     const calculateCountBeforeGeneration = client.calls.filter((call) => call.operation === "calculate").length
 
@@ -892,6 +936,8 @@ test("Wan meaningful request changes invalidate the approved digest before billi
       duration_seconds: 8,
       resolution: "1080p",
       ratio: "16:9",
+      generate_audio: true,
+      seed: 123,
       approved_request_digest: calculated.request_digest,
       approved_max_usd: 1,
     }), /request_digest does not match the approved request/)

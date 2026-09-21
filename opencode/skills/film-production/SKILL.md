@@ -57,6 +57,12 @@ generation defaults to GPT Image 2 and video generation defaults to Wan 3.0.
 There is no automatic paid fallback; a failed or ambiguous generation remains
 an explicit user decision.
 
+Use the curated generation controls described in
+[production-routing](references/production-routing.md) only after model
+selection. They refine the provider request without changing routing: preserve
+explicit values, keep omitted values absent, and recalculate before approval
+when a control changes.
+
 Treat the repository film-production contract as authoritative. The manifest's
 `shots` field is the complete canonical `ShotSpec[]`, not a parallel set of
 routing records. Author the canonical shape, validate the persisted

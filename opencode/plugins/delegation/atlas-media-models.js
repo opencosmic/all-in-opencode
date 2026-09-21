@@ -25,18 +25,33 @@ const IMAGE_SIZES = new Set([
 ])
 const IMAGE_FORMATS = new Set(["jpeg", "png"])
 const GPT_IMAGE_SIZE_MAPPINGS = new Map([
-  ["2048*2048", "2048x2048"],
   ["1024*1024", "1024x1024"],
+  ["1024*768", "1024x768"],
+  ["768*1024", "768x1024"],
+  ["1024*1536", "1024x1536"],
+  ["1536*1024", "1536x1024"],
+  ["2048*2048", "2048x2048"],
   ["2048*1152", "2048x1152"],
   ["1152*2048", "1152x2048"],
+  ["2560*1088", "2560x1088"],
+  ["1088*2560", "1088x2560"],
 ])
 const GPT_IMAGE_2_5_SUNBURST_SIZE_MAPPINGS = new Map([
-  ["2048*2048", "2048x2048"],
   ["1024*1024", "1024x1024"],
+  ["1024*768", "1024x768"],
+  ["768*1024", "768x1024"],
+  ["1024*1536", "1024x1536"],
+  ["1536*1024", "1536x1024"],
+  ["2048*2048", "2048x2048"],
   ["2048*1152", "2048x1152"],
   ["1152*2048", "1152x2048"],
+  ["2560*1088", "2560x1088"],
+  ["1088*2560", "1088x2560"],
 ])
+const GPT_IMAGE_2_QUALITIES = new Set(["low", "medium", "high"])
 const GPT_IMAGE_2_5_SUNBURST_QUALITIES = new Set(["auto", "low", "medium", "high", "xhigh", "max"])
+const GPT_IMAGE_2_5_SUNBURST_BACKGROUNDS = new Set(["auto", "opaque", "transparent"])
+const SEEDANCE_2_5_VIDEO_OUTPUT_FORMATS = new Set(["mp4", "mov"])
 const THINKING_MODES = new Set(["enabled", "disabled"])
 const PROMPT_MODES = new Set(["standard", "fast"])
 const SEEDANCE_2_5_DURATIONS = new Set([-1, ...Array.from({ length: 27 }, (_, index) => index + 4)])
@@ -93,6 +108,7 @@ const IMAGE_ONLY_FIELDS = Object.freeze([
   "output_format",
   "thinking",
   "prompt_optimization_mode",
+  "background",
 ])
 const VIDEO_ONLY_FIELDS = Object.freeze([
   "reference_image_asset_ids",
@@ -100,16 +116,18 @@ const VIDEO_ONLY_FIELDS = Object.freeze([
   "duration_seconds",
   "resolution",
   "ratio",
+  "generate_audio",
+  "seed",
+  "prompt_expansion",
+  "video_output_format",
 ])
 const UNSUPPORTED_PROVIDER_FIELDS = Object.freeze([
   "audio",
-  "background",
   "enable_thinking",
   "file",
   "link",
   "mask",
   "n",
-  "seed",
   "refers",
   "reference_images",
   "reference_videos",
@@ -122,11 +140,9 @@ const UNSUPPORTED_PROVIDER_FIELDS = Object.freeze([
   "negative_prompt",
   "style",
   "color_hints",
-  "prompt_expansion",
   "reference_audio_asset_ids",
   "reference_audios",
   "omni_reference_task_type",
-  "generate_audio",
   "watermark",
   "return_last_frame",
   "editing",
@@ -190,6 +206,16 @@ function required(value, name) {
 
 function validateChoice(value, name, choices) {
   if (value !== undefined && !choices.has(value)) throw new Error(`${name} must be one of: ${[...choices].join(", ")}`)
+  return value
+}
+
+function validateBoolean(value, name) {
+  if (value !== undefined && typeof value !== "boolean") throw new Error(`${name} must be a boolean`)
+  return value
+}
+
+function validateInteger(value, name) {
+  if (value !== undefined && !Number.isInteger(value)) throw new Error(`${name} must be an integer`)
   return value
 }
 
@@ -366,6 +392,7 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
 
   if (spec.kind === "image") {
     if (args.quality !== undefined) throw new Error("quality is not supported by the AIO media-generation contract")
+    if (args.background !== undefined) throw new Error("background is not supported for Seedream 5.0 Pro")
     validateChoice(args.size, "size", IMAGE_SIZES)
     validateChoice(args.output_format, "output_format", IMAGE_FORMATS)
     validateChoice(args.thinking, "thinking", THINKING_MODES)
@@ -381,20 +408,22 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
   }
 
   if (spec.kind === "gpt-image-2") {
-    if (args.quality !== undefined) throw new Error("quality is not supported by the AIO media-generation contract")
     for (const field of ["thinking", "prompt_optimization_mode"]) {
       if (args[field] !== undefined) throw new Error(`${field} is not supported for GPT Image 2`)
     }
+    if (args.background !== undefined) throw new Error("background is not supported for GPT Image 2")
     const providerSize = args.size === undefined ? undefined : GPT_IMAGE_SIZE_MAPPINGS.get(args.size)
     if (args.size !== undefined && providerSize === undefined) {
       throw new Error(`size must map to a documented GPT Image 2 size: ${[...GPT_IMAGE_SIZE_MAPPINGS.keys()].join(", ")}`)
     }
+    validateChoice(args.quality, "quality", GPT_IMAGE_2_QUALITIES)
     validateChoice(args.output_format, "output_format", IMAGE_FORMATS)
     const body = {
       model: spec.model,
       prompt,
       ...(providerSize === undefined ? {} : { size: providerSize }),
       ...(args.output_format === undefined ? {} : { output_format: args.output_format }),
+      ...(args.quality === undefined ? {} : { quality: args.quality }),
     }
     return { body, inputAssetIds: [] }
   }
@@ -406,18 +435,23 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
     for (const field of ["thinking", "prompt_optimization_mode"]) {
       if (args[field] !== undefined) throw new Error(`${field} is not supported for GPT Image 2.5 Sunburst`)
     }
+    validateChoice(args.background, "background", GPT_IMAGE_2_5_SUNBURST_BACKGROUNDS)
     const providerSize = args.size === undefined ? undefined : GPT_IMAGE_2_5_SUNBURST_SIZE_MAPPINGS.get(args.size)
     if (args.size !== undefined && providerSize === undefined) {
       throw new Error(`size must map to a documented GPT Image 2.5 Sunburst size: ${[...GPT_IMAGE_2_5_SUNBURST_SIZE_MAPPINGS.keys()].join(", ")}`)
     }
     validateChoice(args.quality, "quality", GPT_IMAGE_2_5_SUNBURST_QUALITIES)
     validateChoice(args.output_format, "output_format", IMAGE_FORMATS)
+    if (args.background === "transparent" && args.output_format !== undefined && args.output_format !== "png") {
+      throw new Error("output_format must be png when background is transparent for GPT Image 2.5 Sunburst")
+    }
     const body = {
       model: spec.model,
       prompt,
       ...(providerSize === undefined ? {} : { size: providerSize }),
       ...(args.output_format === undefined ? {} : { output_format: args.output_format }),
       ...(args.quality === undefined ? {} : { quality: args.quality }),
+      ...(args.background === undefined ? {} : { background: args.background }),
     }
     return { body, inputAssetIds: [] }
   }
@@ -432,6 +466,10 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
   validateDuration(args.duration_seconds, spec.model, spec.kind)
 
   if (spec.kind === "seedance-2.5-reference") {
+    if (args.seed !== undefined) throw new Error("seed is not supported for Seedance 2.5 reference-to-video")
+    if (args.prompt_expansion !== undefined) throw new Error("prompt_expansion is not supported for Seedance 2.5 reference-to-video")
+    validateBoolean(args.generate_audio, "generate_audio")
+    validateChoice(args.video_output_format, "video_output_format", SEEDANCE_2_5_VIDEO_OUTPUT_FORMATS)
     if (!imageAssetIDs.length && !videoAssetIDs.length) {
       throw new Error("Seedance 2.5 reference-to-video requires at least one image or video reference")
     }
@@ -449,12 +487,18 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
       ...(args.duration_seconds === undefined ? {} : { duration: args.duration_seconds }),
       ...(args.resolution === undefined ? {} : { resolution: args.resolution }),
       ...(args.ratio === undefined ? {} : { ratio: args.ratio }),
+      ...(args.generate_audio === undefined ? {} : { generate_audio: args.generate_audio }),
+      ...(args.video_output_format === undefined ? {} : { output_format: args.video_output_format }),
       omni_reference_task_type: "reference",
     }
     return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
   }
 
   if (spec.kind === "h3-reference") {
+    if (args.generate_audio !== undefined) throw new Error("generate_audio is not supported for MiniMax H3 reference-to-video")
+    if (args.seed !== undefined) throw new Error("seed is not supported for MiniMax H3 reference-to-video")
+    if (args.video_output_format !== undefined) throw new Error("video_output_format is not supported for MiniMax H3 reference-to-video")
+    validateBoolean(args.prompt_expansion, "prompt_expansion")
     if (!imageAssetIDs.length && !videoAssetIDs.length) {
       throw new Error("MiniMax H3 reference-to-video requires at least one image or video reference")
     }
@@ -474,10 +518,15 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
       resolution: providerResolution,
       duration: args.duration_seconds,
       ...(args.ratio === undefined ? {} : { ratio: args.ratio }),
+      ...(args.prompt_expansion === undefined ? {} : { prompt_expansion: args.prompt_expansion }),
     }
     return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
   }
 
+  if (args.prompt_expansion !== undefined) throw new Error("prompt_expansion is not supported for Wan reference-to-video")
+  if (args.video_output_format !== undefined) throw new Error("video_output_format is not supported for Wan reference-to-video")
+  validateBoolean(args.generate_audio, "generate_audio")
+  validateInteger(args.seed, "seed")
   validateChoice(args.resolution, "resolution", WAN_RESOLUTIONS)
   validateChoice(args.ratio, "ratio", WAN_RATIOS)
   const references = [
@@ -492,5 +541,7 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
   for (const field of ["resolution", "duration_seconds", "ratio"]) {
     if (args[field] !== undefined) body[field === "duration_seconds" ? "duration" : field] = args[field]
   }
+  if (args.generate_audio !== undefined) body.audio = args.generate_audio
+  if (args.seed !== undefined) body.seed = args.seed
   return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
 }

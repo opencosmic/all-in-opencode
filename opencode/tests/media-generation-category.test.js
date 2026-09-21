@@ -150,11 +150,11 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   const imageSchema = tool.schema.object(registered.media_generate_image.args)
   const videoSchema = tool.schema.object(registered.media_generate_video.args)
   const predictionSchema = tool.schema.object(registered.media_prediction.args)
-  for (const field of ["size", "output_format", "quality", "thinking", "prompt_optimization_mode"]) {
+  for (const field of ["size", "output_format", "quality", "background", "thinking", "prompt_optimization_mode"]) {
     assert.equal(typeof registered.media_generate_image.args[field]?.safeParse, "function", `image.${field}`)
     assert.equal(registered.media_generate_video.args[field], undefined, `video must not expose ${field}`)
   }
-  for (const field of ["reference_image_asset_ids", "reference_video_asset_ids", "duration_seconds", "resolution", "ratio"]) {
+  for (const field of ["reference_image_asset_ids", "reference_video_asset_ids", "duration_seconds", "resolution", "ratio", "generate_audio", "seed", "prompt_expansion", "video_output_format"]) {
     assert.equal(typeof registered.media_generate_video.args[field]?.safeParse, "function", `video.${field}`)
     assert.equal(registered.media_generate_image.args[field], undefined, `image must not expose ${field}`)
   }
@@ -166,6 +166,8 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     model: "alibaba/wan-3.0/reference-to-video",
     duration_seconds: -1,
     resolution: "1080p-esr",
+    generate_audio: false,
+    seed: -1,
   }))
   assert.doesNotThrow(() => calculateSchema.parse({
     shot_id: "shot_01",
@@ -176,6 +178,7 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     reference_image_asset_ids: ["asset-01"],
     duration_seconds: 8,
     resolution: "2k",
+    prompt_expansion: true,
   }))
   assert.doesNotThrow(() => calculateSchema.parse({
     shot_id: "shot_01",
@@ -199,7 +202,8 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     approved_request_digest: "a".repeat(64),
     approved_max_usd: 1,
     size: "1024*1024",
-    quality: "xhigh",
+    quality: "high",
+    background: "transparent",
   }))
   assert.doesNotThrow(() => videoSchema.parse({
     job_id: "job-01",
@@ -209,6 +213,9 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     approved_request_digest: "a".repeat(64),
     approved_max_usd: 1,
     duration_seconds: 4,
+    generate_audio: false,
+    seed: 123,
+    video_output_format: "mov",
   }))
   assert.doesNotThrow(() => predictionSchema.parse({ job_id: "mock-job-01" }))
   assert.throws(() => calculateSchema.parse({ shot_id: "", media_type: "video", prompt: "a reveal" }))

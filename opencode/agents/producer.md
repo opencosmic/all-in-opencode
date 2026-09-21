@@ -137,6 +137,16 @@ always wins; an omitted image model defaults to GPT Image 2 and an omitted
 video model defaults to Wan 3.0. There is no automatic paid fallback: a
 failed or ambiguous generation stays an explicit user decision.
 
+When refining a selected model, use only the curated controls in the
+film-production routing reference. GPT Image 2 `quality` is low for drafts,
+medium or omitted for ordinary work, and high for important finals; Sunburst
+`background: transparent` is for compositing/cutouts and requires PNG. For
+video, set `generate_audio: false` when downstream audio owns the soundtrack;
+use Wan `seed` only for reproducibility, H3 `prompt_expansion` for sparse
+prompts that need enrichment, and Seedance `video_output_format: mov` only
+when the downstream edit benefits from it. Preserve explicit controls, leave
+omitted controls absent, and never auto-escalate or hardcode media prices.
+
 Keep structured state in `ShotSpec` and `ProductionManifest`, not only prose.
 The runtime enforces request and cost integrity, while human approval remains
 an orchestration invariant unless OpenCode supplies a native approval proof.
