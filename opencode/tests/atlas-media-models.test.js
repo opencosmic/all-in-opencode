@@ -242,6 +242,54 @@ test("MiniMax H3 enforces the conservative documented image and video reference 
   )
 })
 
+test("MiniMax H3 accepts the conservative aggregate reference boundary", async () => {
+  const images = Array.from({ length: 6 }, (_, index) => `image_${index}`)
+  const videos = Array.from({ length: 3 }, (_, index) => `video_${index}`)
+  const references = Object.fromEntries([
+    ...images.map((assetID) => [assetID, { url: `https://atlas.example/${assetID}.png`, type: "image", mime_type: "image/png" }]),
+    ...videos.map((assetID) => [assetID, { url: `https://atlas.example/${assetID}.mp4`, type: "video", mime_type: "video/mp4" }]),
+  ])
+
+  const request = await buildAtlasMediaRequest("video", {
+    model: ATLAS_MINIMAX_H3_MODEL,
+    prompt: "Accept nine total visual references",
+    reference_image_asset_ids: images,
+    reference_video_asset_ids: videos,
+    resolution: "2k",
+    duration_seconds: 8,
+  }, referenceResolver(references))
+
+  assert.equal(request.body.refers.length, 9)
+  assert.deepEqual(request.inputAssetIds, [...images, ...videos])
+})
+
+test("MiniMax H3 rejects aggregate reference overflow within the per-type limits", async () => {
+  const images = Array.from({ length: 7 }, (_, index) => `image_${index}`)
+  const videos = Array.from({ length: 3 }, (_, index) => `video_${index}`)
+  const references = Object.fromEntries([
+    ...images.map((assetID) => [assetID, { url: `https://atlas.example/${assetID}.png`, type: "image", mime_type: "image/png" }]),
+    ...videos.map((assetID) => [assetID, { url: `https://atlas.example/${assetID}.mp4`, type: "video", mime_type: "video/mp4" }]),
+  ])
+  let resolutions = 0
+  const resolveReference = async (assetID) => {
+    resolutions += 1
+    return references[assetID]
+  }
+
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "Reject ten total visual references",
+      reference_image_asset_ids: images,
+      reference_video_asset_ids: videos,
+      resolution: "2k",
+      duration_seconds: 8,
+    }, resolveReference),
+    /MiniMax H3 supports at most 9 total references in the current AIO subset/,
+  )
+  assert.equal(resolutions, 0)
+})
+
 test("MiniMax H3 rejects audio references and unsupported provider fields", async () => {
   await assert.rejects(
     buildAtlasMediaRequest("video", {

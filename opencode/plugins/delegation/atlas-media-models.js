@@ -123,7 +123,7 @@ const MODEL_SPECS = new Map([
     kind: "h3-reference",
     maxImages: 9,
     maxVideos: 3,
-    maxReferences: 12,
+    maxReferences: 9,
   })],
 ])
 
@@ -312,7 +312,9 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
   const imageAssetIDs = assetIDs(args.reference_image_asset_ids, "reference_image_asset_ids", spec.maxImages)
   const videoAssetIDs = assetIDs(args.reference_video_asset_ids, "reference_video_asset_ids", spec.maxVideos)
   if (spec.maxReferences !== undefined && imageAssetIDs.length + videoAssetIDs.length > spec.maxReferences) {
-    throw new Error(`references must contain at most ${spec.maxReferences} asset IDs for ${spec.model}`)
+    throw new Error(spec.kind === "h3-reference"
+      ? "MiniMax H3 supports at most 9 total references in the current AIO subset"
+      : `references must contain at most ${spec.maxReferences} asset IDs for ${spec.model}`)
   }
   validateDuration(args.duration_seconds, spec.model, spec.kind)
 
