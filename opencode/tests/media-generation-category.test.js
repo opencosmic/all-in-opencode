@@ -131,10 +131,10 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   const registered = delegationPluginHooks(runtime).tool
 
   const fields = {
-    media_calculate: ["shot_id", "media_type", "prompt"],
+    media_calculate: ["shot_id", "media_type", "prompt", "model"],
     media_upload: ["asset_id", "path", "manifest_path"],
-    media_generate_image: ["job_id", "shot_id", "prompt", "manifest_path", "approved_request_digest", "approved_max_usd"],
-    media_generate_video: ["job_id", "shot_id", "prompt", "manifest_path", "approved_request_digest", "approved_max_usd"],
+    media_generate_image: ["job_id", "shot_id", "prompt", "manifest_path", "model", "approved_request_digest", "approved_max_usd"],
+    media_generate_video: ["job_id", "shot_id", "prompt", "manifest_path", "model", "approved_request_digest", "approved_max_usd"],
     media_prediction: ["job_id"],
     media_wait_prediction: ["job_id"],
   }
@@ -158,7 +158,15 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     assert.equal(typeof registered.media_generate_video.args[field]?.safeParse, "function", `video.${field}`)
     assert.equal(registered.media_generate_image.args[field], undefined, `image must not expose ${field}`)
   }
-  assert.doesNotThrow(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal", manifest_path: "production-manifest.json" }))
+  assert.doesNotThrow(() => calculateSchema.parse({
+    shot_id: "shot_01",
+    media_type: "video",
+    prompt: "a reveal",
+    manifest_path: "production-manifest.json",
+    model: "alibaba/wan-3.0/reference-to-video",
+    duration_seconds: -1,
+    resolution: "1080p-esr",
+  }))
   assert.throws(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal" }), /manifest_path/)
   assert.throws(() => uploadSchema.parse({ asset_id: "asset-01" }), /manifest_path/)
   assert.doesNotThrow(() => imageSchema.parse({

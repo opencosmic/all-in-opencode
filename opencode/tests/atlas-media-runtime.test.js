@@ -9,6 +9,7 @@ import { createAtlasClient } from "../plugins/delegation/atlas-client.js"
 import {
   ATLAS_IMAGE_MODEL,
   ATLAS_VIDEO_MODEL,
+  ATLAS_WAN_MODEL,
   canonicalJson,
   createAtlasMediaRuntime,
   requestDigest,
@@ -454,6 +455,47 @@ test("generation rejects changed approvals and increased preflight cost without 
       /current preflight price 0.06 exceeds approved_max_usd 0.05/,
     )
     assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 0)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("Wan meaningful request changes invalidate the approved digest before billing or generation", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient({ costs: [{ price: 0.42, estimated: true }, { price: 0.42, estimated: true }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    await runtime.media_upload({ asset_id: "speaker_front", manifest_path: manifestRequestPath })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_WAN_MODEL,
+      prompt: "The speaker turns toward camera",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      duration_seconds: 8,
+      resolution: "720p",
+      ratio: "16:9",
+    })
+    const calculateCountBeforeGeneration = client.calls.filter((call) => call.operation === "calculate").length
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_WAN_MODEL,
+      prompt: "The speaker turns toward camera",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      duration_seconds: 8,
+      resolution: "1080p",
+      ratio: "16:9",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    }), /request_digest does not match the approved request/)
+
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
   } finally {
     await cleanup(root)
   }

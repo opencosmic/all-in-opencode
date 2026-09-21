@@ -13,6 +13,7 @@ function mediaRuntimeTools(runtime) {
     shot_id: z.string().min(1),
     prompt: z.string().min(1),
     manifest_path: z.string().min(1),
+    model: z.string().min(1).optional(),
   }
   const imageGenerationArgs = {
     ...commonGenerationArgs,
@@ -37,10 +38,10 @@ function mediaRuntimeTools(runtime) {
   }
   const videoGenerationArgs = {
     ...commonGenerationArgs,
-    reference_image_asset_ids: z.array(z.string().min(1)).max(9).optional(),
-    reference_video_asset_ids: z.array(z.string().min(1)).max(3).optional(),
-    duration_seconds: z.number().int().min(4).max(15).optional(),
-    resolution: z.enum(["480p", "720p", "720p-SR", "1080p-SR", "1440p-SR"]).optional(),
+    reference_image_asset_ids: z.array(z.string().min(1)).max(20).optional(),
+    reference_video_asset_ids: z.array(z.string().min(1)).max(20).optional(),
+    duration_seconds: z.union([z.literal(-1), z.number().int().min(2).max(30)]).optional(),
+    resolution: z.enum(["480p", "720p", "720p-SR", "1080p-SR", "1440p-SR", "1080p", "720p-esr", "1080p-esr", "1440p-esr", "4k-esr"]).optional(),
     ratio: z.enum(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"]).optional(),
   }
   const approvalArgs = {
