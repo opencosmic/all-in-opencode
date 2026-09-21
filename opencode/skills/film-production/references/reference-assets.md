@@ -13,3 +13,10 @@ symlink escapes, and stores the temporary provider URL only as execution
 metadata. Do not copy secrets into the manifest. If a required reference is
 missing or not uploaded, keep the asset pending and route the blocking decision
 to Producer instead of inventing a substitute silently.
+
+Audio references use the same ordinary manifest asset shape as image and video
+references. Keep MP3 or WAV files under stable IDs, and use the generic
+`references.audio` role in a `ShotSpec` when that cue conditions a shot. The
+generation contract exposes those IDs as `reference_audio_asset_ids`; this is
+conditioning input and is separate from `generate_audio`, which controls native
+audio in the generated output.

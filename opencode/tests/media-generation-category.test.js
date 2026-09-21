@@ -131,10 +131,10 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   const registered = delegationPluginHooks(runtime).tool
 
   const fields = {
-    media_calculate: ["shot_id", "media_type", "prompt"],
+    media_calculate: ["shot_id", "media_type", "prompt", "model"],
     media_upload: ["asset_id", "path", "manifest_path"],
-    media_generate_image: ["job_id", "shot_id", "prompt", "manifest_path", "approved_request_digest", "approved_max_usd"],
-    media_generate_video: ["job_id", "shot_id", "prompt", "manifest_path", "approved_request_digest", "approved_max_usd"],
+    media_generate_image: ["job_id", "shot_id", "prompt", "manifest_path", "model", "approved_request_digest", "approved_max_usd"],
+    media_generate_video: ["job_id", "shot_id", "prompt", "manifest_path", "model", "approved_request_digest", "approved_max_usd"],
     media_prediction: ["job_id"],
     media_wait_prediction: ["job_id"],
   }
@@ -150,17 +150,57 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   const imageSchema = tool.schema.object(registered.media_generate_image.args)
   const videoSchema = tool.schema.object(registered.media_generate_video.args)
   const predictionSchema = tool.schema.object(registered.media_prediction.args)
-  for (const field of ["size", "output_format", "thinking", "prompt_optimization_mode"]) {
+  for (const field of ["size", "output_format", "quality", "background", "thinking", "prompt_optimization_mode"]) {
     assert.equal(typeof registered.media_generate_image.args[field]?.safeParse, "function", `image.${field}`)
     assert.equal(registered.media_generate_video.args[field], undefined, `video must not expose ${field}`)
   }
-  for (const field of ["reference_image_asset_ids", "reference_video_asset_ids", "duration_seconds", "resolution", "ratio"]) {
+  for (const field of ["reference_image_asset_ids", "reference_video_asset_ids", "reference_audio_asset_ids", "duration_seconds", "resolution", "ratio", "generate_audio", "seed", "prompt_expansion", "video_output_format"]) {
     assert.equal(typeof registered.media_generate_video.args[field]?.safeParse, "function", `video.${field}`)
     assert.equal(registered.media_generate_image.args[field], undefined, `image must not expose ${field}`)
   }
-  assert.doesNotThrow(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal", manifest_path: "production-manifest.json" }))
+  assert.doesNotThrow(() => calculateSchema.parse({
+    shot_id: "shot_01",
+    media_type: "video",
+    prompt: "a reveal",
+    manifest_path: "production-manifest.json",
+    model: "alibaba/wan-3.0/reference-to-video",
+    duration_seconds: -1,
+    resolution: "1080p-esr",
+    generate_audio: false,
+    seed: -1,
+  }))
+  assert.doesNotThrow(() => calculateSchema.parse({
+    shot_id: "shot_01",
+    media_type: "video",
+    prompt: "a reveal",
+    manifest_path: "production-manifest.json",
+    model: "minimax/h3/reference-to-video",
+    reference_image_asset_ids: ["asset-01"],
+    reference_audio_asset_ids: ["voice-01"],
+    duration_seconds: 8,
+    resolution: "2k",
+    prompt_expansion: true,
+  }))
+  assert.doesNotThrow(() => calculateSchema.parse({
+    shot_id: "shot_01",
+    media_type: "video",
+    prompt: "a complex reveal",
+    manifest_path: "production-manifest.json",
+    model: "bytedance/seedance-2.5/reference-to-video",
+    reference_image_asset_ids: Array.from({ length: 30 }, (_, index) => `image-${index}`),
+    reference_video_asset_ids: Array.from({ length: 10 }, (_, index) => `video-${index}`),
+    reference_audio_asset_ids: Array.from({ length: 10 }, (_, index) => `audio-${index}`),
+    duration_seconds: 30,
+    resolution: "1080p-esr & 60fps",
+    ratio: "21:9",
+  }))
   assert.throws(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal" }), /manifest_path/)
   assert.throws(() => uploadSchema.parse({ asset_id: "asset-01" }), /manifest_path/)
+  assert.doesNotThrow(() => uploadSchema.parse({
+    asset_id: "voice-01",
+    manifest_path: "production-manifest.json",
+    media_type: "audio",
+  }))
   assert.doesNotThrow(() => imageSchema.parse({
     job_id: "job-01",
     shot_id: "shot_01",
@@ -169,6 +209,8 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     approved_request_digest: "a".repeat(64),
     approved_max_usd: 1,
     size: "1024*1024",
+    quality: "high",
+    background: "transparent",
   }))
   assert.doesNotThrow(() => videoSchema.parse({
     job_id: "job-01",
@@ -178,6 +220,9 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     approved_request_digest: "a".repeat(64),
     approved_max_usd: 1,
     duration_seconds: 4,
+    generate_audio: false,
+    seed: 123,
+    video_output_format: "mov",
   }))
   assert.doesNotThrow(() => predictionSchema.parse({ job_id: "mock-job-01" }))
   assert.throws(() => calculateSchema.parse({ shot_id: "", media_type: "video", prompt: "a reveal" }))

@@ -5,6 +5,9 @@ import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "
 import { validateProductionManifest } from "../film-production/contracts.js"
 import { readJson, writeJson } from "./json-store.js"
 import { createAtlasClient } from "./atlas-client.js"
+import { buildAtlasMediaRequest } from "./atlas-media-models.js"
+
+export { ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL, ATLAS_GPT_IMAGE_MODEL, ATLAS_IMAGE_MODEL, ATLAS_MINIMAX_H3_MODEL, ATLAS_SEEDANCE_2_5_MODEL, ATLAS_WAN_MODEL, ATLAS_WAN_REFERENCE_VIDEO_MODEL } from "./atlas-media-models.js"
 
 export const MEDIA_RUNTIME_TOOL_NAMES = Object.freeze([
   "media_calculate",
@@ -15,33 +18,10 @@ export const MEDIA_RUNTIME_TOOL_NAMES = Object.freeze([
   "media_wait_prediction",
 ])
 
-export const ATLAS_IMAGE_MODEL = "bytedance/seedream-v5.0-pro/text-to-image"
-export const ATLAS_VIDEO_MODEL = "bytedance/seedance-2.0-fast/reference-to-video"
-
 const MEDIA_RUNTIME_TOOL_SET = new Set(MEDIA_RUNTIME_TOOL_NAMES)
-const IMAGE_SIZES = new Set([
-  "2048*2048",
-  "2304*1728",
-  "1728*2304",
-  "2720*1530",
-  "1530*2720",
-  "2496*1664",
-  "1664*2496",
-  "1024*1024",
-  "1536*1536",
-  "1776*1328",
-  "1328*1776",
-  "2048*1152",
-  "1152*2048",
-])
-const IMAGE_FORMATS = new Set(["jpeg", "png"])
-const THINKING_MODES = new Set(["enabled", "disabled"])
-const PROMPT_MODES = new Set(["standard", "fast"])
-const VIDEO_DURATIONS = new Set(Array.from({ length: 12 }, (_, index) => index + 4))
-const VIDEO_RESOLUTIONS = new Set(["480p", "720p", "720p-SR", "1080p-SR", "1440p-SR"])
-const VIDEO_RATIOS = new Set(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"])
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"])
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".m4v"])
+const AUDIO_EXTENSIONS = new Set([".mp3", ".wav"])
 const MIME_BY_EXTENSION = Object.freeze({
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -57,6 +37,8 @@ const MIME_BY_EXTENSION = Object.freeze({
   ".mov": "video/quicktime",
   ".webm": "video/webm",
   ".m4v": "video/x-m4v",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
 })
 const MIME_EXTENSIONS = Object.freeze({
   "image/png": ".png",
@@ -65,21 +47,12 @@ const MIME_EXTENSIONS = Object.freeze({
   "video/mp4": ".mp4",
   "video/quicktime": ".mov",
   "video/webm": ".webm",
+  "audio/mpeg": ".mp3",
+  "audio/mp3": ".mp3",
+  "audio/wav": ".wav",
+  "audio/x-wav": ".wav",
 })
 const SENSITIVE_KEYS = new Set(["api_key", "apikey", "authorization", "secret", "token"])
-const IMAGE_ONLY_FIELDS = Object.freeze([
-  "size",
-  "output_format",
-  "thinking",
-  "prompt_optimization_mode",
-])
-const VIDEO_ONLY_FIELDS = Object.freeze([
-  "reference_image_asset_ids",
-  "reference_video_asset_ids",
-  "duration_seconds",
-  "resolution",
-  "ratio",
-])
 
 function shortDigest(value) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 24)
@@ -234,74 +207,6 @@ function normalizePrediction(payload, requestedPredictionID) {
   }
   if (typeof data.price === "number" && Number.isFinite(data.price) && data.price >= 0) result.actual_usd = data.price
   return result
-}
-
-function validateChoice(value, name, choices) {
-  if (value !== undefined && !choices.has(value)) throw new Error(`${name} must be one of: ${[...choices].join(", ")}`)
-  return value
-}
-
-function assetIDs(value, name, maximum) {
-  if (value === undefined) return []
-  if (!Array.isArray(value) || value.length > maximum) throw new Error(`${name} must contain at most ${maximum} asset IDs`)
-  const seen = new Set()
-  return value.map((entry, index) => {
-    const assetID = identifier(entry, `${name}[${index}]`)
-    if (seen.has(assetID)) throw new Error(`${name} must not contain duplicate asset ID ${assetID}`)
-    seen.add(assetID)
-    return assetID
-  })
-}
-
-async function buildEffectiveAtlasRequest(mediaType, args, resolveReferenceURL) {
-  if (!["image", "video"].includes(mediaType)) throw new Error("media_type must be image or video")
-  if (args.media_type !== undefined && args.media_type !== mediaType) {
-    throw new Error(`media_type ${args.media_type} does not match ${mediaType} generation`)
-  }
-  const unsupportedFields = mediaType === "image" ? VIDEO_ONLY_FIELDS : IMAGE_ONLY_FIELDS
-  const unsupportedField = unsupportedFields.find((field) => args[field] !== undefined)
-  if (unsupportedField) throw new Error(`${unsupportedField} is not supported for ${mediaType} generation`)
-  const prompt = required(args.prompt, "prompt")
-  if (mediaType === "image") {
-    validateChoice(args.size, "size", IMAGE_SIZES)
-    validateChoice(args.output_format, "output_format", IMAGE_FORMATS)
-    validateChoice(args.thinking, "thinking", THINKING_MODES)
-    validateChoice(args.prompt_optimization_mode, "prompt_optimization_mode", PROMPT_MODES)
-    const body = {
-      model: ATLAS_IMAGE_MODEL,
-      prompt,
-    }
-    for (const field of ["size", "output_format", "thinking", "prompt_optimization_mode"]) {
-      if (args[field] !== undefined) body[field] = args[field]
-    }
-    return { body, inputAssetIds: [] }
-  }
-
-  const imageAssetIDs = assetIDs(args.reference_image_asset_ids, "reference_image_asset_ids", 9)
-  const videoAssetIDs = assetIDs(args.reference_video_asset_ids, "reference_video_asset_ids", 3)
-  if (!Number.isInteger(args.duration_seconds) || !VIDEO_DURATIONS.has(args.duration_seconds)) {
-    throw new Error("duration_seconds must be an integer from 4 through 15 for Seedance reference-to-video")
-  }
-  validateChoice(args.resolution, "resolution", VIDEO_RESOLUTIONS)
-  validateChoice(args.ratio, "ratio", VIDEO_RATIOS)
-  const body = {
-    model: ATLAS_VIDEO_MODEL,
-    prompt,
-    reference_images: imageAssetIDs.length
-      ? await Promise.all(imageAssetIDs.map((assetID) => resolveReferenceURL(assetID)))
-      : undefined,
-    reference_videos: videoAssetIDs.length
-      ? await Promise.all(videoAssetIDs.map((assetID) => resolveReferenceURL(assetID)))
-      : undefined,
-    duration: args.duration_seconds,
-  }
-  for (const field of ["resolution", "ratio"]) {
-    if (args[field] !== undefined) body[field] = args[field]
-  }
-  for (const key of ["reference_images", "reference_videos"]) {
-    if (body[key] === undefined) delete body[key]
-  }
-  return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
 }
 
 function isWithin(root, target) {
@@ -459,6 +364,22 @@ async function writeAtomically(path, bytes) {
   await rename(temporary, path)
 }
 
+function inferMediaType(path, contentType) {
+  const normalizedContentType = String(contentType ?? "").split(";", 1)[0].trim().toLowerCase()
+  if (normalizedContentType.startsWith("image/")) return "image"
+  if (normalizedContentType.startsWith("video/")) return "video"
+  if (["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav"].includes(normalizedContentType)) return "audio"
+  const extension = typeof path === "string" ? extname(path).toLowerCase() : ""
+  if (IMAGE_EXTENSIONS.has(extension)) return "image"
+  if (VIDEO_EXTENSIONS.has(extension)) return "video"
+  if (AUDIO_EXTENSIONS.has(extension)) return "audio"
+  return null
+}
+
+function explicitMediaKind(value) {
+  return ["image", "video", "audio"].includes(value) ? value : null
+}
+
 export function isMediaRuntimeTool(name) {
   return MEDIA_RUNTIME_TOOL_SET.has(name)
 }
@@ -484,17 +405,38 @@ export function createAtlasMediaRuntime({
     return { root, manifestPath }
   }
 
-  async function resolveReferenceURL(assetID, { manifestPath } = {}) {
+  async function resolveReferenceAsset(assetID, { manifestPath } = {}) {
     const uploaded = uploads.get(assetID)
-    if (uploaded?.provider_url) return validateProviderURL(uploaded.provider_url, `reference asset ${assetID} provider_url`)
+    if (uploaded?.provider_url) {
+      return {
+        url: validateProviderURL(uploaded.provider_url, `reference asset ${assetID} provider_url`),
+        type: uploaded.media_type ?? inferMediaType(null, uploaded.content_type),
+        mime_type: uploaded.content_type,
+        ...(uploaded.size_bytes === undefined ? {} : { size_bytes: uploaded.size_bytes }),
+      }
+    }
     if (!manifestPath) throw new Error(`reference asset ${assetID} has not been uploaded in this media runtime`)
     const manifest = await readManifest(manifestPath)
     const asset = manifest.assets.find((candidate) => candidate.asset_id === assetID)
-    const uploadedURL = asset?.metadata?.atlascloud?.provider_url ?? asset?.metadata?.provider_url
+    const metadata = asset?.metadata?.atlascloud ?? {}
+    const uploadedURL = metadata.provider_url ?? asset?.metadata?.provider_url
     if (typeof uploadedURL !== "string" || !uploadedURL.trim()) {
       throw new Error(`reference asset ${assetID} has no Atlas upload URL; call media_upload first`)
     }
-    return validateProviderURL(uploadedURL, `reference asset ${assetID} provider_url`)
+    const contentType = metadata.content_type ?? asset?.metadata?.content_type
+    const inferredType = inferMediaType(asset?.path, contentType)
+    const declaredType = explicitMediaKind(asset?.kind)
+    if (declaredType && inferredType && declaredType !== inferredType) {
+      throw new Error(`reference asset ${assetID} manifest kind ${declaredType} does not match its media format`)
+    }
+    const type = declaredType ?? inferredType
+    const sizeBytes = metadata.size_bytes ?? asset?.metadata?.size_bytes
+    return {
+      url: validateProviderURL(uploadedURL, `reference asset ${assetID} provider_url`),
+      type,
+      mime_type: contentType ?? (typeof asset?.path === "string" ? MIME_BY_EXTENSION[extname(asset.path).toLowerCase()] : undefined),
+      ...(sizeBytes === undefined ? {} : { size_bytes: sizeBytes }),
+    }
   }
 
   async function calculate(args = {}, context) {
@@ -502,10 +444,10 @@ export function createAtlasMediaRuntime({
     const shotID = identifier(args.shot_id, "shot_id")
     const { root, manifestPath } = await rootAndManifest(args, context)
     const manifest = await readManifest(manifestPath)
-    const { body, inputAssetIds } = await buildEffectiveAtlasRequest(
+    const { body, inputAssetIds } = await buildAtlasMediaRequest(
       args.media_type,
       args,
-      (assetID) => resolveReferenceURL(assetID, { manifestPath }),
+      (assetID) => resolveReferenceAsset(assetID, { manifestPath }),
     )
     const digest = requestDigest(body)
     const cost = normalizeCost(await client.calculate(body))
@@ -580,8 +522,18 @@ export function createAtlasMediaRuntime({
     }
     const localPath = manifestAssetPath
     const extension = extname(localPath).toLowerCase()
-    const inferredType = IMAGE_EXTENSIONS.has(extension) ? "image" : VIDEO_EXTENSIONS.has(extension) ? "video" : null
-    if (!inferredType) throw new Error("path must identify a supported image or video file")
+    const inferredType = IMAGE_EXTENSIONS.has(extension)
+      ? "image"
+      : VIDEO_EXTENSIONS.has(extension)
+        ? "video"
+        : AUDIO_EXTENSIONS.has(extension)
+          ? "audio"
+          : null
+    if (!inferredType) throw new Error("path must identify a supported image, video, or audio file")
+    const declaredType = explicitMediaKind(manifestAsset.kind)
+    if (declaredType && declaredType !== inferredType) {
+      throw new Error(`ProductionManifest asset ${assetID} kind ${declaredType} does not match its media format`)
+    }
     if (args.media_type !== undefined && args.media_type !== inferredType) {
       throw new Error(`path does not match requested media_type ${args.media_type}`)
     }
@@ -624,7 +576,10 @@ export function createAtlasMediaRuntime({
       validateProductionManifest(manifest)
       await writeJson(manifestPath, manifest)
     }
-    uploads.set(assetID, uploadRecord)
+    uploads.set(assetID, {
+      ...uploadRecord,
+      media_type: inferredType,
+    })
     return result
   }
 
@@ -657,10 +612,10 @@ export function createAtlasMediaRuntime({
       throw new Error(`Atlas media job ${jobID} is ${existing.status} and cannot be submitted again`)
     }
 
-    const { body, inputAssetIds } = await buildEffectiveAtlasRequest(
+    const { body, inputAssetIds } = await buildAtlasMediaRequest(
       mediaType,
       args,
-      (assetID) => resolveReferenceURL(assetID, { manifestPath }),
+      (assetID) => resolveReferenceAsset(assetID, { manifestPath }),
     )
     const digest = requestDigest(body)
     const approvedDigest = required(args.approved_request_digest, "approved_request_digest")

@@ -7,8 +7,12 @@ import { join, resolve } from "node:path"
 import { createProductionManifest } from "../plugins/film-production/contracts.js"
 import { createAtlasClient } from "../plugins/delegation/atlas-client.js"
 import {
+  ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+  ATLAS_GPT_IMAGE_MODEL,
   ATLAS_IMAGE_MODEL,
-  ATLAS_VIDEO_MODEL,
+  ATLAS_MINIMAX_H3_MODEL,
+  ATLAS_SEEDANCE_2_5_MODEL,
+  ATLAS_WAN_MODEL,
   canonicalJson,
   createAtlasMediaRuntime,
   requestDigest,
@@ -69,13 +73,13 @@ function fakeClient({
     calculate: async (body) => {
       calls.push({ operation: "calculate", body: structuredClone(body) })
       const configured = costs[costIndex++]
-      const price = configured?.price ?? (body.model === ATLAS_VIDEO_MODEL ? 0.24 : 0.045)
+      const price = configured?.price ?? (body.model === ATLAS_WAN_MODEL ? 0.24 : 0.045)
       return {
         data: {
           price,
           origin_price: configured?.origin_price ?? price,
           discount: configured?.discount ?? 100,
-          estimated: configured?.estimated ?? body.model === ATLAS_VIDEO_MODEL,
+          estimated: configured?.estimated ?? body.model === ATLAS_WAN_MODEL,
           ...(configured?.estimated_tokens === undefined ? {} : { estimated_tokens: configured.estimated_tokens }),
         },
       }
@@ -117,6 +121,8 @@ async function fixture({ manifestInProduction = false } = {}) {
   await mkdir(join(root, "references"), { recursive: true })
   await writeFile(join(root, "references", "speaker.png"), Buffer.from("png fixture"))
   await writeFile(join(root, "references", "previs.mp4"), Buffer.from("video fixture"))
+  await writeFile(join(root, "references", "voice.mp3"), Buffer.from("mp3 fixture"))
+  await writeFile(join(root, "references", "music.wav"), Buffer.from("wav fixture"))
   const manifest = createProductionManifest({
     project: "atlas-film",
     shots: [shot],
@@ -142,6 +148,73 @@ async function fixture({ manifestInProduction = false } = {}) {
 
 async function cleanup(root) {
   await rm(root, { recursive: true, force: true })
+}
+
+async function addManifestProviderReferences(manifestPath) {
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+  manifest.assets[0].metadata = {
+    atlascloud: {
+      provider_url: "https://atlas.example/uploads/front.png",
+      content_type: "image/png",
+    },
+  }
+  manifest.assets.push(
+    {
+      asset_id: "speaker_side",
+      kind: "subject-reference",
+      status: "ready",
+      path: "references/speaker.png",
+      shot_ids: ["shot_01"],
+      metadata: {
+        atlascloud: {
+          provider_url: "https://atlas.example/uploads/side.png",
+          content_type: "image/png",
+        },
+      },
+    },
+    {
+      asset_id: "previs_reference",
+      kind: "motion-reference",
+      status: "ready",
+      path: "references/previs.mp4",
+      shot_ids: ["shot_01"],
+      metadata: {
+        atlascloud: {
+          provider_url: "https://atlas.example/uploads/previs.mp4",
+          content_type: "video/mp4",
+        },
+      },
+    },
+    {
+      asset_id: "voice_reference",
+      kind: "audio",
+      status: "ready",
+      path: "references/voice.mp3",
+      shot_ids: ["shot_01"],
+      metadata: {
+        atlascloud: {
+          provider_url: "https://atlas.example/uploads/voice.mp3",
+          content_type: "audio/mpeg",
+          size_bytes: 1_024,
+        },
+      },
+    },
+    {
+      asset_id: "music_reference",
+      kind: "audio",
+      status: "ready",
+      path: "references/music.wav",
+      shot_ids: ["shot_01"],
+      metadata: {
+        atlascloud: {
+          provider_url: "https://atlas.example/uploads/music.wav",
+          content_type: "audio/wav",
+          size_bytes: 2_048,
+        },
+      },
+    },
+  )
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 }
 
 test("Atlas client requires ATLASCLOUD_API_KEY before network activity", async () => {
@@ -196,7 +269,7 @@ test("Atlas client sends the exact calculate body and parses upload, generation,
   form.append("file", new Blob(["fixture"], { type: "image/png" }), "speaker.png")
   assert.deepEqual(await client.uploadMedia(form), { url: "https://atlas.example/uploaded.png" })
   assert.deepEqual(await client.generateImage(body), { data: { id: "prediction-01", status: "processing" } })
-  assert.deepEqual(await client.generateVideo({ model: ATLAS_VIDEO_MODEL, prompt: "A slow reveal", duration: 4 }), {
+  assert.deepEqual(await client.generateVideo({ model: ATLAS_WAN_MODEL, prompt: "A slow reveal", duration: 4 }), {
     data: { id: "prediction-video-01", status: "processing" },
   })
   assert.deepEqual(await client.prediction("prediction-01"), { data: { id: "prediction-01", status: "completed", outputs: ["https://atlas.example/out.png"] } })
@@ -211,7 +284,7 @@ test("Atlas client sends the exact calculate body and parses upload, generation,
 
 test("canonical request digests are stable and change for meaningful generation inputs", () => {
   const base = {
-    model: ATLAS_VIDEO_MODEL,
+    model: ATLAS_WAN_MODEL,
     prompt: "Slow reveal",
     duration: 5,
     reference_images: ["https://atlas.example/a.png"],
@@ -220,7 +293,7 @@ test("canonical request digests are stable and change for meaningful generation 
     reference_images: ["https://atlas.example/a.png"],
     duration: 5,
     prompt: "Slow reveal",
-    model: ATLAS_VIDEO_MODEL,
+    model: ATLAS_WAN_MODEL,
   }))
   assert.equal(requestDigest({ api_key: "one", ...base }), requestDigest({ api_key: "two", ...base }))
   assert.notEqual(requestDigest(base), requestDigest({ ...base, prompt: "Fast reveal" }))
@@ -238,6 +311,7 @@ test("media requests accept only fields for their selected modality", async () =
     const image = await runtime.media_calculate({
       shot_id: "shot_01",
       media_type: "image",
+      model: ATLAS_IMAGE_MODEL,
       prompt: "A premium speaker",
       manifest_path: manifestRequestPath,
       size: "1024*1024",
@@ -325,11 +399,11 @@ test("media_calculate uses Atlas preflight, records the manifest job, and video 
       resolution: "720p",
       ratio: "16:9",
     })
-    assert.equal(calculated.model, ATLAS_VIDEO_MODEL)
+    assert.equal(calculated.model, ATLAS_WAN_MODEL)
     assert.equal(calculated.estimated, true)
     assert.equal(calculated.estimated_tokens, 12345)
     const request = client.calls.find((call) => call.operation === "calculate").body
-    assert.deepEqual(request.reference_images, [uploaded.provider_url])
+    assert.deepEqual(request.refers, [{ url: uploaded.provider_url, type: "image" }])
     assert.equal(request.duration, 5)
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
     assert.equal(manifest.assets[0].metadata.atlascloud.provider_url, uploaded.provider_url)
@@ -381,7 +455,7 @@ test("media_calculate normalizes Atlas numeric cost strings without relaxing val
   }
 })
 
-test("media_calculate accepts the documented no-reference Seedance preflight", async () => {
+test("media_calculate uses Wan 3.0 for an omitted video model", async () => {
   const { root, manifestRequestPath } = await fixture()
   try {
     const client = fakeClient()
@@ -395,7 +469,7 @@ test("media_calculate accepts the documented no-reference Seedance preflight", a
       resolution: "480p",
       ratio: "16:9",
     })
-    assert.equal(calculated.model, ATLAS_VIDEO_MODEL)
+    assert.equal(calculated.model, ATLAS_WAN_MODEL)
     const request = client.calls.find((call) => call.operation === "calculate").body
     assert.equal(request.reference_images, undefined)
     assert.equal(request.reference_videos, undefined)
@@ -454,6 +528,484 @@ test("generation rejects changed approvals and increased preflight cost without 
       /current preflight price 0.06 exceeds approved_max_usd 0.05/,
     )
     assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 0)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("GPT Image 2 preserves the calculated request digest through image generation", async () => {
+  const { root, manifestPath } = await fixture()
+  try {
+    const client = fakeClient({ costs: [{ price: 0.08 }, { price: 0.08 }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A cinematic glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "1024*1024",
+      output_format: "png",
+      quality: "low",
+    })
+    const calculatedRequest = client.calls.find((call) => call.operation === "calculate").body
+    assert.deepEqual(calculatedRequest, {
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A cinematic glass sculpture on a black plinth",
+      size: "1024x1024",
+      output_format: "png",
+      quality: "low",
+    })
+    const manifestAfterCalculate = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.equal(manifestAfterCalculate.generation_jobs[0].model, ATLAS_GPT_IMAGE_MODEL)
+    assert.equal(manifestAfterCalculate.generation_jobs[0].request_digest, calculated.request_digest)
+
+    await assert.rejects(runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A cinematic glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "2048*1152",
+      output_format: "png",
+      quality: "high",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 1)
+    assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 0)
+
+    const submitted = await runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_MODEL,
+      prompt: "A cinematic glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "1024*1024",
+      output_format: "png",
+      quality: "low",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    })
+    assert.equal(submitted.model, ATLAS_GPT_IMAGE_MODEL)
+    assert.equal(submitted.request_digest, calculated.request_digest)
+    assert.deepEqual(client.calls.filter((call) => call.operation === "generateImage").at(-1).body, calculatedRequest)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 2)
+    assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("GPT Image 2.5 Sunburst quality participates in approval digests and recalculation", async () => {
+  const { root, manifestPath } = await fixture()
+  try {
+    const client = fakeClient({ costs: [{ price: 0.14 }, { price: 0.14 }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A premium glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "2048*1152",
+      output_format: "png",
+      quality: "xhigh",
+      background: "transparent",
+    })
+    const calculatedRequest = client.calls.find((call) => call.operation === "calculate").body
+    assert.deepEqual(calculatedRequest, {
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A premium glass sculpture on a black plinth",
+      size: "2048x1152",
+      output_format: "png",
+      quality: "xhigh",
+      background: "transparent",
+    })
+
+    await assert.rejects(runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A premium glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "2048*1152",
+      output_format: "png",
+      quality: "max",
+      background: "transparent",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 1)
+    assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 0)
+
+    const submitted = await runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A premium glass sculpture on a black plinth",
+      manifest_path: ROOT_MANIFEST_PATH,
+      size: "2048*1152",
+      output_format: "png",
+      quality: "xhigh",
+      background: "transparent",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    })
+    assert.equal(submitted.model, ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL)
+    assert.equal(submitted.request_digest, calculated.request_digest)
+    assert.deepEqual(client.calls.filter((call) => call.operation === "generateImage").at(-1).body, calculatedRequest)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 2)
+    assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("invalid GPT Image 2.5 Sunburst quality is rejected before Atlas calculate", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    await assert.rejects(runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
+      prompt: "A scene",
+      manifest_path: manifestRequestPath,
+      quality: "ultra",
+    }), /quality must be one of: auto, low, medium, high, xhigh, max/)
+    assert.equal(client.calls.some((call) => call.operation === "calculate"), false)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("Seedance 2.5 preserves manifest-authorized reference order and fixed task type through approval digests", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    await addManifestProviderReferences(manifestPath)
+    const client = fakeClient({ costs: [{ price: 1.12, estimated: true }, { price: 1.12, estimated: true }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference", "music_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
+    })
+    const calculatedRequest = client.calls.filter((call) => call.operation === "calculate").at(-1).body
+    assert.deepEqual(calculatedRequest, {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      reference_images: [
+        "https://atlas.example/uploads/front.png",
+        "https://atlas.example/uploads/side.png",
+      ],
+      reference_videos: ["https://atlas.example/uploads/previs.mp4"],
+      reference_audios: [
+        "https://atlas.example/uploads/voice.mp3",
+        "https://atlas.example/uploads/music.wav",
+      ],
+      duration: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      generate_audio: false,
+      output_format: "mov",
+      omni_reference_task_type: "reference",
+    })
+    const manifestAfterCalculate = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.deepEqual(manifestAfterCalculate.generation_jobs[0].input_asset_ids, [
+      "speaker_front",
+      "speaker_side",
+      "previs_reference",
+      "voice_reference",
+      "music_reference",
+    ])
+    assert.equal(manifestAfterCalculate.generation_jobs[0].request_digest, calculated.request_digest)
+    const calculateCountBeforeGeneration = client.calls.filter((call) => call.operation === "calculate").length
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["music_reference", "voice_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference", "music_reference"],
+      duration_seconds: 30,
+      resolution: "1440p-esr",
+      ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference", "music_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      generate_audio: true,
+      video_output_format: "mov",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    const submitted = await runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference", "music_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+      approved_price_usd: calculated.price_usd,
+    })
+    assert.equal(submitted.model, ATLAS_SEEDANCE_2_5_MODEL)
+    assert.equal(submitted.request_digest, calculated.request_digest)
+    assert.deepEqual(client.calls.filter((call) => call.operation === "generateVideo").at(-1).body, calculatedRequest)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration + 1)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("invalid Seedance 2.5 references and controls are rejected before Atlas calculate", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    await assert.rejects(runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A scene",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: Array.from({ length: 31 }, (_, index) => `image_${index}`),
+    }), /reference_image_asset_ids must contain at most 30 asset IDs/)
+    await assert.rejects(runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A scene",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      resolution: "8k-esr",
+    }), /resolution must be one of:/)
+    await assert.rejects(runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "A scene",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      reference_audios: ["https://atlas.example/audio.mp3"],
+    }), /reference_audios is not supported by the AIO media-generation contract/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 0)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("MiniMax H3 uses manifest-authorized typed references and preserves approval digests", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient({ costs: [{ price: 0.72 }, { price: 0.72 }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const uploaded = await runtime.media_upload({
+      asset_id: "speaker_front",
+      path: "references/speaker.png",
+      manifest_path: manifestRequestPath,
+    })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "The speaker walks through a rainy night market",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      resolution: "2k",
+      duration_seconds: 8,
+      ratio: "16:9",
+      prompt_expansion: true,
+    })
+    const calculatedRequest = client.calls.filter((call) => call.operation === "calculate").at(-1).body
+    assert.deepEqual(calculatedRequest, {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "The speaker walks through a rainy night market",
+      refers: [{ url: uploaded.provider_url, type: "image" }],
+      resolution: "2K",
+      duration: 8,
+      ratio: "16:9",
+      prompt_expansion: true,
+    })
+    const manifest = JSON.parse(await readFile(resolve(root, manifestRequestPath), "utf8"))
+    assert.deepEqual(manifest.generation_jobs[0].input_asset_ids, ["speaker_front"])
+    const calculateCountBeforeMutation = client.calls.filter((call) => call.operation === "calculate").length
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "The speaker walks through a rainy night market",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      resolution: "2k",
+      duration_seconds: 10,
+      ratio: "16:9",
+      prompt_expansion: false,
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeMutation)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    const submitted = await runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "The speaker walks through a rainy night market",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      resolution: "2k",
+      duration_seconds: 8,
+      ratio: "16:9",
+      prompt_expansion: true,
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    })
+    assert.equal(submitted.model, ATLAS_MINIMAX_H3_MODEL)
+    assert.equal(submitted.request_digest, calculated.request_digest)
+    assert.deepEqual(client.calls.filter((call) => call.operation === "generateVideo").at(-1).body, calculatedRequest)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeMutation + 1)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("Wan meaningful request changes invalidate the approved digest before billing or generation", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient({ costs: [{ price: 0.42, estimated: true }, { price: 0.42, estimated: true }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    await runtime.media_upload({ asset_id: "speaker_front", manifest_path: manifestRequestPath })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_WAN_MODEL,
+      prompt: "The speaker turns toward camera",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      duration_seconds: 8,
+      resolution: "720p",
+      ratio: "16:9",
+      generate_audio: false,
+      seed: 123,
+    })
+    const calculateCountBeforeGeneration = client.calls.filter((call) => call.operation === "calculate").length
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_WAN_MODEL,
+      prompt: "The speaker turns toward camera",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      duration_seconds: 8,
+      resolution: "1080p",
+      ratio: "16:9",
+      generate_audio: true,
+      seed: 123,
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    }), /request_digest does not match the approved request/)
+
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
   } finally {
     await cleanup(root)
   }
@@ -598,6 +1150,80 @@ test("media_upload requires a manifest asset and rejects arbitrary or mismatched
     })
     assert.equal(matching.status, "uploaded")
     assert.equal(client.calls.filter((call) => call.operation === "uploadMedia").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("media_upload accepts manifest-bound MP3 and WAV audio assets", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    await addManifestProviderReferences(manifestPath)
+    const client = fakeClient({ uploadURL: "https://atlas.example/uploads/audio-reference" })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const mp3 = await runtime.media_upload({
+      asset_id: "voice_reference",
+      manifest_path: manifestRequestPath,
+      media_type: "audio",
+    })
+    const wav = await runtime.media_upload({
+      asset_id: "music_reference",
+      path: "references/music.wav",
+      manifest_path: manifestRequestPath,
+      media_type: "audio",
+    })
+    assert.equal(mp3.content_type, "audio/mpeg")
+    assert.equal(wav.content_type, "audio/wav")
+    assert.equal(mp3.size_bytes, Buffer.byteLength("mp3 fixture"))
+    assert.equal(wav.size_bytes, Buffer.byteLength("wav fixture"))
+    const uploadedFiles = client.calls
+      .filter((call) => call.operation === "uploadMedia")
+      .map((call) => call.formData.get("file"))
+    assert.deepEqual(uploadedFiles.map((file) => [file.name, file.type]), [
+      ["voice.mp3", "audio/mpeg"],
+      ["music.wav", "audio/wav"],
+    ])
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.equal(manifest.assets.find((asset) => asset.asset_id === "voice_reference").metadata.atlascloud.content_type, "audio/mpeg")
+    assert.equal(manifest.assets.find((asset) => asset.asset_id === "music_reference").metadata.atlascloud.content_type, "audio/wav")
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("media_upload rejects mismatched manifest audio kinds and unsupported audio files before upload", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    await writeFile(join(root, "references", "unsupported.flac"), Buffer.from("flac fixture"))
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    manifest.assets.push(
+      {
+        asset_id: "misdeclared_image",
+        kind: "image",
+        status: "ready",
+        path: "references/voice.mp3",
+        shot_ids: ["shot_01"],
+      },
+      {
+        asset_id: "unsupported_audio",
+        kind: "audio",
+        status: "ready",
+        path: "references/unsupported.flac",
+        shot_ids: ["shot_01"],
+      },
+    )
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    await assert.rejects(
+      runtime.media_upload({ asset_id: "misdeclared_image", manifest_path: manifestRequestPath, media_type: "audio" }),
+      /kind image does not match its media format/,
+    )
+    await assert.rejects(
+      runtime.media_upload({ asset_id: "unsupported_audio", manifest_path: manifestRequestPath, media_type: "audio" }),
+      /path must identify a supported image, video, or audio file/,
+    )
+    assert.equal(client.calls.filter((call) => call.operation === "uploadMedia").length, 0)
   } finally {
     await cleanup(root)
   }

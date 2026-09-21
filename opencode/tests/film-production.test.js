@@ -67,12 +67,31 @@ test("Producer keeps /video HyperFrames-first and /film film-production-first", 
 test("film-production is repository-owned and discoverable with focused references", async () => {
   const skillRoot = join(repository, "opencode/skills")
   const skill = await readFile(join(skillRoot, "film-production/SKILL.md"), "utf8")
+  const routing = await readFile(join(skillRoot, "film-production/references/production-routing.md"), "utf8")
   const manifestGuidance = await readFile(join(skillRoot, "film-production/references/production-manifest.md"), "utf8")
+  const referenceAssets = await readFile(join(skillRoot, "film-production/references/reference-assets.md"), "utf8")
   assert.match(skill, /^name: film-production$/m)
   assert.match(skill, /request -> creative intent -> shot decomposition -> ShotSpec\[\]/)
   assert.match(skill, /HyperFrames remains authoritative/i)
   assert.match(skill, /Atlas Cloud is currently the only implemented media provider/i)
   assert.match(skill, /media_calculate.*media_generate_image/s)
+  assert.match(skill, /Curated media model routing/)
+  assert.match(skill, /ordinary or value.*GPT Image 2.*premium, hero, or key visual.*GPT Image 2\.5 Sunburst/s)
+  assert.match(skill, /photoreal or reference-led.*Seedream 5 Pro.*ordinary or balanced.*Wan 3\.0/s)
+  assert.match(skill, /identity or quality-led.*MiniMax H3.*complex or multi-reference.*Seedance 2\.5/s)
+  assert.match(skill, /explicitly supported user model choice wins/s)
+  assert.match(skill, /no automatic paid fallback/s)
+  assert.match(routing, /Curated media model defaults/)
+  assert.match(routing, /GPT Image 2 for ordinary\/value images.*GPT Image 2\.5 Sunburst for\s+premium\/hero\/key visuals/s)
+  assert.match(routing, /Wan 3\.0 for ordinary\/balanced video.*MiniMax H3 for identity\/quality\s+video.*Seedance 2\.5 for complex\/multi-reference/s)
+  assert.match(skill, /reference_audio_asset_ids/)
+  assert.match(routing, /H3 still requires an image or video[\s\S]*reference/s)
+  assert.match(routing, /Seedance can use audio with visual references or as an audio-only[\s\S]*reference/s)
+  assert.match(referenceAssets, /ordinary manifest asset shape.*image and video.*MP3 or WAV/s)
+  assert.match(skill, /curated generation controls described in\s+\[production-routing\]/s)
+  assert.match(routing, /Curated generation controls/)
+  assert.match(routing, /generate_audio: false/)
+  assert.match(routing, /Sunburst.*transparent.*PNG/s)
   assert.match(skill, /createProductionManifest\(\)/)
   assert.match(skill, /transitionProductionManifest\(\)/)
   assert.match(manifestGuidance, /never\s+mutate `project\.status` directly/i)
@@ -118,12 +137,37 @@ test("ShotSpec references use role-grouped arrays rather than a flat list", () =
     references: {
       subject: ["speaker_front", "speaker_three_quarter"],
       environment: ["dark_studio"],
+      audio: ["voice_reference"],
     },
   }))
   assert.throws(
     () => validateShotSpec({ ...shot, references: ["speaker_front", "dark_studio"] }),
     /ShotSpec\.references must be an object/,
   )
+})
+
+test("ProductionManifest accepts ordinary audio assets without changing the contract", () => {
+  const audioShot = {
+    ...shot,
+    references: {
+      subject: ["hornet_front"],
+      audio: ["voice_reference"],
+    },
+  }
+  const manifest = createProductionManifest({
+    project: "audio-reference-film",
+    shots: [audioShot],
+    assets: [{
+      asset_id: "voice_reference",
+      kind: "audio",
+      status: "ready",
+      path: "references/voice.mp3",
+      shot_ids: ["shot_03"],
+    }],
+    generation_jobs: [],
+  })
+  assert.equal(isProductionManifest(manifest), true)
+  assert.doesNotThrow(() => validateProductionManifest(manifest))
 })
 
 test("ProductionManifest validates one resumable state and its lifecycle", () => {

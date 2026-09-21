@@ -39,6 +39,37 @@ Completed Atlas outputs are materialized into local production assets and
 linked from the same `ProductionManifest`; Atlas URLs are temporary transport
 metadata only.
 
+## Curated media model routing
+
+Producer applies these intent defaults for the six supported Atlas models:
+
+| Media intent | Model |
+| --- | --- |
+| image: ordinary or value | GPT Image 2 |
+| image: premium, hero, or key visual | GPT Image 2.5 Sunburst |
+| image: photoreal or reference-led | Seedream 5 Pro |
+| video: ordinary or balanced | Wan 3.0 |
+| video: identity or quality-led | MiniMax H3 |
+| video: complex or multi-reference | Seedance 2.5 |
+
+An explicitly supported user model choice wins. If the model is omitted, image
+generation defaults to GPT Image 2 and video generation defaults to Wan 3.0.
+There is no automatic paid fallback; a failed or ambiguous generation remains
+an explicit user decision.
+
+Use the curated generation controls described in
+[production-routing](references/production-routing.md) only after model
+selection. They refine the provider request without changing routing: preserve
+explicit values, keep omitted values absent, and recalculate before approval
+when a control changes.
+
+Audio conditioning uses ordinary manifest assets and the same stable-ID flow:
+record an MP3 or WAV asset, reference it in the generic `ShotSpec.references`
+object when useful, and pass its ID as `reference_audio_asset_ids`. This input
+conditions the selected video model and remains separate from `generate_audio`,
+which controls native audio in the output. Wan and H3 require visual references
+when audio is supplied; Seedance also supports audio-only reference requests.
+
 Treat the repository film-production contract as authoritative. The manifest's
 `shots` field is the complete canonical `ShotSpec[]`, not a parallel set of
 routing records. Author the canonical shape, validate the persisted
