@@ -9,6 +9,7 @@ import { createAtlasClient } from "../plugins/delegation/atlas-client.js"
 import {
   ATLAS_GPT_IMAGE_MODEL,
   ATLAS_IMAGE_MODEL,
+  ATLAS_MINIMAX_H3_MODEL,
   ATLAS_VIDEO_MODEL,
   ATLAS_WAN_MODEL,
   canonicalJson,
@@ -518,6 +519,81 @@ test("GPT Image 2 preserves the calculated request digest through image generati
     assert.deepEqual(client.calls.filter((call) => call.operation === "generateImage").at(-1).body, calculatedRequest)
     assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 2)
     assert.equal(client.calls.filter((call) => call.operation === "generateImage").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("MiniMax H3 uses manifest-authorized typed references and preserves approval digests", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient({ costs: [{ price: 0.72 }, { price: 0.72 }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const uploaded = await runtime.media_upload({
+      asset_id: "speaker_front",
+      path: "references/speaker.png",
+      manifest_path: manifestRequestPath,
+    })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "The speaker walks through a rainy night market",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      resolution: "2k",
+      duration_seconds: 8,
+      ratio: "16:9",
+    })
+    const calculatedRequest = client.calls.filter((call) => call.operation === "calculate").at(-1).body
+    assert.deepEqual(calculatedRequest, {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "The speaker walks through a rainy night market",
+      refers: [{ url: uploaded.provider_url, type: "image" }],
+      resolution: "2K",
+      duration: 8,
+      ratio: "16:9",
+    })
+    const manifest = JSON.parse(await readFile(resolve(root, manifestRequestPath), "utf8"))
+    assert.deepEqual(manifest.generation_jobs[0].input_asset_ids, ["speaker_front"])
+    const calculateCountBeforeMutation = client.calls.filter((call) => call.operation === "calculate").length
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "The speaker walks through a rainy night market",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      resolution: "2k",
+      duration_seconds: 10,
+      ratio: "16:9",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeMutation)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    const submitted = await runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "The speaker walks through a rainy night market",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front"],
+      resolution: "2k",
+      duration_seconds: 8,
+      ratio: "16:9",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 1,
+    })
+    assert.equal(submitted.model, ATLAS_MINIMAX_H3_MODEL)
+    assert.equal(submitted.request_digest, calculated.request_digest)
+    assert.deepEqual(client.calls.filter((call) => call.operation === "generateVideo").at(-1).body, calculatedRequest)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeMutation + 1)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 1)
   } finally {
     await cleanup(root)
   }

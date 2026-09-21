@@ -167,6 +167,16 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     duration_seconds: -1,
     resolution: "1080p-esr",
   }))
+  assert.doesNotThrow(() => calculateSchema.parse({
+    shot_id: "shot_01",
+    media_type: "video",
+    prompt: "a reveal",
+    manifest_path: "production-manifest.json",
+    model: "minimax/h3/reference-to-video",
+    reference_image_asset_ids: ["asset-01"],
+    duration_seconds: 8,
+    resolution: "2k",
+  }))
   assert.throws(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal" }), /manifest_path/)
   assert.throws(() => uploadSchema.parse({ asset_id: "asset-01" }), /manifest_path/)
   assert.doesNotThrow(() => imageSchema.parse({

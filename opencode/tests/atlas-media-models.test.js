@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import {
   ATLAS_GPT_IMAGE_MODEL,
   ATLAS_IMAGE_MODEL,
+  ATLAS_MINIMAX_H3_MODEL,
   ATLAS_VIDEO_MODEL,
   ATLAS_WAN_MODEL,
   buildAtlasMediaRequest,
@@ -112,6 +113,195 @@ test("GPT Image 2 rejects video references and unexposed provider fields instead
       negative_prompt: "blurry",
     }),
     /negative_prompt is not supported by the AIO media-generation contract/,
+  )
+})
+
+test("MiniMax H3 builds the minimal documented reference-to-video request", async () => {
+  const request = await buildAtlasMediaRequest("video", {
+    model: ATLAS_MINIMAX_H3_MODEL,
+    prompt: "A subject walks through a rainy night market",
+    reference_image_asset_ids: ["subject_front"],
+    resolution: "2k",
+    duration_seconds: 8,
+  }, referenceResolver({
+    subject_front: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+  }))
+
+  assert.equal(ATLAS_MINIMAX_H3_MODEL, "minimax/h3/reference-to-video")
+  assert.deepEqual(request, {
+    body: {
+      model: "minimax/h3/reference-to-video",
+      prompt: "A subject walks through a rainy night market",
+      refers: [{ url: "https://atlas.example/subject.png", type: "image" }],
+      resolution: "2K",
+      duration: 8,
+    },
+    inputAssetIds: ["subject_front"],
+  })
+})
+
+test("MiniMax H3 maps mixed image and video references with provider resolution casing", async () => {
+  const request = await buildAtlasMediaRequest("video", {
+    model: ATLAS_MINIMAX_H3_MODEL,
+    prompt: "The subject moves from the street into the shop",
+    reference_image_asset_ids: ["subject_front"],
+    reference_video_asset_ids: ["movement_reference"],
+    resolution: "768p",
+    duration_seconds: 15,
+    ratio: "21:9",
+  }, referenceResolver({
+    subject_front: { url: "https://atlas.example/subject.webp", type: "image", mime_type: "image/webp" },
+    movement_reference: { url: "https://atlas.example/movement.mov", type: "video", mime_type: "video/quicktime" },
+  }))
+
+  assert.deepEqual(request, {
+    body: {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "The subject moves from the street into the shop",
+      refers: [
+        { url: "https://atlas.example/subject.webp", type: "image" },
+        { url: "https://atlas.example/movement.mov", type: "video" },
+      ],
+      resolution: "768P",
+      duration: 15,
+      ratio: "21:9",
+    },
+    inputAssetIds: ["subject_front", "movement_reference"],
+  })
+})
+
+test("MiniMax H3 requires a visual reference before resolving or contacting a provider", async () => {
+  let resolutions = 0
+  const resolveReference = async () => {
+    resolutions += 1
+    return { url: "https://atlas.example/reference.png", type: "image", mime_type: "image/png" }
+  }
+
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "A scene with no visual anchor",
+      resolution: "2k",
+      duration_seconds: 8,
+    }, resolveReference),
+    /requires at least one image or video reference/,
+  )
+  assert.equal(resolutions, 0)
+})
+
+test("MiniMax H3 rejects invalid duration, resolution, and ratio before reference resolution", async () => {
+  let resolutions = 0
+  const resolveReference = async () => {
+    resolutions += 1
+    return { url: "https://atlas.example/reference.png", type: "image", mime_type: "image/png" }
+  }
+
+  for (const [field, value, message] of [
+    ["duration_seconds", 3, /duration_seconds must be an integer from 4 through 15/],
+    ["duration_seconds", -1, /duration_seconds must be an integer from 4 through 15/],
+    ["resolution", "1080p", /resolution must be one of: 768p, 2k/],
+    ["ratio", "4:5", /ratio must be one of:/],
+  ]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("video", {
+        model: ATLAS_MINIMAX_H3_MODEL,
+        prompt: "A scene",
+        reference_image_asset_ids: ["subject"],
+        resolution: field === "resolution" ? value : "2k",
+        duration_seconds: field === "duration_seconds" ? value : 8,
+        ratio: field === "ratio" ? value : undefined,
+      }, resolveReference),
+      message,
+    )
+  }
+  assert.equal(resolutions, 0)
+})
+
+test("MiniMax H3 enforces the conservative documented image and video reference subset", async () => {
+  const images = Array.from({ length: 10 }, (_, index) => `image_${index}`)
+  const videos = Array.from({ length: 4 }, (_, index) => `video_${index}`)
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "Too many images",
+      reference_image_asset_ids: images,
+      resolution: "2k",
+      duration_seconds: 8,
+    }, referenceResolver({})),
+    /reference_image_asset_ids must contain at most 9 asset IDs/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "Too many videos",
+      reference_video_asset_ids: videos,
+      resolution: "2k",
+      duration_seconds: 8,
+    }, referenceResolver({})),
+    /reference_video_asset_ids must contain at most 3 asset IDs/,
+  )
+})
+
+test("MiniMax H3 rejects audio references and unsupported provider fields", async () => {
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "An audio-only reference is not allowed",
+      reference_audio_asset_ids: ["beat"],
+      resolution: "2k",
+      duration_seconds: 8,
+    }, referenceResolver({})),
+    /reference_audio_asset_ids is not supported by the AIO media-generation contract/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "An audio reference is not in the current AIO subset",
+      reference_image_asset_ids: ["audio"],
+      resolution: "2k",
+      duration_seconds: 8,
+    }, referenceResolver({
+      audio: { url: "https://atlas.example/beat.mp3", type: "audio", mime_type: "audio/mpeg" },
+    })),
+    /must resolve to a image for MiniMax H3 refers/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "Prompt expansion remains unexposed",
+      reference_image_asset_ids: ["subject"],
+      resolution: "2k",
+      duration_seconds: 8,
+      prompt_expansion: true,
+    }, referenceResolver({})),
+    /prompt_expansion is not supported by the AIO media-generation contract/,
+  )
+})
+
+test("MiniMax H3 rejects unsupported reference formats and preserves explicit types", async () => {
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "A scene",
+      reference_image_asset_ids: ["gif_reference"],
+      resolution: "2k",
+      duration_seconds: 8,
+    }, referenceResolver({
+      gif_reference: { url: "https://atlas.example/reference.gif", type: "image", mime_type: "image/gif" },
+    })),
+    /unsupported MiniMax H3 image format/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "A scene",
+      reference_video_asset_ids: ["webm_reference"],
+      resolution: "2k",
+      duration_seconds: 8,
+    }, referenceResolver({
+      webm_reference: { url: "https://atlas.example/reference.webm", type: "video", mime_type: "video/webm" },
+    })),
+    /unsupported MiniMax H3 video format/,
   )
 })
 

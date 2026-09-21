@@ -1,8 +1,11 @@
+import { extname } from "node:path"
+
 export const ATLAS_IMAGE_MODEL = "bytedance/seedream-v5.0-pro/text-to-image"
 export const ATLAS_GPT_IMAGE_MODEL = "openai/gpt-image-2/text-to-image"
 export const ATLAS_VIDEO_MODEL = "bytedance/seedance-2.0-fast/reference-to-video"
 export const ATLAS_WAN_REFERENCE_VIDEO_MODEL = "alibaba/wan-3.0/reference-to-video"
 export const ATLAS_WAN_MODEL = ATLAS_WAN_REFERENCE_VIDEO_MODEL
+export const ATLAS_MINIMAX_H3_MODEL = "minimax/h3/reference-to-video"
 
 const IMAGE_SIZES = new Set([
   "2048*2048",
@@ -33,6 +36,16 @@ const SEEDANCE_RESOLUTIONS = new Set(["480p", "720p", "720p-SR", "1080p-SR", "14
 const SEEDANCE_RATIOS = new Set(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"])
 const WAN_RESOLUTIONS = new Set(["480p", "720p", "1080p", "720p-esr", "1080p-esr", "1440p-esr", "4k-esr"])
 const WAN_RATIOS = new Set(["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16"])
+const H3_RESOLUTION_MAPPINGS = new Map([
+  ["768p", "768P"],
+  ["2k", "2K"],
+])
+const H3_DURATIONS = new Set(Array.from({ length: 12 }, (_, index) => index + 4))
+const H3_RATIOS = new Set(["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"])
+const H3_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
+const H3_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/quicktime"])
+const H3_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"])
+const H3_VIDEO_EXTENSIONS = new Set([".mp4", ".mov"])
 const WAN_REFERENCE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -74,6 +87,8 @@ const UNSUPPORTED_PROVIDER_FIELDS = Object.freeze([
   "negative_prompt",
   "style",
   "color_hints",
+  "prompt_expansion",
+  "reference_audio_asset_ids",
 ])
 
 const MODEL_SPECS = new Map([
@@ -101,6 +116,14 @@ const MODEL_SPECS = new Map([
     maxImages: 20,
     maxVideos: 20,
     maxReferences: 20,
+  })],
+  [ATLAS_MINIMAX_H3_MODEL, Object.freeze({
+    model: ATLAS_MINIMAX_H3_MODEL,
+    mediaType: "video",
+    kind: "h3-reference",
+    maxImages: 9,
+    maxVideos: 3,
+    maxReferences: 12,
   })],
 ])
 
@@ -158,6 +181,12 @@ function validateDuration(value, model, kind) {
     }
     return
   }
+  if (kind === "h3-reference") {
+    if (!Number.isInteger(value) || !H3_DURATIONS.has(value)) {
+      throw new Error("duration_seconds must be an integer from 4 through 15 for MiniMax H3 reference-to-video")
+    }
+    return
+  }
   if (value === undefined) return
   if (value !== -1 && (!Number.isInteger(value) || value < 2 || value > 30)) {
     throw new Error(`duration_seconds must be -1 or an integer from 2 through 30 for ${model}`)
@@ -175,6 +204,32 @@ function validateWanReference(reference, assetID, expectedType) {
   }
 }
 
+function validateH3Reference(reference, assetID, expectedType, url) {
+  const type = reference?.type ?? reference?.media_type
+  if (type !== expectedType) {
+    throw new Error(`reference asset ${assetID} must resolve to a ${expectedType} for MiniMax H3 refers`)
+  }
+  const mimeType = reference?.mime_type ?? reference?.content_type
+  if (mimeType !== undefined) {
+    const normalizedMimeType = String(mimeType).split(";", 1)[0].trim().toLowerCase()
+    const supported = expectedType === "image" ? H3_IMAGE_MIME_TYPES : H3_VIDEO_MIME_TYPES
+    if (!supported.has(normalizedMimeType)) {
+      throw new Error(`reference asset ${assetID} uses an unsupported MiniMax H3 ${expectedType} format`)
+    }
+    return
+  }
+  let extension = ""
+  try {
+    extension = extname(new URL(url).pathname).toLowerCase()
+  } catch {
+    throw new Error(`reference asset ${assetID} must use a supported MiniMax H3 ${expectedType} format`)
+  }
+  const supportedExtensions = expectedType === "image" ? H3_IMAGE_EXTENSIONS : H3_VIDEO_EXTENSIONS
+  if (!supportedExtensions.has(extension)) {
+    throw new Error(`reference asset ${assetID} uses an unsupported MiniMax H3 ${expectedType} format`)
+  }
+}
+
 async function resolveReference(resolveReference, assetID, expectedType, kind) {
   if (typeof resolveReference !== "function") {
     throw new Error(`reference asset ${assetID} cannot be resolved without an upload resolver`)
@@ -184,6 +239,10 @@ async function resolveReference(resolveReference, assetID, expectedType, kind) {
   const url = validateReferenceURL(value?.url ?? value?.provider_url, `reference asset ${assetID} provider_url`)
   if (kind === "wan-reference") {
     validateWanReference(value, assetID, expectedType)
+    return { url, type: expectedType }
+  }
+  if (kind === "h3-reference") {
+    validateH3Reference(value, assetID, expectedType, url)
     return { url, type: expectedType }
   }
   return url
@@ -276,6 +335,30 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
     }
     for (const key of ["reference_images", "reference_videos"]) {
       if (body[key] === undefined) delete body[key]
+    }
+    return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
+  }
+
+  if (spec.kind === "h3-reference") {
+    if (!imageAssetIDs.length && !videoAssetIDs.length) {
+      throw new Error("MiniMax H3 reference-to-video requires at least one image or video reference")
+    }
+    const providerResolution = H3_RESOLUTION_MAPPINGS.get(args.resolution)
+    if (providerResolution === undefined) {
+      throw new Error(`resolution must be one of: ${[...H3_RESOLUTION_MAPPINGS.keys()].join(", ")} for MiniMax H3 reference-to-video`)
+    }
+    validateChoice(args.ratio, "ratio", H3_RATIOS)
+    const references = [
+      ...await Promise.all(imageAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "image", spec.kind))),
+      ...await Promise.all(videoAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "video", spec.kind))),
+    ]
+    const body = {
+      model: spec.model,
+      prompt,
+      refers: references,
+      resolution: providerResolution,
+      duration: args.duration_seconds,
+      ...(args.ratio === undefined ? {} : { ratio: args.ratio }),
     }
     return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
   }

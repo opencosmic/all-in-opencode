@@ -41,7 +41,7 @@ function mediaRuntimeTools(runtime) {
     reference_image_asset_ids: z.array(z.string().min(1)).max(20).optional(),
     reference_video_asset_ids: z.array(z.string().min(1)).max(20).optional(),
     duration_seconds: z.union([z.literal(-1), z.number().int().min(2).max(30)]).optional(),
-    resolution: z.enum(["480p", "720p", "720p-SR", "1080p-SR", "1440p-SR", "1080p", "720p-esr", "1080p-esr", "1440p-esr", "4k-esr"]).optional(),
+    resolution: z.enum(["480p", "720p", "720p-SR", "1080p-SR", "1440p-SR", "1080p", "720p-esr", "1080p-esr", "1440p-esr", "4k-esr", "768p", "2k"]).optional(),
     ratio: z.enum(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"]).optional(),
   }
   const approvalArgs = {
