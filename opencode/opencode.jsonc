@@ -17,9 +17,10 @@
     "open-design": {
       "type": "local",
       "command": [
-        "/bin/sh",
-        "-c",
-        "exec \"$HOME/.config/opencode/open-design-mcp.sh\""
+        "od",
+        "mcp",
+        "--daemon-url",
+        "http://127.0.0.1:7456"
       ],
       "enabled": true
     },
