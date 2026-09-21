@@ -851,6 +851,37 @@ test("local wait timeout remains resumable and does not claim provider cancellat
   }
 })
 
+test("processing predictions may omit outputs until completion", async () => {
+  const { root, manifestRequestPath } = await fixture()
+  try {
+    const client = fakeClient({ predictions: [{ status: "processing", outputs: null }] })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const calculated = await runtime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A slow speaker",
+      manifest_path: manifestRequestPath,
+    })
+    const submitted = await runtime.media_generate_image({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A slow speaker",
+      manifest_path: manifestRequestPath,
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 0.1,
+    })
+    const processing = await runtime.media_prediction({
+      job_id: submitted.job_id,
+      manifest_path: manifestRequestPath,
+    })
+    assert.equal(processing.status, "processing")
+    assert.equal(processing.output_asset_ids, undefined)
+  } finally {
+    await cleanup(root)
+  }
+})
+
 test("malformed Atlas responses fail closed", async () => {
   const { root, manifestRequestPath } = await fixture()
   try {

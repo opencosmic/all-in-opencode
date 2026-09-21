@@ -219,7 +219,7 @@ function normalizePrediction(payload, requestedPredictionID) {
           : null
   if (!status) throw new Error(`Atlas prediction returned unsupported status: ${safeProviderText(data.status)}`)
 
-  const outputs = data.outputs === undefined ? [] : data.outputs
+  const outputs = data.outputs === undefined || data.outputs === null ? [] : data.outputs
   if (!Array.isArray(outputs) || outputs.some((output) => typeof output !== "string" || !output.trim())) {
     throw new Error("Atlas prediction returned a malformed response: outputs must be an array of URLs")
   }
