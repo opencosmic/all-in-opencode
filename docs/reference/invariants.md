@@ -3,7 +3,7 @@
 | Invariant | Enforcement |
 |---|---|
 | Runtime code uses stock public OpenCode plugin and SDK APIs only. | Static dependency guard and loader test |
-| Fifteen project-owned delegation tools are exposed, including the Executor-only `execution_preflight`, bounded `workspace_checkpoint_update`, restricted `consult_agents`, and six bounded mock media-runtime tools. | Plugin and runtime policy tests |
+| Fifteen project-owned delegation tools are exposed, including the Executor-only `execution_preflight`, bounded `workspace_checkpoint_update`, restricted `consult_agents`, and six bounded Atlas media-runtime tools. | Plugin and runtime policy tests |
 | Category selection is deterministic and every enabled category routes to the shared Implementer. | CategoryEngine tests |
 | Category-family ceilings are caller-specific: Assistant remains broad, Executor may use only `implementation`, and Producer may use only `media`; named-agent policy remains separate. | Delegation policy and catalog tests |
 | The built-in family catalog keeps `git` in `implementation` and media categories in `media`; built-in family labels are canonical and cannot be reclassified through `aio.json`, while custom categories may choose their own family. | CategoryEngine and AIO-config tests |
@@ -27,7 +27,7 @@
 | Blender is an all-mode reusable 3D leaf backed by external Blender MCP; `/blender`, `Executor -> Blender`, and `Producer -> Blender` share one specialist, it is not a CategoryEngine category, uses an explicit five-tool MCP allowlist, receives no category catalog, and cannot delegate child AIO tasks. | Blender agent, delegation, provisioning, catalog, and discovery tests |
 | Video production has a dedicated `Producer` + `/video` primary route backed by the external upstream HyperFrames skill family; it is not a CategoryEngine category and uses the `media` family (`video-analysis` and `media-generation`) plus the named `Blender` 3D-previs route. | Producer-agent, delegation, command, and provisioning tests |
 | Advanced `/film` production uses the same Producer, loads the repository-owned `film-production` skill before HyperFrames composition, and routes through validated `ShotSpec`/`ProductionManifest` contracts. | Film-production contract, discovery, routing, and Producer tests |
-| `media-generation` is a provider-neutral bounded Implementer category in family `media`; its mock runtime exposes only explicit media tools and cannot delegate, use shell/Git, browse, edit files, or make network/provider calls. | Media-generation category and permission tests |
+| `media-generation` is a provider-neutral bounded Implementer category in family `media`; its Atlas runtime exposes only six explicit media tools and cannot delegate, use shell/Git, browse, edit files, or expose arbitrary HTTP/provider controls. | Media-generation category and Atlas runtime tests |
 | Video-content questions remain separate: `video-analysis` uses the independent upstream `watch` skill, while `/video` owns HyperFrames production. | Producer-agent and existing watch/category tests |
 | `/video` never silently updates global HyperFrames skills without approval; setup is explicit and the health check is read-only. | Producer-agent and HyperFrames provisioning tests |
 | Searcher is a read-only `/search` route using bounded native web retrieval; Assistant/configured callers may delegate it as a named leaf, but it cannot delegate onward or enter Deep Research infrastructure. | Searcher integration and delegation-policy tests |

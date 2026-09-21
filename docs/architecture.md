@@ -137,11 +137,12 @@ Film planning comes before HyperFrames composition. The AIO contract module
 validates provider-neutral `ShotSpec` entries and one resumable
 `ProductionManifest`; it does not add a database or provider endpoint schema.
 Blender remains the reusable camera/blocking/previs leaf, `media-generation`
-is a bounded Implementer category with six explicit deterministic mock tools,
-and `video-analysis`/Watch provides grounded QA. HyperFrames owns composition,
-motion graphics, typography, captions, audio assembly, and rendering. Real
-Atlas Cloud generation, billing, approval, polling, and automatic rerolls are
-intentionally deferred.
+is a bounded Implementer category with six explicit Atlas Cloud tools, and
+`video-analysis`/Watch provides grounded QA. HyperFrames owns composition,
+motion graphics, typography, captions, audio assembly, and rendering. Atlas
+request/cost integrity, safe local uploads, bounded polling, and output
+materialization stay inside the media runtime; there is no provider fallback or
+automatic reroll.
 
 ## Blender capability
 

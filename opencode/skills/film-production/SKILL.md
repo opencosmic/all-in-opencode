@@ -25,11 +25,19 @@ assembly, and rendering. Blender is the spatial/camera/previs specialist;
 `video-analysis`/Watch supplies grounded visual QA.
 
 For each shot, preserve intent, continuity, references, output constraints,
-and a reproducible request digest in the manifest. Separate planning and
-previs from any later generation approval. The current media runtime is a
-deterministic mock only: this phase has no paid generation, provider calls,
-billing, or automatic rerolls. Atlas Cloud integration is deferred to a later
-phase.
+and a reproducible request digest in the manifest. Atlas Cloud is currently the only implemented media provider behind the bounded `media-generation`
+category. Resolve stable manifest references, upload local files only through
+`media_upload`, call `media_calculate`, present its price and `estimated` flag
+for explicit approval, then submit the unchanged request through
+`media_generate_image` or `media_generate_video`. Use `media_prediction` for a
+single check or `media_wait_prediction` for bounded polling. `media_calculate`
+does not create a task or charge; generation submission is asynchronous, paid,
+and never automatically retried or rerolled. The runtime enforces request
+digest and cost integrity, while human approval remains an orchestration
+invariant rather than a cryptographic proof unless OpenCode provides one.
+Completed Atlas outputs are materialized into local production assets and
+linked from the same `ProductionManifest`; Atlas URLs are temporary transport
+metadata only.
 
 Treat the repository film-production contract as authoritative. The manifest's
 `shots` field is the complete canonical `ShotSpec[]`, not a parallel set of

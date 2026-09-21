@@ -25,6 +25,7 @@ const OPEN_DESIGN_RESOURCE_TOOLS = new Set([
   "list_mcp_resource_templates",
   "read_mcp_resource",
 ])
+const MEDIA_WORKSPACE_TOOL_NAMES = Object.freeze(["read", "glob", "grep", "list", "lsp"])
 
 function permissionValue(input) {
   // OpenCode may split a compound shell command into separate permission
@@ -238,6 +239,7 @@ export function categoryPermission(profile, input = {}) {
   }
 
   if (profile.category === "media-generation" && [
+    ...MEDIA_WORKSPACE_TOOL_NAMES,
     "edit",
     "write",
     "bash",
@@ -354,6 +356,7 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
   }
   if (category === "media-generation") {
     const rules = [
+      ...MEDIA_WORKSPACE_TOOL_NAMES.map((permission) => ({ permission, pattern: "*", action: "deny" })),
       { permission: "edit", pattern: "*", action: "deny" },
       { permission: "write", pattern: "*", action: "deny" },
       { permission: "bash", pattern: "*", action: "deny" },

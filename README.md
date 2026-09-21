@@ -38,7 +38,7 @@ Named delegation is fail closed. Built-in specialists retain their workflow-spec
 
 ## Delegation Runtime
 
-The runtime exposes the core delegation tools plus six bounded mock media tools:
+The runtime exposes the core delegation tools plus six bounded Atlas Cloud media tools:
 
 - `execution_preflight`
 - `workspace_prepare`
@@ -186,9 +186,13 @@ render authority, and `video-analysis`/Watch provides grounded QA.
 Assistant remains technically able to delegate enabled media categories as part
 of its broad orchestration role; `/film` ownership still belongs to Producer.
 
-This foundation includes only a deterministic mock media runtime. Real Atlas
-Cloud integration, billing, approval, provider calls, job polling, and paid
-rerolls are intentionally deferred to a later phase.
+The `/film` media runtime currently implements Atlas Cloud only. It calculates
+the exact effective request before submission, requires request-digest and cost
+approval data, uploads only project-local media, polls asynchronously, and
+materializes completed outputs into local production assets. There is no
+provider fallback, automatic reroll, or generic HTTP tool. Set
+`ATLASCLOUD_API_KEY` in the runtime environment; tests use injected fake
+transports and never spend credits.
 
 ## Blender 3D leaf work
 

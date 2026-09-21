@@ -12,7 +12,7 @@ import {
 } from "./category-permissions.js"
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
-import { isMediaRuntimeTool } from "./media-runtime.js"
+import { createAtlasMediaRuntime, createMockMediaRuntime, isMediaRuntimeTool } from "./media-runtime.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
 import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
@@ -159,11 +159,26 @@ export class DelegationRuntime {
       skills,
       profiles,
       agentDiscovery,
+      directory,
+      mediaRuntime: createAtlasMediaRuntime({ directory }),
     })
   }
 
-  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, agentDiscovery }) {
-    Object.assign(this, { client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, agentDiscovery })
+  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, agentDiscovery, directory, mediaRuntime }) {
+    Object.assign(this, {
+      client,
+      registry,
+      tracker,
+      runner,
+      coordinator,
+      workspaces,
+      dispatcher,
+      profiles,
+      skills,
+      agentDiscovery,
+      directory,
+      mediaRuntime: mediaRuntime ?? createMockMediaRuntime(),
+    })
     this.sessionAgents = new Map()
     this.activeConsultationSessions = new Set()
     this.preflights = new Map()

@@ -7,6 +7,9 @@ motion. A `ShotSpec` may list those IDs by role; the `ProductionManifest`
 tracks the corresponding asset and its readiness.
 
 Keep source paths or URIs, ownership/usage notes, and the shots that depend on
-an asset in the manifest. Do not copy secrets into the manifest. If a required
-reference is missing, keep the asset pending and route the blocking decision
+an asset in the manifest. For Atlas generation, pass the stable asset ID to
+`media_upload`; the runtime resolves the local path, rejects traversal and
+symlink escapes, and stores the temporary provider URL only as execution
+metadata. Do not copy secrets into the manifest. If a required reference is
+missing or not uploaded, keep the asset pending and route the blocking decision
 to Producer instead of inventing a substitute silently.

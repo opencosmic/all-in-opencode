@@ -26,10 +26,12 @@ outputs:
 
 Keep shot IDs unique. Assets and generation jobs should point back to shots;
 request digests, job IDs, output references, revision, and history make a run
-resumable and debuggable. Cost fields are reserved for a later
-calculate/approval/submit flow and must remain null until a real approved
-runtime exists. The current mock reports zero estimated cost and never submits
-paid work.
+resumable and debuggable. Atlas-backed generation jobs record their model,
+media type, input/output asset IDs, preflight estimate, approval ceiling,
+provider prediction ID, status, and safe provider error details where present.
+`actual_usd` remains null when Atlas does not report direct per-job billing.
+Atlas temporary URLs belong only in upload/output metadata; stable AIO asset IDs
+and local paths are the durable references.
 
 `ProductionManifest.shots` MUST contain the complete canonical `ShotSpec[]`.
 `validateProductionManifest()` validates those entries as ShotSpecs; do not
