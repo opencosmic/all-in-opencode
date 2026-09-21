@@ -63,6 +63,13 @@ selection. They refine the provider request without changing routing: preserve
 explicit values, keep omitted values absent, and recalculate before approval
 when a control changes.
 
+Audio conditioning uses ordinary manifest assets and the same stable-ID flow:
+record an MP3 or WAV asset, reference it in the generic `ShotSpec.references`
+object when useful, and pass its ID as `reference_audio_asset_ids`. This input
+conditions the selected video model and remains separate from `generate_audio`,
+which controls native audio in the output. Wan and H3 require visual references
+when audio is supplied; Seedance also supports audio-only reference requests.
+
 Treat the repository film-production contract as authoritative. The manifest's
 `shots` field is the complete canonical `ShotSpec[]`, not a parallel set of
 routing records. Author the canonical shape, validate the persisted

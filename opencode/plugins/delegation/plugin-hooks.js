@@ -48,6 +48,7 @@ function mediaRuntimeTools(runtime) {
     ...commonGenerationArgs,
     reference_image_asset_ids: z.array(z.string().min(1)).max(30).optional(),
     reference_video_asset_ids: z.array(z.string().min(1)).max(20).optional(),
+    reference_audio_asset_ids: z.array(z.string().min(1)).max(10).optional(),
     duration_seconds: z.union([z.literal(-1), z.number().int().min(2).max(30)]).optional(),
     resolution: z.enum(["480p", "720p", "720p-sr", "1080p-sr", "1440p-sr", "1080p", "720p-esr", "1080p-esr", "1080p-esr & 60fps", "1440p-esr", "4k-esr", "768p", "2k"]).optional(),
     ratio: z.enum(["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"]).optional(),
@@ -86,7 +87,7 @@ function mediaRuntimeTools(runtime) {
       asset_id: z.string().min(1),
       path: z.string().min(1).optional(),
       manifest_path: z.string().min(1),
-      media_type: z.enum(["image", "video"]).optional(),
+      media_type: z.enum(["image", "video", "audio"]).optional(),
     }, media.media_upload),
     media_generate_image: guarded("media_generate_image", {
       ...imageGenerationArgs,

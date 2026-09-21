@@ -81,6 +81,8 @@ const H3_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
 const H3_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/quicktime"])
 const H3_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"])
 const H3_VIDEO_EXTENSIONS = new Set([".mp4", ".mov"])
+const AUDIO_REFERENCE_MIME_TYPES = new Set(["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav"])
+const AUDIO_REFERENCE_EXTENSIONS = new Set([".mp3", ".wav"])
 const WAN_REFERENCE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -113,6 +115,7 @@ const IMAGE_ONLY_FIELDS = Object.freeze([
 const VIDEO_ONLY_FIELDS = Object.freeze([
   "reference_image_asset_ids",
   "reference_video_asset_ids",
+  "reference_audio_asset_ids",
   "duration_seconds",
   "resolution",
   "ratio",
@@ -140,7 +143,6 @@ const UNSUPPORTED_PROVIDER_FIELDS = Object.freeze([
   "negative_prompt",
   "style",
   "color_hints",
-  "reference_audio_asset_ids",
   "reference_audios",
   "omni_reference_task_type",
   "watermark",
@@ -175,6 +177,7 @@ const MODEL_SPECS = new Map([
     kind: "wan-reference",
     maxImages: 20,
     maxVideos: 20,
+    maxAudios: 5,
     maxReferences: 20,
   })],
   [ATLAS_MINIMAX_H3_MODEL, Object.freeze({
@@ -183,6 +186,7 @@ const MODEL_SPECS = new Map([
     kind: "h3-reference",
     maxImages: 9,
     maxVideos: 3,
+    maxAudios: 3,
     maxReferences: 9,
   })],
   [ATLAS_SEEDANCE_2_5_MODEL, Object.freeze({
@@ -191,6 +195,7 @@ const MODEL_SPECS = new Map([
     kind: "seedance-2.5-reference",
     maxImages: 30,
     maxVideos: 10,
+    maxAudios: 10,
   })],
 ])
 
@@ -246,6 +251,37 @@ function validateReferenceURL(value, name) {
   return parsed.toString()
 }
 
+function normalizedMimeType(value) {
+  return String(value).split(";", 1)[0].trim().toLowerCase()
+}
+
+function validateAudioReference(reference, assetID, model, url, { maxBytes } = {}) {
+  const mimeType = reference?.mime_type ?? reference?.content_type
+  if (mimeType !== undefined) {
+    if (!AUDIO_REFERENCE_MIME_TYPES.has(normalizedMimeType(mimeType))) {
+      throw new Error(`reference asset ${assetID} uses an unsupported ${model} audio format`)
+    }
+  } else {
+    let extension = ""
+    try {
+      extension = extname(new URL(url).pathname).toLowerCase()
+    } catch {
+      throw new Error(`reference asset ${assetID} must use a supported ${model} audio format`)
+    }
+    if (!AUDIO_REFERENCE_EXTENSIONS.has(extension)) {
+      throw new Error(`reference asset ${assetID} uses an unsupported ${model} audio format`)
+    }
+  }
+  if (maxBytes !== undefined && reference?.size_bytes !== undefined) {
+    if (typeof reference.size_bytes !== "number" || !Number.isFinite(reference.size_bytes) || reference.size_bytes < 0) {
+      throw new Error(`reference asset ${assetID} has invalid ${model} audio size metadata`)
+    }
+    if (reference.size_bytes > maxBytes) {
+      throw new Error(`reference asset ${assetID} exceeds the ${model} audio size limit`)
+    }
+  }
+}
+
 function validateProviderFields(args) {
   const unsupportedField = UNSUPPORTED_PROVIDER_FIELDS.find((field) => args[field] !== undefined)
   if (unsupportedField) throw new Error(`${unsupportedField} is not supported by the AIO media-generation contract`)
@@ -275,6 +311,10 @@ function validateWanReference(reference, assetID, expectedType) {
   if (type !== expectedType) {
     throw new Error(`reference asset ${assetID} must resolve to a ${expectedType} for Wan refers`)
   }
+  if (expectedType === "audio") {
+    validateAudioReference(reference, assetID, "Wan", reference?.url ?? reference?.provider_url)
+    return
+  }
   const mimeType = reference?.mime_type ?? reference?.content_type
   if (mimeType !== undefined && !WAN_REFERENCE_MIME_TYPES.has(String(mimeType).split(";", 1)[0].trim().toLowerCase())) {
     throw new Error(`reference asset ${assetID} uses an unsupported Wan reference media format`)
@@ -285,6 +325,10 @@ function validateH3Reference(reference, assetID, expectedType, url) {
   const type = reference?.type ?? reference?.media_type
   if (type !== expectedType) {
     throw new Error(`reference asset ${assetID} must resolve to a ${expectedType} for MiniMax H3 refers`)
+  }
+  if (expectedType === "audio") {
+    validateAudioReference(reference, assetID, "MiniMax H3", url)
+    return
   }
   const mimeType = reference?.mime_type ?? reference?.content_type
   if (mimeType !== undefined) {
@@ -311,6 +355,10 @@ function validateSeedance25Reference(reference, assetID, expectedType, url) {
   const type = reference?.type ?? reference?.media_type
   if (type !== expectedType) {
     throw new Error(`reference asset ${assetID} must resolve to a ${expectedType} for Seedance 2.5 reference-to-video`)
+  }
+  if (expectedType === "audio") {
+    validateAudioReference(reference, assetID, "Seedance 2.5", url, { maxBytes: 15 * 1024 * 1024 })
+    return
   }
   const mimeType = reference?.mime_type ?? reference?.content_type
   if (mimeType !== undefined) {
@@ -458,7 +506,8 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
 
   const imageAssetIDs = assetIDs(args.reference_image_asset_ids, "reference_image_asset_ids", spec.maxImages)
   const videoAssetIDs = assetIDs(args.reference_video_asset_ids, "reference_video_asset_ids", spec.maxVideos)
-  if (spec.maxReferences !== undefined && imageAssetIDs.length + videoAssetIDs.length > spec.maxReferences) {
+  const audioAssetIDs = assetIDs(args.reference_audio_asset_ids, "reference_audio_asset_ids", spec.maxAudios)
+  if (spec.maxReferences !== undefined && imageAssetIDs.length + videoAssetIDs.length + audioAssetIDs.length > spec.maxReferences) {
     throw new Error(spec.kind === "h3-reference"
       ? "MiniMax H3 supports at most 9 total references in the current AIO subset"
       : `references must contain at most ${spec.maxReferences} asset IDs for ${spec.model}`)
@@ -470,8 +519,8 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
     if (args.prompt_expansion !== undefined) throw new Error("prompt_expansion is not supported for Seedance 2.5 reference-to-video")
     validateBoolean(args.generate_audio, "generate_audio")
     validateChoice(args.video_output_format, "video_output_format", SEEDANCE_2_5_VIDEO_OUTPUT_FORMATS)
-    if (!imageAssetIDs.length && !videoAssetIDs.length) {
-      throw new Error("Seedance 2.5 reference-to-video requires at least one image or video reference")
+    if (!imageAssetIDs.length && !videoAssetIDs.length && !audioAssetIDs.length) {
+      throw new Error("Seedance 2.5 reference-to-video requires at least one image, video, or audio reference")
     }
     validateChoice(args.resolution, "resolution", SEEDANCE_2_5_RESOLUTIONS)
     validateChoice(args.ratio, "ratio", SEEDANCE_2_5_RATIOS)
@@ -484,6 +533,9 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
       ...(videoAssetIDs.length
         ? { reference_videos: await Promise.all(videoAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "video", spec.kind))) }
         : {}),
+      ...(audioAssetIDs.length
+        ? { reference_audios: await Promise.all(audioAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "audio", spec.kind))) }
+        : {}),
       ...(args.duration_seconds === undefined ? {} : { duration: args.duration_seconds }),
       ...(args.resolution === undefined ? {} : { resolution: args.resolution }),
       ...(args.ratio === undefined ? {} : { ratio: args.ratio }),
@@ -491,7 +543,7 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
       ...(args.video_output_format === undefined ? {} : { output_format: args.video_output_format }),
       omni_reference_task_type: "reference",
     }
-    return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
+    return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs, ...audioAssetIDs] }
   }
 
   if (spec.kind === "h3-reference") {
@@ -510,6 +562,7 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
     const references = [
       ...await Promise.all(imageAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "image", spec.kind))),
       ...await Promise.all(videoAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "video", spec.kind))),
+      ...await Promise.all(audioAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "audio", spec.kind))),
     ]
     const body = {
       model: spec.model,
@@ -520,9 +573,12 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
       ...(args.ratio === undefined ? {} : { ratio: args.ratio }),
       ...(args.prompt_expansion === undefined ? {} : { prompt_expansion: args.prompt_expansion }),
     }
-    return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
+    return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs, ...audioAssetIDs] }
   }
 
+  if (audioAssetIDs.length && !imageAssetIDs.length && !videoAssetIDs.length) {
+    throw new Error("Wan reference-to-video requires at least one image or video reference when audio references are provided")
+  }
   if (args.prompt_expansion !== undefined) throw new Error("prompt_expansion is not supported for Wan reference-to-video")
   if (args.video_output_format !== undefined) throw new Error("video_output_format is not supported for Wan reference-to-video")
   validateBoolean(args.generate_audio, "generate_audio")
@@ -532,6 +588,7 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
   const references = [
     ...await Promise.all(imageAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "image", spec.kind))),
     ...await Promise.all(videoAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "video", spec.kind))),
+    ...await Promise.all(audioAssetIDs.map((assetID) => resolveReference(resolveReferenceOptionFunction, assetID, "audio", spec.kind))),
   ]
   const body = {
     model: spec.model,
@@ -543,5 +600,5 @@ export async function buildAtlasMediaRequest(mediaType, args = {}, resolveRefere
   }
   if (args.generate_audio !== undefined) body.audio = args.generate_audio
   if (args.seed !== undefined) body.seed = args.seed
-  return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs] }
+  return { body, inputAssetIds: [...imageAssetIDs, ...videoAssetIDs, ...audioAssetIDs] }
 }

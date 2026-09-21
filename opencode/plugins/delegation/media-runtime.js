@@ -21,6 +21,7 @@ export const MEDIA_RUNTIME_TOOL_NAMES = Object.freeze([
 const MEDIA_RUNTIME_TOOL_SET = new Set(MEDIA_RUNTIME_TOOL_NAMES)
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"])
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".m4v"])
+const AUDIO_EXTENSIONS = new Set([".mp3", ".wav"])
 const MIME_BY_EXTENSION = Object.freeze({
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -36,6 +37,8 @@ const MIME_BY_EXTENSION = Object.freeze({
   ".mov": "video/quicktime",
   ".webm": "video/webm",
   ".m4v": "video/x-m4v",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
 })
 const MIME_EXTENSIONS = Object.freeze({
   "image/png": ".png",
@@ -44,6 +47,10 @@ const MIME_EXTENSIONS = Object.freeze({
   "video/mp4": ".mp4",
   "video/quicktime": ".mov",
   "video/webm": ".webm",
+  "audio/mpeg": ".mp3",
+  "audio/mp3": ".mp3",
+  "audio/wav": ".wav",
+  "audio/x-wav": ".wav",
 })
 const SENSITIVE_KEYS = new Set(["api_key", "apikey", "authorization", "secret", "token"])
 
@@ -361,10 +368,16 @@ function inferMediaType(path, contentType) {
   const normalizedContentType = String(contentType ?? "").split(";", 1)[0].trim().toLowerCase()
   if (normalizedContentType.startsWith("image/")) return "image"
   if (normalizedContentType.startsWith("video/")) return "video"
+  if (["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav"].includes(normalizedContentType)) return "audio"
   const extension = typeof path === "string" ? extname(path).toLowerCase() : ""
   if (IMAGE_EXTENSIONS.has(extension)) return "image"
   if (VIDEO_EXTENSIONS.has(extension)) return "video"
+  if (AUDIO_EXTENSIONS.has(extension)) return "audio"
   return null
+}
+
+function explicitMediaKind(value) {
+  return ["image", "video", "audio"].includes(value) ? value : null
 }
 
 export function isMediaRuntimeTool(name) {
@@ -399,6 +412,7 @@ export function createAtlasMediaRuntime({
         url: validateProviderURL(uploaded.provider_url, `reference asset ${assetID} provider_url`),
         type: uploaded.media_type ?? inferMediaType(null, uploaded.content_type),
         mime_type: uploaded.content_type,
+        ...(uploaded.size_bytes === undefined ? {} : { size_bytes: uploaded.size_bytes }),
       }
     }
     if (!manifestPath) throw new Error(`reference asset ${assetID} has not been uploaded in this media runtime`)
@@ -410,11 +424,18 @@ export function createAtlasMediaRuntime({
       throw new Error(`reference asset ${assetID} has no Atlas upload URL; call media_upload first`)
     }
     const contentType = metadata.content_type ?? asset?.metadata?.content_type
-    const type = inferMediaType(asset?.path, contentType)
+    const inferredType = inferMediaType(asset?.path, contentType)
+    const declaredType = explicitMediaKind(asset?.kind)
+    if (declaredType && inferredType && declaredType !== inferredType) {
+      throw new Error(`reference asset ${assetID} manifest kind ${declaredType} does not match its media format`)
+    }
+    const type = declaredType ?? inferredType
+    const sizeBytes = metadata.size_bytes ?? asset?.metadata?.size_bytes
     return {
       url: validateProviderURL(uploadedURL, `reference asset ${assetID} provider_url`),
       type,
       mime_type: contentType ?? (typeof asset?.path === "string" ? MIME_BY_EXTENSION[extname(asset.path).toLowerCase()] : undefined),
+      ...(sizeBytes === undefined ? {} : { size_bytes: sizeBytes }),
     }
   }
 
@@ -501,8 +522,18 @@ export function createAtlasMediaRuntime({
     }
     const localPath = manifestAssetPath
     const extension = extname(localPath).toLowerCase()
-    const inferredType = IMAGE_EXTENSIONS.has(extension) ? "image" : VIDEO_EXTENSIONS.has(extension) ? "video" : null
-    if (!inferredType) throw new Error("path must identify a supported image or video file")
+    const inferredType = IMAGE_EXTENSIONS.has(extension)
+      ? "image"
+      : VIDEO_EXTENSIONS.has(extension)
+        ? "video"
+        : AUDIO_EXTENSIONS.has(extension)
+          ? "audio"
+          : null
+    if (!inferredType) throw new Error("path must identify a supported image, video, or audio file")
+    const declaredType = explicitMediaKind(manifestAsset.kind)
+    if (declaredType && declaredType !== inferredType) {
+      throw new Error(`ProductionManifest asset ${assetID} kind ${declaredType} does not match its media format`)
+    }
     if (args.media_type !== undefined && args.media_type !== inferredType) {
       throw new Error(`path does not match requested media_type ${args.media_type}`)
     }

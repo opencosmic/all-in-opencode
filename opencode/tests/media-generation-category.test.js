@@ -154,7 +154,7 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     assert.equal(typeof registered.media_generate_image.args[field]?.safeParse, "function", `image.${field}`)
     assert.equal(registered.media_generate_video.args[field], undefined, `video must not expose ${field}`)
   }
-  for (const field of ["reference_image_asset_ids", "reference_video_asset_ids", "duration_seconds", "resolution", "ratio", "generate_audio", "seed", "prompt_expansion", "video_output_format"]) {
+  for (const field of ["reference_image_asset_ids", "reference_video_asset_ids", "reference_audio_asset_ids", "duration_seconds", "resolution", "ratio", "generate_audio", "seed", "prompt_expansion", "video_output_format"]) {
     assert.equal(typeof registered.media_generate_video.args[field]?.safeParse, "function", `video.${field}`)
     assert.equal(registered.media_generate_image.args[field], undefined, `image must not expose ${field}`)
   }
@@ -176,6 +176,7 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     manifest_path: "production-manifest.json",
     model: "minimax/h3/reference-to-video",
     reference_image_asset_ids: ["asset-01"],
+    reference_audio_asset_ids: ["voice-01"],
     duration_seconds: 8,
     resolution: "2k",
     prompt_expansion: true,
@@ -188,12 +189,18 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     model: "bytedance/seedance-2.5/reference-to-video",
     reference_image_asset_ids: Array.from({ length: 30 }, (_, index) => `image-${index}`),
     reference_video_asset_ids: Array.from({ length: 10 }, (_, index) => `video-${index}`),
+    reference_audio_asset_ids: Array.from({ length: 10 }, (_, index) => `audio-${index}`),
     duration_seconds: 30,
     resolution: "1080p-esr & 60fps",
     ratio: "21:9",
   }))
   assert.throws(() => calculateSchema.parse({ shot_id: "shot_01", media_type: "video", prompt: "a reveal" }), /manifest_path/)
   assert.throws(() => uploadSchema.parse({ asset_id: "asset-01" }), /manifest_path/)
+  assert.doesNotThrow(() => uploadSchema.parse({
+    asset_id: "voice-01",
+    manifest_path: "production-manifest.json",
+    media_type: "audio",
+  }))
   assert.doesNotThrow(() => imageSchema.parse({
     job_id: "job-01",
     shot_id: "shot_01",

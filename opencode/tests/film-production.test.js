@@ -69,6 +69,7 @@ test("film-production is repository-owned and discoverable with focused referenc
   const skill = await readFile(join(skillRoot, "film-production/SKILL.md"), "utf8")
   const routing = await readFile(join(skillRoot, "film-production/references/production-routing.md"), "utf8")
   const manifestGuidance = await readFile(join(skillRoot, "film-production/references/production-manifest.md"), "utf8")
+  const referenceAssets = await readFile(join(skillRoot, "film-production/references/reference-assets.md"), "utf8")
   assert.match(skill, /^name: film-production$/m)
   assert.match(skill, /request -> creative intent -> shot decomposition -> ShotSpec\[\]/)
   assert.match(skill, /HyperFrames remains authoritative/i)
@@ -83,6 +84,10 @@ test("film-production is repository-owned and discoverable with focused referenc
   assert.match(routing, /Curated media model defaults/)
   assert.match(routing, /GPT Image 2 for ordinary\/value images.*GPT Image 2\.5 Sunburst for\s+premium\/hero\/key visuals/s)
   assert.match(routing, /Wan 3\.0 for ordinary\/balanced video.*MiniMax H3 for identity\/quality\s+video.*Seedance 2\.5 for complex\/multi-reference/s)
+  assert.match(skill, /reference_audio_asset_ids/)
+  assert.match(routing, /H3 still requires an image or video[\s\S]*reference/s)
+  assert.match(routing, /Seedance can use audio with visual references or as an audio-only[\s\S]*reference/s)
+  assert.match(referenceAssets, /ordinary manifest asset shape.*image and video.*MP3 or WAV/s)
   assert.match(skill, /curated generation controls described in\s+\[production-routing\]/s)
   assert.match(routing, /Curated generation controls/)
   assert.match(routing, /generate_audio: false/)
@@ -132,12 +137,37 @@ test("ShotSpec references use role-grouped arrays rather than a flat list", () =
     references: {
       subject: ["speaker_front", "speaker_three_quarter"],
       environment: ["dark_studio"],
+      audio: ["voice_reference"],
     },
   }))
   assert.throws(
     () => validateShotSpec({ ...shot, references: ["speaker_front", "dark_studio"] }),
     /ShotSpec\.references must be an object/,
   )
+})
+
+test("ProductionManifest accepts ordinary audio assets without changing the contract", () => {
+  const audioShot = {
+    ...shot,
+    references: {
+      subject: ["hornet_front"],
+      audio: ["voice_reference"],
+    },
+  }
+  const manifest = createProductionManifest({
+    project: "audio-reference-film",
+    shots: [audioShot],
+    assets: [{
+      asset_id: "voice_reference",
+      kind: "audio",
+      status: "ready",
+      path: "references/voice.mp3",
+      shot_ids: ["shot_03"],
+    }],
+    generation_jobs: [],
+  })
+  assert.equal(isProductionManifest(manifest), true)
+  assert.doesNotThrow(() => validateProductionManifest(manifest))
 })
 
 test("ProductionManifest validates one resumable state and its lifecycle", () => {

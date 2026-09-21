@@ -42,4 +42,6 @@ references:
     - dark_studio
   palette:
     - premium_cyan
+  audio:
+    - voice_reference
 ```

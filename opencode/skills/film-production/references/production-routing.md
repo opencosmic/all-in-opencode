@@ -44,3 +44,14 @@ omission when the authored prompt should remain tight. For Seedance, keep the
 default MP4 unless a downstream high-fidelity editing workflow benefits from
 MOV. Do not invent dimensions, WebP output, provider-only passthrough fields,
 or hardcoded prices, and do not auto-escalate a control.
+
+Audio references are conditioning inputs, passed as stable manifest IDs through
+`reference_audio_asset_ids`; they do not replace `generate_audio`. Wan and H3
+can use audio with visual references, while H3 still requires an image or video
+reference. Seedance can use audio with visual references or as an audio-only
+reference, and prompts may address ordered audio inputs as `@Audio1`, `@Audio2`
+when needed. These capabilities refine the selected model and do not change
+the routing defaults; Seedance is a natural choice when audio-only or complex
+audio/visual conditioning is required. In the conservative AIO subset, Wan
+allows up to 5 audio references within 20 total references, while H3 allows up
+to 3 audio references within its existing 9-total policy.

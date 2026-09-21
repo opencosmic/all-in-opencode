@@ -121,6 +121,8 @@ async function fixture({ manifestInProduction = false } = {}) {
   await mkdir(join(root, "references"), { recursive: true })
   await writeFile(join(root, "references", "speaker.png"), Buffer.from("png fixture"))
   await writeFile(join(root, "references", "previs.mp4"), Buffer.from("video fixture"))
+  await writeFile(join(root, "references", "voice.mp3"), Buffer.from("mp3 fixture"))
+  await writeFile(join(root, "references", "music.wav"), Buffer.from("wav fixture"))
   const manifest = createProductionManifest({
     project: "atlas-film",
     shots: [shot],
@@ -180,6 +182,34 @@ async function addManifestProviderReferences(manifestPath) {
         atlascloud: {
           provider_url: "https://atlas.example/uploads/previs.mp4",
           content_type: "video/mp4",
+        },
+      },
+    },
+    {
+      asset_id: "voice_reference",
+      kind: "audio",
+      status: "ready",
+      path: "references/voice.mp3",
+      shot_ids: ["shot_01"],
+      metadata: {
+        atlascloud: {
+          provider_url: "https://atlas.example/uploads/voice.mp3",
+          content_type: "audio/mpeg",
+          size_bytes: 1_024,
+        },
+      },
+    },
+    {
+      asset_id: "music_reference",
+      kind: "audio",
+      status: "ready",
+      path: "references/music.wav",
+      shot_ids: ["shot_01"],
+      metadata: {
+        atlascloud: {
+          provider_url: "https://atlas.example/uploads/music.wav",
+          content_type: "audio/wav",
+          size_bytes: 2_048,
         },
       },
     },
@@ -669,6 +699,7 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front", "speaker_side"],
       reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference", "music_reference"],
       duration_seconds: 30,
       resolution: "1080p-esr & 60fps",
       ratio: "21:9",
@@ -684,6 +715,10 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
         "https://atlas.example/uploads/side.png",
       ],
       reference_videos: ["https://atlas.example/uploads/previs.mp4"],
+      reference_audios: [
+        "https://atlas.example/uploads/voice.mp3",
+        "https://atlas.example/uploads/music.wav",
+      ],
       duration: 30,
       resolution: "1080p-esr & 60fps",
       ratio: "21:9",
@@ -696,6 +731,8 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       "speaker_front",
       "speaker_side",
       "previs_reference",
+      "voice_reference",
+      "music_reference",
     ])
     assert.equal(manifestAfterCalculate.generation_jobs[0].request_digest, calculated.request_digest)
     const calculateCountBeforeGeneration = client.calls.filter((call) => call.operation === "calculate").length
@@ -707,8 +744,9 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       model: ATLAS_SEEDANCE_2_5_MODEL,
       prompt: "The subject moves through the set",
       manifest_path: manifestRequestPath,
-      reference_image_asset_ids: ["speaker_side", "speaker_front"],
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
       reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["music_reference", "voice_reference"],
       duration_seconds: 30,
       resolution: "1080p-esr & 60fps",
       ratio: "21:9",
@@ -729,6 +767,28 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front", "speaker_side"],
       reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference"],
+      duration_seconds: 30,
+      resolution: "1080p-esr & 60fps",
+      ratio: "21:9",
+      generate_audio: false,
+      video_output_format: "mov",
+      approved_request_digest: calculated.request_digest,
+      approved_max_usd: 2,
+    }), /request_digest does not match the approved request/)
+    assert.equal(client.calls.filter((call) => call.operation === "calculate").length, calculateCountBeforeGeneration)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 0)
+
+    await assert.rejects(runtime.media_generate_video({
+      job_id: calculated.job_id,
+      shot_id: "shot_01",
+      media_type: "video",
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "The subject moves through the set",
+      manifest_path: manifestRequestPath,
+      reference_image_asset_ids: ["speaker_front", "speaker_side"],
+      reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference", "music_reference"],
       duration_seconds: 30,
       resolution: "1440p-esr",
       ratio: "21:9",
@@ -749,6 +809,7 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front", "speaker_side"],
       reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference", "music_reference"],
       duration_seconds: 30,
       resolution: "1080p-esr & 60fps",
       ratio: "21:9",
@@ -769,6 +830,7 @@ test("Seedance 2.5 preserves manifest-authorized reference order and fixed task 
       manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front", "speaker_side"],
       reference_video_asset_ids: ["previs_reference"],
+      reference_audio_asset_ids: ["voice_reference", "music_reference"],
       duration_seconds: 30,
       resolution: "1080p-esr & 60fps",
       ratio: "21:9",
@@ -817,8 +879,8 @@ test("invalid Seedance 2.5 references and controls are rejected before Atlas cal
       prompt: "A scene",
       manifest_path: manifestRequestPath,
       reference_image_asset_ids: ["speaker_front"],
-      reference_audio_asset_ids: ["audio_ref"],
-    }), /reference_audio_asset_ids is not supported by the AIO media-generation contract/)
+      reference_audios: ["https://atlas.example/audio.mp3"],
+    }), /reference_audios is not supported by the AIO media-generation contract/)
     assert.equal(client.calls.filter((call) => call.operation === "calculate").length, 0)
   } finally {
     await cleanup(root)
@@ -1088,6 +1150,80 @@ test("media_upload requires a manifest asset and rejects arbitrary or mismatched
     })
     assert.equal(matching.status, "uploaded")
     assert.equal(client.calls.filter((call) => call.operation === "uploadMedia").length, 1)
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("media_upload accepts manifest-bound MP3 and WAV audio assets", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    await addManifestProviderReferences(manifestPath)
+    const client = fakeClient({ uploadURL: "https://atlas.example/uploads/audio-reference" })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const mp3 = await runtime.media_upload({
+      asset_id: "voice_reference",
+      manifest_path: manifestRequestPath,
+      media_type: "audio",
+    })
+    const wav = await runtime.media_upload({
+      asset_id: "music_reference",
+      path: "references/music.wav",
+      manifest_path: manifestRequestPath,
+      media_type: "audio",
+    })
+    assert.equal(mp3.content_type, "audio/mpeg")
+    assert.equal(wav.content_type, "audio/wav")
+    assert.equal(mp3.size_bytes, Buffer.byteLength("mp3 fixture"))
+    assert.equal(wav.size_bytes, Buffer.byteLength("wav fixture"))
+    const uploadedFiles = client.calls
+      .filter((call) => call.operation === "uploadMedia")
+      .map((call) => call.formData.get("file"))
+    assert.deepEqual(uploadedFiles.map((file) => [file.name, file.type]), [
+      ["voice.mp3", "audio/mpeg"],
+      ["music.wav", "audio/wav"],
+    ])
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.equal(manifest.assets.find((asset) => asset.asset_id === "voice_reference").metadata.atlascloud.content_type, "audio/mpeg")
+    assert.equal(manifest.assets.find((asset) => asset.asset_id === "music_reference").metadata.atlascloud.content_type, "audio/wav")
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("media_upload rejects mismatched manifest audio kinds and unsupported audio files before upload", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    await writeFile(join(root, "references", "unsupported.flac"), Buffer.from("flac fixture"))
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    manifest.assets.push(
+      {
+        asset_id: "misdeclared_image",
+        kind: "image",
+        status: "ready",
+        path: "references/voice.mp3",
+        shot_ids: ["shot_01"],
+      },
+      {
+        asset_id: "unsupported_audio",
+        kind: "audio",
+        status: "ready",
+        path: "references/unsupported.flac",
+        shot_ids: ["shot_01"],
+      },
+    )
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+    const client = fakeClient()
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    await assert.rejects(
+      runtime.media_upload({ asset_id: "misdeclared_image", manifest_path: manifestRequestPath, media_type: "audio" }),
+      /kind image does not match its media format/,
+    )
+    await assert.rejects(
+      runtime.media_upload({ asset_id: "unsupported_audio", manifest_path: manifestRequestPath, media_type: "audio" }),
+      /path must identify a supported image, video, or audio file/,
+    )
+    assert.equal(client.calls.filter((call) => call.operation === "uploadMedia").length, 0)
   } finally {
     await cleanup(root)
   }

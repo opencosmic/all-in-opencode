@@ -147,6 +147,14 @@ prompts that need enrichment, and Seedance `video_output_format: mov` only
 when the downstream edit benefits from it. Preserve explicit controls, leave
 omitted controls absent, and never auto-escalate or hardcode media prices.
 
+Audio reference IDs are conditioning inputs, not generated audio: keep them as
+stable manifest asset IDs in `reference_audio_asset_ids` and leave
+`generate_audio` independent. Wan and H3 may combine audio with image/video
+references, but H3 still needs a visual reference. Seedance supports combined
+audio/visual references and audio-only references; use explicit `@Audio1` or
+`@Audio2` labels only when the authored prompt needs to address ordered audio
+inputs. This refines the selected route and does not create a new routing tier.
+
 Keep structured state in `ShotSpec` and `ProductionManifest`, not only prose.
 The runtime enforces request and cost integrity, while human approval remains
 an orchestration invariant unless OpenCode supplies a native approval proof.

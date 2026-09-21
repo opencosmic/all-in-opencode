@@ -196,6 +196,19 @@ test("GPT Image 2 rejects video references and unexposed provider fields instead
   )
 })
 
+test("all image models reject audio references", async () => {
+  for (const model of [ATLAS_IMAGE_MODEL, ATLAS_GPT_IMAGE_MODEL, ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL]) {
+    await assert.rejects(
+      buildAtlasMediaRequest("image", {
+        model,
+        prompt: "An image workflow",
+        reference_audio_asset_ids: ["voice_reference"],
+      }),
+      /reference_audio_asset_ids is not supported for image generation/,
+    )
+  }
+})
+
 test("GPT Image 2.5 Sunburst uses the exact model ID and provider defaults", async () => {
   const request = await buildAtlasMediaRequest("image", {
     model: ATLAS_GPT_IMAGE_2_5_SUNBURST_MODEL,
@@ -557,7 +570,7 @@ test("MiniMax H3 rejects aggregate reference overflow within the per-type limits
   assert.equal(resolutions, 0)
 })
 
-test("MiniMax H3 rejects audio references and unsupported provider fields", async () => {
+test("MiniMax H3 rejects audio-only references and mismatched media kinds", async () => {
   await assert.rejects(
     buildAtlasMediaRequest("video", {
       model: ATLAS_MINIMAX_H3_MODEL,
@@ -566,7 +579,7 @@ test("MiniMax H3 rejects audio references and unsupported provider fields", asyn
       resolution: "2k",
       duration_seconds: 8,
     }, referenceResolver({})),
-    /reference_audio_asset_ids is not supported by the AIO media-generation contract/,
+    /requires at least one image or video reference/,
   )
   await assert.rejects(
     buildAtlasMediaRequest("video", {
@@ -579,6 +592,92 @@ test("MiniMax H3 rejects audio references and unsupported provider fields", asyn
       audio: { url: "https://atlas.example/beat.mp3", type: "audio", mime_type: "audio/mpeg" },
     })),
     /must resolve to a image for MiniMax H3 refers/,
+  )
+})
+
+test("MiniMax H3 maps mixed image, video, and audio references in caller order", async () => {
+  const request = await buildAtlasMediaRequest("video", {
+    model: ATLAS_MINIMAX_H3_MODEL,
+    prompt: "The subject follows the voice cue",
+    reference_image_asset_ids: ["subject"],
+    reference_video_asset_ids: ["movement"],
+    reference_audio_asset_ids: ["voice", "rhythm"],
+    resolution: "2k",
+    duration_seconds: 8,
+  }, referenceResolver({
+    subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+    movement: { url: "https://atlas.example/movement.mp4", type: "video", mime_type: "video/mp4" },
+    voice: { url: "https://atlas.example/voice.mp3", type: "audio", mime_type: "audio/mpeg" },
+    rhythm: { url: "https://atlas.example/rhythm.wav", type: "audio", mime_type: "audio/x-wav" },
+  }))
+
+  assert.deepEqual(request.body.refers, [
+    { url: "https://atlas.example/subject.png", type: "image" },
+    { url: "https://atlas.example/movement.mp4", type: "video" },
+    { url: "https://atlas.example/voice.mp3", type: "audio" },
+    { url: "https://atlas.example/rhythm.wav", type: "audio" },
+  ])
+  assert.deepEqual(request.inputAssetIds, ["subject", "movement", "voice", "rhythm"])
+})
+
+test("MiniMax H3 enforces the conservative audio and aggregate reference boundaries", async () => {
+  const audioIDs = ["audio_0", "audio_1", "audio_2"]
+  const references = Object.fromEntries(audioIDs.map((assetID) => [assetID, {
+    url: `https://atlas.example/${assetID}.mp3`,
+    type: "audio",
+    mime_type: "audio/mpeg",
+  }]))
+  const valid = await buildAtlasMediaRequest("video", {
+    model: ATLAS_MINIMAX_H3_MODEL,
+    prompt: "A visual anchor with three audio cues",
+    reference_image_asset_ids: ["subject"],
+    reference_audio_asset_ids: audioIDs,
+    resolution: "2k",
+    duration_seconds: 8,
+  }, referenceResolver({
+    subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+    ...references,
+  }))
+  assert.equal(valid.body.refers.length, 4)
+
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "Too many audio cues",
+      reference_image_asset_ids: ["subject"],
+      reference_audio_asset_ids: [...audioIDs, "audio_3"],
+      resolution: "2k",
+      duration_seconds: 8,
+    }, referenceResolver({})),
+    /reference_audio_asset_ids must contain at most 3 asset IDs/,
+  )
+
+  const images = Array.from({ length: 7 }, (_, index) => `image_${index}`)
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "Too many total references",
+      reference_image_asset_ids: images,
+      reference_audio_asset_ids: audioIDs,
+      resolution: "2k",
+      duration_seconds: 8,
+    }, referenceResolver({})),
+    /MiniMax H3 supports at most 9 total references in the current AIO subset/,
+  )
+
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_MINIMAX_H3_MODEL,
+      prompt: "Unsupported audio format",
+      reference_image_asset_ids: ["subject"],
+      reference_audio_asset_ids: ["bad_audio"],
+      resolution: "2k",
+      duration_seconds: 8,
+    }, referenceResolver({
+      subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+      bad_audio: { url: "https://atlas.example/bad.ogg", type: "audio", mime_type: "audio/ogg" },
+    })),
+    /unsupported MiniMax H3 audio format/,
   )
 })
 
@@ -695,6 +794,96 @@ test("Seedance 2.5 maps ordered image and video references to exact provider fie
     omni_reference_task_type: "reference",
   })
   assert.deepEqual(request.inputAssetIds, ["image_b", "image_a", "video_b", "video_a"])
+})
+
+test("Seedance 2.5 maps ordered audio references to reference_audios and supports audio-only", async () => {
+  const mixed = await buildAtlasMediaRequest("video", {
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    prompt: "The subject follows the voice and rhythm",
+    reference_image_asset_ids: ["subject"],
+    reference_audio_asset_ids: ["voice", "music"],
+    generate_audio: false,
+  }, referenceResolver({
+    subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+    voice: { url: "https://atlas.example/voice.mp3", type: "audio", mime_type: "audio/mpeg", size_bytes: 1_024 },
+    music: { url: "https://atlas.example/music.wav", type: "audio", mime_type: "audio/wav", size_bytes: 2_048 },
+  }))
+  assert.deepEqual(mixed.body.reference_audios, [
+    "https://atlas.example/voice.mp3",
+    "https://atlas.example/music.wav",
+  ])
+  assert.equal(mixed.body.generate_audio, false)
+  assert.equal(mixed.body.omni_reference_task_type, "reference")
+  assert.deepEqual(mixed.inputAssetIds, ["subject", "voice", "music"])
+
+  const audioOnly = await buildAtlasMediaRequest("video", {
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    prompt: "A visual sequence paced by this music",
+    reference_audio_asset_ids: ["music"],
+  }, referenceResolver({
+    music: { url: "https://atlas.example/music.wav", type: "audio", mime_type: "audio/wav" },
+  }))
+  assert.deepEqual(audioOnly.body.reference_audios, ["https://atlas.example/music.wav"])
+  assert.equal(audioOnly.body.reference_images, undefined)
+  assert.equal(audioOnly.body.reference_videos, undefined)
+  assert.equal(audioOnly.body.omni_reference_task_type, "reference")
+})
+
+test("Seedance 2.5 enforces audio count, format, and size boundaries", async () => {
+  const audioIDs = Array.from({ length: 10 }, (_, index) => `audio_${index}`)
+  const references = Object.fromEntries(audioIDs.map((assetID) => [assetID, {
+    url: `https://atlas.example/${assetID}.mp3`,
+    type: "audio",
+    mime_type: "audio/mpeg",
+    size_bytes: 15 * 1024 * 1024,
+  }]))
+  const valid = await buildAtlasMediaRequest("video", {
+    model: ATLAS_SEEDANCE_2_5_MODEL,
+    prompt: "Ten ordered audio references",
+    reference_audio_asset_ids: audioIDs,
+  }, referenceResolver(references))
+  assert.equal(valid.body.reference_audios.length, 10)
+  assert.deepEqual(valid.inputAssetIds, audioIDs)
+
+  let resolutions = 0
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "Too many audio references",
+      reference_audio_asset_ids: [...audioIDs, "audio_overflow"],
+    }, async () => {
+      resolutions += 1
+      return references.audio_0
+    }),
+    /reference_audio_asset_ids must contain at most 10 asset IDs/,
+  )
+  assert.equal(resolutions, 0)
+
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "Unsupported audio format",
+      reference_audio_asset_ids: ["bad_audio"],
+    }, referenceResolver({
+      bad_audio: { url: "https://atlas.example/bad.ogg", type: "audio", mime_type: "audio/ogg" },
+    })),
+    /unsupported Seedance 2.5 audio format/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_SEEDANCE_2_5_MODEL,
+      prompt: "Audio file is too large",
+      reference_audio_asset_ids: ["large_audio"],
+    }, referenceResolver({
+      large_audio: {
+        url: "https://atlas.example/large.mp3",
+        type: "audio",
+        mime_type: "audio/mpeg",
+        size_bytes: 15 * 1024 * 1024 + 1,
+      },
+    })),
+    /exceeds the Seedance 2.5 audio size limit/,
+  )
 })
 
 test("Seedance 2.5 accepts the official per-type reference boundaries and rejects overflow before resolving", async () => {
@@ -884,7 +1073,6 @@ test("Seedance 2.5 validates manifest media kinds and documented reference forma
 
 test("Seedance 2.5 rejects audio, raw provider references, and edit or extension controls", async () => {
   for (const [field, value, message] of [
-    ["reference_audio_asset_ids", ["audio"], /reference_audio_asset_ids is not supported by the AIO media-generation contract/],
     ["reference_audios", ["https://atlas.example/audio.mp3"], /reference_audios is not supported by the AIO media-generation contract/],
     ["reference_images", ["https://atlas.example/reference.png"], /reference_images is not supported by the AIO media-generation contract/],
     ["reference_videos", ["https://atlas.example/reference.mp4"], /reference_videos is not supported by the AIO media-generation contract/],
@@ -927,6 +1115,7 @@ test("Wan 3.0 maps AIO image and video assets to typed refers entries", async ()
     prompt: "Keep the subject identity while walking through the set",
     reference_image_asset_ids: ["subject_front", "subject_side"],
     reference_video_asset_ids: ["movement_reference"],
+    reference_audio_asset_ids: ["voice_reference", "rhythm_reference"],
     duration_seconds: -1,
     resolution: "1080p-esr",
     ratio: "adaptive",
@@ -936,6 +1125,8 @@ test("Wan 3.0 maps AIO image and video assets to typed refers entries", async ()
     subject_front: { url: "https://atlas.example/front.png", type: "image", mime_type: "image/png" },
     subject_side: { url: "https://atlas.example/side.webp", type: "image", mime_type: "image/webp" },
     movement_reference: { url: "https://atlas.example/movement.mov", type: "video", mime_type: "video/quicktime" },
+    voice_reference: { url: "https://atlas.example/voice.mp3", type: "audio", mime_type: "audio/mpeg" },
+    rhythm_reference: { url: "https://atlas.example/rhythm.wav", type: "audio", mime_type: "audio/x-wav" },
   }))
 
   assert.deepEqual(request, {
@@ -943,9 +1134,11 @@ test("Wan 3.0 maps AIO image and video assets to typed refers entries", async ()
       model: ATLAS_WAN_MODEL,
       prompt: "Keep the subject identity while walking through the set",
       refers: [
-        { url: "https://atlas.example/front.png", type: "image" },
-        { url: "https://atlas.example/side.webp", type: "image" },
-        { url: "https://atlas.example/movement.mov", type: "video" },
+      { url: "https://atlas.example/front.png", type: "image" },
+      { url: "https://atlas.example/side.webp", type: "image" },
+      { url: "https://atlas.example/movement.mov", type: "video" },
+      { url: "https://atlas.example/voice.mp3", type: "audio" },
+      { url: "https://atlas.example/rhythm.wav", type: "audio" },
       ],
       resolution: "1080p-esr",
       duration: -1,
@@ -953,8 +1146,69 @@ test("Wan 3.0 maps AIO image and video assets to typed refers entries", async ()
       audio: false,
       seed: -1,
     },
-    inputAssetIds: ["subject_front", "subject_side", "movement_reference"],
+    inputAssetIds: ["subject_front", "subject_side", "movement_reference", "voice_reference", "rhythm_reference"],
   })
+})
+
+test("Wan 3.0 enforces audio limits, supported formats, and the verified visual boundary", async () => {
+  const audioIDs = ["audio_0", "audio_1", "audio_2", "audio_3", "audio_4"]
+  const references = Object.fromEntries(audioIDs.map((assetID) => [assetID, {
+    url: `https://atlas.example/${assetID}.mp3`,
+    type: "audio",
+    mime_type: "audio/mpeg",
+  }]))
+  const valid = await buildAtlasMediaRequest("video", {
+    model: ATLAS_WAN_MODEL,
+    prompt: "Visual subject with five audio cues",
+    reference_image_asset_ids: ["subject"],
+    reference_audio_asset_ids: audioIDs,
+    generate_audio: false,
+  }, referenceResolver({
+    subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+    ...references,
+  }))
+  assert.equal(valid.body.refers.length, 6)
+  assert.equal(valid.body.audio, false)
+  assert.deepEqual(valid.inputAssetIds, ["subject", ...audioIDs])
+
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_WAN_MODEL,
+      prompt: "Too many audio references",
+      reference_image_asset_ids: ["subject"],
+      reference_audio_asset_ids: [...audioIDs, "audio_overflow"],
+    }, referenceResolver({})),
+    /reference_audio_asset_ids must contain at most 5 asset IDs/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_WAN_MODEL,
+      prompt: "Too many total references",
+      reference_image_asset_ids: Array.from({ length: 16 }, (_, index) => `image_${index}`),
+      reference_audio_asset_ids: audioIDs,
+    }, referenceResolver({})),
+    /references must contain at most 20 asset IDs/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_WAN_MODEL,
+      prompt: "Audio-only references remain outside the ambiguous Wan contract",
+      reference_audio_asset_ids: ["audio_0"],
+    }, referenceResolver(references)),
+    /requires at least one image or video reference when audio references are provided/,
+  )
+  await assert.rejects(
+    buildAtlasMediaRequest("video", {
+      model: ATLAS_WAN_MODEL,
+      prompt: "Unsupported audio format",
+      reference_image_asset_ids: ["subject"],
+      reference_audio_asset_ids: ["bad_audio"],
+    }, referenceResolver({
+      subject: { url: "https://atlas.example/subject.png", type: "image", mime_type: "image/png" },
+      bad_audio: { url: "https://atlas.example/bad.flac", type: "audio", mime_type: "audio/flac" },
+    })),
+    /unsupported Wan audio format/,
+  )
 })
 
 test("Wan 3.0 accepts the exact resolution set and normalized audio and seed controls", async () => {
