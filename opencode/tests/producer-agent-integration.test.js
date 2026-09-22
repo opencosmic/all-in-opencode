@@ -30,8 +30,9 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   for (const tool of ["task_status", "task_output", "task_cancel"]) {
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"), tool)
   }
-  assert.match(producer, /bounded supporting capabilities.*AIO delegation policy/s)
-  assert.match(producer, /`media` family.*`video-analysis` and `media-generation`.*Producer-only `blender-previs` implementation category/s)
+  assert.match(producer, /Producer owns production lifecycle, state, phase assignment, budget/i)
+  assert.match(producer, /transitional\s+capabilities/i)
+  assert.match(producer, /Producer may delegate these three named phase owners/i)
   assert.match(producer, /delegate_task\(category="blender-previs"\)/)
   assert.match(producer, /explicit artifact destinations inside the active\s+production\s+workspace[\s\S]*`production\/previs\/<shot-or-group>\/`/i)
   assert.match(producer, /`\.blend` source destination/i)
@@ -66,8 +67,8 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /an MP4's non-empty\s+size is preliminary until Watch can decode and review it/i)
   assert.match(producer, /delegate_task\(category="video-analysis", load_skills=\["watch"\]\)/)
   assert.match(producer, /Only after a PASS should Producer finalize generation instructions.*`media-generation`/s)
-  assert.match(producer, /delegate_task\(agent="Blender"\).*for `\/film` previs/s)
-  assert.match(producer, /named route remains\s+for general-purpose or explicitly technical Blender work outside this path/s)
+  assert.match(producer, /Do not use\s+`delegate_task\(agent="Blender"\)` for video production/s)
+  assert.match(producer, /Producer may not delegate\s+named Blender/i)
   assert.match(producer, /If the category or review\s+delegation is unavailable, stop and surface the delegation\/tooling problem/s)
   assert.doesNotMatch(producer, /For every Blender-native task.*delegate_task\(agent="Blender"\)/s)
   for (const forbiddenFallback of [

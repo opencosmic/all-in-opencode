@@ -7,14 +7,17 @@ Choose the owner by the problem the shot presents:
 | motion graphics, UI, typography, captions, timing, transitions, or audio assembly | HyperFrames during the composition stage |
 | generated image or footage execution | `media-generation` through the bounded Implementer runtime |
 | lightweight camera, blocking, staging, lens, spatial relationships, motion, or rough preview for `/film` | `blender-previs` through the shared Implementer |
-| general-purpose Blender work or an exact technical 3D render explicitly required | existing `Blender` specialist |
+| standalone general-purpose Blender work outside video production | `/blender` or Executor's named `Blender` specialist |
 | visual or spoken QA of a shot, rough cut, or final | `video-analysis` with the existing Watch skill |
 
-`Producer` owns orchestration and the manifest. `blender-previs` is the single
-narrow category for `/film` previs; do not create another director, media
-agent, Blender abstraction, or `video-production` category. For `/film`, film
-planning comes before HyperFrames; HyperFrames is the later composition/render
-owner, not a duplicate planning control plane.
+`Producer` owns orchestration, the manifest, budget, and approvals. `Director`
+owns creative intent and ShotSpecs, `Creator` owns generation strategy, and
+`Editor` owns post-production. `blender-previs` is the single narrow category
+for `/film` previs. Producer temporarily calls it directly until the Director
+workflow migrates. Named Blender is not a video-production fallback. For
+`/film`, film planning comes before HyperFrames; the official upstream
+HyperFrames workflow belongs directly to Editor after M5. No composition
+category or separate HyperFrames agent is part of this graph.
 
 ## Previs and review order
 

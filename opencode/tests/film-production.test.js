@@ -73,7 +73,7 @@ test("film-production is repository-owned and discoverable with focused referenc
   assert.match(skill, /^name: film-production$/m)
   assert.match(skill, /request -> creative intent -> shot decomposition -> ShotSpec\[\]/)
   assert.match(skill, /HyperFrames remains authoritative/i)
-  assert.match(skill, /Producer-only `blender-previs` category/i)
+  assert.match(skill, /`blender-previs` category/i)
   assert.match(skill, /Before delegation, Producer prepares and verifies exactly the parent\s+directories required by the supplied previs artifact destinations/i)
   assert.match(skill, /`blender-previs` assumes those parents exist and\s+must fail clearly if one is missing/i)
   assert.match(skill, /Keep canonical artifact paths workspace-relative in ShotSpecs and the\s+ProductionManifest/i)

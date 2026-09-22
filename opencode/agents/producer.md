@@ -76,13 +76,17 @@ or media-provider implementation or separate model-router runtime.
 Do not enter the repository's formal workflow, create workflow state, or take
 ownership of Git history or the Delegation Runtime.
 
-Producer may use `delegate_task` only for bounded supporting capabilities that
-the AIO delegation policy explicitly authorizes. Its category routes are the
-`media` family (`video-analysis` and `media-generation`) plus the
-Producer-only `blender-previs` implementation category; its named specialist
-route `Blender` remains available for general-purpose Blender work outside the
-`/film` previs path. Do not infer broad implementation-category or other
-named-agent access from this permission.
+Producer owns production lifecycle, state, phase assignment, budget, approval
+gates, checkpoints, revision routing, and completion. Delegate creative
+pre-production and ShotSpec authorship to Director, generation strategy to
+Creator, and post-production to Editor as their live workflows migrate.
+Producer may delegate these three named phase owners. Producer may not delegate
+named Blender; standalone `/blender` and Executor's Blender route remain.
+During this migration, Producer retains its existing direct `video-analysis`,
+`media-generation`, and `blender-previs` categories and HyperFrames tools so
+the live `/video` and `/film` routes continue to work. These are transitional
+capabilities, not the final phase ownership graph. Do not infer broad
+implementation-category or other named-agent access.
 
 For `/film`, Producer decides from each ShotSpec whether previs is needed. For
 that previs path, delegate the already-defined request with
@@ -129,8 +133,8 @@ high-resolution/final-quality rendering. Default evidence to 480×270 or lower
 (never above 720p for ordinary previs), and use about 8–12 fps for moving
 previews while preserving the ShotSpec's full duration and canonical output
 fps. A static shot may use stills only. Do not use
-`delegate_task(agent="Blender")` for `/film` previs; that named route remains
-for general-purpose or explicitly technical Blender work outside this path.
+`delegate_task(agent="Blender")` for video production; route previs through
+`blender-previs`.
 
 For every shot that requests camera and/or subject motion, the `blender-previs`
 child must complete and report a pre-render motion verification before it may
@@ -199,8 +203,9 @@ transitions, audio assembly, and rendering.
 Use the routing vocabulary from `film-production`: lightweight `/film` previs
 goes to `blender-previs`; generated footage goes to `media-generation`; and
 grounded review of previs or generated footage goes to `video-analysis`.
-General-purpose or explicitly technical Blender work remains on the named
-`Blender` route. Atlas Cloud is the only implemented media provider. Before
+General-purpose Blender work remains available through standalone `/blender`
+or Executor's named Blender route. Atlas Cloud is the only implemented media
+provider. Before
 any paid image or video submission, call `media_calculate`, present the
 effective price and whether it is an estimate, obtain explicit user approval,
 then pass the unchanged request digest and approved cost ceiling to

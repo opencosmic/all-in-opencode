@@ -20,16 +20,20 @@ request -> creative intent -> shot decomposition -> ShotSpec[]
 Use the references in this skill for shotcraft, contracts, routing, assets,
 and revision decisions. HyperFrames remains authoritative once composition
 starts: it owns motion graphics, typography, captions, transitions, audio
-assembly, and rendering. The Producer-only `blender-previs` category is the
-lightweight spatial/camera/timing Implementer; the named `Blender` route remains
-available for general-purpose or explicitly technical Blender work. The
+assembly, and rendering. Director owns creative intent and ShotSpec authorship;
+Creator owns generation strategy; Editor will own post-production through the
+official HyperFrames workflow after live migration. Producer owns orchestration,
+state, budget, and user approval. The `blender-previs` category is the
+lightweight spatial/camera/timing Implementer available to Director and,
+temporarily, Producer. Named Blender is outside the video-production graph. The
 `media-generation` category is the bounded provider-neutral Implementer route;
 `video-analysis`/Watch supplies grounded visual QA.
 
 ## Previs before paid generation
 
-When a ShotSpec has `control.previs: required` or `recommended`, Producer sends
-the already-defined request to `delegate_task(category="blender-previs")`.
+Until Director's live workflow migrates, Producer sends an already-defined
+ShotSpec with `control.previs: required` or `recommended` to
+`delegate_task(category="blender-previs")`.
 Before delegation, Producer prepares and verifies exactly the parent
 directories required by the supplied previs artifact destinations inside the
 active production workspace. `blender-previs` assumes those parents exist and

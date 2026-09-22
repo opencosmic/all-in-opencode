@@ -609,19 +609,17 @@ test("Executor can route Blender plus every declared review and verification han
   assert.deepEqual(client.state.prompts.map((call) => call.body.agent), agents)
 })
 
-test("Producer can route Blender while Blender cannot route a category", async (t) => {
+test("Producer cannot route Blender while Blender remains a leaf", async (t) => {
   const { client, runtime, context } = await fixture(t)
   const producer = { ...context, sessionID: "producer", messageID: "producer-turn", agent: "Producer" }
 
-  const result = await runtime.delegate({
+  await assert.rejects(runtime.delegate({
     agent: "Blender",
     description: "Producer previs handoff",
     prompt: "Block the shot and validate camera timing.",
     run_in_background: true,
-  }, producer)
-
-  assert.equal(runtime.registry.get(result.task_id).agent, "Blender")
-  assert.equal(client.state.prompts[0].body.agent, "Blender")
+  }, producer), /cannot delegate named agent Blender/)
+  assert.equal(client.state.prompts.length, 0)
   await assert.rejects(runtime.delegate({
     category: "test",
     description: "Blender must remain a leaf",
@@ -629,6 +627,47 @@ test("Producer can route Blender while Blender cannot route a category", async (
     run_in_background: true,
   }, { ...context, sessionID: "blender", messageID: "blender-turn", agent: "Blender" }),
   /Blender may only delegate its allowlisted named agents; category routes are not allowed/)
+})
+
+test("delegated phase owners retain delegate_task and route only their bounded categories", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  runtime.skills = new SkillResolver({ entries: [{
+    name: "watch",
+    description: "Watch video evidence",
+    path: "/Users/example/.agents/skills/watch/SKILL.md",
+    content: "WATCH SKILL CONTENT",
+  }] })
+  const producer = { ...context, agent: "Producer", sessionID: "producer", messageID: "producer-turn" }
+  const phases = {
+    Director: ["blender-previs", "video-analysis"],
+    Creator: ["media-generation", "video-analysis"],
+    Editor: ["video-analysis"],
+  }
+  for (const [agent, categories] of Object.entries(phases)) {
+    const launched = await runtime.delegate({
+      agent,
+      description: `${agent} phase`,
+      prompt: "Own this phase",
+      run_in_background: true,
+    }, producer)
+    const childID = runtime.registry.get(launched.task_id).child_session_id
+    const launch = client.state.prompts.at(-1)
+    assert.equal(launch.body.agent, agent)
+    assert.equal(launch.body.tools.delegate_task, true)
+    assert.equal(launch.body.tools.workspace_prepare, false)
+    for (const category of categories) {
+      const result = await runtime.delegate({
+        category,
+        ...(category === "video-analysis" ? { load_skills: ["watch"] } : {}),
+        description: `${agent} ${category}`,
+        prompt: "Inspect bounded evidence",
+        run_in_background: true,
+      }, { ...context, agent, sessionID: childID, messageID: `${agent}-${category}` })
+      assert.equal(runtime.registry.get(result.task_id).category, category)
+      assert.equal(client.state.prompts.at(-1).body.agent, "Implementer")
+      if (category === "video-analysis") assert.match(client.state.prompts.at(-1).body.system, /WATCH SKILL CONTENT/)
+    }
+  }
 })
 
 test("configured model failure is surfaced without fallback", async (t) => {

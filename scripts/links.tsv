@@ -1,6 +1,9 @@
 # repository source|live path relative to $HOME|kind
 opencode/agents/assistant.md|.config/opencode/agents/assistant.md|file
 opencode/agents/blender.md|.config/opencode/agents/blender.md|file
+opencode/agents/creator.md|.config/opencode/agents/creator.md|file
+opencode/agents/director.md|.config/opencode/agents/director.md|file
+opencode/agents/editor.md|.config/opencode/agents/editor.md|file
 opencode/agents/browser.md|.config/opencode/agents/browser.md|file
 opencode/agents/executor.md|.config/opencode/agents/executor.md|file
 opencode/agents/explorer.md|.config/opencode/agents/explorer.md|file

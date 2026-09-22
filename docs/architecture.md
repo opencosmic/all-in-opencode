@@ -33,7 +33,7 @@ OpenCode owns model, variant, tool, permission, and session execution. Git owns 
 
 ## Delegation boundary
 
-`delegate_task` requires exactly one category or named specialist. Categories route to the reusable Implementer. The public OpenCode effective-agent list is the existence boundary. Built-in read-only specialists are Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, QA, and Verifier; the policy module preserves their workflow-specific parent ceilings, with Verifier reserved for Executor's fresh shipping-verification handoff. The category ceilings are role-specific: Assistant remains broad except for hard caller-exclusive categories, Executor may delegate only categories in family `implementation`, and Producer may delegate only categories in family `media` plus the explicit Producer-only `blender-previs` category. The built-in named-agent ceiling also allows only `Executor -> Blender` and general-purpose `Producer -> Blender` for the reusable 3D leaf. A custom caller must have an `aio.json.delegation` entry. A custom target must be discovered, configured under `aio.json.agents` with `delegatable: true`, and listed by its caller. Unknown names fail closed, and Strategist/Planner/Blender category routes are rejected by the runtime. `consult_agents` is a separate, runtime-guarded facade available only to `Implementer`; it accepts one to four concurrent requests targeting exactly `Explorer` or `Librarian`, carries no skills or category, and reuses the same child-session/task lifecycle for bounded information gathering. It never delegates implementation ownership.
+`delegate_task` requires exactly one category or named specialist. Categories route to the reusable Implementer. The public OpenCode effective-agent list is the existence boundary. Built-in read-only specialists are Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, QA, and Verifier; the policy module preserves their workflow-specific parent ceilings, with Verifier reserved for Executor's fresh shipping-verification handoff. The category ceilings are role-specific: Assistant remains broad except for hard caller-exclusive categories, Executor may delegate only categories in family `implementation`, and Producer may delegate only categories in family `media` plus the explicit transitional `blender-previs` category. Director is limited to `blender-previs` and `video-analysis`, Creator to `media-generation` and `video-analysis`, and Editor to `video-analysis`. Producer alone delegates these phase owners; the named Blender route remains only `Executor -> Blender`. A custom caller must have an `aio.json.delegation` entry. A custom target must be discovered, configured under `aio.json.agents` with `delegatable: true`, and listed by its caller. Unknown names fail closed, and Strategist/Planner/Blender category routes are rejected by the runtime. `consult_agents` is a separate, runtime-guarded facade available only to `Implementer`; it accepts one to four concurrent requests targeting exactly `Explorer` or `Librarian`, carries no skills or category, and reuses the same child-session/task lifecycle for bounded information gathering. It never delegates implementation ownership.
 
 The nine runtime tools are `execution_preflight`, `workspace_prepare`, `workspace_checkpoint_update`, `delegate_task`, `consult_agents`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces. `execution_preflight` is read-only and Executor-only; it reconciles the logical change with current repository, workspace, task, dependency, source-overlap, contention, checkpoint, and verification facts before topology or delegation. `workspace_checkpoint_update` is a bounded local metadata write: Executor may update a provenance-validated workspace, while an Implementer may update only its own active task/workspace session.
 
@@ -119,11 +119,20 @@ The dedicated `/video` route launches the `Producer` primary agent. Producer loa
 User -> /video -> Producer -> /hyperframes -> selected workflow/domain skills -> HyperFrames CLI/project artifacts
 ```
 
-Producer can edit and write active-project artifacts, ask the user at upstream interaction gates, and run the normal `npx hyperframes ...` path. It is denied access to protected `.env`-style files, Git history mutation, broad workflow-runtime ownership, and unrelated global skills. Its category delegation is capped at family `media`, currently `video-analysis` and `media-generation`, plus the Producer-only `blender-previs` category; its named-agent route to `Blender` remains separate for general-purpose or explicitly technical Blender work. Assistant may delegate media categories through its broad category role, but it cannot use `blender-previs` and does not become the `/film` workflow owner. External skill directories remain approval-gated because the official installer may place them under different supported global roots.
+Producer can edit and write active-project artifacts, ask the user at upstream interaction gates, and run the normal `npx hyperframes ...` path. It is denied access to protected `.env`-style files, Git history mutation, broad workflow-runtime ownership, and unrelated global skills. Its category delegation is capped at family `media`, currently `video-analysis` and `media-generation`, plus transitional `blender-previs`; Producer delegates Director, Creator, and Editor. Named Blender is denied to Producer. Assistant may delegate media categories through its broad category role, but it cannot use `blender-previs` and does not become the `/film` workflow owner. External skill directories remain approval-gated because the official installer may place them under different supported global roots.
 
 Current OpenCode exposes native `task` as a broad flat permission rather than a target-scoped frame-worker channel. Producer therefore keeps native `task` disabled, uses `delegate_task` only for policy-authorized bounded support, and may inspect or cancel only AIO children it created through the public task controls; those controls never manage HyperFrames workers. HyperFrames workers still follow the documented serial fallback when no suitable channel is available. No HyperFrames-specific scheduler, worker pool, or CategoryEngine exception is introduced. `video-production` is intentionally not a CategoryEngine category in this phase: HyperFrames is an interactive primary route, not a bounded Implementer execution profile.
 
 ## Advanced AI filmmaking capability
+
+Milestone 1 establishes the phase-owner graph: Producer delegates named
+Director, Creator, and Editor. Director delegates `blender-previs` and
+`video-analysis`; Creator delegates `media-generation` and `video-analysis`;
+Editor uses the official upstream HyperFrames skill directly and may delegate
+`video-analysis`. Phase owners cannot delegate each other. Producer retains
+direct previs, generation, analysis, and HyperFrames access only for the
+currently live workflow; its named Blender route is denied. No
+`video-composition` category or HyperFrames agent is involved.
 
 The dedicated `/film` route launches the same `Producer` primary agent with the
 repository-owned `film-production` skill:
@@ -136,7 +145,7 @@ repository-owned `film-production` skill:
 Film planning comes before HyperFrames composition. The AIO contract module
 validates provider-neutral `ShotSpec` entries and one resumable
 `ProductionManifest`; it does not add a database or provider endpoint schema.
-`blender-previs` is the narrow Producer-only camera/blocking/timing Implementer
+`blender-previs` is the narrow Director/Producer camera/blocking/timing Implementer
 category with the existing Blender MCP tool boundary. The named `Blender`
 agent remains the general-purpose 3D leaf. `media-generation` is a bounded
 Implementer category with six explicit Atlas Cloud tools, and
@@ -150,12 +159,11 @@ media runtime; there is no provider fallback or automatic reroll.
 
 The dedicated `/blender` route launches the `Blender` all-mode reusable 3D leaf
 for stateful Blender scene work through the external Blender MCP server and its
-installed addon. Executor and Producer can call the same named specialist:
+installed addon. Executor can call the same named specialist:
 
 ```text
 User -> /blender -> Blender -> Blender MCP -> Blender addon -> Blender scene
 Executor -> Blender (general-purpose Blender work)
-Producer -> Blender (general-purpose Blender work)
 ```
 
 The repository owns the route, the local OpenCode MCP declaration, the

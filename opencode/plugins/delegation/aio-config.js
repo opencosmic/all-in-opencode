@@ -18,7 +18,22 @@ export const DEFAULT_DELEGATION = Object.freeze({
   Producer: Object.freeze({
     categories: Object.freeze(["video-analysis", "media-generation", "blender-previs"]),
     category_families: Object.freeze(["media"]),
-    agents: Object.freeze(["Blender"]),
+    agents: Object.freeze(["Director", "Creator", "Editor"]),
+  }),
+  Director: Object.freeze({
+    categories: Object.freeze(["blender-previs", "video-analysis"]),
+    category_families: Object.freeze([]),
+    agents: Object.freeze([]),
+  }),
+  Creator: Object.freeze({
+    categories: Object.freeze(["media-generation", "video-analysis"]),
+    category_families: Object.freeze([]),
+    agents: Object.freeze([]),
+  }),
+  Editor: Object.freeze({
+    categories: Object.freeze(["video-analysis"]),
+    category_families: Object.freeze([]),
+    agents: Object.freeze([]),
   }),
 })
 
