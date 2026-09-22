@@ -34,6 +34,17 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /category ceiling is the\s+`media` family, currently `video-analysis` and `media-generation`; its named\s+specialist route is `Blender`/s)
   assert.match(producer, /delegate_task\(agent="Blender"\)/)
   assert.match(producer, /scene\s+blocking, subject staging, camera placement or movement/s)
+  assert.match(producer, /For every Blender-native task.*3D\s+previs.*scene blocking.*spatial staging.*camera placement.*camera animation.*Blender scene authoring.*Blender-specific artifact creation/s)
+  assert.match(producer, /If that delegation is\s+unavailable, missing, denied, or cannot be invoked, stop and surface the\s+delegation\/tooling problem/s)
+  assert.match(producer, /Do not substitute direct Blender execution/s)
+  for (const forbiddenFallback of [
+    /must not write a `bpy` Python script/i,
+    /call\s+the Blender CLI/i,
+    /launch `\/Applications\/Blender\.app\/\.\.\.\/Blender`/i,
+    /invoke\s+Blender MCP directly/i,
+    /use bash to perform Blender-native implementation/i,
+    /create `\.blend` artifacts itself/i,
+  ]) assert.match(producer, forbiddenFallback)
   assert.match(producer, /fast, rough previews for validation/s)
   assert.match(producer, /Blender\s+does not receive categor(?:y|ies)/s)
   assert.match(producer, /Image shots use GPT Image 2 for ordinary\/value work.*GPT Image 2\.5 Sunburst.*Seedream 5 Pro/s)

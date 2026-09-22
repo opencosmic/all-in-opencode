@@ -6,8 +6,11 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 MANIFEST="$SCRIPT_DIR/links.tsv"
 AGENTS_SOURCE="$REPO_ROOT/opencode/agents"
-AGENTS_DEST="$HOME/.config/opencode/agents"
+CONFIG_DIR="$HOME/.config/opencode"
+AGENTS_DEST="$CONFIG_DIR/agents"
 AGENTS_REL=".config/opencode/agents"
+LEGACY_CATEGORY_CONFIG="$CONFIG_DIR/categories.json"
+AIO_CONFIG="$CONFIG_DIR/aio.json"
 # AIO_DATA_ROOT is canonical. Keep the legacy variable and directory discoverable
 # so existing backup and migration state is not silently orphaned.
 if [ -n "${AIO_DATA_ROOT:-}" ]; then
@@ -122,6 +125,10 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -f "$MANIFEST" ] || fail "link manifest is missing: $MANIFEST"
+
+if [ -e "$LEGACY_CATEGORY_CONFIG" ] || [ -L "$LEGACY_CATEGORY_CONFIG" ]; then
+  fail "categories.json is no longer supported at $LEGACY_CATEGORY_CONFIG. Migrate its values to $AIO_CONFIG under \"categories\", then rename the legacy file to a backup and rerun the installer. The installer will not modify or delete it."
+fi
 
 if [ -L "$AGENTS_DEST" ]; then
   [ "$(readlink "$AGENTS_DEST")" = "$AGENTS_SOURCE" ] || fail "refusing unexpected agents directory symlink: $AGENTS_DEST"

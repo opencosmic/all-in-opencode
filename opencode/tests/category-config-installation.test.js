@@ -10,6 +10,7 @@ import { promisify } from "node:util"
 const execFileAsync = promisify(execFile)
 const sourceRepository = fileURLToPath(new URL("../..", import.meta.url))
 const sourceInstall = join(sourceRepository, "scripts", "install.sh")
+const sourceVerify = join(sourceRepository, "scripts", "verify.sh")
 const sourceManifest = join(sourceRepository, "scripts", "links.tsv")
 
 async function createFixtureRepository(root) {
@@ -169,15 +170,47 @@ test("installer rejects an unexpected agents directory symlink without touching 
   assert.equal(await readlink(agentsPath), externalDirectory)
 })
 
-test("installer leaves legacy categories.json untouched because AIO config is runtime-owned", async (t) => {
+test("installer rejects legacy categories.json before any installation mutation", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "legacy-category-install-test-"))
   t.after(() => rm(root, { recursive: true, force: true }))
   const fixture = await createFixtureRepository(root)
   const legacyPath = join(root, "home", ".config", "opencode", "categories.json")
+  const agentsPath = join(root, "home", ".config", "opencode", "agents")
+  const backupDirectory = join(root, "backup")
   const content = '{"categories":{"legacy":{"model":"provider/model"}}}\n'
   await mkdir(dirname(legacyPath), { recursive: true })
   await writeFile(legacyPath, content)
 
-  await runInstall(root, fixture)
+  await assert.rejects(
+    runInstall(root, fixture),
+    (error) => {
+      assert.match(`${error.stdout}\n${error.stderr}`, /categories\.json is no longer supported/)
+      assert.match(`${error.stdout}\n${error.stderr}`, /aio\.json.*["']categories["']/)
+      return true
+    },
+  )
   assert.equal(await readFile(legacyPath, "utf8"), content)
+  await assert.rejects(lstat(agentsPath), { code: "ENOENT" })
+  await assert.rejects(lstat(backupDirectory), { code: "ENOENT" })
+})
+
+test("verify rejects legacy categories.json before checking live links", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "legacy-category-verify-test-"))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const home = join(root, "home")
+  const legacyPath = join(home, ".config", "opencode", "categories.json")
+  await mkdir(dirname(legacyPath), { recursive: true })
+  await writeFile(legacyPath, '{"categories":{"legacy":{"model":"provider/model"}}}\n')
+
+  await assert.rejects(
+    execFileAsync(sourceVerify, [], {
+      encoding: "utf8",
+      env: { ...process.env, HOME: home },
+    }),
+    (error) => {
+      assert.match(`${error.stdout}\n${error.stderr}`, /categories\.json is no longer supported/)
+      assert.match(`${error.stdout}\n${error.stderr}`, /aio\.json.*["']categories["']/)
+      return true
+    },
+  )
 })
