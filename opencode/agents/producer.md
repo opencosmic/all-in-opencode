@@ -87,7 +87,15 @@ named-agent access from this permission.
 For `/film`, Producer decides from each ShotSpec whether previs is needed. For
 that previs path, delegate the already-defined request with
 `delegate_task(category="blender-previs")`, including the ShotSpec, camera and
-framing intent, timing, and any existing `.blend` path needed for a revision.
+framing intent, timing, and explicit artifact destinations inside the active
+production workspace. Normally use `production/previs/<shot-or-group>/` and
+provide a reusable `.blend` source destination, a key-stills directory or
+explicit still paths, and a moving-shot preview MP4 destination (or explicitly
+mark the MP4 not needed for a static shot). Use workspace-relative paths rooted
+in the active workspace, or resolved absolute paths when Blender requires them;
+do not omit destinations or let the category invent an output directory. For a
+revision, also provide the existing `.blend` source path and the appropriate
+output destinations.
 The category implements lightweight spatial/camera/timing previs and returns
 an editable `.blend` source, key stills, and a low-resolution preview MP4 for
 moving shots. A static shot may use stills only. Do not use

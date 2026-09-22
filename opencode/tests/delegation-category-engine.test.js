@@ -40,6 +40,11 @@ test("category context meaningfully specializes the shared executor", () => {
   const previs = engine.resolve("blender-previs")
   assert.equal(previs.profile.family, "implementation")
   assert.match(previs.profile.description, /Lightweight Blender previs/i)
+  assert.match(previs.profile.prompt_append, /Producer must supply explicit artifact destinations inside the active production workspace/i)
+  assert.match(previs.profile.prompt_append, /production\/previs\/<shot-or-group>\//i)
+  assert.match(previs.profile.prompt_append, /Use only those supplied destinations.*do not invent an output directory/i)
+  assert.match(previs.profile.prompt_append, /Blender Python is not an operating-system sandbox/i)
+  assert.match(previs.profile.prompt_append, /filesystem.*process.*shell.*network.*bypass denied OpenCode capabilities/i)
   for (const tool of [
     "blender_get_addon_status",
     "blender_get_scene_info",
