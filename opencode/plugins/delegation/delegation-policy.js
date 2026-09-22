@@ -28,6 +28,12 @@ const CATEGORY_FAMILY_CEILINGS = new Map([
   ["Executor", "implementation"],
   ["Producer", "media"],
 ])
+// A category may need a narrower caller boundary than its family provides.
+// Keep that exception in DelegationPolicy so catalogs and runtime resolution
+// share the same authorization path; it is not a second permission system.
+const CATEGORY_CALLER_ALLOWLISTS = new Map([
+  ["blender-previs", new Set(["Producer"])],
+])
 const BUILTIN_AGENT_NAMES = new Set([
   ...BUILTIN_PRIMARY_AGENTS,
   "Browser",
@@ -122,7 +128,10 @@ export class DelegationPolicy {
   }
 
   canUseCategory({ caller, category, profile } = {}) {
-    if (!this.isKnownCaller(caller) || CATEGORY_RESTRICTED_PARENTS.has(caller)) return false
+    if (!this.isKnownCaller(caller)) return false
+    const callerAllowlist = CATEGORY_CALLER_ALLOWLISTS.get(category)
+    if (callerAllowlist) return callerAllowlist.has(caller)
+    if (CATEGORY_RESTRICTED_PARENTS.has(caller)) return false
     if (caller === "Implementer" || caller === "Browser") return false
     if (BROAD_CATEGORY_PARENTS.has(caller)) return true
     const familyCeiling = CATEGORY_FAMILY_CEILINGS.get(caller)
@@ -188,6 +197,7 @@ export {
   BUILTIN_NAMED_AGENTS,
   CATEGORY_RESTRICTED_PARENTS,
   CATEGORY_FAMILY_CEILINGS,
+  CATEGORY_CALLER_ALLOWLISTS,
   CONSULTATION_AGENTS,
   PARENT_AGENT_NAMED_AGENTS,
 }

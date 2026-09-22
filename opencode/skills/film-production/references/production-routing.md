@@ -6,14 +6,35 @@ Choose the owner by the problem the shot presents:
 | --- | --- |
 | motion graphics, UI, typography, captions, timing, transitions, or audio assembly | HyperFrames during the composition stage |
 | generated image or footage execution | `media-generation` through the bounded Implementer runtime |
-| camera, blocking, staging, lens, spatial relationships, motion, or rough preview | existing `Blender` specialist |
-| exact technical 3D render explicitly required | existing `Blender` specialist, with the final-render requirement stated |
+| lightweight camera, blocking, staging, lens, spatial relationships, motion, or rough preview for `/film` | `blender-previs` through the shared Implementer |
+| general-purpose Blender work or an exact technical 3D render explicitly required | existing `Blender` specialist |
 | visual or spoken QA of a shot, rough cut, or final | `video-analysis` with the existing Watch skill |
 
-`Producer` owns orchestration and the manifest. Do not create another director,
-media agent, Blender-previs category, or `video-production` category. For
-`/film`, film planning comes before HyperFrames; HyperFrames is the later
-composition/render owner, not a duplicate planning control plane.
+`Producer` owns orchestration and the manifest. `blender-previs` is the single
+narrow category for `/film` previs; do not create another director, media
+agent, Blender abstraction, or `video-production` category. For `/film`, film
+planning comes before HyperFrames; HyperFrames is the later composition/render
+owner, not a duplicate planning control plane.
+
+## Previs and review order
+
+For a shot that needs previs, preserve this order:
+
+```text
+ShotSpec
+  -> blender-previs
+  -> .blend source + stills + preview MP4 when moving
+  -> video-analysis / Watch
+  -> Producer compares evidence with ShotSpec
+  -> PASS or REVISION_REQUIRED
+  -> media-generation calculate/approval
+```
+
+The `.blend` is editable implementation source, not review evidence or the
+review target. For a revision, send the observed mismatch and the existing scene
+path back to `blender-previs`; do not rebuild a scene or pay for Atlas media
+before the evidence passes. Keep previews lightweight: viewport/Eevee-style
+rendering and roughly 480p or 720p are appropriate when a video is needed.
 
 ## Curated media model defaults
 

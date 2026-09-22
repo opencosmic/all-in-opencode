@@ -13,16 +13,36 @@ The lifecycle is:
 
 ```text
 request -> creative intent -> shot decomposition -> ShotSpec[]
-  -> production routing -> references/assets -> production state
+  -> optional previs and review -> production routing -> references/assets -> production state
   -> later HyperFrames composition -> QA and revision
 ```
 
 Use the references in this skill for shotcraft, contracts, routing, assets,
 and revision decisions. HyperFrames remains authoritative once composition
 starts: it owns motion graphics, typography, captions, transitions, audio
-assembly, and rendering. Blender is the spatial/camera/previs specialist;
-`media-generation` is the bounded provider-neutral Implementer category; and
+assembly, and rendering. The Producer-only `blender-previs` category is the
+lightweight spatial/camera/timing Implementer; the named `Blender` route remains
+available for general-purpose or explicitly technical Blender work. The
+`media-generation` category is the bounded provider-neutral Implementer route;
 `video-analysis`/Watch supplies grounded visual QA.
+
+## Previs before paid generation
+
+When a ShotSpec has `control.previs: required` or `recommended`, Producer sends
+the already-defined request to `delegate_task(category="blender-previs")`.
+That category implements only lightweight blocking, camera/framing, lens
+intent, motion/timing, and basic lighting direction. Its practical handoff is
+an editable `.blend` source, key stills, and a low-resolution preview MP4 for
+moving shots; stills may be sufficient for a genuinely static shot.
+
+Review the stills and preview MP4 through
+`delegate_task(category="video-analysis", load_skills=["watch"])`. The `.blend`
+is an editable source artifact, not the review target. Producer compares the
+observed evidence with the ShotSpec and decides `PASS` or
+`REVISION_REQUIRED`. A revision should reuse the existing `.blend` where
+practical. Only after the previs evidence passes should Producer finalize
+generation instructions and enter the `media-generation` calculate/approval
+path. This review happens before any paid Atlas submission.
 
 For each shot, preserve intent, continuity, references, output constraints,
 and a reproducible request digest in the manifest. Atlas Cloud is currently the only implemented media provider behind the bounded `media-generation`

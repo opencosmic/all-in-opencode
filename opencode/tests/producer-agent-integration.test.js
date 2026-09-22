@@ -31,12 +31,20 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"), tool)
   }
   assert.match(producer, /bounded supporting capabilities.*AIO delegation policy/s)
-  assert.match(producer, /category ceiling is the\s+`media` family, currently `video-analysis` and `media-generation`; its named\s+specialist route is `Blender`/s)
-  assert.match(producer, /delegate_task\(agent="Blender"\)/)
-  assert.match(producer, /scene\s+blocking, subject staging, camera placement or movement/s)
-  assert.match(producer, /For every Blender-native task.*3D\s+previs.*scene blocking.*spatial staging.*camera placement.*camera animation.*Blender scene authoring.*Blender-specific artifact creation/s)
-  assert.match(producer, /If that delegation is\s+unavailable, missing, denied, or cannot be invoked, stop and surface the\s+delegation\/tooling problem/s)
-  assert.match(producer, /Do not substitute direct Blender execution/s)
+  assert.match(producer, /`media` family.*`video-analysis` and `media-generation`.*Producer-only `blender-previs` implementation category/s)
+  assert.match(producer, /delegate_task\(category="blender-previs"\)/)
+  assert.match(producer, /explicit artifact destinations inside the active\s+production\s+workspace[\s\S]*`production\/previs\/<shot-or-group>\/`/i)
+  assert.match(producer, /`\.blend` source destination/i)
+  assert.match(producer, /key-stills directory\s+or\s+explicit still paths/i)
+  assert.match(producer, /moving-shot preview MP4 destination/i)
+  assert.match(producer, /do not omit destinations or let the category invent an output directory/i)
+  assert.match(producer, /editable `\.blend` source, key stills, and a low-resolution preview MP4/s)
+  assert.match(producer, /delegate_task\(category="video-analysis", load_skills=\["watch"\]\)/)
+  assert.match(producer, /Only after a PASS should Producer finalize generation instructions.*`media-generation`/s)
+  assert.match(producer, /delegate_task\(agent="Blender"\).*for `\/film` previs/s)
+  assert.match(producer, /named route remains\s+for general-purpose or explicitly technical Blender work outside this path/s)
+  assert.match(producer, /If the category or review\s+delegation is unavailable, stop and surface the delegation\/tooling problem/s)
+  assert.doesNotMatch(producer, /For every Blender-native task.*delegate_task\(agent="Blender"\)/s)
   for (const forbiddenFallback of [
     /must not write a `bpy` Python script/i,
     /call\s+the Blender CLI/i,

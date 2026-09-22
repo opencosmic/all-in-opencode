@@ -56,6 +56,39 @@ test("sensitive category sessions receive fail-closed session permissions", () =
   assert.equal(categorySessionPermission("quick"), undefined)
 })
 
+test("blender-previs exposes only the existing Blender MCP integration", () => {
+  const tools = [
+    "blender_get_addon_status",
+    "blender_get_scene_info",
+    "blender_get_object_info",
+    "blender_get_viewport_screenshot",
+    "blender_execute_blender_code",
+  ]
+  const profile = { category: "blender-previs", tools: Object.fromEntries(tools.map((name) => [name, true])) }
+  for (const type of tools) assert.equal(categoryPermission(profile, { type, pattern: "*" }), "allow", type)
+  assert.equal(categoryPermission(undefined, { type: "blender_execute_blender_code", pattern: "*" }), null)
+  assert.equal(categoryPermission(profile, { type: "blender_render", pattern: "*" }), "deny")
+  for (const type of [
+    "read",
+    "write",
+    "bash",
+    "skill",
+    "external_directory",
+    "delegate_task",
+    "task",
+    "media_calculate",
+  ]) assert.equal(categoryPermission(profile, { type, pattern: "*" }), "deny", type)
+
+  const rules = categorySessionPermission("blender-previs", profile.tools)
+  for (const type of ["read", "write", "bash", "skill", "external_directory", "delegate_task", "task", "media_calculate"]) {
+    assert.ok(rules.some((rule) => rule.permission === type && rule.pattern === "*" && rule.action === "deny"), type)
+  }
+  for (const type of tools) {
+    assert.ok(rules.some((rule) => rule.permission === type && rule.pattern === "*" && rule.action === "allow"), type)
+  }
+  assert.equal(toolsFor("Implementer", profile.tools, "blender-previs"), undefined)
+})
+
 test("git tool overrides narrow bash without broadening the hard ceiling", () => {
   const defaultRules = categorySessionPermission("git")
   const narrowedRules = categorySessionPermission("git", { bash: false })
