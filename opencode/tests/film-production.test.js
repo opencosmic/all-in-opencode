@@ -74,6 +74,8 @@ test("film-production is repository-owned and discoverable with focused referenc
   assert.match(skill, /request -> creative intent -> shot decomposition -> ShotSpec\[\]/)
   assert.match(skill, /HyperFrames remains authoritative/i)
   assert.match(skill, /Producer-only `blender-previs` category/i)
+  assert.match(skill, /Before delegation, Producer prepares and verifies exactly the parent\s+directories required by the supplied previs artifact destinations/i)
+  assert.match(skill, /`blender-previs` assumes those parents exist and\s+must fail clearly if one is missing/i)
   assert.match(skill, /video-analysis.*Watch.*Producer compares the\s+observed evidence.*PASS.*REVISION_REQUIRED/s)
   assert.match(skill, /Atlas Cloud is currently the only implemented media provider/i)
   assert.match(skill, /media_calculate.*media_generate_image/s)

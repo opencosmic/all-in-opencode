@@ -30,6 +30,10 @@ available for general-purpose or explicitly technical Blender work. The
 
 When a ShotSpec has `control.previs: required` or `recommended`, Producer sends
 the already-defined request to `delegate_task(category="blender-previs")`.
+Before delegation, Producer prepares and verifies exactly the parent
+directories required by the supplied previs artifact destinations inside the
+active production workspace. `blender-previs` assumes those parents exist and
+must fail clearly if one is missing; it does not create or invent directories.
 That category implements only lightweight blocking, camera/framing, lens
 intent, motion/timing, and basic lighting direction. Its practical handoff is
 an editable `.blend` source, key stills, and a low-resolution preview MP4 for

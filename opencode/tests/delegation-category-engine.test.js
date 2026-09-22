@@ -43,8 +43,11 @@ test("category context meaningfully specializes the shared executor", () => {
   assert.match(previs.profile.prompt_append, /Producer must supply explicit artifact destinations inside the active production workspace/i)
   assert.match(previs.profile.prompt_append, /production\/previs\/<shot-or-group>\//i)
   assert.match(previs.profile.prompt_append, /Use only those supplied destinations.*do not invent an output directory/i)
-  assert.match(previs.profile.prompt_append, /missing parent director(?:y|ies).*only the exact parent director(?:y|ies).*supplied destinations/i)
-  assert.match(previs.profile.prompt_append, /do not create unrelated directories.*list or explore the filesystem/i)
+  assert.match(previs.profile.prompt_append, /Producer prepares and verifies the exact parent directories.*before delegation/i)
+  assert.match(previs.profile.prompt_append, /Assume those parent directories already exist/i)
+  assert.match(previs.profile.prompt_append, /If a required parent is missing, fail clearly and report the supplied destination and missing parent/i)
+  assert.match(previs.profile.prompt_append, /do not create directories from Blender.*invent paths.*list or explore the filesystem/i)
+  assert.doesNotMatch(previs.profile.prompt_append, /create only the exact parent director(?:y|ies)/i)
   assert.match(previs.profile.prompt_append, /Blender Python is not an operating-system sandbox/i)
   assert.match(previs.profile.prompt_append, /filesystem.*process.*shell.*network.*bypass denied OpenCode capabilities/i)
   for (const tool of [

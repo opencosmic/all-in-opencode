@@ -96,6 +96,13 @@ in the active workspace, or resolved absolute paths when Blender requires them;
 do not omit destinations or let the category invent an output directory. For a
 revision, also provide the existing `.blend` source path and the appropriate
 output destinations.
+Before delegation, prepare and verify exactly the parent directories required
+by those supplied destinations inside the active production workspace, using
+the existing bounded Producer workspace-preparation convention (for example,
+a targeted `mkdir -p` through Producer's shell access). Do not create artifact
+files, unrelated directories, or delegate directory creation to
+`blender-previs`. If a required parent is still missing, stop and report the
+missing supplied destination instead of starting the child.
 The category implements lightweight spatial/camera/timing previs and returns
 an editable `.blend` source, key stills, and a low-resolution preview MP4 for
 moving shots. A static shot may use stills only. Do not use
