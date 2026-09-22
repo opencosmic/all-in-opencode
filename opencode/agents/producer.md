@@ -105,9 +105,24 @@ files, unrelated directories, or delegate directory creation to
 missing supplied destination instead of starting the child.
 The category implements lightweight spatial/camera/timing previs and returns
 an editable `.blend` source, key stills, and a low-resolution preview MP4 for
-moving shots. A static shot may use stills only. Do not use
+moving shots. Optimize for reviewability with viewport/OpenGL/playblast first,
+Workbench next, and lightweight Eevee only when needed; ordinary previs must
+not use Cycles, high samples, expensive denoising, photoreal materials, or
+high-resolution/final-quality rendering. Default evidence to 480×270 or lower
+(never above 720p for ordinary previs), and use about 8–12 fps for moving
+previews while preserving the ShotSpec's full duration and canonical output
+fps. A static shot may use stills only. Do not use
 `delegate_task(agent="Blender")` for `/film` previs; that named route remains
 for general-purpose or explicitly technical Blender work outside this path.
+
+If a save, still render, or playblast MCP call times out, treat completion as
+ambiguous. Do not claim success or definitive failure from the timeout alone,
+and do not repeat the same artifact-producing operation automatically. Verify
+only the exact paths supplied to that child: a non-empty `.blend` is sufficient;
+a still must be non-empty and have its expected image format; an MP4's non-empty
+size is preliminary until Watch can decode and review it. If an artifact is
+missing or unusable, classify the result and make another render only as an
+explicit revision/recovery decision.
 
 After previs, send the stills and any preview MP4—not the `.blend` source—to
 `delegate_task(category="video-analysis", load_skills=["watch"])`. Compare the

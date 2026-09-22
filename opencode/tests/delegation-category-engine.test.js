@@ -50,6 +50,14 @@ test("category context meaningfully specializes the shared executor", () => {
   assert.doesNotMatch(previs.profile.prompt_append, /create only the exact parent director(?:y|ies)/i)
   assert.match(previs.profile.prompt_append, /Blender Python is not an operating-system sandbox/i)
   assert.match(previs.profile.prompt_append, /filesystem.*process.*shell.*network.*bypass denied OpenCode capabilities/i)
+  assert.match(previs.profile.prompt_append, /cheapest reliable viewport\/OpenGL\/playblast path, then Workbench.*lightweight Eevee only/i)
+  assert.match(previs.profile.prompt_append, /ordinary previs must not use Cycles, high sample counts, expensive denoising/i)
+  assert.match(previs.profile.prompt_append, /480×270.*320×180.*should not exceed 720p/s)
+  assert.match(previs.profile.prompt_append, /8–12 fps.*instead of inheriting the final ShotSpec frame rate/i)
+  assert.match(previs.profile.prompt_append, /Preserve the ShotSpec's real duration.*about 50 frames, not a shortened/i)
+  assert.match(previs.profile.prompt_append, /MCP timeout.*completion ambiguous/i)
+  assert.match(previs.profile.prompt_append, /Do not claim success without evidence.*automatically repeat the same render\/playblast/i)
+  assert.match(previs.profile.prompt_append, /verify only those exact supplied paths/i)
   for (const tool of [
     "blender_get_addon_status",
     "blender_get_scene_info",

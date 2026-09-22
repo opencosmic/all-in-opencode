@@ -38,6 +38,21 @@ That category implements only lightweight blocking, camera/framing, lens
 intent, motion/timing, and basic lighting direction. Its practical handoff is
 an editable `.blend` source, key stills, and a low-resolution preview MP4 for
 moving shots; stills may be sufficient for a genuinely static shot.
+Optimize ordinary previs for reviewability: prefer viewport/OpenGL/playblast,
+then Workbench, then lightweight Eevee only when needed. Do not use Cycles, high
+samples, expensive denoising, photoreal materials, high-resolution output, or
+final-film rendering. Use 480×270 or lower by default (720p maximum for
+ordinary previs) and about 8–12 fps for moving previews. Preserve each shot's
+full duration; reduced preview fps changes the evidence frame count, not the
+canonical ShotSpec duration or output fps. Stills establish framing and
+composition; the MP4 establishes motion and timing.
+
+If a Blender MCP save/render/playblast call times out, treat completion as
+ambiguous. The child reports the exact supplied paths and does not blindly
+retry; Producer checks only those paths. A non-empty `.blend` is sufficient, a
+still must also have a recognizable expected image format, and a non-empty MP4
+is preliminary until Watch can decode it. Missing or unusable output requires
+an explicit revision/recovery decision before another render.
 
 Review the stills and preview MP4 through
 `delegate_task(category="video-analysis", load_skills=["watch"])`. The `.blend`
