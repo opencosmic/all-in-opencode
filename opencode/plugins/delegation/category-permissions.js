@@ -26,6 +26,41 @@ const OPEN_DESIGN_RESOURCE_TOOLS = new Set([
   "read_mcp_resource",
 ])
 const MEDIA_WORKSPACE_TOOL_NAMES = Object.freeze(["read", "glob", "grep", "list", "lsp"])
+const BLENDER_PREVIS_TOOL_NAMES = Object.freeze([
+  "blender_get_addon_status",
+  "blender_get_scene_info",
+  "blender_get_object_info",
+  "blender_get_viewport_screenshot",
+  "blender_execute_blender_code",
+])
+const BLENDER_PREVIS_TOOL_SET = new Set(BLENDER_PREVIS_TOOL_NAMES)
+const BLENDER_PREVIS_BLOCKED_PERMISSIONS = new Set([
+  "read",
+  "glob",
+  "grep",
+  "list",
+  "lsp",
+  "edit",
+  "write",
+  "bash",
+  "skill",
+  "external_directory",
+  "question",
+  "delegate_task",
+  "consult_agents",
+  "task",
+  "workspace_prepare",
+  "execution_preflight",
+  "workspace_checkpoint_update",
+  "task_status",
+  "task_output",
+  "task_cancel",
+  "workspace_release",
+])
+
+function isBlenderPrevisTool(value) {
+  return BLENDER_PREVIS_TOOL_SET.has(value)
+}
 
 function permissionValue(input) {
   // OpenCode may split a compound shell command into separate permission
@@ -136,7 +171,7 @@ export function openDesignResourceDecision(profile, tool, args = {}) {
 
 export function requiresPreservedSessionPermissions(agent, category, skills = []) {
   return agent === "Implementer" && (
-    ["git", "video-analysis", "media-generation"].includes(category)
+    ["git", "video-analysis", "media-generation", "blender-previs"].includes(category)
     || (category === "visual-engineering" && hasSkill(skills, "open-design"))
   )
 }
@@ -213,6 +248,23 @@ function watchBashPatterns(skillPaths) {
 export function categoryPermission(profile, input = {}) {
   const value = permissionValue(input)
   const type = input.type ?? input.permission
+
+  if (isBlenderPrevisTool(type)) {
+    // A missing category profile belongs to a direct named Blender session;
+    // leave its existing agent permissions intact.
+    if (!profile?.category) return null
+    return profile.category === "blender-previs" && profile.tools?.[type] !== false
+      ? "allow"
+      : "deny"
+  }
+
+  if (profile?.category === "blender-previs" && typeof type === "string" && type.startsWith("blender_")) {
+    return "deny"
+  }
+
+  if (profile?.category === "blender-previs" && BLENDER_PREVIS_BLOCKED_PERMISSIONS.has(type)) {
+    return "deny"
+  }
 
   // OpenCode 1.18.29 names an MCP tool as sanitize(server) + "_" +
   // sanitize(tool). Keep the entire OpenDesign tool namespace denied,
@@ -378,6 +430,38 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
     }
     return rules
   }
+  if (category === "blender-previs") {
+    const rules = [
+      ...MEDIA_RUNTIME_TOOL_NAMES.map((permission) => ({ permission, pattern: "*", action: "deny" })),
+      ...[
+        "read",
+        "glob",
+        "grep",
+        "list",
+        "lsp",
+        "edit",
+        "write",
+        "bash",
+        "skill",
+        "external_directory",
+        "question",
+        "delegate_task",
+        "consult_agents",
+        "task",
+        "workspace_prepare",
+        "execution_preflight",
+        "workspace_checkpoint_update",
+        "task_status",
+        "task_output",
+        "task_cancel",
+        "workspace_release",
+      ].map((permission) => ({ permission, pattern: "*", action: "deny" })),
+    ]
+    for (const name of BLENDER_PREVIS_TOOL_NAMES) {
+      if (tools[name] !== false) rules.push({ permission: name, pattern: "*", action: "allow" })
+    }
+    return rules
+  }
   if (category === "visual-engineering" && hasSkill(skills, "open-design")) {
     const rules = Object.entries(tools ?? {}).map(([tool, enabled]) => ({
       permission: ["write", "patch", "apply_patch"].includes(tool) ? "edit" : tool,
@@ -395,4 +479,4 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
   return undefined
 }
 
-export { isCategoryScopedGitMutation, isSafeGitCommand, permissionValue }
+export { BLENDER_PREVIS_TOOL_NAMES, isBlenderPrevisTool, isCategoryScopedGitMutation, isSafeGitCommand, permissionValue }

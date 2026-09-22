@@ -57,9 +57,11 @@ delegate merely because the Blender work is difficult.
 When the work is product- or Executor-oriented, return useful handoff details
 when relevant: `.blend` and exported GLB/glTF/FBX paths; objects, materials,
 animations, scale/orientation; animation names, material slots, constraints,
-and known limitations. When the work is Producer-oriented previs, return the
-`.blend` and preview output when produced, plus camera, frame range, FPS,
-blocking, motion/timing, assumptions, and limitations.
+and known limitations. When the work is general-purpose or explicitly
+technical Blender work delegated by Producer, return the `.blend` and preview
+output when produced, plus camera, frame range, FPS, blocking, motion/timing,
+assumptions, and limitations. Producer's `/film` previs path uses the
+`blender-previs` Implementer category instead of this named route.
 
 Previs defaults to fast, rough validation: blocking, camera/composition,
 spatial relationships, motion/timing, and simple lighting/materials where

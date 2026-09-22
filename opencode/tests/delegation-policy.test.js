@@ -126,10 +126,11 @@ test("configured callers may opt into Searcher while Searcher remains a leaf", (
   )
 })
 
-test("Producer receives its default video-analysis and media-generation categories", () => {
+test("Producer receives media categories and the Producer-only blender-previs category", () => {
   const route = dispatcher()
   assert.equal(route.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
   assert.equal(route.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
+  assert.equal(route.resolve({ category: "blender-previs", parentAgent: "Producer" }).agent, "Implementer")
   assert.equal(route.resolve({ agent: "Blender", parentAgent: "Producer" }).agent, "Blender")
   assert.throws(
     () => route.resolve({ agent: "Searcher", parentAgent: "Producer" }),
@@ -154,6 +155,7 @@ test("Producer receives its default video-analysis and media-generation categori
   })
   assert.equal(extended.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
   assert.equal(extended.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
+  assert.equal(extended.resolve({ category: "blender-previs", parentAgent: "Producer" }).agent, "Implementer")
   assert.throws(
     () => extended.resolve({ category: "standard", parentAgent: "Producer" }),
     /Producer is not allowed to delegate category standard/,
@@ -164,6 +166,32 @@ test("Producer receives its default video-analysis and media-generation categori
   assert.throws(
     () => extended.resolve({ category: "quick", parentAgent: "Producer" }),
     /Producer is not allowed to delegate category quick/,
+  )
+})
+
+test("blender-previs is not exposed to broad or non-Producer callers", () => {
+  const route = dispatcher()
+  for (const caller of ["Assistant", "Executor", "Planner", "Strategist", "Blender", "Implementer", "Browser"]) {
+    assert.throws(
+      () => route.resolve({ category: "blender-previs", parentAgent: caller }),
+      /not allowed|category routes are not allowed/,
+      caller,
+    )
+  }
+
+  const configured = config()
+  configured.delegation["My Architect"] = {
+    categories: ["blender-previs"],
+    category_families: [],
+    agents: [],
+  }
+  const custom = new AgentDispatcher(new CategoryEngine(configured.categories), {
+    aioConfig: configured,
+    availableAgents: effectiveAgents,
+  })
+  assert.throws(
+    () => custom.resolve({ category: "blender-previs", parentAgent: "My Architect" }),
+    /My Architect is not allowed to delegate category blender-previs/,
   )
 })
 
@@ -187,6 +215,10 @@ test("role category ceilings override explicit aio.json category grants", () => 
   assert.throws(
     () => route.resolve({ category: "media-generation", parentAgent: "Executor" }),
     /Executor is not allowed to delegate category media-generation/,
+  )
+  assert.throws(
+    () => route.resolve({ category: "blender-previs", parentAgent: "Executor" }),
+    /Executor is not allowed to delegate category blender-previs/,
   )
   assert.throws(
     () => route.resolve({ category: "standard", parentAgent: "Producer" }),
