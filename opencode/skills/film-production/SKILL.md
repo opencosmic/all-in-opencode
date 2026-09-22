@@ -34,6 +34,13 @@ Before delegation, Producer prepares and verifies exactly the parent
 directories required by the supplied previs artifact destinations inside the
 active production workspace. `blender-previs` assumes those parents exist and
 must fail clearly if one is missing; it does not create or invent directories.
+Keep canonical artifact paths workspace-relative in ShotSpecs and the
+ProductionManifest. Producer resolves separate absolute runtime destinations
+before delegation by resolving each prepared physical parent against the
+physical active workspace root and rejecting any path that escapes that root.
+Only those absolute runtime values are passed as Blender destinations; the
+canonical relative values remain traceability only and are never persisted as
+host-specific absolute paths.
 That category implements only lightweight blocking, camera/framing, lens
 intent, motion/timing, and basic lighting direction. Its practical handoff is
 an editable `.blend` source, key stills, and a low-resolution preview MP4 for

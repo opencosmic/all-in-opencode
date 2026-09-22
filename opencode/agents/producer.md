@@ -103,6 +103,23 @@ a targeted `mkdir -p` through Producer's shell access). Do not create artifact
 files, unrelated directories, or delegate directory creation to
 `blender-previs`. If a required parent is still missing, stop and report the
 missing supplied destination instead of starting the child.
+
+Keep canonical artifact paths workspace-relative in ShotSpecs and the
+ProductionManifest. Before delegation, resolve separate runtime destinations
+for Blender: capture the physical active workspace root with `pwd -P` while
+at that root; accept only canonical paths rooted under `production/previs/`
+that are relative and contain no `.` or `..` path segments; then resolve each
+already-prepared parent directory with `cd <parent> && pwd -P`. Require the
+resolved parent to equal the physical workspace root or be beneath it using a
+separator-aware boundary check. If resolution escapes the root, a parent is
+unusable, or an existing artifact destination is a symlink, stop before
+delegating. Build each absolute runtime destination from the verified physical
+parent and its supplied filename. Pass the canonical-to-runtime mapping to
+`blender-previs`, clearly labeling only the absolute runtime value as usable
+for Blender I/O; never pass a workspace-relative value as a Blender
+destination. Keep this mapping transient and never persist host-specific
+absolute paths into canonical production state.
+
 The category implements lightweight spatial/camera/timing previs and returns
 an editable `.blend` source, key stills, and a low-resolution preview MP4 for
 moving shots. Optimize for reviewability with viewport/OpenGL/playblast first,
