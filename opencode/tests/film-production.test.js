@@ -116,6 +116,17 @@ test("film-production is repository-owned and discoverable with focused referenc
   assert.match(entry.content, /ProductionManifest/)
 })
 
+test("film-production keeps provider execution metadata outside canonical ShotSpec", async () => {
+  const skill = await readFile(join(repository, "opencode/skills/film-production/SKILL.md"), "utf8")
+  const shotSpec = await readFile(join(repository, "opencode/skills/film-production/references/shot-spec.md"), "utf8")
+  assert.match(skill, /Keep the canonical `ShotSpec` provider-neutral/i)
+  assert.match(skill, /transient routing plan/i)
+  assert.match(skill, /ProductionManifest\.generation_jobs/i)
+  assert.match(shotSpec, /Do not use `ShotSpec\.extensions` to persist provider\/model/i)
+  assert.match(shotSpec, /reference_\*_asset_ids.*generate_audio/s)
+  assert.match(shotSpec, /Only materialized or uploaded assets may\s+be passed/i)
+})
+
 test("ShotSpec validates the provider-neutral planning fields and keeps extensions possible", () => {
   const created = createShotSpec({ ...shot, extensions: { continuity: "left-to-right" } })
   assert.equal(created.schema_version, 1)

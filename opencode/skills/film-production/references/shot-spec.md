@@ -26,9 +26,18 @@ output:
 ```
 
 Optional `references`, `control.previs`, `generation.intent`, and `extensions`
-carry planning decisions without coupling the contract to a provider endpoint.
-Use `control.previs: required` when camera, blocking, or spatial relationships
-need Blender evidence before production routing.
+carry provider-neutral planning decisions without coupling the contract to a
+provider endpoint. Do not use `ShotSpec.extensions` to persist provider/model
+IDs, Atlas roles, or provider request controls such as
+`reference_*_asset_ids` and `generate_audio`. Producer may keep a transient
+routing plan while choosing a curated model; after a generation job exists,
+execution metadata belongs in the existing `ProductionManifest.generation_jobs`
+records. Use `control.previs: required` when camera, blocking, or spatial
+relationships need Blender evidence before production routing.
+
+Planning references such as `fox_identity` or `misty_forest_dawn` are stable
+manifest IDs, not provider asset IDs. Only materialized or uploaded assets may
+be passed through provider-specific request fields.
 
 When present, `references` MUST be an object whose values are arrays of stable
 reference IDs grouped by role. Do not use a flat list.

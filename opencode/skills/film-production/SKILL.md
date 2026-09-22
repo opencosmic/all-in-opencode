@@ -77,6 +77,18 @@ generation defaults to GPT Image 2 and video generation defaults to Wan 3.0.
 There is no automatic paid fallback; a failed or ambiguous generation remains
 an explicit user decision.
 
+### Provider-neutral persistence boundary
+
+Keep the canonical `ShotSpec` provider-neutral. Do not persist a selected
+provider, curated model ID, Atlas role, or provider request controls such as
+`reference_*_asset_ids` or `generate_audio` in `ShotSpec.extensions`. Producer
+may derive a transient routing plan that maps shot intent to a curated model
+immediately before execution. Once a generation job exists, provider/model
+selection, request controls, digests, estimates, and provider status belong in
+the existing `ProductionManifest.generation_jobs` runtime state. Keep
+placeholder planning references as stable manifest IDs; only materialized or
+uploaded asset IDs may enter provider request fields.
+
 Use the curated generation controls described in
 [production-routing](references/production-routing.md) only after model
 selection. They refine the provider request without changing routing: preserve
@@ -87,7 +99,8 @@ Audio conditioning uses ordinary manifest assets and the same stable-ID flow:
 record an MP3 or WAV asset, reference it in the generic `ShotSpec.references`
 object when useful, and pass its ID as `reference_audio_asset_ids`. This input
 conditions the selected video model and remains separate from `generate_audio`,
-which controls native audio in the output. Wan and H3 require visual references
+which controls native audio in the output. Those fields are transient execution
+request fields, not canonical ShotSpec fields. Wan and H3 require visual references
 when audio is supplied; Seedance also supports audio-only reference requests.
 
 Treat the repository film-production contract as authoritative. The manifest's
