@@ -84,10 +84,12 @@ provider, curated model ID, Atlas role, or provider request controls such as
 `reference_*_asset_ids` or `generate_audio` in `ShotSpec.extensions`. Producer
 may derive a transient routing plan that maps shot intent to a curated model
 immediately before execution. Once a generation job exists, provider/model
-selection, request controls, digests, estimates, and provider status belong in
-the existing `ProductionManifest.generation_jobs` runtime state. Keep
-placeholder planning references as stable manifest IDs; only materialized or
-uploaded asset IDs may enter provider request fields.
+selection, request digest, approval/cost state, prediction state, outputs, and
+provider status belong in the existing `ProductionManifest.generation_jobs`
+runtime state. Exact provider request controls may remain transient when they
+are bound by the canonical request digest; do not add them to ShotSpec merely
+to persist them. Keep placeholder planning references as stable manifest IDs;
+only materialized or uploaded asset IDs may enter provider request fields.
 
 Use the curated generation controls described in
 [production-routing](references/production-routing.md) only after model

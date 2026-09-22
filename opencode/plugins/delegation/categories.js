@@ -36,6 +36,8 @@ Use primitive, proxy, low-poly, or abstract geometry for subject and environment
 
 Producer must supply explicit artifact destinations inside the active production workspace, normally under production/previs/<shot-or-group>/: a reusable .blend source destination, a key-stills directory or explicit still paths, and a preview MP4 destination for moving shots (or an explicit not-needed marker for a static shot). Use only those supplied destinations; do not invent an output directory, rely on Blender's working directory or a temporary path, or silently write outside the workspace.
 
+If a supplied artifact destination has a missing parent directory, create only the exact parent directory or directories required by those supplied destinations as part of the requested save or render operation. Derive the directories from the supplied artifact paths; do not create unrelated directories, list or explore the filesystem, or turn this narrow artifact step into generic filesystem management.
+
 Return reviewable evidence: an editable .blend source, key stills for framing and composition, and a low-resolution preview MP4 for a moving shot. A genuinely static shot may use stills without a video. The .blend is an implementation source artifact; stills and the preview video are the evidence used for review. Do not treat the .blend itself as review evidence.
 
 Blender Python is not an operating-system sandbox. Use blender_execute_blender_code only for Blender-native scene, camera, material, render, and explicitly requested artifact operations. Never use it for generic filesystem exploration or arbitrary file access, subprocess or process execution, shell commands, network requests, or to bypass denied OpenCode capabilities.
