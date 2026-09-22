@@ -67,6 +67,30 @@ test("category context meaningfully specializes the shared executor", () => {
   ]) assert.equal(previs.profile.tools[tool], true, tool)
 })
 
+test("blender-previs verifies requested motion before rendering and preserves Watch review", () => {
+  const prompt = new CategoryEngine({}).resolve("blender-previs").profile.prompt_append
+  const gateStart = prompt.indexOf("Before generating any moving preview MP4")
+  const mp4Allowed = prompt.indexOf("Only after every requested moving target passes may the MP4 be generated")
+  assert.ok(gateStart >= 0, "moving shots require a pre-render motion gate")
+  assert.ok(mp4Allowed > gateStart, "the MP4 is authorized only after verification")
+
+  const gateEnd = prompt.indexOf("Producer must supply explicit artifact destinations", gateStart)
+  const gate = prompt.slice(gateStart, gateEnd)
+  assert.match(gate, /frame_start.*floor\(\(frame_start \+ frame_end\) \/ 2\).*frame_end/s)
+  assert.match(gate, /Blender-native scene evaluation.*evaluated dependency graph.*evaluated world transform/i)
+  assert.match(gate, /requested camera motion.*world-space location and rotation.*all three samples/s)
+  assert.match(gate, /meaningful and consistent with the intent/s)
+  assert.match(gate, /pan\/tilt may pass through orientation change with fixed location/i)
+  assert.match(gate, /Do not apply one universal numeric threshold/i)
+  assert.match(gate, /requested subject\/object motion.*relevant proxy.*evaluated world transform or relevant animation state/s)
+  assert.match(gate, /If both camera and subject motion are requested, verify both/i)
+  assert.match(gate, /locked\/static camera must not fail.*genuinely static shot does not need a motion gate/s)
+  assert.match(gate, /If any requested motion is absent.*do not generate the preview MP4.*Correct the animation first/s)
+  assert.match(gate, /MOTION_NOT_IMPLEMENTED.*MOTION_VERIFICATION_FAILED/s)
+  assert.match(gate, /transient start\/middle\/end transform evidence/i)
+  assert.match(gate, /after MP4 generation, Watch review remains required and authoritative/i)
+})
+
 test("retired browser category is absent even when user config tries to add it", () => {
   const engine = new CategoryEngine({
     "browser-automation": { model: "provider/model", description: "retired" },

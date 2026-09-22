@@ -47,6 +47,21 @@ full duration; reduced preview fps changes the evidence frame count, not the
 canonical ShotSpec duration or output fps. Stills establish framing and
 composition; the MP4 establishes motion and timing.
 
+For every shot requesting camera and/or subject motion, `blender-previs` must
+verify the requested animation before generating its preview MP4. After
+authoring, inspect Blender-native evaluated state at the shot's start frame,
+middle frame `floor((frame_start + frame_end) / 2)`, and end frame for each
+requested moving target. Check camera world transforms against the move's
+intent (pan/tilt may change orientation while location stays fixed); check the
+relevant proxy's evaluated transform or animation state for requested subject
+motion. Verify both independently when both are requested. Do not reject a
+locked/static camera or fully static shot for unchanged transforms when that
+motion was not requested, and do not invent motion. Missing or inconsistent
+requested motion blocks MP4 generation until the animation is corrected and
+verified. Return concise transient start/middle/end evidence without changing
+ShotSpec or manifest schemas. This proves motion was authored; Watch remains
+required after rendering to decide whether it looks correct.
+
 If a Blender MCP save/render/playblast call times out, treat completion as
 ambiguous. The child reports the exact supplied paths and does not blindly
 retry; Producer checks only those paths. A non-empty `.blend` is sufficient, a

@@ -115,6 +115,20 @@ fps. A static shot may use stills only. Do not use
 `delegate_task(agent="Blender")` for `/film` previs; that named route remains
 for general-purpose or explicitly technical Blender work outside this path.
 
+For every shot that requests camera and/or subject motion, the `blender-previs`
+child must complete and report a pre-render motion verification before it may
+generate the preview MP4. It samples Blender-native evaluated state at the
+shot's start, middle, and end frames for each requested moving target; camera
+motion must match its intent, subject motion must be checked independently, and
+both are required when both were requested. Pan/tilt can be evidenced by
+orientation changes with fixed camera location. A locked/static camera or
+fully static shot must not be rejected for unchanged transforms when that
+motion was not requested. Missing or inconsistent requested motion blocks MP4
+generation until corrected and re-verified. Require concise transient transform
+evidence in the child report. This authored-motion gate does not replace the
+post-render Watch review, which remains required to judge whether the movement
+is visually effective and matches the ShotSpec.
+
 If a save, still render, or playblast MCP call times out, treat completion as
 ambiguous. Do not claim success or definitive failure from the timeout alone,
 and do not repeat the same artifact-producing operation automatically. Verify
