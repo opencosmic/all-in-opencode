@@ -7,6 +7,7 @@ import { CategoryEngine } from "./category-engine.js"
 import {
   categoryPermission,
   isFilmProductionExternalPath,
+  isFilmProductionReferencePath,
   isGitMutationCommand,
   openDesignResourceDecision,
   permissionValue,
@@ -840,10 +841,14 @@ export class DelegationRuntime {
     const type = input.type ?? input.permission
     if (type === "external_directory" && !profile?.category) {
       const agent = profile?.agent ?? this.sessionAgents.get(input.sessionID)
-      if (agent === "Producer" || agent === "Director") {
-        const allowed = await isFilmProductionExternalPath(permissionValue(input), this.filmProductionSkillAccess)
-        if (allowed) decision = "allow"
-        else if (agent === "Director") decision = "deny"
+      if (agent === "Producer") {
+        if (await isFilmProductionExternalPath(permissionValue(input), this.filmProductionSkillAccess)) {
+          decision = "allow"
+        }
+      } else if (agent === "Director") {
+        decision = await isFilmProductionReferencePath(permissionValue(input), this.filmProductionSkillAccess)
+          ? "allow"
+          : "deny"
       }
     }
     if (decision && profile?.category === "git" && type === "bash" && isGitMutationCommand(permissionValue(input))) {

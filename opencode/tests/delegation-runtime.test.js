@@ -641,18 +641,23 @@ test("Producer cannot bypass Director with direct blender-previs", async (t) => 
   assert.equal(client.state.prompts.length, 0)
 })
 
-test("headless Producer and Director can read only the resolved installed film skill", async (t) => {
+test("Director sessions are restricted to film references while Producer behavior is preserved", async (t) => {
   const { root, repository, client, context } = await fixture(t)
   const source = join(root, "installed-film-source")
   const installed = join(root, "home", ".config", "opencode", "skills", "film-production")
+  const otherSkill = join(root, "home", ".config", "opencode", "skills", "hyperframes")
+  const unrelatedConfig = join(root, "home", ".config", "opencode", "settings.json")
   const reference = join(installed, "references", "shot-spec.md")
   const unrelated = join(root, "unrelated.txt")
   const outside = join(root, "outside")
   await mkdir(join(source, "references"), { recursive: true })
   await mkdir(outside)
   await mkdir(join(root, "home", ".config", "opencode", "skills"), { recursive: true })
+  await mkdir(otherSkill, { recursive: true })
   await writeFile(join(source, "SKILL.md"), "---\nname: film-production\ndescription: Film production fixture\n---\nRead references.\n")
   await writeFile(join(source, "references", "shot-spec.md"), "ShotSpec reference\n")
+  await writeFile(join(otherSkill, "SKILL.md"), "Other skill\n")
+  await writeFile(unrelatedConfig, "unrelated config\n")
   await writeFile(unrelated, "outside\n")
   await symlink(source, installed, "dir")
   await symlink(unrelated, join(source, "references", "escaped.md"))
@@ -677,8 +682,18 @@ test("headless Producer and Director can read only the resolved installed film s
 
   const rules = client.state.creates.at(-1).body.permission
   assert.ok(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "deny"))
-  for (const skillRoot of [installed, dirname(await realpath(join(source, "SKILL.md")))]) {
-    assert.ok(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === `${skillRoot}/*` && rule.action === "allow"))
+  const physicalRoot = dirname(await realpath(join(source, "SKILL.md")))
+  const expectedReferencePatterns = new Set([
+    join(installed, "references"), `${join(installed, "references")}/*`,
+    join(physicalRoot, "references"), `${join(physicalRoot, "references")}/*`,
+  ])
+  const externalRules = rules.filter((rule) => rule.permission === "external_directory")
+  assert.deepEqual(
+    new Set(externalRules.filter((rule) => rule.action === "allow").map((rule) => rule.pattern)),
+    expectedReferencePatterns,
+  )
+  for (const path of [installed, `${installed}/*`, join(physicalRoot, "SKILL.md")]) {
+    assert.equal(externalRules.some((rule) => rule.pattern === path && rule.action === "allow"), false, path)
   }
   assert.equal(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "allow"), false)
   assert.equal(rules.some((rule) => ["bash", "write", "edit", "question"].includes(rule.permission) && rule.action === "allow"), false)
@@ -716,6 +731,18 @@ test("headless Producer and Director can read only the resolved installed film s
     }
   }
 
+  for (const path of [
+    installed,
+    join(installed, "SKILL.md"),
+    join(otherSkill, "SKILL.md"),
+    unrelatedConfig,
+    "/tmp/aio-director-unrelated.txt",
+  ]) {
+    const result = { status: "ask" }
+    await runtime.applyPermission({ sessionID: directorID, permission: "external_directory", patterns: [path] }, result)
+    assert.equal(result.status, "deny", path)
+  }
+
   for (const permission of [
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
     "production_set_shots", "production_transition",
@@ -724,6 +751,24 @@ test("headless Producer and Director can read only the resolved installed film s
     await runtime.applyPermission({ sessionID: directorID, permission, patterns: ["*"] }, result)
     assert.equal(result.status, "deny")
   }
+})
+
+test("blender-previs delegated child resolves GPT-6 Luna max", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const director = { ...context, agent: "Director", sessionID: "model-director" }
+  runtime.observeSessionAgent({ sessionID: director.sessionID, agent: director.agent })
+
+  await runtime.delegate({
+    category: "blender-previs",
+    description: "Resolve previs model",
+    prompt: "Use a safe test assignment.",
+    run_in_background: true,
+  }, director)
+
+  const prompt = client.state.prompts.at(-1)
+  assert.equal(prompt.body.agent, "Implementer")
+  assert.deepEqual(prompt.body.model, { providerID: "openai", modelID: "gpt-6-luna" })
+  assert.equal(prompt.body.variant, "max")
 })
 
 test("delegated phase owners retain delegate_task and route only their bounded categories", async (t) => {

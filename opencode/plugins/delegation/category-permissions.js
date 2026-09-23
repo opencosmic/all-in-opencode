@@ -255,13 +255,32 @@ export async function isFilmProductionExternalPath(path, access) {
   }
 }
 
+export async function isFilmProductionReferencePath(path, access) {
+  if (typeof path !== "string" || !access || /(?:^|\/)\.env(?:$|[/.])/.test(path)) return false
+  const descendantPattern = path.endsWith("/*")
+  const candidate = descendantPattern ? path.slice(0, -2) : path
+  if (!candidate || /[*?\[\]{}]/.test(candidate) || candidate.split("/").includes("..")) return false
+
+  const referencesRoots = access.roots.map((root) => resolve(root, "references"))
+  if (!referencesRoots.some((root) => isWithin(candidate, root))) return false
+  try {
+    const physicalReferencesRoot = resolve(access.physicalRoot, "references")
+    return isWithin(await realpath(candidate), physicalReferencesRoot)
+  } catch {
+    return false
+  }
+}
+
 export function filmProductionSessionPermission(agent, access) {
   if (agent !== "Director" || !access) return undefined
   return [
     { permission: "external_directory", pattern: "*", action: "deny" },
-    ...access.roots.flatMap((root) => [root, `${root}/*`].map((pattern) => ({
-      permission: "external_directory", pattern, action: "allow",
-    }))),
+    ...access.roots.flatMap((root) => {
+      const references = resolve(root, "references")
+      return [references, `${references}/*`].map((pattern) => ({
+        permission: "external_directory", pattern, action: "allow",
+      }))
+    }),
   ]
 }
 

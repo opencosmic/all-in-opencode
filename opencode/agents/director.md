@@ -68,6 +68,11 @@ never `/tmp/...`, `/Users/...`, or another absolute path. Do not delegate
 `blender-previs` or `video-analysis` during PLAN. Do not create files or
 mutate the ProductionManifest.
 
+Canonical `ShotSpec.output` describes final delivery intent. Preview resolution,
+preview FPS, and preview frame count are transient `blender-previs` execution
+parameters; do not copy them into `ShotSpec.output` unless the user explicitly
+requested those values for final delivery.
+
 If a creative decision genuinely needs the user, return
 `DIRECTOR_NEEDS_USER_INPUT` with one concise blocking question, why it matters,
 and a safe default if available. Never ask the user directly. Producer asks

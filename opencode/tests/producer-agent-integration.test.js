@@ -55,6 +55,7 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /DIRECTOR_NEEDS_ARTIFACT_PREPARATION.*prepare only its new\s+canonical destinations/s)
   assert.match(producer, /DIRECTOR_PREVIS_COMPLETE.*per-shot PASS evidence/s)
   assert.match(producer, /After every required\s+previs shot passes, call `production_transition`.*then write the meaningful `production_checkpoint`/s)
+  assert.match(producer, /If Director returns a blocked PREVIS result, keep the manifest in `previs` and\s+write a current `production_checkpoint`.*first-pass artifacts and Watch finding.*blocked or canceled revision\s+attempt.*Do not\s+transition to `production`.*until Watch returns\s+PASS/s)
   assert.match(producer, /Producer must never call `blender-previs` or named\s+Blender as a fallback/s)
   assert.doesNotMatch(producer, /mkdir -p|pwd -P|cd <parent> && pwd -P/)
   assert.doesNotMatch(producer, /delegate_task\(category="blender-previs"\)/)

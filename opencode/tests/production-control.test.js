@@ -212,6 +212,36 @@ test("checkpoint replaces one bounded recovery state without changing lifecycle 
   assert.equal((await manifestAt(project)).history.length, 1)
 })
 
+test("blocked previs checkpoint records Watch and revision recovery without advancing lifecycle", async (t) => {
+  const { project, runtime, producer } = await fixture(t)
+  await runtime.productionPreflight({ project_id: "blocked-previs" }, producer)
+  await runtime.productionSetShots({ shots: [sampleShot()] }, producer)
+  await runtime.productionTransition({ to_status: "previs" }, producer)
+  const before = await manifestAt(project)
+
+  const result = await runtime.productionCheckpoint({
+    current_focus: "Revise shot_01 gait after Watch identified sliding",
+    completed: ["First-pass previs artifacts rendered", "Watch reviewed the shot and requested revision"],
+    remaining: ["Complete or resume the blocked gait revision", "Return to Watch and require PASS"],
+    verification: { status: "BLOCKED", revision_attempts: 1, watch_pass: false },
+    important_artifacts: [
+      "production/production-manifest.json",
+      "production/previs/shot_01/shot_01.blend",
+      "production/previs/shot_01/preview.mp4",
+    ],
+  }, producer)
+
+  const blocked = await manifestAt(project)
+  validateProductionManifest(blocked)
+  assert.equal(result.project_status, "previs")
+  assert.equal(result.latest_checkpoint.phase, "previs")
+  assert.equal(blocked.project.status, "previs")
+  assert.equal(blocked.latest_checkpoint.verification.status, "BLOCKED")
+  assert.equal(blocked.revision, before.revision)
+  assert.deepEqual(blocked.history, before.history)
+  assert.equal((await runtime.productionPreflight({}, producer)).checkpoint_stale, false)
+})
+
 test("old manifests without checkpoint remain valid and normalize to null", () => {
   const old = createProductionManifest({ project: "legacy" })
   delete old.latest_checkpoint

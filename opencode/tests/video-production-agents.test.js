@@ -39,6 +39,7 @@ test("phase owners are dedicated subagents with bounded permissions", async () =
   assert.match(director, /^  write: deny$/m)
   assert.match(director, /PLAN assignment[\s\S]*complete\s+canonical ShotSpec objects/)
   assert.match(director, /Before authoring or revising any canonical ShotSpec,\s+read `film-production\/references\/shot-spec\.md`/s)
+  assert.match(director, /Canonical `ShotSpec\.output` describes final delivery intent.*Preview resolution,\s+preview FPS, and preview frame count are transient `blender-previs` execution\s+parameters.*unless the user explicitly\s+requested those values for final delivery/s)
   assert.doesNotMatch(director, /production_(?:preflight|prepare_artifacts|checkpoint|set_shots|transition): allow/)
   assert.match(director, /PREVIS assignment[\s\S]*absolute runtime\s+destinations prepared by Producer/)
   assert.match(director, /DIRECTOR_NEEDS_USER_INPUT[\s\S]*Producer asks/)

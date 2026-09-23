@@ -157,6 +157,13 @@ then write the meaningful `production_checkpoint` so its derived phase is
 `production`. Keep canonical artifact paths relative and absolute execution
 paths transient.
 
+If Director returns a blocked PREVIS result, keep the manifest in `previs` and
+write a current `production_checkpoint` before returning. Record the completed
+first-pass artifacts and Watch finding, the blocked or canceled revision
+attempt, the remaining work, current focus, and canonical artifact paths. Do not
+transition to `production` or describe the shot as passed until Watch returns
+PASS.
+
 Producer retains the transitional live generation strategy, direct
 `media-generation` and `video-analysis` outside Director previs, and current
 HyperFrames composition until later milestones. It retains budget, exact
