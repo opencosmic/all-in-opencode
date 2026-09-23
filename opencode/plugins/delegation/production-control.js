@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, sep } from "node:path"
 import {
   createProductionManifest,
   normalizeProductionManifest,
+  transitionProductionManifest,
   validateCanonicalProductionPath,
   validateProductionManifest,
 } from "../film-production/contracts.js"
@@ -15,6 +16,7 @@ const MAX_ARTIFACTS = 64
 const CHECKPOINT_INPUT_FIELDS = new Set([
   "current_focus", "completed", "remaining", "verification", "important_artifacts",
 ])
+const TRANSITION_INPUT_FIELDS = new Set(["to_status", "note"])
 
 async function existing(path) {
   try {
@@ -174,6 +176,54 @@ export async function productionPrepareArtifacts({ paths } = {}, directory) {
     })
   }
   return { artifacts }
+}
+
+export async function productionSetShots(args = {}, directory) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("production_set_shots input must be an object")
+  }
+  for (const field of Object.keys(args)) {
+    if (field !== "shots") throw new Error(`production_set_shots does not accept ${field}`)
+  }
+  if (!Array.isArray(args.shots)) throw new Error("production_set_shots requires a complete ShotSpec array in shots")
+
+  const { path, manifest } = await requiredProduction(directory)
+  const next = { ...manifest, shots: structuredClone(args.shots) }
+  validateProductionManifest(next)
+  await writeJson(path, next)
+  return {
+    project_id: next.project.id,
+    project_status: next.project.status,
+    manifest_revision: next.revision,
+    shot_count: next.shots.length,
+    shot_ids: next.shots.map((shot) => shot.shot_id),
+    manifest: { canonical_path: PRODUCTION_MANIFEST_PATH, runtime_path: path },
+  }
+}
+
+export async function productionTransition(args = {}, directory) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("production_transition input must be an object")
+  }
+  for (const field of Object.keys(args)) {
+    if (!TRANSITION_INPUT_FIELDS.has(field)) throw new Error(`production_transition does not accept ${field}`)
+  }
+  const { path, manifest } = await requiredProduction(directory)
+  const previousStatus = manifest.project.status
+  const next = transitionProductionManifest(manifest, args.to_status, {
+    at: new Date().toISOString(),
+    ...(args.note === undefined ? {} : { note: args.note }),
+  })
+  validateProductionManifest(next)
+  await writeJson(path, next)
+  return {
+    project_id: next.project.id,
+    previous_status: previousStatus,
+    status: next.project.status,
+    revision: next.revision,
+    history_entry: next.history.at(-1),
+    manifest: { canonical_path: PRODUCTION_MANIFEST_PATH, runtime_path: path },
+  }
 }
 
 export async function productionCheckpoint(args = {}, directory) {

@@ -22,7 +22,10 @@ test("phase owners are dedicated subagents with bounded permissions", async () =
     assert.match(source, new RegExp(`^name: ${name}$`, "m"))
     assert.match(source, /^mode: subagent$/m)
     assert.match(source, /^  delegate_task: allow$/m)
-    for (const tool of ["production_preflight", "production_prepare_artifacts", "production_checkpoint"]) {
+    for (const tool of [
+      "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+      "production_set_shots", "production_transition",
+    ]) {
       assert.match(source, new RegExp(`^  ${tool}: deny$`, "m"))
     }
     assert.match(source, /^  question: deny$/m)
@@ -35,6 +38,8 @@ test("phase owners are dedicated subagents with bounded permissions", async () =
   assert.match(director, /^  edit: deny$/m)
   assert.match(director, /^  write: deny$/m)
   assert.match(director, /PLAN assignment[\s\S]*complete\s+canonical ShotSpec objects/)
+  assert.match(director, /Before authoring or revising any canonical ShotSpec,\s+read `film-production\/references\/shot-spec\.md`/s)
+  assert.doesNotMatch(director, /production_(?:preflight|prepare_artifacts|checkpoint|set_shots|transition): allow/)
   assert.match(director, /PREVIS assignment[\s\S]*absolute runtime\s+destinations prepared by Producer/)
   assert.match(director, /DIRECTOR_NEEDS_USER_INPUT[\s\S]*Producer asks/)
   assert.match(director, /DIRECTOR_NEEDS_ARTIFACT_PREPARATION[\s\S]*Producer prepares/)
@@ -85,6 +90,10 @@ test("phase-owner named routes alone retain bounded nested delegation", () => {
     assert.equal(profile.tools.task_status, true)
     assert.equal(profile.tools.workspace_prepare, false)
     assert.equal(profile.tools.task, false)
+    for (const tool of [
+      "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+      "production_set_shots", "production_transition",
+    ]) assert.equal(profile.tools[tool], false)
   }
   for (const [caller, name] of [["Assistant", "Explorer"], ["Assistant", "Searcher"], ["Executor", "Reviewer"], ["Executor", "Blender"]]) {
     const profile = route.resolve({ agent: name, parentAgent: caller }).profile

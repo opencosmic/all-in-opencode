@@ -20,6 +20,8 @@ import {
   productionCheckpoint,
   productionPreflight,
   productionPrepareArtifacts,
+  productionSetShots,
+  productionTransition,
 } from "./production-control.js"
 import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
@@ -252,6 +254,16 @@ export class DelegationRuntime {
   async productionCheckpoint(args, context) {
     this.assertProducerProductionTool(context, "production_checkpoint")
     return productionCheckpoint(args, context.directory)
+  }
+
+  async productionSetShots(args, context) {
+    this.assertProducerProductionTool(context, "production_set_shots")
+    return productionSetShots(args, context.directory)
+  }
+
+  async productionTransition(args, context) {
+    this.assertProducerProductionTool(context, "production_transition")
+    return productionTransition(args, context.directory)
   }
 
   async ensureExecutionPreflight(args = {}, context, workspace) {

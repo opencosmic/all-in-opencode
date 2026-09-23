@@ -32,6 +32,20 @@ async function manifestAt(project) {
   return JSON.parse(await readFile(join(project, "production/production-manifest.json"), "utf8"))
 }
 
+function sampleShot(overrides = {}) {
+  return createShotSpec({
+    shot_id: "shot_01",
+    purpose: "moving_fox_previs",
+    duration_seconds: 5,
+    subject: { id: "fox", action: "walk_across_frame" },
+    camera: { movement: "tracking", lens_mm: 50, framing_start: "wide", framing_end: "medium" },
+    environment: { id: "misty_forest" },
+    control: { previs: "required" },
+    output: { aspect_ratio: "16:9", fps: 24 },
+    ...overrides,
+  })
+}
+
 test("preflight creates one canonical manifest, resumes idempotently, and protects project identity", async (t) => {
   const { project, runtime, producer } = await fixture(t)
   await assert.rejects(runtime.productionPreflight({}, producer), /requires project_id/)
@@ -206,12 +220,159 @@ test("old manifests without checkpoint remain valid and normalize to null", () =
   assert.equal(PRODUCTION_MANIFEST_VERSION, 1)
 })
 
+test("production_set_shots validates and replaces only canonical shots while preserving production state", async (t) => {
+  const { project, runtime, producer } = await fixture(t)
+  await assert.rejects(runtime.productionSetShots({ shots: [sampleShot()] }, producer), /run production_preflight first/)
+  await runtime.productionPreflight({ project_id: "shots" }, producer)
+  const initial = await runtime.productionSetShots({ shots: [sampleShot()] }, producer)
+  assert.deepEqual(initial.shot_ids, ["shot_01"])
+  assert.equal(initial.shot_count, 1)
+  await runtime.productionTransition({ to_status: "previs" }, producer)
+  await runtime.productionCheckpoint({ current_focus: "reviewing previs" }, producer)
+
+  const path = join(project, "production/production-manifest.json")
+  const withExistingState = await manifestAt(project)
+  withExistingState.assets.push({ asset_id: "fox_reference", shot_ids: ["shot_01"] })
+  withExistingState.generation_jobs.push({ job_id: "later_generation", shot_id: "shot_01", status: "planned" })
+  withExistingState.costs = { estimated_usd: 2, approved_usd: 3, actual_usd: 0 }
+  await writeFile(path, JSON.stringify(withExistingState))
+
+  const replacement = sampleShot({
+    purpose: "fox_crosses_the_clearing",
+    subject: { id: "fox", action: "walk from left to right" },
+  })
+  const before = await manifestAt(project)
+  const result = await runtime.productionSetShots({ shots: [replacement] }, producer)
+  const after = await manifestAt(project)
+  validateProductionManifest(after)
+  assert.equal(result.project_status, before.project.status)
+  assert.equal(result.manifest_revision, before.revision)
+  assert.equal(after.project.status, before.project.status)
+  assert.equal(after.revision, before.revision)
+  assert.deepEqual(after.history, before.history)
+  assert.deepEqual(after.latest_checkpoint, before.latest_checkpoint)
+  assert.deepEqual(after.assets, before.assets)
+  assert.deepEqual(after.generation_jobs, before.generation_jobs)
+  assert.deepEqual(after.costs, before.costs)
+  assert.deepEqual(after.shots, [replacement])
+  assert.deepEqual(result.manifest, {
+    canonical_path: "production/production-manifest.json",
+    runtime_path: await realpath(path),
+  })
+})
+
+test("production_set_shots rejects invalid ShotSpecs without writing and accepts a corrected retry", async (t) => {
+  const { project, runtime, producer } = await fixture(t)
+  await runtime.productionPreflight({ project_id: "shot-validation" }, producer)
+  const original = await readFile(join(project, "production/production-manifest.json"), "utf8")
+  const invalid = {
+    ...sampleShot(),
+    camera: { ...sampleShot().camera, framing_end: "x".repeat(121) },
+  }
+  await assert.rejects(runtime.productionSetShots({ shots: [invalid] }, producer), (error) => {
+    assert.match(error.message, /ProductionManifest\.shots\[0\]\.camera\.framing_end must be at most 120 characters/)
+    return true
+  })
+  assert.equal(await readFile(join(project, "production/production-manifest.json"), "utf8"), original)
+
+  const valid = sampleShot({ generation: { intent: "Create a provider-neutral previs reference" } })
+  const invalidGeneration = { ...valid, generation: { intent: "x".repeat(241) } }
+  await assert.rejects(runtime.productionSetShots({ shots: [invalidGeneration] }, producer), /ProductionManifest\.shots\[0\]\.generation\.intent must be at most 240 characters/)
+  assert.equal(await readFile(join(project, "production/production-manifest.json"), "utf8"), original)
+
+  const accepted = await runtime.productionSetShots({ shots: [valid] }, producer)
+  assert.deepEqual(accepted.shot_ids, ["shot_01"])
+  assert.deepEqual((await manifestAt(project)).shots, [valid])
+})
+
+test("production_set_shots rejects invalid current state, arbitrary fields, and manifest symlinks", async (t) => {
+  const { root, project, runtime, producer } = await fixture(t)
+  await assert.rejects(runtime.productionSetShots({ shots: [sampleShot()], status: "production" }, producer), /does not accept status/)
+  await runtime.productionPreflight({ project_id: "bad-current" }, producer)
+  const path = join(project, "production/production-manifest.json")
+  const before = await readFile(path, "utf8")
+  await assert.rejects(runtime.productionSetShots({ shots: [sampleShot()], history: [] }, producer), /does not accept history/)
+  assert.equal(await readFile(path, "utf8"), before)
+
+  await writeFile(path, JSON.stringify({ project: { id: "bad-current", status: "planning" } }))
+  const invalidCurrent = await readFile(path, "utf8")
+  await assert.rejects(runtime.productionSetShots({ shots: [sampleShot()] }, producer), /revision must be present/)
+  assert.equal(await readFile(path, "utf8"), invalidCurrent)
+
+  await writeFile(path, before)
+  const outside = join(root, "manifest-outside.json")
+  await writeFile(outside, before)
+  await rm(path)
+  await symlink(outside, path)
+  await assert.rejects(runtime.productionSetShots({ shots: [sampleShot()] }, producer), /manifest must not be a symlink/)
+})
+
+test("production_transition reuses legal lifecycle semantics and preserves non-lifecycle fields", async (t) => {
+  const { project, runtime, producer } = await fixture(t)
+  await assert.rejects(runtime.productionTransition({ to_status: "previs" }, producer), /run production_preflight first/)
+  await runtime.productionPreflight({ project_id: "transition" }, producer)
+  await runtime.productionSetShots({ shots: [sampleShot()] }, producer)
+  await runtime.productionCheckpoint({ current_focus: "plan ready" }, producer)
+  const path = join(project, "production/production-manifest.json")
+  const before = await manifestAt(project)
+  const first = await runtime.productionTransition({ to_status: "previs", note: "Director plan accepted" }, producer)
+  const previs = await manifestAt(project)
+  validateProductionManifest(previs)
+  assert.equal(first.previous_status, "planning")
+  assert.equal(first.status, "previs")
+  assert.equal(first.revision, 1)
+  assert.deepEqual(first.history_entry, previs.history.at(-1))
+  assert.equal(previs.revision, previs.history.length)
+  assert.deepEqual(previs.shots, before.shots)
+  assert.deepEqual(previs.assets, before.assets)
+  assert.deepEqual(previs.generation_jobs, before.generation_jobs)
+  assert.deepEqual(previs.costs, before.costs)
+  assert.deepEqual(previs.latest_checkpoint, before.latest_checkpoint)
+  assert.deepEqual(previs.history.at(-1), {
+    at: previs.updated_at,
+    from: "planning",
+    status: "previs",
+    note: "Director plan accepted",
+  })
+
+  const beforeIllegal = await readFile(path, "utf8")
+  await assert.rejects(runtime.productionTransition({ to_status: "completed" }, producer), /cannot transition from previs to completed/)
+  assert.equal(await readFile(path, "utf8"), beforeIllegal)
+
+  const second = await runtime.productionTransition({ to_status: "production" }, producer)
+  const production = await manifestAt(project)
+  validateProductionManifest(production)
+  assert.equal(second.previous_status, "previs")
+  assert.equal(second.status, "production")
+  assert.equal(production.revision, production.history.length)
+  assert.deepEqual(production.shots, before.shots)
+  assert.deepEqual(production.latest_checkpoint, before.latest_checkpoint)
+})
+
+test("production_transition supports planning to production and leaves invalid current state untouched", async (t) => {
+  const { project, runtime, producer } = await fixture(t)
+  await runtime.productionPreflight({ project_id: "direct-production" }, producer)
+  const direct = await runtime.productionTransition({ to_status: "production" }, producer)
+  assert.equal(direct.previous_status, "planning")
+  assert.equal(direct.status, "production")
+  assert.equal(direct.revision, 1)
+
+  const path = join(project, "production/production-manifest.json")
+  await writeFile(path, JSON.stringify({ project: { id: "direct-production", status: "production" } }))
+  const invalid = await readFile(path, "utf8")
+  await assert.rejects(runtime.productionTransition({ to_status: "assets-ready" }, producer), /revision must be present/)
+  assert.equal(await readFile(path, "utf8"), invalid)
+  await assert.rejects(runtime.productionTransition({ to_status: "qa", revision: 20 }, producer), /does not accept revision/)
+})
+
 test("runtime denies production tools to non-Producers and delegated children", async (t) => {
   const { runtime, producer } = await fixture(t)
   const operations = [
     ["productionPreflight", { project_id: "denied" }],
     ["productionPrepareArtifacts", { paths: ["production/previs/a.blend"] }],
     ["productionCheckpoint", {}],
+    ["productionSetShots", { shots: [sampleShot()] }],
+    ["productionTransition", { to_status: "previs" }],
   ]
   for (const agent of ["Director", "Creator", "Editor", "Implementer", "Assistant", "Executor", "Planner", "Strategist", "Blender", "Searcher", "Browser"]) {
     for (const [name, args] of operations) {
@@ -220,6 +381,8 @@ test("runtime denies production tools to non-Producers and delegated children", 
   }
   runtime.profiles.set("delegated-child", { agent: "Director", category: null })
   await assert.rejects(runtime.productionPreflight({ project_id: "denied" }, { ...producer, sessionID: "delegated-child" }), /may only be called by the primary Producer/)
+  await assert.rejects(runtime.productionSetShots({ shots: [] }, { ...producer, sessionID: "delegated-child" }), /may only be called by the primary Producer/)
+  await assert.rejects(runtime.productionTransition({ to_status: "previs" }, { ...producer, sessionID: "delegated-child" }), /may only be called by the primary Producer/)
 })
 
 test("registered plugin tools complete a zero-cost production smoke in an ordinary directory", async (t) => {
@@ -237,6 +400,10 @@ test("registered plugin tools complete a zero-cost production smoke in an ordina
   const context = { agent: "Producer", sessionID: "smoke-producer", directory: project }
   const preflight = JSON.parse(await plugin.tool.production_preflight.execute({ project_id: "m2-smoke" }, context))
   assert.equal(preflight.created, true)
+  const shots = JSON.parse(await plugin.tool.production_set_shots.execute({ shots: [sampleShot()] }, context))
+  assert.deepEqual(shots.shot_ids, ["shot_01"])
+  const transition = JSON.parse(await plugin.tool.production_transition.execute({ to_status: "previs" }, context))
+  assert.equal(transition.status, "previs")
   const prepared = JSON.parse(await plugin.tool.production_prepare_artifacts.execute({ paths: [
     "production/previs/shot-01/scene.blend", "production/previs/shot-01/preview.mp4",
   ] }, context))
@@ -249,11 +416,11 @@ test("registered plugin tools complete a zero-cost production smoke in an ordina
   const checkpoint = JSON.parse(await plugin.tool.production_checkpoint.execute({
     current_focus: "shot-01 previs", remaining: ["render preview"],
   }, context))
-  assert.equal(checkpoint.latest_checkpoint.phase, "planning")
+  assert.equal(checkpoint.latest_checkpoint.phase, "previs")
   const persisted = await manifestAt(project)
   validateProductionManifest(persisted)
-  assert.equal(persisted.revision, 0)
-  assert.deepEqual(persisted.history, [])
+  assert.equal(persisted.revision, 1)
+  assert.equal(persisted.history.length, 1)
   const resumed = JSON.parse(await plugin.tool.production_preflight.execute({}, context))
   assert.equal(resumed.created, false)
   assert.deepEqual(resumed.latest_checkpoint, checkpoint.latest_checkpoint)
@@ -265,16 +432,7 @@ test("Director plan handoff keeps Producer path and lifecycle authority", async 
   const manifestPath = join(project, "production/production-manifest.json")
   const plan = {
     status: "DIRECTOR_PLAN_READY",
-    shots: [createShotSpec({
-      shot_id: "shot_01",
-      purpose: "moving_fox_previs",
-      duration_seconds: 5,
-      subject: { id: "fox", action: "walk_across_frame" },
-      camera: { movement: "tracking", lens_mm: 50, framing_start: "wide", framing_end: "medium" },
-      environment: { id: "misty_forest" },
-      control: { previs: "required" },
-      output: { aspect_ratio: "16:9", fps: 24 },
-    })],
+    shots: [sampleShot()],
     canonical_artifacts: [
       "production/previs/shot_01/shot_01.blend",
       "production/previs/shot_01/start.png",
@@ -283,9 +441,8 @@ test("Director plan handoff keeps Producer path and lifecycle authority", async 
       "production/previs/shot_01/preview.mp4",
     ],
   }
-  const planned = { ...await manifestAt(project), shots: plan.shots }
-  validateProductionManifest(planned)
-  await writeFile(manifestPath, JSON.stringify(transitionProductionManifest(planned, "previs")))
+  await runtime.productionSetShots({ shots: plan.shots }, producer)
+  await runtime.productionTransition({ to_status: "previs" }, producer)
   const preparation = await runtime.productionPrepareArtifacts({ paths: plan.canonical_artifacts }, producer)
   assert.deepEqual(preparation.artifacts.map((artifact) => artifact.canonical_path), plan.canonical_artifacts)
   for (const artifact of preparation.artifacts) {
@@ -297,8 +454,7 @@ test("Director plan handoff keeps Producer path and lifecycle authority", async 
   }), /may only be called by the primary Producer/)
   assert.equal((await manifestAt(project)).project.status, "previs")
 
-  const passed = transitionProductionManifest(await manifestAt(project), "production", { note: "Director previs PASS" })
-  await writeFile(manifestPath, JSON.stringify(passed))
+  await runtime.productionTransition({ to_status: "production", note: "Director previs PASS" }, producer)
   await runtime.productionCheckpoint({ completed: ["Director plan", "shot_01 previs PASS"],
     remaining: ["generation strategy"], important_artifacts: plan.canonical_artifacts }, producer)
   const final = await manifestAt(project)

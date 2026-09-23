@@ -275,6 +275,8 @@ test("sensitive categories preserve session permissions instead of replacing the
     production_preflight: false,
     production_prepare_artifacts: false,
     production_checkpoint: false,
+    production_set_shots: false,
+    production_transition: false,
     workspace_prepare: false,
     execution_preflight: false,
     delegate_task: false,
@@ -287,7 +289,10 @@ test("sensitive categories preserve session permissions instead of replacing the
 })
 
 test("production control tools stay denied in delegated category and named-child sessions", () => {
-  const names = ["production_preflight", "production_prepare_artifacts", "production_checkpoint"]
+  const names = [
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition",
+  ]
   for (const name of names) {
     for (const category of ["quick", "git", "video-analysis", "media-generation", "blender-previs"]) {
       assert.equal(categoryPermission({ agent: "Implementer", category }, { type: name, pattern: "*" }), "deny")

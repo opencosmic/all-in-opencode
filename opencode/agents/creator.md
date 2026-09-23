@@ -21,6 +21,8 @@ permission:
   production_preflight: deny
   production_prepare_artifacts: deny
   production_checkpoint: deny
+  production_set_shots: deny
+  production_transition: deny
   task_status: allow
   task_output: allow
   task_cancel: allow

@@ -58,6 +58,8 @@ permission:
   production_preflight: allow
   production_prepare_artifacts: allow
   production_checkpoint: allow
+  production_set_shots: allow
+  production_transition: allow
   workspace_prepare: deny
   workspace_release: deny
   task_status: allow
@@ -113,14 +115,20 @@ complete provider-neutral ShotSpecs, previs decisions, and canonical
 Producer must not replace a failed Director plan with Producer-authored creative
 planning.
 
-On `DIRECTOR_PLAN_READY`, validate and persist the complete ShotSpecs in the
-one canonical ProductionManifest using the existing film-production contract.
-Preserve unrelated manifest fields; do not persist the transient Director
-handoff, absolute runtime paths, or provider routing in ShotSpecs. Producer
-alone owns lifecycle changes through legal ProductionManifest transitions:
-`planning -> previs` when live previs is needed, or `planning -> production`
-when it is not. If Director's plan cannot be persisted validly, stop and
-report the blocker.
+On `DIRECTOR_PLAN_READY`, pass the complete Director-authored ShotSpec array to
+`production_set_shots`. The deterministic tool validates the resulting
+ProductionManifest and replaces only `shots`; it preserves lifecycle,
+revision/history, checkpoint, assets, jobs, and costs. Do not search for or
+read `contracts.js`, interpret validator implementation, or manually edit
+manifest JSON. If validation fails, send the exact error and previous creative
+context back to Director for a complete corrected ShotSpec collection, then
+call `production_set_shots` again. Director remains the creative author and
+the runtime remains the validator.
+
+After the ShotSpecs persist, Producer alone chooses and performs the legal
+lifecycle change with `production_transition`: use `to_status: "previs"` when
+live previs is required, or `to_status: "production"` when it is not. Never
+manually edit `project.status`, `revision`, or `history`.
 
 For live previs, take Director's canonical file destinations and call
 `production_prepare_artifacts`, preferably once for all known shots. It
@@ -142,10 +150,12 @@ to repeat it blindly. Director reports the exact affected paths and evidence;
 Producer handles unresolved infrastructure recovery without taking over the
 creative previs verdict. Director returns `DIRECTOR_PREVIS_COMPLETE` with
 per-shot PASS evidence, final complete ShotSpecs, and revision counts, or a
-clear blocked result. Producer persists any Director-approved provider-neutral
-ShotSpec revisions, writes a meaningful `production_checkpoint`, and advances
-`previs -> production` only after every required previs shot passes. Keep
-canonical artifact paths relative and absolute execution paths transient.
+clear blocked result. If Director returns a revised ShotSpec, persist the
+complete revised collection with `production_set_shots`. After every required
+previs shot passes, call `production_transition` with `to_status: "production"`,
+then write the meaningful `production_checkpoint` so its derived phase is
+`production`. Keep canonical artifact paths relative and absolute execution
+paths transient.
 
 Producer retains the transitional live generation strategy, direct
 `media-generation` and `video-analysis` outside Director previs, and current

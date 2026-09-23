@@ -37,6 +37,8 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
     "production_preflight",
     "production_prepare_artifacts",
     "production_checkpoint",
+    "production_set_shots",
+    "production_transition",
     "delegate_task",
     "consult_agents",
     "task_status",
@@ -57,6 +59,9 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
   assert.ok(plugin.tool.workspace_checkpoint_update.args.status)
   assert.ok(plugin.tool.production_preflight.args.project_id)
   assert.ok(plugin.tool.production_prepare_artifacts.args.paths)
+  assert.ok(plugin.tool.production_set_shots.args.shots)
+  assert.ok(plugin.tool.production_transition.args.to_status)
+  assert.ok(plugin.tool.production_transition.args.note)
   assert.equal(plugin.tool.production_checkpoint.args.phase, undefined)
   assert.equal(plugin.tool.production_checkpoint.args.updated_at, undefined)
   assert.equal(plugin.tool.workspace_checkpoint_update.args.head_sha, undefined)
@@ -103,6 +108,8 @@ test("plugin entrypoint initializes with the full tool set outside Git", async (
     "production_preflight",
     "production_prepare_artifacts",
     "production_checkpoint",
+    "production_set_shots",
+    "production_transition",
     "delegate_task",
     "consult_agents",
     "task_status",

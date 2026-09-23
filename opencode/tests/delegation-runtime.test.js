@@ -716,7 +716,10 @@ test("headless Producer and Director can read only the resolved installed film s
     }
   }
 
-  for (const permission of ["production_preflight", "production_prepare_artifacts", "production_checkpoint"]) {
+  for (const permission of [
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition",
+  ]) {
     const result = { status: "ask" }
     await runtime.applyPermission({ sessionID: directorID, permission, patterns: ["*"] }, result)
     assert.equal(result.status, "deny")

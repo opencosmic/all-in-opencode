@@ -27,7 +27,10 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /question: allow/)
   assert.match(producer, /websearch: allow/)
   assert.match(producer, /^  delegate_task: allow$/m)
-  for (const tool of ["production_preflight", "production_prepare_artifacts", "production_checkpoint"]) {
+  for (const tool of [
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition",
+  ]) {
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"))
   }
   for (const tool of ["task_status", "task_output", "task_cancel"]) {
@@ -40,15 +43,18 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /delegates Director\s+`PLAN` with the user brief/s)
   assert.match(producer, /Director authors the CreativeBrief.*complete provider-neutral ShotSpecs/s)
   assert.match(producer, /DIRECTOR_NEEDS_USER_INPUT.*ask the user and re-delegate/s)
-  assert.match(producer, /validate and persist the complete ShotSpecs.*one canonical ProductionManifest/s)
-  assert.match(producer, /Preserve unrelated manifest fields/)
-  assert.match(producer, /planning -> previs.*planning -> production/s)
+  assert.match(producer, /pass the complete Director-authored ShotSpec array to\s+`production_set_shots`/s)
+  assert.match(producer, /If validation fails, send the exact error.*complete corrected ShotSpec collection/s)
+  assert.match(producer, /Do not search for or\s+read `contracts\.js`/s)
+  assert.match(producer, /`production_transition`.*to_status: "previs".*to_status: "production"/s)
+  assert.match(producer, /Never\s+manually edit `project\.status`, `revision`, or `history`/)
+  assert.match(producer, /`production_transition` with `to_status: "production"`.*then write the\s+meaningful `production_checkpoint`/s)
   assert.match(producer, /production_prepare_artifacts.*preferably once for all known shots/s)
   assert.match(producer, /Delegate Director `PREVIS`.*absolute runtime path/s)
   assert.match(producer, /Director, not Producer,.*delegates `blender-previs`.*`video-analysis` with Watch/s)
   assert.match(producer, /DIRECTOR_NEEDS_ARTIFACT_PREPARATION.*prepare only its new\s+canonical destinations/s)
   assert.match(producer, /DIRECTOR_PREVIS_COMPLETE.*per-shot PASS evidence/s)
-  assert.match(producer, /production_checkpoint.*previs -> production.*only after every required previs shot passes/s)
+  assert.match(producer, /After every required\s+previs shot passes, call `production_transition`.*then write the meaningful `production_checkpoint`/s)
   assert.match(producer, /Producer must never call `blender-previs` or named\s+Blender as a fallback/s)
   assert.doesNotMatch(producer, /mkdir -p|pwd -P|cd <parent> && pwd -P/)
   assert.doesNotMatch(producer, /delegate_task\(category="blender-previs"\)/)
@@ -127,6 +133,7 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   for (const tool of [
     "delegate_task", "task_status", "task_output", "task_cancel",
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition",
   ]) {
     assert.equal(agent.tools[tool], true, `${tool} must remain available`)
   }
@@ -146,6 +153,8 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(permission("production_preflight", "anything"), "allow")
   assert.equal(permission("production_prepare_artifacts", "anything"), "allow")
   assert.equal(permission("production_checkpoint", "anything"), "allow")
+  assert.equal(permission("production_set_shots", "anything"), "allow")
+  assert.equal(permission("production_transition", "anything"), "allow")
   assert.equal(permission("workspace_prepare", "anything"), "deny")
   assert.equal(permission("workspace_release", "anything"), "deny")
   assert.equal(permission("bash", "npx hyperframes lint"), "allow")

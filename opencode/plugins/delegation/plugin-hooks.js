@@ -213,6 +213,19 @@ export function delegationPluginHooks(runtime) {
         },
         execute: async (args, context) => json(await runtime.productionCheckpoint(args, context)),
       }),
+      production_set_shots: tool({
+        description: "Replace only the canonical ProductionManifest shots with a complete ShotSpec array after validating the resulting manifest against the film-production contract. Invalid input leaves the manifest unchanged. Producer only; requires production_preflight.",
+        args: { shots: tool.schema.array(tool.schema.any()) },
+        execute: async (args, context) => json(await runtime.productionSetShots(args, context)),
+      }),
+      production_transition: tool({
+        description: "Perform one legal lifecycle transition on the canonical ProductionManifest through the existing film-production transition contract. Producer only; requires production_preflight.",
+        args: {
+          to_status: tool.schema.string().min(1),
+          note: tool.schema.string().min(1).max(1_000).optional(),
+        },
+        execute: async (args, context) => json(await runtime.productionTransition(args, context)),
+      }),
       delegate_task: tool({
         description: runtime.delegateTaskDescription(),
         args: {

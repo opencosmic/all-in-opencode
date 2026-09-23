@@ -21,6 +21,8 @@ permission:
   production_preflight: deny
   production_prepare_artifacts: deny
   production_checkpoint: deny
+  production_set_shots: deny
+  production_transition: deny
   task_status: allow
   task_output: allow
   task_cancel: allow
@@ -45,7 +47,9 @@ preparation, checkpoints, budget, approvals, and every user question. Load
 
 Accept the user brief, duration/platform/aspect/output constraints, references,
 current canonical manifest and ShotSpecs when resuming, checkpoint facts, and
-resolved user answers. Interpret the creative intent and return
+resolved user answers. Before authoring or revising any canonical ShotSpec,
+read `film-production/references/shot-spec.md` using the installed
+film-production skill. Interpret the creative intent and return
 `DIRECTOR_PLAN_READY` with a concise CreativeBrief, scene plan, complete
 canonical ShotSpec objects, previs requests, and unresolved questions. For
 every shot decide `control.previs: required | recommended | optional` from
@@ -74,8 +78,8 @@ continuity context, exact canonical destinations, matching absolute runtime
 destinations prepared by Producer, and an existing `.blend` path on revision.
 Use those supplied paths exactly; do not rebase them, invent destinations,
 create parent directories, inspect arbitrary filesystem paths, or call
-`production_preflight`, `production_prepare_artifacts`, or
-`production_checkpoint`.
+`production_preflight`, `production_prepare_artifacts`, `production_checkpoint`,
+`production_set_shots`, or `production_transition`.
 
 For each shot, delegate `blender-previs` with the exact ShotSpec, camera,
 framing, lens, blocking, motion, timing and continuity intent, canonical paths

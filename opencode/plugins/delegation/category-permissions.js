@@ -29,6 +29,7 @@ const OPEN_DESIGN_RESOURCE_TOOLS = new Set([
 const MEDIA_WORKSPACE_TOOL_NAMES = Object.freeze(["read", "glob", "grep", "list", "lsp"])
 export const PRODUCTION_CONTROL_TOOL_NAMES = Object.freeze([
   "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+  "production_set_shots", "production_transition",
 ])
 const BLENDER_PREVIS_TOOL_NAMES = Object.freeze([
   "blender_get_addon_status",
