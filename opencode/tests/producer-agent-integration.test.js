@@ -27,6 +27,9 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /question: allow/)
   assert.match(producer, /websearch: allow/)
   assert.match(producer, /^  delegate_task: allow$/m)
+  for (const tool of ["production_preflight", "production_prepare_artifacts", "production_checkpoint"]) {
+    assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"))
+  }
   for (const tool of ["task_status", "task_output", "task_cancel"]) {
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"), tool)
   }
@@ -34,23 +37,13 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /transitional\s+capabilities/i)
   assert.match(producer, /Producer may delegate these three named phase owners/i)
   assert.match(producer, /delegate_task\(category="blender-previs"\)/)
-  assert.match(producer, /explicit artifact destinations inside the active\s+production\s+workspace[\s\S]*`production\/previs\/<shot-or-group>\/`/i)
-  assert.match(producer, /`\.blend` source destination/i)
-  assert.match(producer, /key-stills directory\s+or\s+explicit still paths/i)
-  assert.match(producer, /moving-shot preview MP4 destination/i)
-  assert.match(producer, /do not omit destinations or let the category invent an output directory/i)
-  assert.match(producer, /Before delegation, prepare and verify exactly the parent\s+directories required\s+by those supplied destinations/i)
-  assert.match(producer, /targeted `mkdir -p` through Producer's shell access/i)
-  assert.match(producer, /do not create artifact\s+files, unrelated directories, or delegate directory creation to\s+`blender-previs`/i)
-  assert.match(producer, /If a required parent is still missing, stop and report the\s+missing supplied destination/i)
-  assert.match(producer, /Keep canonical artifact paths workspace-relative in ShotSpecs and the\s+ProductionManifest/i)
-  assert.match(producer, /resolve separate runtime destinations\s+for Blender: capture the physical active workspace root with `pwd -P`/i)
-  assert.match(producer, /accept only canonical paths rooted under `production\/previs\/`\s+that are relative and contain no `\.` or `\.\.` path segments/i)
-  assert.match(producer, /resolve each\s+already-prepared parent directory with `cd <parent> && pwd -P`/i)
-  assert.match(producer, /separator-aware boundary check/i)
-  assert.match(producer, /Build each absolute runtime destination from the verified physical\s+parent/i)
-  assert.match(producer, /never pass a workspace-relative value as a Blender\s+destination/i)
-  assert.match(producer, /never persist host-specific\s+absolute paths into canonical production state/i)
+  assert.match(producer, /production_preflight.*production\/production-manifest\.json/s)
+  assert.match(producer, /production_prepare_artifacts.*canonical file destinations/s)
+  assert.match(producer, /production_checkpoint.*meaningful recovery boundaries/s)
+  assert.match(producer, /production\/previs\/<shot-or-group>\//)
+  assert.match(producer, /returned absolute paths to `delegate_task\(category="blender-previs"\)`/s)
+  assert.match(producer, /never be persisted there/i)
+  assert.doesNotMatch(producer, /mkdir -p|pwd -P|cd <parent> && pwd -P/)
   assert.match(producer, /editable `\.blend` source, key stills, and a low-resolution preview MP4/s)
   assert.match(producer, /viewport\/OpenGL\/playblast first,\s+Workbench next, and lightweight Eevee only when needed/i)
   assert.match(producer, /ordinary previs must\s+not use Cycles, high samples, expensive denoising/i)
@@ -150,7 +143,10 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(agent.mode, "primary")
   assert.equal(agent.tools.websearch, true)
   assert.equal(agent.tools.task, false)
-  for (const tool of ["delegate_task", "task_status", "task_output", "task_cancel"]) {
+  for (const tool of [
+    "delegate_task", "task_status", "task_output", "task_cancel",
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+  ]) {
     assert.equal(agent.tools[tool], true, `${tool} must remain available`)
   }
 
@@ -166,6 +162,9 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(permission("task_status", "anything"), "allow")
   assert.equal(permission("task_output", "anything"), "allow")
   assert.equal(permission("task_cancel", "anything"), "allow")
+  assert.equal(permission("production_preflight", "anything"), "allow")
+  assert.equal(permission("production_prepare_artifacts", "anything"), "allow")
+  assert.equal(permission("production_checkpoint", "anything"), "allow")
   assert.equal(permission("workspace_prepare", "anything"), "deny")
   assert.equal(permission("workspace_release", "anything"), "deny")
   assert.equal(permission("bash", "npx hyperframes lint"), "allow")

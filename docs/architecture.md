@@ -35,7 +35,7 @@ OpenCode owns model, variant, tool, permission, and session execution. Git owns 
 
 `delegate_task` requires exactly one category or named specialist. Categories route to the reusable Implementer. The public OpenCode effective-agent list is the existence boundary. Built-in read-only specialists are Explorer, Librarian, Technical Advisor, Plan Reviewer, Researcher, Validator, Reviewer, QA, and Verifier; the policy module preserves their workflow-specific parent ceilings, with Verifier reserved for Executor's fresh shipping-verification handoff. The category ceilings are role-specific: Assistant remains broad except for hard caller-exclusive categories, Executor may delegate only categories in family `implementation`, and Producer may delegate only categories in family `media` plus the explicit transitional `blender-previs` category. Director is limited to `blender-previs` and `video-analysis`, Creator to `media-generation` and `video-analysis`, and Editor to `video-analysis`. Producer alone delegates these phase owners; the named Blender route remains only `Executor -> Blender`. A custom caller must have an `aio.json.delegation` entry. A custom target must be discovered, configured under `aio.json.agents` with `delegatable: true`, and listed by its caller. Unknown names fail closed, and Strategist/Planner/Blender category routes are rejected by the runtime. `consult_agents` is a separate, runtime-guarded facade available only to `Implementer`; it accepts one to four concurrent requests targeting exactly `Explorer` or `Librarian`, carries no skills or category, and reuses the same child-session/task lifecycle for bounded information gathering. It never delegates implementation ownership.
 
-The nine runtime tools are `execution_preflight`, `workspace_prepare`, `workspace_checkpoint_update`, `delegate_task`, `consult_agents`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces. `execution_preflight` is read-only and Executor-only; it reconciles the logical change with current repository, workspace, task, dependency, source-overlap, contention, checkpoint, and verification facts before topology or delegation. `workspace_checkpoint_update` is a bounded local metadata write: Executor may update a provenance-validated workspace, while an Implementer may update only its own active task/workspace session.
+The nine delegation and workspace tools are `execution_preflight`, `workspace_prepare`, `workspace_checkpoint_update`, `delegate_task`, `consult_agents`, `task_status`, `task_output`, `task_cancel`, and `workspace_release`. The runtime uses only public OpenCode plugin and SDK surfaces. `execution_preflight` is read-only and Executor-only; it reconciles the logical change with current repository, workspace, task, dependency, source-overlap, contention, checkpoint, and verification facts before topology or delegation. `workspace_checkpoint_update` is a bounded local metadata write: Executor may update a provenance-validated workspace, while an Implementer may update only its own active task/workspace session.
 
 The runtime also initializes outside Git repositories. In that case, ordinary delegation and task inspection use a stable directory-scoped control plane, while workspace preparation and release remain Git-only operations.
 
@@ -133,6 +133,15 @@ Editor uses the official upstream HyperFrames skill directly and may delegate
 direct previs, generation, analysis, and HyperFrames access only for the
 currently live workflow; its named Blender route is denied. No
 `video-composition` category or HyperFrames agent is involved.
+
+Milestone 2 adds three Producer-only mechanical tools. `production_preflight`
+creates or resumes `production/production-manifest.json` in the physical active
+project directory; `production_prepare_artifacts` walks exact parent segments
+without following symlinks and returns transient absolute runtime destinations;
+`production_checkpoint` replaces one bounded `latest_checkpoint` in that same
+manifest. The checkpoint is recovery context, not lifecycle history: only
+`transitionProductionManifest()` advances status, revision, and history. These
+tools do not choose shots, models, budgets, or HyperFrames workflows.
 
 The dedicated `/film` route launches the same `Producer` primary agent with the
 repository-owned `film-production` skill:

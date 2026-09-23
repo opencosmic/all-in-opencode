@@ -51,6 +51,9 @@ permission:
     "figma": allow
     "film-production": allow
   delegate_task: allow
+  production_preflight: deny
+  production_prepare_artifacts: deny
+  production_checkpoint: deny
   task_status: allow
   task_output: allow
   task_cancel: allow

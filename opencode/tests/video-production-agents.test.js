@@ -22,6 +22,9 @@ test("phase owners are dedicated subagents with bounded permissions", async () =
     assert.match(source, new RegExp(`^name: ${name}$`, "m"))
     assert.match(source, /^mode: subagent$/m)
     assert.match(source, /^  delegate_task: allow$/m)
+    for (const tool of ["production_preflight", "production_prepare_artifacts", "production_checkpoint"]) {
+      assert.match(source, new RegExp(`^  ${tool}: deny$`, "m"))
+    }
     assert.match(source, /^  question: deny$/m)
     assert.match(source, /^  task: deny$/m)
     assert.doesNotMatch(source, /^  blender_[^:]+: allow$/m)

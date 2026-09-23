@@ -187,9 +187,17 @@ orchestration layer:
 
 The repository-owned `film-production` skill defines renderer-neutral
 shotcraft, the validated provider-neutral `ShotSpec` and `ProductionManifest`
-contracts, reference-asset tracking, and revision routing. `blender-previs`
-handles lightweight camera, blocking, staging, lens, and timing evidence; standalone `/blender` remains available outside video production. HyperFrames
-handles composition/render, and Watch-backed `video-analysis` handles grounded
+contracts, reference-asset tracking, and revision routing.
+For canonical production state, Producer first calls `production_preflight`,
+then uses `production_prepare_artifacts` for exact `production/...` file paths
+before delegating previs. The returned absolute paths are for execution only;
+persist canonical relative paths. Producer records `production_checkpoint` at
+meaningful handoff or approval boundaries. The tools do not choose the next
+phase or replace Producer's creative and budget decisions.
+
+`blender-previs` handles lightweight camera, blocking, staging, lens, and timing
+evidence; standalone `/blender` remains available outside video production.
+HyperFrames handles composition/render, and Watch-backed `video-analysis` handles grounded
 review. The media category is least-privilege and exposes only six bounded Atlas
 Cloud operations; it cannot delegate, use shell/Git, browse, edit files, or call
 arbitrary HTTP.

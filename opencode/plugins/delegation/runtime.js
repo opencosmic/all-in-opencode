@@ -14,6 +14,11 @@ import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
 import { createAtlasMediaRuntime, createMockMediaRuntime, isMediaRuntimeTool } from "./media-runtime.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
+import {
+  productionCheckpoint,
+  productionPreflight,
+  productionPrepareArtifacts,
+} from "./production-control.js"
 import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
 import { SkillResolver, discoverSkills } from "./skill-resolver.js"
@@ -217,6 +222,29 @@ export class DelegationRuntime {
       input: structuredClone(args ?? {}),
     })
     return result
+  }
+
+  assertProducerProductionTool(context, name) {
+    if (context?.agent !== "Producer"
+      || (context?.sessionID && this.profiles?.has(context.sessionID))
+      || (context?.sessionID && this.registry?.list().some((task) => task.child_session_id === context.sessionID))) {
+      throw new Error(`${name} may only be called by the primary Producer`)
+    }
+  }
+
+  async productionPreflight(args, context) {
+    this.assertProducerProductionTool(context, "production_preflight")
+    return productionPreflight(args, context.directory)
+  }
+
+  async productionPrepareArtifacts(args, context) {
+    this.assertProducerProductionTool(context, "production_prepare_artifacts")
+    return productionPrepareArtifacts(args, context.directory)
+  }
+
+  async productionCheckpoint(args, context) {
+    this.assertProducerProductionTool(context, "production_checkpoint")
+    return productionCheckpoint(args, context.directory)
   }
 
   async ensureExecutionPreflight(args = {}, context, workspace) {

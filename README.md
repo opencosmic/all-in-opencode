@@ -40,10 +40,13 @@ Named delegation is fail closed. Built-in specialists retain their workflow-spec
 
 ## Delegation Runtime
 
-The runtime exposes the core delegation tools plus six bounded Atlas Cloud media tools:
+The runtime exposes delegation tools, three Producer-only production tools, and six bounded Atlas Cloud media tools:
 
 - `execution_preflight`
 - `workspace_prepare`
+- `production_preflight`
+- `production_prepare_artifacts`
+- `production_checkpoint`
 - `delegate_task`
 - `consult_agents`
 - `task_status`
@@ -189,6 +192,14 @@ the video-production graph. `media-generation` is a
 bounded provider-neutral Implementer category, HyperFrames remains the
 composition and render authority, and `video-analysis`/Watch provides
 grounded QA of stills, preview video, and generated footage.
+
+Producer uses the deterministic `production_preflight` tool to create or resume
+`production/production-manifest.json`. `production_prepare_artifacts` checks
+canonical `production/...` file destinations, creates only their safe parent
+directories, and returns transient absolute runtime paths for previs or later
+execution. `production_checkpoint` replaces one concise recovery summary in
+the same manifest without changing lifecycle revision or history. Producer
+still decides creative routing, spending, and approvals.
 
 Assistant remains technically able to delegate enabled media categories as part
 of its broad orchestration role; `/film` ownership still belongs to Producer.

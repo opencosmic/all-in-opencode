@@ -55,6 +55,9 @@ permission:
     "film-production": allow
   task: deny
   delegate_task: allow
+  production_preflight: allow
+  production_prepare_artifacts: allow
+  production_checkpoint: allow
   workspace_prepare: deny
   workspace_release: deny
   task_status: allow
@@ -88,41 +91,32 @@ the live `/video` and `/film` routes continue to work. These are transitional
 capabilities, not the final phase ownership graph. Do not infer broad
 implementation-category or other named-agent access.
 
-For `/film`, Producer decides from each ShotSpec whether previs is needed. For
-that previs path, delegate the already-defined request with
-`delegate_task(category="blender-previs")`, including the ShotSpec, camera and
-framing intent, timing, and explicit artifact destinations inside the active
-production workspace. Normally use `production/previs/<shot-or-group>/` and
-provide a reusable `.blend` source destination, a key-stills directory or
-explicit still paths, and a moving-shot preview MP4 destination (or explicitly
-mark the MP4 not needed for a static shot). Use workspace-relative paths rooted
-in the active workspace, or resolved absolute paths when Blender requires them;
-do not omit destinations or let the category invent an output directory. For a
-revision, also provide the existing `.blend` source path and the appropriate
-output destinations.
-Before delegation, prepare and verify exactly the parent directories required
-by those supplied destinations inside the active production workspace, using
-the existing bounded Producer workspace-preparation convention (for example,
-a targeted `mkdir -p` through Producer's shell access). Do not create artifact
-files, unrelated directories, or delegate directory creation to
-`blender-previs`. If a required parent is still missing, stop and report the
-missing supplied destination instead of starting the child.
+For a production using canonical state, call `production_preflight` to create or
+resume `production/production-manifest.json`, then inspect its project status
+and latest checkpoint. Producer decides the phase and next work; the control
+plane owns physical workspace resolution and path safety. Record a concise
+`production_checkpoint` at meaningful recovery boundaries: planning established,
+previs completed or blocked, generation approval reached, assets completed,
+composition ready, QA passed or blocked, or before returning at a user approval
+gate. Do not checkpoint after every tool call. The runtime derives checkpoint
+phase and timestamp; Producer supplies only factual progress, verification,
+and canonical artifact paths.
 
-Keep canonical artifact paths workspace-relative in ShotSpecs and the
-ProductionManifest. Before delegation, resolve separate runtime destinations
-for Blender: capture the physical active workspace root with `pwd -P` while
-at that root; accept only canonical paths rooted under `production/previs/`
-that are relative and contain no `.` or `..` path segments; then resolve each
-already-prepared parent directory with `cd <parent> && pwd -P`. Require the
-resolved parent to equal the physical workspace root or be beneath it using a
-separator-aware boundary check. If resolution escapes the root, a parent is
-unusable, or an existing artifact destination is a symlink, stop before
-delegating. Build each absolute runtime destination from the verified physical
-parent and its supplied filename. Pass the canonical-to-runtime mapping to
-`blender-previs`, clearly labeling only the absolute runtime value as usable
-for Blender I/O; never pass a workspace-relative value as a Blender
-destination. Keep this mapping transient and never persist host-specific
-absolute paths into canonical production state.
+For `/film`, Producer still decides from each ShotSpec whether previs is needed
+until Director's live workflow migrates. For a selected shot, identify exact
+canonical file destinations under `production/previs/<shot-or-group>/`: a
+reusable `.blend` source, explicit key still paths, and a moving-shot preview
+MP4 (or explicitly mark the MP4 unnecessary for a static shot). Call
+`production_prepare_artifacts` once with those file paths. It prepares only
+their required parent directories and returns the checked absolute runtime
+destinations. Pass the already-defined ShotSpec, camera/framing/timing intent,
+and those returned absolute paths to `delegate_task(category="blender-previs")`.
+For a revision, include the existing `.blend` source and updated destinations.
+Do not invent an output directory or delegate directory creation to
+`blender-previs`. Keep canonical paths workspace-relative in ShotSpecs and
+ProductionManifest; the absolute host-specific paths are transient execution
+values and must never be persisted there. If preparation fails, stop and report
+its concrete error instead of delegating or retrying blindly.
 
 The category implements lightweight spatial/camera/timing previs and returns
 an editable `.blend` source, key stills, and a low-resolution preview MP4 for

@@ -42,6 +42,9 @@ const PRODUCTION_TRANSITIONS = Object.freeze({
 })
 
 const INITIAL_PRODUCTION_STATUS = "planning"
+const CHECKPOINT_FIELDS = new Set([
+  "phase", "current_focus", "completed", "remaining", "verification", "important_artifacts", "updated_at",
+])
 
 function contractError(path, message) {
   throw new Error(`${path} ${message}`)
@@ -285,6 +288,56 @@ function validateHistory(value, path) {
   return value
 }
 
+export function validateCanonicalProductionPath(value, path = "production path") {
+  const text = nonEmptyString(value, path, 512)
+  if (text !== value || !text.startsWith("production/") || text.includes("\\") || text.includes("~")
+    || /[\u0000-\u001f\u007f:]/.test(text) || text.split("/").some((part) => !part || part === "." || part === "..")) {
+    contractError(path, "must be a safe canonical workspace-relative production path")
+  }
+  return text
+}
+
+function validateCheckpoint(value, path) {
+  if (value === null) return null
+  const checkpoint = object(value, path)
+  for (const field of Object.keys(checkpoint)) {
+    if (!CHECKPOINT_FIELDS.has(field)) contractError(`${path}.${field}`, "is not supported")
+  }
+  if (!PRODUCTION_STATUSES.includes(checkpoint.phase)) {
+    contractError(`${path}.phase`, `must be one of: ${PRODUCTION_STATUSES.join(", ")}`)
+  }
+  if (checkpoint.current_focus !== undefined && checkpoint.current_focus !== null) {
+    nonEmptyString(checkpoint.current_focus, `${path}.current_focus`, 240)
+  }
+  for (const field of ["completed", "remaining"]) {
+    if (!Array.isArray(checkpoint[field]) || checkpoint[field].length > 20) {
+      contractError(`${path}.${field}`, "must be an array of at most 20 strings")
+    }
+    checkpoint[field].forEach((entry, index) => nonEmptyString(entry, `${path}.${field}[${index}]`, 240))
+  }
+  const verification = object(checkpoint.verification, `${path}.verification`)
+  if (Object.keys(verification).length > 20) contractError(`${path}.verification`, "must have at most 20 facts")
+  for (const [key, fact] of Object.entries(verification)) {
+    nonEmptyString(key, `${path}.verification key`, 80)
+    if (typeof fact === "string") nonEmptyString(fact, `${path}.verification.${key}`, 240)
+    else if (typeof fact === "number") {
+      if (!Number.isFinite(fact)) contractError(`${path}.verification.${key}`, "must be finite")
+    } else if (typeof fact !== "boolean") {
+      contractError(`${path}.verification.${key}`, "must be a string, boolean, or number")
+    }
+  }
+  if (!Array.isArray(checkpoint.important_artifacts) || checkpoint.important_artifacts.length > 40) {
+    contractError(`${path}.important_artifacts`, "must be an array of at most 40 paths")
+  }
+  checkpoint.important_artifacts.forEach((entry, index) =>
+    validateCanonicalProductionPath(entry, `${path}.important_artifacts[${index}]`))
+  const updatedAt = nonEmptyString(checkpoint.updated_at, `${path}.updated_at`, 80)
+  if (!Number.isFinite(Date.parse(updatedAt)) || new Date(updatedAt).toISOString() !== updatedAt) {
+    contractError(`${path}.updated_at`, "must be an ISO timestamp")
+  }
+  return checkpoint
+}
+
 export function validateProductionManifest(manifest, path = "ProductionManifest") {
   object(manifest, path)
   if (manifest.schema_version !== undefined && manifest.schema_version !== PRODUCTION_MANIFEST_VERSION) {
@@ -357,6 +410,10 @@ export function validateProductionManifest(manifest, path = "ProductionManifest"
     validateArtifact(outputs[field], `${path}.outputs.${field}`)
   }
 
+  if (manifest.latest_checkpoint !== undefined) {
+    validateCheckpoint(manifest.latest_checkpoint, `${path}.latest_checkpoint`)
+  }
+
   for (const field of ["created_at", "updated_at", "request_digest"]) {
     if (manifest[field] !== undefined && manifest[field] !== null) nonEmptyString(manifest[field], `${path}.${field}`, 4_000)
   }
@@ -381,6 +438,7 @@ export function normalizeProductionManifest(manifest) {
       final: null,
     },
     history: [],
+    latest_checkpoint: null,
     ...manifest,
   })
   normalized.costs = {
@@ -394,6 +452,7 @@ export function normalizeProductionManifest(manifest) {
     final: null,
     ...(manifest.outputs ?? {}),
   }
+  normalized.latest_checkpoint = manifest.latest_checkpoint ?? null
   validateProductionManifest(normalized)
   return normalized
 }

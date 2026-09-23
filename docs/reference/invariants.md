@@ -3,7 +3,8 @@
 | Invariant | Enforcement |
 |---|---|
 | Runtime code uses stock public OpenCode plugin and SDK APIs only. | Static dependency guard and loader test |
-| Fifteen project-owned delegation tools are exposed, including the Executor-only `execution_preflight`, bounded `workspace_checkpoint_update`, restricted `consult_agents`, and six bounded Atlas media-runtime tools. | Plugin and runtime policy tests |
+| Eighteen project-owned delegation tools are exposed, including the Executor-only `execution_preflight`, bounded `workspace_checkpoint_update`, three Producer-only production tools, restricted `consult_agents`, and six bounded Atlas media-runtime tools. | Plugin and runtime policy tests |
+| Producer's production control plane uses one canonical manifest, safe physical path preparation, and one overwrite-only checkpoint; phase agents and Implementer categories cannot call its tools. | Production-control, contract, permission, and plugin tests |
 | Category selection is deterministic and every enabled category routes to the shared Implementer. | CategoryEngine tests |
 | Category ceilings are caller-specific: Assistant remains broad except for hard caller-exclusive categories, Executor may use only `implementation`, Producer temporarily uses `media` plus `blender-previs`, and Director/Creator/Editor have exact bounded category sets; named-agent policy remains separate. | Delegation policy and catalog tests |
 | The built-in family catalog keeps `git` and `blender-previs` in `implementation` and media categories in `media`; built-in family labels are canonical and cannot be reclassified through `aio.json`, while custom categories may choose their own family. | CategoryEngine and AIO-config tests |

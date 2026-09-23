@@ -26,6 +26,9 @@ const OPEN_DESIGN_RESOURCE_TOOLS = new Set([
   "read_mcp_resource",
 ])
 const MEDIA_WORKSPACE_TOOL_NAMES = Object.freeze(["read", "glob", "grep", "list", "lsp"])
+export const PRODUCTION_CONTROL_TOOL_NAMES = Object.freeze([
+  "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+])
 const BLENDER_PREVIS_TOOL_NAMES = Object.freeze([
   "blender_get_addon_status",
   "blender_get_scene_info",
@@ -35,6 +38,7 @@ const BLENDER_PREVIS_TOOL_NAMES = Object.freeze([
 ])
 const BLENDER_PREVIS_TOOL_SET = new Set(BLENDER_PREVIS_TOOL_NAMES)
 const BLENDER_PREVIS_BLOCKED_PERMISSIONS = new Set([
+  ...PRODUCTION_CONTROL_TOOL_NAMES,
   "read",
   "glob",
   "grep",
@@ -248,6 +252,7 @@ function watchBashPatterns(skillPaths) {
 export function categoryPermission(profile, input = {}) {
   const value = permissionValue(input)
   const type = input.type ?? input.permission
+  if (PRODUCTION_CONTROL_TOOL_NAMES.includes(type) && profile) return "deny"
 
   if (isBlenderPrevisTool(type)) {
     // A missing category profile belongs to a direct named Blender session;
@@ -334,8 +339,12 @@ export function categoryPermission(profile, input = {}) {
 }
 
 export function categorySessionPermission(category, tools = {}, skills = []) {
+  const productionControlDeny = PRODUCTION_CONTROL_TOOL_NAMES.map((permission) => ({
+    permission, pattern: "*", action: "deny",
+  }))
   if (category === "git") {
     const rules = [
+      ...productionControlDeny,
       { permission: "edit", pattern: "*", action: "deny" },
       { permission: "write", pattern: "*", action: "deny" },
       { permission: "skill", pattern: "*", action: "deny" },
@@ -366,6 +375,7 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
       .filter(Boolean)
       .map(watchSkillRoot)
     const rules = [
+      ...productionControlDeny,
       { permission: "edit", pattern: "*", action: "deny" },
       { permission: "write", pattern: "*", action: "deny" },
       { permission: "skill", pattern: "*", action: "deny" },
@@ -408,6 +418,7 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
   }
   if (category === "media-generation") {
     const rules = [
+      ...productionControlDeny,
       ...MEDIA_WORKSPACE_TOOL_NAMES.map((permission) => ({ permission, pattern: "*", action: "deny" })),
       { permission: "edit", pattern: "*", action: "deny" },
       { permission: "write", pattern: "*", action: "deny" },
@@ -432,6 +443,7 @@ export function categorySessionPermission(category, tools = {}, skills = []) {
   }
   if (category === "blender-previs") {
     const rules = [
+      ...productionControlDeny,
       ...MEDIA_RUNTIME_TOOL_NAMES.map((permission) => ({ permission, pattern: "*", action: "deny" })),
       ...[
         "read",

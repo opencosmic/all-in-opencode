@@ -8,6 +8,9 @@ function namedAgentRoute(agent) {
     profile: {
       description: phaseOwner ? `${agent} production phase owner` : `Read-only ${agent} specialist`,
       tools: {
+        production_preflight: false,
+        production_prepare_artifacts: false,
+        production_checkpoint: false,
         workspace_prepare: false,
         delegate_task: phaseOwner,
         workspace_checkpoint_update: false,

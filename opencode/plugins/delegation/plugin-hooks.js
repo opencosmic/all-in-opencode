@@ -185,6 +185,34 @@ export function delegationPluginHooks(runtime) {
         },
         execute: async (args, context) => json(await runtime.workspaceCheckpointUpdate(args, context)),
       }),
+      production_preflight: tool({
+        description: "Create or resume the canonical production/production-manifest.json in the active project and report physical workspace and checkpoint facts. Producer only.",
+        args: { project_id: tool.schema.string().min(1).optional() },
+        execute: async (args, context) => json(await runtime.productionPreflight(args, context)),
+      }),
+      production_prepare_artifacts: tool({
+        description: "Prepare only the exact parent directories for safe canonical production artifact file paths and return absolute runtime destinations. Producer only; requires production_preflight.",
+        args: { paths: tool.schema.array(tool.schema.string().min(1)).min(1).max(64) },
+        execute: async (args, context) => json(await runtime.productionPrepareArtifacts(args, context)),
+      }),
+      production_checkpoint: tool({
+        description: "Replace the canonical ProductionManifest's latest bounded recovery checkpoint without changing lifecycle revision or history. Producer only.",
+        args: {
+          current_focus: tool.schema.string().min(1).max(240).optional(),
+          completed: tool.schema.array(tool.schema.string().min(1).max(240)).max(20).optional(),
+          remaining: tool.schema.array(tool.schema.string().min(1).max(240)).max(20).optional(),
+          verification: tool.schema.record(
+            tool.schema.string().min(1).max(80),
+            tool.schema.union([
+              tool.schema.string().min(1).max(240),
+              tool.schema.boolean(),
+              tool.schema.number(),
+            ]),
+          ).optional(),
+          important_artifacts: tool.schema.array(tool.schema.string().min(1).max(512)).max(40).optional(),
+        },
+        execute: async (args, context) => json(await runtime.productionCheckpoint(args, context)),
+      }),
       delegate_task: tool({
         description: runtime.delegateTaskDescription(),
         args: {

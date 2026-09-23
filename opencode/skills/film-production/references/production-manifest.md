@@ -22,6 +22,7 @@ costs:
 outputs:
   rough_cut: null
   final: null
+latest_checkpoint: null
 ```
 
 Keep shot IDs unique. Assets and generation jobs should point back to shots;
@@ -84,3 +85,14 @@ pass. The validator enforces the persisted state directly: empty history means
 history is a legal chain from `planning`, and its final status matches the
 project status. The helper is the preferred way to derive transitions, but
 helper invocation itself is not a separate validation requirement.
+
+The canonical file is `production/production-manifest.json` in the active
+project. Producer uses `production_preflight` to create or resume it and
+`production_prepare_artifacts` to prepare exact artifact parents and transient
+absolute runtime paths. One optional `latest_checkpoint` holds concise recovery
+facts: `phase`, `current_focus`, `completed`, `remaining`, `verification`,
+`important_artifacts`, and `updated_at`. The runtime derives phase and time;
+checkpoint writes replace the previous value without changing `revision` or
+`history`. Old manifests without this field normalize to `null`. A checkpoint
+may be stale after a lifecycle transition; preflight reports that fact and does
+not rewrite it.
