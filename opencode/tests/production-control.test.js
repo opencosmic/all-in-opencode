@@ -10,6 +10,7 @@ import { DelegationRuntime } from "../plugins/delegation/runtime.js"
 import {
   PRODUCTION_MANIFEST_VERSION,
   createProductionManifest,
+  createShotSpec,
   normalizeProductionManifest,
   transitionProductionManifest,
   validateProductionManifest,
@@ -256,4 +257,56 @@ test("registered plugin tools complete a zero-cost production smoke in an ordina
   const resumed = JSON.parse(await plugin.tool.production_preflight.execute({}, context))
   assert.equal(resumed.created, false)
   assert.deepEqual(resumed.latest_checkpoint, checkpoint.latest_checkpoint)
+})
+
+test("Director plan handoff keeps Producer path and lifecycle authority", async (t) => {
+  const { project, runtime, producer } = await fixture(t)
+  await runtime.productionPreflight({ project_id: "director-handoff" }, producer)
+  const manifestPath = join(project, "production/production-manifest.json")
+  const plan = {
+    status: "DIRECTOR_PLAN_READY",
+    shots: [createShotSpec({
+      shot_id: "shot_01",
+      purpose: "moving_fox_previs",
+      duration_seconds: 5,
+      subject: { id: "fox", action: "walk_across_frame" },
+      camera: { movement: "tracking", lens_mm: 50, framing_start: "wide", framing_end: "medium" },
+      environment: { id: "misty_forest" },
+      control: { previs: "required" },
+      output: { aspect_ratio: "16:9", fps: 24 },
+    })],
+    canonical_artifacts: [
+      "production/previs/shot_01/shot_01.blend",
+      "production/previs/shot_01/start.png",
+      "production/previs/shot_01/mid.png",
+      "production/previs/shot_01/end.png",
+      "production/previs/shot_01/preview.mp4",
+    ],
+  }
+  const planned = { ...await manifestAt(project), shots: plan.shots }
+  validateProductionManifest(planned)
+  await writeFile(manifestPath, JSON.stringify(transitionProductionManifest(planned, "previs")))
+  const preparation = await runtime.productionPrepareArtifacts({ paths: plan.canonical_artifacts }, producer)
+  assert.deepEqual(preparation.artifacts.map((artifact) => artifact.canonical_path), plan.canonical_artifacts)
+  for (const artifact of preparation.artifacts) {
+    assert.equal(isAbsolute(artifact.runtime_path), true)
+    await assert.rejects(lstat(artifact.runtime_path), { code: "ENOENT" })
+  }
+  await assert.rejects(runtime.productionPrepareArtifacts({ paths: plan.canonical_artifacts }, {
+    ...producer, agent: "Director",
+  }), /may only be called by the primary Producer/)
+  assert.equal((await manifestAt(project)).project.status, "previs")
+
+  const passed = transitionProductionManifest(await manifestAt(project), "production", { note: "Director previs PASS" })
+  await writeFile(manifestPath, JSON.stringify(passed))
+  await runtime.productionCheckpoint({ completed: ["Director plan", "shot_01 previs PASS"],
+    remaining: ["generation strategy"], important_artifacts: plan.canonical_artifacts }, producer)
+  const final = await manifestAt(project)
+  validateProductionManifest(final)
+  assert.equal(final.project.status, "production")
+  assert.equal(final.revision, 2)
+  assert.equal(final.history.length, 2)
+  assert.equal(final.latest_checkpoint.phase, "production")
+  assert.deepEqual(final.shots, plan.shots)
+  assert.equal(Object.hasOwn(final, "canonical_artifacts"), false)
 })

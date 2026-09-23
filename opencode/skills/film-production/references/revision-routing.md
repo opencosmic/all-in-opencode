@@ -16,9 +16,13 @@ the proposed route, and any new calculate/approval requirement for an explicit
 decision. A reroll is a new paid request and must never be created
 automatically.
 
-For previs, review stills and the preview MP4 through `video-analysis`/Watch,
-then compare that evidence with the expected ShotSpec. The `.blend` remains an
+For previs, Director reviews stills and the preview MP4 through
+`video-analysis`/Watch, then compares that evidence with the expected ShotSpec.
+The `.blend` remains an
 editable source artifact and is not itself the review target. A
 `REVISION_REQUIRED` request should preserve the current scene and ask
-`blender-previs` to edit it where practical. Previs review must pass before
-`media-generation` or any paid Atlas submission.
+`blender-previs` to edit it where practical. Director returns any complete
+provider-neutral ShotSpec revision to Producer for persistence. New artifact
+destinations return to Producer for `production_prepare_artifacts`; Director
+does not create directories. Previs review must pass before `media-generation`
+or any paid Atlas submission.

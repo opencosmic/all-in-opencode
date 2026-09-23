@@ -126,11 +126,12 @@ test("configured callers may opt into Searcher while Searcher remains a leaf", (
   )
 })
 
-test("Producer retains transitional categories and delegates only phase owners", () => {
+test("Producer retains later-phase categories and delegates only phase owners", () => {
   const route = dispatcher()
   assert.equal(route.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
   assert.equal(route.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
-  assert.equal(route.resolve({ category: "blender-previs", parentAgent: "Producer" }).agent, "Implementer")
+  assert.throws(() => route.resolve({ category: "blender-previs", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category blender-previs/)
   for (const agent of ["Director", "Creator", "Editor"]) {
     assert.equal(route.resolve({ agent, parentAgent: "Producer" }).agent, agent)
   }
@@ -148,8 +149,8 @@ test("Producer retains transitional categories and delegates only phase owners",
 
   const extendedConfig = config()
   extendedConfig.delegation.Producer = {
-    categories: ["standard"],
-    category_families: [],
+    categories: ["standard", "blender-previs"],
+    category_families: ["implementation", "media"],
     agents: ["Searcher", "Security Reviewer"],
   }
   const extended = new AgentDispatcher(new CategoryEngine(extendedConfig.categories), {
@@ -158,7 +159,8 @@ test("Producer retains transitional categories and delegates only phase owners",
   })
   assert.equal(extended.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
   assert.equal(extended.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
-  assert.equal(extended.resolve({ category: "blender-previs", parentAgent: "Producer" }).agent, "Implementer")
+  assert.throws(() => extended.resolve({ category: "blender-previs", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category blender-previs/)
   assert.throws(
     () => extended.resolve({ category: "standard", parentAgent: "Producer" }),
     /Producer is not allowed to delegate category standard/,
@@ -172,10 +174,10 @@ test("Producer retains transitional categories and delegates only phase owners",
   )
 })
 
-test("blender-previs is exposed only to Producer and Director", () => {
+test("blender-previs is exposed only to Director", () => {
   const route = dispatcher()
   assert.equal(route.resolve({ category: "blender-previs", parentAgent: "Director" }).agent, "Implementer")
-  for (const caller of ["Assistant", "Executor", "Planner", "Strategist", "Blender", "Implementer", "Browser", "Creator", "Editor"]) {
+  for (const caller of ["Assistant", "Executor", "Planner", "Strategist", "Blender", "Implementer", "Browser", "Creator", "Editor", "Producer"]) {
     assert.throws(
       () => route.resolve({ category: "blender-previs", parentAgent: caller }),
       /not allowed|category routes are not allowed/,

@@ -24,28 +24,32 @@ assembly, and rendering. Director owns creative intent and ShotSpec authorship;
 Creator owns generation strategy; Editor will own post-production through the
 official HyperFrames workflow after live migration. Producer owns orchestration,
 state, budget, and user approval. The `blender-previs` category is the
-lightweight spatial/camera/timing Implementer available to Director and,
-temporarily, Producer. Named Blender is outside the video-production graph. The
+lightweight spatial/camera/timing Implementer available to Director alone.
+Named Blender is outside the video-production graph. The
 `media-generation` category is the bounded provider-neutral Implementer route;
 `video-analysis`/Watch supplies grounded visual QA.
 
 ## Previs before paid generation
 
-Until Director's live workflow migrates, Producer calls `production_preflight`
-for the canonical `production/production-manifest.json`, then sends an
-already-defined ShotSpec with `control.previs: required` or `recommended` to
-`delegate_task(category="blender-previs")`. Before delegation, Producer calls
-`production_prepare_artifacts` with the exact canonical file destinations.
-The deterministic tool creates and verifies only the required parent
-directories, rejects symlinks and traversal, and returns absolute runtime
-destinations. `blender-previs` assumes those parents exist and must fail
-clearly if one is missing; it does not create or invent directories. Keep
-canonical artifact paths workspace-relative in ShotSpecs and the
-ProductionManifest. Only returned absolute runtime values are passed as
-Blender destinations; they remain transient and are never persisted as
-host-specific absolute paths. Producer writes `production_checkpoint` only at
-meaningful recovery or approval boundaries; it does not change lifecycle
-revision or history.
+Producer calls `production_preflight` for the canonical
+`production/production-manifest.json`, then delegates Director PLAN with the
+brief and current canonical state. Director authors complete provider-neutral
+ShotSpecs, decides which shots need previs, and returns canonical
+`production/previs/<shot-id>/...` destinations. Producer validates and persists
+the ShotSpecs and legally advances `planning -> previs` when needed (or
+`planning -> production` when none is needed). Producer calls
+`production_prepare_artifacts` with the exact canonical file destinations;
+the deterministic tool prepares only required parents, rejects symlinks and
+traversal, and returns absolute runtime destinations. Producer gives those
+paths and finalized ShotSpecs to Director PREVIS. Director alone delegates
+`blender-previs` and interprets Watch evidence. `blender-previs` assumes the
+parents exist and must fail clearly if one is missing; it never creates or
+invents directories. Keep canonical paths workspace-relative in ShotSpecs and
+the ProductionManifest. Only returned absolute runtime values reach Blender;
+they remain transient and are never persisted as host-specific absolute paths.
+Producer persists Director-approved ShotSpec revisions, writes
+`production_checkpoint` at meaningful boundaries, and advances
+`previs -> production` only after required previs passes.
 
 That category implements only lightweight blocking, camera/framing, lens
 intent, motion/timing, and basic lighting direction. Its practical handoff is
@@ -76,20 +80,23 @@ ShotSpec or manifest schemas. This proves motion was authored; Watch remains
 required after rendering to decide whether it looks correct.
 
 If a Blender MCP save/render/playblast call times out, treat completion as
-ambiguous. The child reports the exact supplied paths and does not blindly
-retry; Producer checks only those paths. A non-empty `.blend` is sufficient, a
-still must also have a recognizable expected image format, and a non-empty MP4
+ambiguous. The child reports the exact supplied paths to Director and does not
+blindly retry; unresolved recovery returns to Producer. A non-empty `.blend`
+is sufficient, a still must also have a recognizable expected image format,
+and a non-empty MP4
 is preliminary until Watch can decode it. Missing or unusable output requires
 an explicit revision/recovery decision before another render.
 
 Review the stills and preview MP4 through
 `delegate_task(category="video-analysis", load_skills=["watch"])`. The `.blend`
-is an editable source artifact, not the review target. Producer compares the
-observed evidence with the ShotSpec and decides `PASS` or
-`REVISION_REQUIRED`. A revision should reuse the existing `.blend` where
-practical. Only after the previs evidence passes should Producer finalize
-generation instructions and enter the `media-generation` calculate/approval
-path. This review happens before any paid Atlas submission.
+is an editable source artifact, not the review target. Director compares the
+observed evidence with the ShotSpec and decides `PASS`, `REVISION_REQUIRED`,
+or `BLOCKED`. A revision should reuse the existing `.blend` where practical.
+If it needs new paths, Director returns only canonical destinations to Producer
+for preparation and re-delegation. A creative ShotSpec revision goes to Producer
+for persistence. Only after the previs evidence passes does Producer enter the
+transitional `media-generation` calculate/approval path. This review happens
+before any paid Atlas submission.
 
 For each shot, preserve intent, continuity, references, output constraints,
 and a reproducible request digest in the manifest. Atlas Cloud is currently the only implemented media provider behind the bounded `media-generation`

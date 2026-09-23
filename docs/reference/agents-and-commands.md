@@ -7,7 +7,7 @@
 | Assistant | Ordinary questions, investigation, bounded work, and routing | Small direct edits or delegated implementation; no implicit OpenSpec state |
 | Browser | Direct browser navigation, interaction, visual inspection, and Task Spaces | Browser backend only; no application or workflow-file mutation |
 | Blender | Reusable 3D leaf for Blender scene/artifact inspection, authoring, previs, rendering, and visual verification through Blender MCP | Direct `/blender` or named `Executor` route; no child AIO tasks, categories, repository, Git, OpenSpec, CategoryEngine, or Delegation Runtime ownership |
-| Producer | Single video-production owner for lightweight HyperFrames and advanced `/film` orchestration | Active-project artifacts; no Git/history or workflow-runtime ownership; named Director/Creator/Editor delegation plus transitional direct media and `blender-previs` routes; named Blender denied |
+| Producer | Single video-production owner for lightweight HyperFrames and advanced `/film` orchestration | Active-project artifacts; no Git/history or workflow-runtime ownership; named Director/Creator/Editor delegation plus transitional direct media routes; direct `blender-previs` and named Blender denied |
 | Searcher | Normal web Search / Answer Engine with grounded current answers | Read-only native web retrieval; direct or delegated leaf, no onward delegation or OpenSpec ownership |
 | Professor | Stateful evidence-first Deep Research with adaptive verification | Read-only native retrieval plus Professor ResearchState tools; no filesystem, Git, delegation, or browser access |
 | Strategist | Product WHAT, WHY, WHO, behavior, and scope | Product strategy, proposal, and specs only |
@@ -19,7 +19,7 @@
 
 | Agent | Responsibility | Delegation boundary |
 |---|---|---|
-| Director | CreativeBrief, scene structure, provider-neutral ShotSpecs, camera and motion intent, creative previs revisions | `blender-previs`, `video-analysis` with Watch |
+| Director | Live `/film` PLAN and PREVIS: CreativeBrief, provider-neutral ShotSpecs, camera and motion intent, Watch interpretation, creative previs revisions | `blender-previs`, `video-analysis` with Watch; Producer prepares paths and persists state |
 | Creator | Generation strategy, prompts, references, curated models and controls, generation revisions | `media-generation`, `video-analysis` with Watch; Producer owns budget and user approval |
 | Editor | Timeline, graphics, captions, audio assembly, cuts, previews, renders | Official upstream HyperFrames directly, plus `video-analysis` with Watch |
 

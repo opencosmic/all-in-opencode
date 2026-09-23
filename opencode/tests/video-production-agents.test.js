@@ -31,6 +31,17 @@ test("phase owners are dedicated subagents with bounded permissions", async () =
     assert.doesNotMatch(source, /^  media_(?:calculate|upload|generate_image|generate_video|prediction|wait_prediction): allow$/m)
   }
   const editor = await readFile(join(repository, "opencode/agents/editor.md"), "utf8")
+  const director = await readFile(join(repository, "opencode/agents/director.md"), "utf8")
+  assert.match(director, /^  edit: deny$/m)
+  assert.match(director, /^  write: deny$/m)
+  assert.match(director, /PLAN assignment[\s\S]*complete\s+canonical ShotSpec objects/)
+  assert.match(director, /PREVIS assignment[\s\S]*absolute runtime\s+destinations prepared by Producer/)
+  assert.match(director, /DIRECTOR_NEEDS_USER_INPUT[\s\S]*Producer asks/)
+  assert.match(director, /DIRECTOR_NEEDS_ARTIFACT_PREPARATION[\s\S]*Producer prepares/)
+  assert.match(director, /Director PREVIS|PREVIS assignment/)
+  assert.match(director, /video-analysis.*load_skills=\["watch"\]/s)
+  assert.match(director, /PASS.*REVISION_REQUIRED.*BLOCKED/s)
+  assert.match(director, /Do not blindly repeat an artifact-producing operation/)
   assert.match(editor, /^    "hyperframes": allow$/m)
   assert.match(editor, /^    "hyperframes-\*": allow$/m)
   assert.match(editor, /^    "npx hyperframes \*": allow$/m)
@@ -62,6 +73,7 @@ test("phase-owner hard ceilings survive user config union and forbid cross-phase
     }
   }
   assert.throws(() => route.resolve({ agent: "Blender", parentAgent: "Producer" }), /cannot delegate named agent Blender/)
+  assert.throws(() => route.resolve({ category: "blender-previs", parentAgent: "Producer" }), /not allowed/)
   assert.equal(route.resolve({ agent: "Blender", parentAgent: "Executor" }).agent, "Blender")
 })
 

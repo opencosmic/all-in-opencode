@@ -629,6 +629,18 @@ test("Producer cannot route Blender while Blender remains a leaf", async (t) => 
   /Blender may only delegate its allowlisted named agents; category routes are not allowed/)
 })
 
+test("Producer cannot bypass Director with direct blender-previs", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const producer = { ...context, sessionID: "producer", messageID: "producer-turn", agent: "Producer" }
+  await assert.rejects(runtime.delegate({
+    category: "blender-previs",
+    description: "Forbidden direct previs",
+    prompt: "Create the shot directly",
+    run_in_background: true,
+  }, producer), /Producer is not allowed to delegate category blender-previs/)
+  assert.equal(client.state.prompts.length, 0)
+})
+
 test("delegated phase owners retain delegate_task and route only their bounded categories", async (t) => {
   const { client, runtime, context } = await fixture(t)
   runtime.skills = new SkillResolver({ entries: [{

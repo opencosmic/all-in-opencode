@@ -16,7 +16,7 @@ const SUPPORTED_DELEGATION_FIELDS = new Set(["categories", "category_families", 
 // do not silently broaden callers that have no configured capability.
 export const DEFAULT_DELEGATION = Object.freeze({
   Producer: Object.freeze({
-    categories: Object.freeze(["video-analysis", "media-generation", "blender-previs"]),
+    categories: Object.freeze(["video-analysis", "media-generation"]),
     category_families: Object.freeze(["media"]),
     agents: Object.freeze(["Director", "Creator", "Editor"]),
   }),

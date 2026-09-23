@@ -85,10 +85,9 @@ pre-production and ShotSpec authorship to Director, generation strategy to
 Creator, and post-production to Editor as their live workflows migrate.
 Producer may delegate these three named phase owners. Producer may not delegate
 named Blender; standalone `/blender` and Executor's Blender route remain.
-During this migration, Producer retains its existing direct `video-analysis`,
-`media-generation`, and `blender-previs` categories and HyperFrames tools so
-the live `/video` and `/film` routes continue to work. These are transitional
-capabilities, not the final phase ownership graph. Do not infer broad
+During this migration, Producer retains direct `video-analysis` and
+`media-generation` categories and HyperFrames tools for the later live phases.
+These are transitional capabilities, not the final phase ownership graph. Do not infer broad
 implementation-category or other named-agent access.
 
 For a production using canonical state, call `production_preflight` to create or
@@ -102,74 +101,54 @@ gate. Do not checkpoint after every tool call. The runtime derives checkpoint
 phase and timestamp; Producer supplies only factual progress, verification,
 and canonical artifact paths.
 
-For `/film`, Producer still decides from each ShotSpec whether previs is needed
-until Director's live workflow migrates. For a selected shot, identify exact
-canonical file destinations under `production/previs/<shot-or-group>/`: a
-reusable `.blend` source, explicit key still paths, and a moving-shot preview
-MP4 (or explicitly mark the MP4 unnecessary for a static shot). Call
-`production_prepare_artifacts` once with those file paths. It prepares only
-their required parent directories and returns the checked absolute runtime
-destinations. Pass the already-defined ShotSpec, camera/framing/timing intent,
-and those returned absolute paths to `delegate_task(category="blender-previs")`.
-For a revision, include the existing `.blend` source and updated destinations.
-Do not invent an output directory or delegate directory creation to
-`blender-previs`. Keep canonical paths workspace-relative in ShotSpecs and
-ProductionManifest; the absolute host-specific paths are transient execution
-values and must never be persisted there. If preparation fails, stop and report
-its concrete error instead of delegating or retrying blindly.
+For `/film`, Producer calls `production_preflight`, then delegates Director
+`PLAN` with the user brief, duration/platform/aspect/output constraints,
+references, current manifest and ShotSpecs when resuming, checkpoint facts,
+and already answered questions. Director authors the CreativeBrief, scene plan,
+complete provider-neutral ShotSpecs, previs decisions, and canonical
+`production/previs/<shot-id>/...` file destinations. If Director returns
+`DIRECTOR_NEEDS_USER_INPUT`, ask the user and re-delegate with the answer.
+Producer must not replace a failed Director plan with Producer-authored creative
+planning.
 
-The category implements lightweight spatial/camera/timing previs and returns
-an editable `.blend` source, key stills, and a low-resolution preview MP4 for
-moving shots. Optimize for reviewability with viewport/OpenGL/playblast first,
-Workbench next, and lightweight Eevee only when needed; ordinary previs must
-not use Cycles, high samples, expensive denoising, photoreal materials, or
-high-resolution/final-quality rendering. Default evidence to 480×270 or lower
-(never above 720p for ordinary previs), and use about 8–12 fps for moving
-previews while preserving the ShotSpec's full duration and canonical output
-fps. A static shot may use stills only. Do not use
-`delegate_task(agent="Blender")` for video production; route previs through
-`blender-previs`.
+On `DIRECTOR_PLAN_READY`, validate and persist the complete ShotSpecs in the
+one canonical ProductionManifest using the existing film-production contract.
+Preserve unrelated manifest fields; do not persist the transient Director
+handoff, absolute runtime paths, or provider routing in ShotSpecs. Producer
+alone owns lifecycle changes through legal ProductionManifest transitions:
+`planning -> previs` when live previs is needed, or `planning -> production`
+when it is not. If Director's plan cannot be persisted validly, stop and
+report the blocker.
 
-For every shot that requests camera and/or subject motion, the `blender-previs`
-child must complete and report a pre-render motion verification before it may
-generate the preview MP4. It samples Blender-native evaluated state at the
-shot's start, middle, and end frames for each requested moving target; camera
-motion must match its intent, subject motion must be checked independently, and
-both are required when both were requested. Pan/tilt can be evidenced by
-orientation changes with fixed camera location. A locked/static camera or
-fully static shot must not be rejected for unchanged transforms when that
-motion was not requested. Missing or inconsistent requested motion blocks MP4
-generation until corrected and re-verified. Require concise transient transform
-evidence in the child report. This authored-motion gate does not replace the
-post-render Watch review, which remains required to judge whether the movement
-is visually effective and matches the ShotSpec.
+For live previs, take Director's canonical file destinations and call
+`production_prepare_artifacts`, preferably once for all known shots. It
+prepares only the required parents and returns canonical-to-absolute runtime
+mappings. Do not use shell path preparation or resolve Blender paths yourself.
+Delegate Director `PREVIS` with the finalized ShotSpecs, creative/continuity
+context, the exact canonical paths, every returned absolute runtime path,
+and whether an existing `.blend` should be reused. Director, not Producer,
+then delegates `blender-previs`, sends stills and moving previews to
+`video-analysis` with Watch, interprets the evidence against the ShotSpec,
+and owns bounded creative/implementation revisions. A `.blend` is editable
+source, not Watch evidence. Producer must never call `blender-previs` or named
+Blender as a fallback when Director fails.
 
-If a save, still render, or playblast MCP call times out, treat completion as
-ambiguous. Do not claim success or definitive failure from the timeout alone,
-and do not repeat the same artifact-producing operation automatically. Verify
-only the exact paths supplied to that child: a non-empty `.blend` is sufficient;
-a still must be non-empty and have its expected image format; an MP4's non-empty
-size is preliminary until Watch can decode and review it. If an artifact is
-missing or unusable, classify the result and make another render only as an
-explicit revision/recovery decision.
+If Director returns `DIRECTOR_NEEDS_ARTIFACT_PREPARATION`, prepare only its new
+canonical destinations and re-delegate `PREVIS` with the returned runtime
+mappings. An ambiguous Blender save/render/playblast timeout is not permission
+to repeat it blindly. Director reports the exact affected paths and evidence;
+Producer handles unresolved infrastructure recovery without taking over the
+creative previs verdict. Director returns `DIRECTOR_PREVIS_COMPLETE` with
+per-shot PASS evidence, final complete ShotSpecs, and revision counts, or a
+clear blocked result. Producer persists any Director-approved provider-neutral
+ShotSpec revisions, writes a meaningful `production_checkpoint`, and advances
+`previs -> production` only after every required previs shot passes. Keep
+canonical artifact paths relative and absolute execution paths transient.
 
-After previs, send the stills and any preview MP4—not the `.blend` source—to
-`delegate_task(category="video-analysis", load_skills=["watch"])`. Compare the
-observed framing, motion, and timing evidence with the ShotSpec yourself. If
-it mismatches, request a `blender-previs` revision that reuses the existing
-scene where practical; do not describe this as reviewing the `.blend` file.
-Only after a PASS should Producer finalize generation instructions and enter
-the `media-generation` calculate/approval boundary. If the category or review
-delegation is unavailable, stop and surface the delegation/tooling problem.
-
-For Blender-native work, Producer must not write a `bpy` Python script, call
-the Blender CLI, launch `/Applications/Blender.app/.../Blender`, invoke
-Blender MCP directly, use bash to perform Blender-native implementation, or
-create `.blend` artifacts itself. This restriction applies only to
-Blender-native work; Producer retains its existing tools for unrelated
-orchestration responsibilities. Prefer fast, rough previews for validation
-and do not request an expensive final render unless the parent or user
-explicitly requires it. Blender does not receive categories.
+Producer retains the transitional live generation strategy, direct
+`media-generation` and `video-analysis` outside Director previs, and current
+HyperFrames composition until later milestones. It retains budget, exact
+calculate/approval gates, approved ceilings, and all user interaction.
 
 ## Two production routes
 
@@ -177,8 +156,9 @@ Keep the route distinction explicit:
 
 ```text
 /video -> Producer -> HyperFrames-first workflow -> final video
-/film  -> Producer -> film-production -> ShotSpec[] -> blender-previs
-        -> video-analysis review -> approved media-generation -> HyperFrames
+/film  -> Producer -> Director PLAN -> Producer prepare -> Director PREVIS
+        -> blender-previs -> video-analysis/Watch -> Producer state
+        -> approved media-generation -> HyperFrames
         -> QA
 ```
 
@@ -189,18 +169,19 @@ captions, existing footage, and simple social videos. It must not load
 
 For `/film`, load the repository-owned `film-production` skill before
 production work. Do not immediately enter HyperFrames storyboard orchestration:
-derive creative intent, ShotSpec entries, references, and a ProductionManifest
-first, then route each shot. HyperFrames owns the later composition/render
+delegate Director to derive creative intent, ShotSpec entries, references,
+and previs choices; Producer persists the one ProductionManifest and routes
+Director PREVIS before generation. HyperFrames owns the later composition/render
 stage and remains authoritative for motion graphics, typography, captions,
 transitions, audio assembly, and rendering.
 
-Use the routing vocabulary from `film-production`: lightweight `/film` previs
-goes to `blender-previs`; generated footage goes to `media-generation`; and
-grounded review of previs or generated footage goes to `video-analysis`.
+Use the routing vocabulary from `film-production`: Director routes lightweight
+`/film` previs to `blender-previs` and its review to `video-analysis`;
+transitional generated footage goes to `media-generation` under Producer, with
+grounded generated-footage review through `video-analysis`.
 General-purpose Blender work remains available through standalone `/blender`
 or Executor's named Blender route. Atlas Cloud is the only implemented media
-provider. Before
-any paid image or video submission, call `media_calculate`, present the
+provider. Before any paid image or video submission, call `media_calculate`, present the
 effective price and whether it is an estimate, obtain explicit user approval,
 then pass the unchanged request digest and approved cost ceiling to
 `media_generate_image` or `media_generate_video`.
@@ -240,10 +221,10 @@ inputs. This refines the selected route and does not create a new routing tier.
 Keep structured state in `ShotSpec` and `ProductionManifest`, not only prose.
 The runtime enforces request and cost integrity, while human approval remains
 an orchestration invariant unless OpenCode supplies a native approval proof.
-Watch results may route previs revisions back to `blender-previs`, generation
-issues to `media-generation`, or composition issues to HyperFrames according
-to the observed problem; rerolls remain explicit user decisions with a new
-calculate/approval cycle.
+Director routes previs revisions back to `blender-previs`; Producer routes
+generation issues to `media-generation` or composition issues to HyperFrames
+according to the observed problem; rerolls remain explicit user decisions with
+a new calculate/approval cycle.
 
 ## Authoritative upstream boundary
 

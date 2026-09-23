@@ -42,7 +42,7 @@ export const DELEGATING_NAMED_AGENTS = new Set(PHASE_OWNER_CATEGORY_CEILINGS.key
 // Keep that exception in DelegationPolicy so catalogs and runtime resolution
 // share the same authorization path; it is not a second permission system.
 const CATEGORY_CALLER_ALLOWLISTS = new Map([
-  ["blender-previs", new Set(["Producer", "Director"])],
+  ["blender-previs", new Set(["Director"])],
 ])
 const BUILTIN_AGENT_NAMES = new Set([
   ...BUILTIN_PRIMARY_AGENTS,

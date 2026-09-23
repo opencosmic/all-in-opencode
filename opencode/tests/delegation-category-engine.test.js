@@ -34,13 +34,13 @@ test("category context meaningfully specializes the shared executor", () => {
     ["testing", /discriminating tests/i],
     ["git", /explicitly authorized Git operation/i],
     ["video-analysis", /actual video/i],
-    ["blender-previs", /already defined ShotSpec|Producer request/i],
+    ["blender-previs", /Director-supplied, already defined ShotSpec/i],
   ])
   for (const [name, pattern] of expected) assert.match(engine.resolve(name).profile.prompt_append, pattern)
   const previs = engine.resolve("blender-previs")
   assert.equal(previs.profile.family, "implementation")
   assert.match(previs.profile.description, /Lightweight Blender previs/i)
-  assert.match(previs.profile.prompt_append, /calling Director or transitional Producer must supply explicit absolute runtime artifact destinations inside the active production workspace/i)
+  assert.match(previs.profile.prompt_append, /Director must supply explicit absolute runtime artifact destinations prepared by Producer inside the active production workspace/i)
   assert.match(previs.profile.prompt_append, /production\/previs\/<shot-or-group>\//i)
   assert.match(previs.profile.prompt_append, /only the separately labeled absolute runtime destinations are usable for Blender I\/O/i)
   assert.match(previs.profile.prompt_append, /never pass a workspace-relative destination to Blender/i)
@@ -62,7 +62,7 @@ test("category context meaningfully specializes the shared executor", () => {
   assert.match(previs.profile.prompt_append, /Preserve the ShotSpec's real duration.*about 50 frames, not a shortened/i)
   assert.match(previs.profile.prompt_append, /MCP timeout.*completion ambiguous/i)
   assert.match(previs.profile.prompt_append, /Do not claim success without evidence.*automatically repeat the same render\/playblast/i)
-  assert.match(previs.profile.prompt_append, /verify only those exact supplied paths/i)
+  assert.match(previs.profile.prompt_append, /Return control to Director with those exact paths and evidence/i)
   for (const tool of [
     "blender_get_addon_status",
     "blender_get_scene_info",
@@ -79,7 +79,7 @@ test("blender-previs verifies requested motion before rendering and preserves Wa
   assert.ok(gateStart >= 0, "moving shots require a pre-render motion gate")
   assert.ok(mp4Allowed > gateStart, "the MP4 is authorized only after verification")
 
-  const gateEnd = prompt.indexOf("The calling Director or transitional Producer must supply", gateStart)
+  const gateEnd = prompt.indexOf("Director must supply explicit absolute", gateStart)
   const gate = prompt.slice(gateStart, gateEnd)
   assert.match(gate, /frame_start.*floor\(\(frame_start \+ frame_end\) \/ 2\).*frame_end/s)
   assert.match(gate, /Blender-native scene evaluation.*evaluated dependency graph.*evaluated world transform/i)

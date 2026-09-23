@@ -13,8 +13,9 @@ Choose the owner by the problem the shot presents:
 `Producer` owns orchestration, the manifest, budget, and approvals. `Director`
 owns creative intent and ShotSpecs, `Creator` owns generation strategy, and
 `Editor` owns post-production. `blender-previs` is the single narrow category
-for `/film` previs. Producer temporarily calls it directly until the Director
-workflow migrates. Named Blender is not a video-production fallback. For
+for `/film` previs and only Director calls it. Producer prepares canonical
+artifact paths and gives Director the absolute runtime mapping. Named Blender
+is not a video-production fallback. For
 `/film`, film planning comes before HyperFrames; the official upstream
 HyperFrames workflow belongs directly to Editor after M5. No composition
 category or separate HyperFrames agent is part of this graph.
@@ -24,13 +25,14 @@ category or separate HyperFrames agent is part of this graph.
 For a shot that needs previs, preserve this order:
 
 ```text
-ShotSpec
-  -> blender-previs
+Director PLAN -> ShotSpec + canonical previs paths
+  -> Producer persists ShotSpec and prepares absolute destinations
+  -> Director PREVIS -> blender-previs
   -> .blend source + stills + preview MP4 when moving
-  -> video-analysis / Watch
-  -> Producer compares evidence with ShotSpec
+  -> Director -> video-analysis / Watch
+  -> Director compares evidence with ShotSpec
   -> PASS or REVISION_REQUIRED
-  -> media-generation calculate/approval
+  -> Producer lifecycle/checkpoint -> transitional media-generation calculate/approval
 ```
 
 The `.blend` is editable implementation source, not review evidence or the
