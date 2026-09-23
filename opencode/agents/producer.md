@@ -63,7 +63,9 @@ permission:
   task_status: allow
   task_output: allow
   task_cancel: allow
-  external_directory: ask
+  external_directory:
+    "*": ask
+    "~/.config/opencode/skills/film-production/references/*": allow
 ---
 
 # Producer

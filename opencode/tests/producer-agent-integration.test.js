@@ -67,7 +67,7 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /never auto-escalate or hardcode media prices/s)
   assert.match(producer, /edit:\n    "\*": allow/)
   assert.match(producer, /write:\n    "\*": allow/)
-  assert.match(producer, /external_directory: ask/)
+  assert.match(producer, /external_directory:\s+"\*": ask\s+"~\/\.config\/opencode\/skills\/film-production\/references\/\*": allow/)
 
   for (const skill of [
     "hyperframes",
@@ -157,6 +157,14 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(permission("bash", "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes init demo"), "ask")
   assert.equal(permission("bash", "npx skills add anything"), "deny")
   assert.equal(permission("bash", "git commit -m change"), "deny")
+
+  const filmReferencePattern = `${env.HOME}/.config/opencode/skills/film-production/references/*`
+  assert.ok(agent.permission.some((rule) =>
+    rule.permission === "external_directory"
+      && rule.pattern === filmReferencePattern
+      && rule.action === "allow"), "native permission profile must allow the isolated installed film reference subtree")
+  assert.equal(permission("external_directory", `${env.HOME}/.config/opencode/skills/film-production/references/shot-spec.md`), "allow")
+  assert.equal(permission("external_directory", "/unrelated/external/reference.txt"), "ask")
 })
 
 function globMatches(pattern, value) {
