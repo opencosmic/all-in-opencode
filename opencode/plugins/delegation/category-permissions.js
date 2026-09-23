@@ -1,5 +1,6 @@
 import { dirname, relative, resolve } from "node:path"
 import { tmpdir } from "node:os"
+import { realpath } from "node:fs/promises"
 
 import { MEDIA_RUNTIME_TOOL_NAMES, isMediaRuntimeTool } from "./media-runtime.js"
 
@@ -222,6 +223,41 @@ function isWithin(candidate, root) {
   const base = resolve(root)
   const remainder = relative(base, path)
   return remainder === "" || (!remainder.startsWith("..") && !remainder.startsWith("/"))
+}
+
+export async function resolveFilmProductionSkillAccess(skills) {
+  const skill = skills?.list().find((entry) => entry.name === "film-production")
+  const location = skillLocation(skill)
+  if (!location || !resolve(location).endsWith("/SKILL.md")) return null
+  try {
+    const physicalRoot = dirname(await realpath(location))
+    return {
+      roots: [...new Set([dirname(resolve(location)), physicalRoot])],
+      physicalRoot,
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function isFilmProductionExternalPath(path, access) {
+  if (typeof path !== "string" || !access || /(?:^|\/)\.env(?:$|[/.])/.test(path)) return false
+  if (!access.roots.some((root) => isWithin(path, root))) return false
+  try {
+    return isWithin(await realpath(path), access.physicalRoot)
+  } catch {
+    return false
+  }
+}
+
+export function filmProductionSessionPermission(agent, access) {
+  if (agent !== "Director" || !access) return undefined
+  return [
+    { permission: "external_directory", pattern: "*", action: "deny" },
+    ...access.roots.flatMap((root) => [root, `${root}/*`].map((pattern) => ({
+      permission: "external_directory", pattern, action: "allow",
+    }))),
+  ]
 }
 
 function isWatchTempPath(path) {

@@ -6,9 +6,11 @@ import { AgentDispatcher } from "./agent-dispatcher.js"
 import { CategoryEngine } from "./category-engine.js"
 import {
   categoryPermission,
+  isFilmProductionExternalPath,
   isGitMutationCommand,
   openDesignResourceDecision,
   permissionValue,
+  resolveFilmProductionSkillAccess,
 } from "./category-permissions.js"
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
@@ -129,7 +131,6 @@ export class DelegationRuntime {
         })
       }
     }
-    const runner = new SessionRunner({ client, registry, tracker, sessionProfiles: profiles })
     coordinator = new ParentResumeCoordinator({ client, registry })
     const workspaces = new WorkspaceManager({
       stateDirectory: resolvedState,
@@ -144,6 +145,10 @@ export class DelegationRuntime {
     const skills = skillEntries
       ? new SkillResolver({ entries: skillEntries })
       : new SkillResolver({ entries: directory ? await discoverSkills({ directory, roots: skillRoots }) : [] })
+    const filmProductionSkillAccess = await resolveFilmProductionSkillAccess(skills)
+    const runner = new SessionRunner({
+      client, registry, tracker, sessionProfiles: profiles, filmProductionSkillAccess,
+    })
     const config = aioConfig !== undefined
       ? normalizeAioConfig(aioConfig, { configPath: aioConfigPath })
       : categories !== undefined || agents !== undefined || delegation !== undefined
@@ -162,6 +167,7 @@ export class DelegationRuntime {
       workspaces,
       dispatcher: new AgentDispatcher(categoryEngine, { aioConfig: config, availableAgents }),
       skills,
+      filmProductionSkillAccess,
       profiles,
       agentDiscovery,
       directory,
@@ -169,7 +175,7 @@ export class DelegationRuntime {
     })
   }
 
-  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, agentDiscovery, directory, mediaRuntime }) {
+  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, filmProductionSkillAccess, agentDiscovery, directory, mediaRuntime }) {
     Object.assign(this, {
       client,
       registry,
@@ -180,6 +186,7 @@ export class DelegationRuntime {
       dispatcher,
       profiles,
       skills,
+      filmProductionSkillAccess,
       agentDiscovery,
       directory,
       mediaRuntime: mediaRuntime ?? createMockMediaRuntime(),
@@ -819,6 +826,14 @@ export class DelegationRuntime {
     task ??= this.registry?.list?.().find((candidate) => candidate.child_session_id === input.sessionID)
     let decision = categoryPermission(profile, input)
     const type = input.type ?? input.permission
+    if (type === "external_directory" && !profile?.category) {
+      const agent = profile?.agent ?? this.sessionAgents.get(input.sessionID)
+      if (agent === "Producer" || agent === "Director") {
+        const allowed = await isFilmProductionExternalPath(permissionValue(input), this.filmProductionSkillAccess)
+        if (allowed) decision = "allow"
+        else if (agent === "Director") decision = "deny"
+      }
+    }
     if (decision && profile?.category === "git" && type === "bash" && isGitMutationCommand(permissionValue(input))) {
       try {
         const branchFacts = task?.execution_directory

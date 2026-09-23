@@ -1,5 +1,5 @@
 import { IMPLEMENTER_CONTRACT } from "./implementer-contract.js"
-import { categorySessionPermission, PRODUCTION_CONTROL_TOOL_NAMES, requiresPreservedSessionPermissions } from "./category-permissions.js"
+import { categorySessionPermission, filmProductionSessionPermission, PRODUCTION_CONTROL_TOOL_NAMES, requiresPreservedSessionPermissions } from "./category-permissions.js"
 import { parseModel, sdkData, sessionStatusFor } from "./sdk.js"
 
 function promptText(description, prompt) {
@@ -43,11 +43,12 @@ function systemFor(agent, category, profile = {}, skills = []) {
 }
 
 export class SessionRunner {
-  constructor({ client, registry, tracker, sessionProfiles = new Map(), now = () => Date.now() }) {
+  constructor({ client, registry, tracker, sessionProfiles = new Map(), filmProductionSkillAccess, now = () => Date.now() }) {
     this.client = client
     this.registry = registry
     this.tracker = tracker
     this.sessionProfiles = sessionProfiles
+    this.filmProductionSkillAccess = filmProductionSkillAccess
     this.now = now
   }
 
@@ -57,7 +58,8 @@ export class SessionRunner {
       body: {
         parentID: task.parent_session_id,
         title: description,
-        permission: categorySessionPermission(category, profile.tools, skills),
+        permission: categorySessionPermission(category, profile.tools, skills)
+          ?? filmProductionSessionPermission(agent, this.filmProductionSkillAccess),
       },
       query: { directory },
     }), "session.create").id

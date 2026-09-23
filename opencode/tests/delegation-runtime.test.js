@@ -1,9 +1,9 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { promisify } from "node:util"
 
 import { DelegationRuntime } from "../plugins/delegation/runtime.js"
@@ -639,6 +639,67 @@ test("Producer cannot bypass Director with direct blender-previs", async (t) => 
     run_in_background: true,
   }, producer), /Producer is not allowed to delegate category blender-previs/)
   assert.equal(client.state.prompts.length, 0)
+})
+
+test("headless Producer and Director can read only the resolved installed film skill", async (t) => {
+  const { root, repository, client, context } = await fixture(t)
+  const source = join(root, "installed-film-source")
+  const installed = join(root, "home", ".config", "opencode", "skills", "film-production")
+  const reference = join(installed, "references", "shot-spec.md")
+  const unrelated = join(root, "unrelated.txt")
+  await mkdir(join(source, "references"), { recursive: true })
+  await mkdir(join(root, "home", ".config", "opencode", "skills"), { recursive: true })
+  await writeFile(join(source, "SKILL.md"), "---\nname: film-production\ndescription: Film production fixture\n---\nRead references.\n")
+  await writeFile(join(source, "references", "shot-spec.md"), "ShotSpec reference\n")
+  await writeFile(unrelated, "outside\n")
+  await symlink(source, installed, "dir")
+  await symlink(unrelated, join(source, "references", "escaped.md"))
+
+  const runtime = await DelegationRuntime.create({
+    client,
+    stateDirectory: join(root, "film-state"),
+    directory: repository,
+    skillRoots: [join(root, "home", ".config", "opencode", "skills")],
+  })
+  assert.equal(runtime.skills.resolve(["film-production"])[0].path, join(installed, "SKILL.md"))
+  const producerID = "film-producer"
+  runtime.observeSessionAgent({ sessionID: producerID, agent: "Producer" })
+  const producer = { ...context, sessionID: producerID, messageID: "film-producer-turn", agent: "Producer" }
+  const director = await runtime.delegate({
+    agent: "Director", description: "Director PLAN", prompt: "Plan one shot", run_in_background: true,
+  }, producer)
+  const directorID = director.child_session_id
+  assert.equal(client.state.prompts.at(-1).body.agent, "Director")
+  assert.equal(runtime.profiles.get(directorID).agent, "Director")
+
+  const rules = client.state.creates.at(-1).body.permission
+  assert.ok(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "deny"))
+  for (const skillRoot of [installed, dirname(await realpath(join(source, "SKILL.md")))]) {
+    assert.ok(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === `${skillRoot}/*` && rule.action === "allow"))
+  }
+  assert.equal(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "allow"), false)
+  assert.equal(rules.some((rule) => ["bash", "write", "edit", "question"].includes(rule.permission) && rule.action === "allow"), false)
+
+  for (const sessionID of [producerID, directorID]) {
+    for (const path of [reference, join(dirname(await realpath(join(source, "SKILL.md"))), "references", "shot-spec.md")]) {
+      const result = { status: "ask" }
+      await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [path] }, result)
+      assert.equal(result.status, "allow", `${sessionID}: ${path}`)
+      assert.equal(await readFile(path, "utf8"), "ShotSpec reference\n")
+    }
+    const escaped = { status: "ask" }
+    await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [join(installed, "references", "escaped.md")] }, escaped)
+    assert.notEqual(escaped.status, "allow")
+    const outside = { status: "ask" }
+    await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [unrelated] }, outside)
+    assert.equal(outside.status, sessionID === producerID ? "ask" : "deny")
+  }
+
+  for (const permission of ["production_preflight", "production_prepare_artifacts", "production_checkpoint"]) {
+    const result = { status: "ask" }
+    await runtime.applyPermission({ sessionID: directorID, permission, patterns: ["*"] }, result)
+    assert.equal(result.status, "deny")
+  }
 })
 
 test("delegated phase owners retain delegate_task and route only their bounded categories", async (t) => {
