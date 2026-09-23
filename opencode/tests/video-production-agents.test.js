@@ -56,6 +56,24 @@ test("phase owners are dedicated subagents with bounded permissions", async () =
   assert.match(editor, /^  external_directory: ask$/m)
 })
 
+test("only the live M3 phase owners use GPT-6 Sol high", async () => {
+  const agents = Object.fromEntries(await Promise.all(
+    ["producer", "director", "creator", "editor"].map(async (name) => [
+      name,
+      await readFile(join(repository, `opencode/agents/${name}.md`), "utf8"),
+    ]),
+  ))
+
+  for (const name of ["producer", "director"]) {
+    assert.match(agents[name], /^model: openai\/gpt-6-sol$/m, name)
+    assert.match(agents[name], /^variant: high$/m, name)
+  }
+  for (const name of ["creator", "editor"]) {
+    assert.match(agents[name], /^model: openai\/gpt-5\.6-sol$/m, name)
+    assert.match(agents[name], /^variant: high$/m, name)
+  }
+})
+
 test("phase-owner hard ceilings survive user config union and forbid cross-phase delegation", () => {
   const delegation = Object.fromEntries(Object.keys(phases).map((caller) => [caller, {
     categories: ["quick", "standard", "git", "database", "browser-testing", "blender-previs", "media-generation", "video-analysis"],

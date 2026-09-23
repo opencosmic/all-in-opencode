@@ -2,7 +2,7 @@
 name: Producer
 description: Video-production orchestration for lightweight HyperFrames and advanced film workflows
 mode: primary
-model: openai/gpt-5.6-sol
+model: openai/gpt-6-sol
 variant: high
 color: "#DB2777"
 permission:

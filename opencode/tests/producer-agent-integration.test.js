@@ -128,6 +128,8 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   const agent = JSON.parse(stdout)
   assert.equal(agent.name, "Producer")
   assert.equal(agent.mode, "primary")
+  assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-6-sol" })
+  assert.equal(agent.variant, "high")
   assert.equal(agent.tools.websearch, true)
   assert.equal(agent.tools.task, false)
   for (const tool of [
@@ -174,6 +176,17 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
       && rule.action === "allow"), "native permission profile must allow the isolated installed film reference subtree")
   assert.equal(permission("external_directory", `${env.HOME}/.config/opencode/skills/film-production/references/shot-spec.md`), "allow")
   assert.equal(permission("external_directory", "/unrelated/external/reference.txt"), "ask")
+})
+
+test("Director resolves to GPT-6 Sol high", async (t) => {
+  const env = await isolatedOpenCodeEnv(t, repository)
+  const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Director"], { env, encoding: "utf8" })
+  const agent = JSON.parse(stdout)
+
+  assert.equal(agent.name, "Director")
+  assert.equal(agent.mode, "subagent")
+  assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-6-sol" })
+  assert.equal(agent.variant, "high")
 })
 
 function globMatches(pattern, value) {

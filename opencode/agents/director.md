@@ -2,7 +2,7 @@
 name: Director
 description: Creative and pre-production phase owner for Producer-led film work
 mode: subagent
-model: openai/gpt-5.6-sol
+model: openai/gpt-6-sol
 variant: high
 color: "#7C3AED"
 permission:
