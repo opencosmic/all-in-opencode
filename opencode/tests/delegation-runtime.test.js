@@ -647,13 +647,16 @@ test("headless Producer and Director can read only the resolved installed film s
   const installed = join(root, "home", ".config", "opencode", "skills", "film-production")
   const reference = join(installed, "references", "shot-spec.md")
   const unrelated = join(root, "unrelated.txt")
+  const outside = join(root, "outside")
   await mkdir(join(source, "references"), { recursive: true })
+  await mkdir(outside)
   await mkdir(join(root, "home", ".config", "opencode", "skills"), { recursive: true })
   await writeFile(join(source, "SKILL.md"), "---\nname: film-production\ndescription: Film production fixture\n---\nRead references.\n")
   await writeFile(join(source, "references", "shot-spec.md"), "ShotSpec reference\n")
   await writeFile(unrelated, "outside\n")
   await symlink(source, installed, "dir")
   await symlink(unrelated, join(source, "references", "escaped.md"))
+  await symlink(outside, join(source, "references", "escaped-directory"), "dir")
 
   const runtime = await DelegationRuntime.create({
     client,
@@ -687,12 +690,30 @@ test("headless Producer and Director can read only the resolved installed film s
       assert.equal(result.status, "allow", `${sessionID}: ${path}`)
       assert.equal(await readFile(path, "utf8"), "ShotSpec reference\n")
     }
+    for (const path of [
+      `${join(installed, "references")}/*`,
+      `${join(dirname(await realpath(join(source, "SKILL.md"))), "references")}/*`,
+    ]) {
+      const result = { status: "ask" }
+      await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [path] }, result)
+      assert.equal(result.status, "allow", `${sessionID}: ${path}`)
+    }
     const escaped = { status: "ask" }
     await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [join(installed, "references", "escaped.md")] }, escaped)
     assert.notEqual(escaped.status, "allow")
-    const outside = { status: "ask" }
-    await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [unrelated] }, outside)
-    assert.equal(outside.status, sessionID === producerID ? "ask" : "deny")
+    for (const path of [
+      unrelated,
+      `${outside}/*`,
+      `${join(installed, "references", "escaped-directory")}/*`,
+      `${installed}/**`,
+      `${installed}/foo*bar`,
+      `${installed}/references/../*`,
+      `${installed}/references/?*`,
+    ]) {
+      const result = { status: "ask" }
+      await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [path] }, result)
+      assert.equal(result.status, sessionID === producerID ? "ask" : "deny", `${sessionID}: ${path}`)
+    }
   }
 
   for (const permission of ["production_preflight", "production_prepare_artifacts", "production_checkpoint"]) {

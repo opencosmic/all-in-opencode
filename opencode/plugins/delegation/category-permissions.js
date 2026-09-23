@@ -242,9 +242,13 @@ export async function resolveFilmProductionSkillAccess(skills) {
 
 export async function isFilmProductionExternalPath(path, access) {
   if (typeof path !== "string" || !access || /(?:^|\/)\.env(?:$|[/.])/.test(path)) return false
-  if (!access.roots.some((root) => isWithin(path, root))) return false
+  const descendantPattern = path.endsWith("/*")
+  const candidate = descendantPattern ? path.slice(0, -2) : path
+  if (!candidate || /[*?\[\]{}]/.test(candidate)) return false
+  if (descendantPattern && candidate.split("/").includes("..")) return false
+  if (!access.roots.some((root) => isWithin(candidate, root))) return false
   try {
-    return isWithin(await realpath(path), access.physicalRoot)
+    return isWithin(await realpath(candidate), access.physicalRoot)
   } catch {
     return false
   }
