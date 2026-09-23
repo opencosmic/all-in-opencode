@@ -182,11 +182,37 @@ test("Director resolves to GPT-6 Sol high", async (t) => {
   const env = await isolatedOpenCodeEnv(t, repository)
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Director"], { env, encoding: "utf8" })
   const agent = JSON.parse(stdout)
+  const director = await readFile(`${repository}/opencode/agents/director.md`, "utf8")
 
   assert.equal(agent.name, "Director")
   assert.equal(agent.mode, "subagent")
   assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-6-sol" })
   assert.equal(agent.variant, "high")
+  assert.ok(director.includes(
+    `  external_directory:\n    "*": deny\n    "~/.config/opencode/skills/film-production/references/*": allow`,
+  ))
+
+  const permission = (type, value = "anything") => {
+    let action
+    for (const rule of agent.permission ?? []) {
+      if (rule.permission === type && globMatches(rule.pattern, value)) action = rule.action
+    }
+    return action
+  }
+
+  const filmReferences = `${env.HOME}/.config/opencode/skills/film-production/references/shot-spec.md`
+  assert.equal(permission("external_directory", filmReferences), "allow")
+  assert.equal(permission("external_directory", `${env.HOME}/.config/opencode/skills/film-production/SKILL.md`), "deny")
+  assert.equal(permission("external_directory", `${env.HOME}/.config/opencode/skills/hyperframes/SKILL.md`), "deny")
+  assert.equal(permission("external_directory", "/tmp/aio-director-unrelated.txt"), "deny")
+  assert.equal(permission("delegate_task"), "allow")
+
+  for (const tool of [
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition", "bash", "write", "edit", "question",
+  ]) {
+    assert.equal(permission(tool), "deny", `${tool} must remain denied`)
+  }
 })
 
 function globMatches(pattern, value) {

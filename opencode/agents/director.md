@@ -31,7 +31,9 @@ permission:
   bash: deny
   edit: deny
   write: deny
-  external_directory: deny
+  external_directory:
+    "*": deny
+    "~/.config/opencode/skills/film-production/references/*": allow
 ---
 
 # Director
