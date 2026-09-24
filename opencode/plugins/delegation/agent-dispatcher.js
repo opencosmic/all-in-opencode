@@ -11,6 +11,7 @@ function namedAgentRoute(agent) {
         production_preflight: false,
         production_prepare_artifacts: false,
         production_checkpoint: false,
+        production_approve_generation: false,
         production_set_shots: false,
         production_transition: false,
         workspace_prepare: false,

@@ -737,6 +737,27 @@ test("Director sessions are restricted to film references while Producer behavio
   assert.equal(Object.values(directorPermissions.external_directory).includes("allow"), true)
   assert.equal(Object.values(directorPermissions.external_directory).filter((action) => action === "allow").length, 4)
 
+  const creatorConfig = {
+    agent: {
+      Creator: {
+        permission: {
+          external_directory: { "*": "deny" },
+          read: { "*": "allow" },
+          edit: { "*": "deny" },
+          write: { "*": "deny" },
+        },
+      },
+    },
+  }
+  await delegationPluginHooks(runtime, { worktree: repository }).config(creatorConfig)
+  const creatorPermissions = creatorConfig.agent.Creator.permission
+  assert.equal(permissionAction(creatorPermissions, "external_directory", producerReference), "allow")
+  assert.equal(permissionAction(creatorPermissions, "external_directory", join(installed, "SKILL.md")), "deny")
+  assert.equal(permissionAction(creatorPermissions, "external_directory", otherSkill), "deny")
+  assert.equal(permissionAction(creatorPermissions, "external_directory", unrelatedConfig), "deny")
+  assert.equal(creatorPermissions.external_directory["*"], "deny")
+  assert.equal(Object.values(creatorPermissions.external_directory).filter((action) => action === "allow").length, 4)
+
   const producerID = "film-producer"
   runtime.observeSessionAgent({ sessionID: producerID, agent: "Producer" })
   const producer = { ...context, sessionID: producerID, messageID: "film-producer-turn", agent: "Producer" }

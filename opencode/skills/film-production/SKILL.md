@@ -102,25 +102,29 @@ For each shot, preserve intent, continuity, references, output constraints,
 and a reproducible request digest in the manifest. Atlas Cloud is currently
 the only implemented media provider behind the bounded `media-generation`
 category. Resolve stable manifest references and upload local files only
-through `media_upload`. `media_calculate` does not create a task or charge;
-generation submission is asynchronous, paid, and never automatically retried
-or rerolled. The runtime enforces request digest and cost integrity, while
-human approval remains an orchestration invariant rather than a cryptographic
-proof unless OpenCode provides one. Completed Atlas outputs are materialized
-into local production assets and linked from the same `ProductionManifest`;
-Atlas URLs are temporary transport metadata only.
+through `media_upload`. `media_calculate` does not create a task or charge.
+Generation submission is asynchronous and never automatically retried or
+rerolled. Producer persists approval for the exact calculated job, request
+digest, and maximum USD exposure through `production_approve_generation` in the
+canonical `ProductionManifest`. Submission requires that persisted state,
+recomputes the request digest and current price, and rejects a changed request
+or a price above the approved ceiling. Every external submission, including a
+zero-cost quote, requires Producer approval. Completed Atlas outputs are
+materialized into local production assets and linked from the same
+`ProductionManifest`; Atlas URLs are temporary transport metadata only.
 
 In M4, Creator owns model and reference selection, request construction,
 execution coordination, and generated-output review. Creator first calls
 `media_calculate` through `media-generation`, then returns the quote, estimate
 flag, request digest, job ID, and unchanged request details to Producer.
-Producer obtains explicit user approval and returns the approved digest and
-cost ceiling to Creator; Creator alone relays the unchanged request to the
-execution child. The runtime enforces the digest and ceiling after
-recalculation. A changed request requires a new calculation and approval.
+Producer obtains explicit user approval and persists it with
+`production_approve_generation`; Creator then relays the unchanged request and
+same job ID to the execution child. The runtime reads the digest and ceiling
+from that canonical approval and checks the current price before submission. A
+changed request requires a new calculation and approval.
 Creator then uses Watch and reports `PASS`, `REVISION_REQUIRED`, or `BLOCKED`.
-Allow at most two revision rounds after the first result, with a fresh Producer
-approval for every paid revision. On pass, Producer transitions
+Allow at most two revision rounds after the first result, with fresh Producer
+approval for every revised request. On pass, Producer transitions
 `production -> assets-ready` and checkpoints. On block, Producer checkpoints
 the evidence and remaining work while lifecycle stays `production`. Stop at
 `assets-ready` until M5; do not enter composition or QA in M4.

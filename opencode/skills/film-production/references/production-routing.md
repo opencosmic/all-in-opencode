@@ -33,7 +33,7 @@ Director PLAN -> ShotSpec + canonical previs paths
   -> Director compares evidence with ShotSpec
   -> PASS or REVISION_REQUIRED
   -> Producer lifecycle/checkpoint -> Creator strategy and request calculation
-  -> Producer explicit paid approval -> Creator media-generation execution
+  -> Producer persisted job approval -> Creator media-generation execution
   -> Creator video-analysis / Watch -> PASS or BLOCKED
   -> Producer lifecycle/checkpoint at assets-ready (M4 stop)
 ```

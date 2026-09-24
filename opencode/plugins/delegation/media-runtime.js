@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto"
 import { mkdir, readFile, realpath, rename, stat, writeFile } from "node:fs/promises"
-import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path"
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 import { validateProductionManifest } from "../film-production/contracts.js"
 import { readJson, writeJson } from "./json-store.js"
@@ -443,6 +443,9 @@ export function createAtlasMediaRuntime({
     requireManifestArgument(args, "media_calculate")
     const shotID = identifier(args.shot_id, "shot_id")
     const { root, manifestPath } = await rootAndManifest(args, context)
+    if (manifestPath !== join(root, "production", "production-manifest.json")) {
+      throw new Error("media generation requires the canonical production/production-manifest.json")
+    }
     const manifest = await readManifest(manifestPath)
     const { body, inputAssetIds } = await buildAtlasMediaRequest(
       args.media_type,
@@ -472,6 +475,8 @@ export function createAtlasMediaRuntime({
       ...(cost.estimated_tokens === undefined ? {} : { estimated_tokens: cost.estimated_tokens }),
       input_asset_ids: inputAssetIds,
       approved_usd: null,
+      approved_max_usd: null,
+      approved_price_usd: null,
       actual_usd: reusable?.actual_usd ?? null,
       wait_timed_out: false,
       created_at: reusable?.created_at ?? nowISO(now),
@@ -604,13 +609,13 @@ export function createAtlasMediaRuntime({
     const jobID = identifier(args.job_id, "job_id")
     const local = jobs.get(jobID)
     const { root, manifestPath } = await rootAndManifest(args, context, local?.manifestPath ?? null)
+    if (manifestPath !== join(root, "production", "production-manifest.json")) {
+      throw new Error("media generation requires the canonical production/production-manifest.json")
+    }
     const manifest = await readManifest(manifestPath)
     const existing = findManifestJob(manifest, jobID)
     if (!existing) throw new Error(`Unknown Atlas media generation job: ${jobID}; call media_calculate first`)
     if (existing.media_type !== mediaType) throw new Error(`Atlas media job ${jobID} is for ${existing.media_type}, not ${mediaType}`)
-    if (!["calculated", "awaiting_approval"].includes(existing.status)) {
-      throw new Error(`Atlas media job ${jobID} is ${existing.status} and cannot be submitted again`)
-    }
 
     const { body, inputAssetIds } = await buildAtlasMediaRequest(
       mediaType,
@@ -618,14 +623,22 @@ export function createAtlasMediaRuntime({
       (assetID) => resolveReferenceAsset(assetID, { manifestPath }),
     )
     const digest = requestDigest(body)
-    const approvedDigest = required(args.approved_request_digest, "approved_request_digest")
-    if (digest !== approvedDigest || digest !== existing.request_digest) {
+    if (digest !== existing.request_digest) {
       throw new Error("Atlas generation approval rejected: request_digest does not match the approved request")
     }
-    const approvedMax = nonNegative(args.approved_max_usd, "approved_max_usd")
-    const approvedPrice = args.approved_price_usd === undefined
-      ? null
-      : nonNegative(args.approved_price_usd, "approved_price_usd")
+    if (existing.status !== "awaiting_approval") {
+      throw new Error(`Atlas media job ${jobID} is ${existing.status} and cannot be submitted again`)
+    }
+    if (["approved_request_digest", "approved_max_usd", "approved_price_usd"].some((field) => Object.hasOwn(args, field))) {
+      throw new Error("Atlas generation approval must come from the persisted Producer-approved job")
+    }
+    if (typeof existing.approved_max_usd !== "number" || !Number.isFinite(existing.approved_max_usd) || existing.approved_max_usd < 0
+      || typeof existing.approved_price_usd !== "number" || !Number.isFinite(existing.approved_price_usd) || existing.approved_price_usd < 0
+      || existing.approved_usd !== existing.approved_max_usd
+      || existing.approved_price_usd !== existing.estimated_usd) {
+      throw new Error("Atlas generation approval rejected: the persisted Producer approval is incomplete or inconsistent")
+    }
+    const approvedMax = existing.approved_max_usd
     const cost = normalizeCost(await client.calculate(body))
     if (cost.price_usd > approvedMax) {
       throw new Error(`Atlas generation approval rejected: current preflight price ${cost.price_usd} exceeds approved_max_usd ${approvedMax}`)
@@ -644,7 +657,8 @@ export function createAtlasMediaRuntime({
       estimated: cost.estimated,
       ...(cost.estimated_tokens === undefined ? {} : { estimated_tokens: cost.estimated_tokens }),
       approved_usd: approvedMax,
-      approved_price_usd: approvedPrice,
+      approved_max_usd: approvedMax,
+      approved_price_usd: existing.approved_price_usd,
       actual_usd: null,
       wait_timed_out: false,
       updated_at: nowISO(now),

@@ -32,6 +32,26 @@ async function manifestAt(project) {
   return JSON.parse(await readFile(join(project, "production/production-manifest.json"), "utf8"))
 }
 
+async function seedCalculatedJob(project, { status = "calculated", jobID = "job_approval", digest = "a".repeat(64), price = 0.2 } = {}) {
+  const manifest = await manifestAt(project)
+  manifest.shots = [sampleShot()]
+  manifest.generation_jobs = [{
+    job_id: jobID,
+    shot_id: "shot_01",
+    media_type: "video",
+    status,
+    request_digest: digest,
+    estimated_usd: price,
+    approved_usd: null,
+    actual_usd: null,
+  }]
+  manifest.costs.estimated_usd = price
+  manifest.costs.approved_usd = null
+  validateProductionManifest(manifest)
+  await writeFile(join(project, "production/production-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`)
+  return manifest
+}
+
 function sampleShot(overrides = {}) {
   return createShotSpec({
     shot_id: "shot_01",
@@ -395,12 +415,84 @@ test("production_transition supports planning to production and leaves invalid c
   await assert.rejects(runtime.productionTransition({ to_status: "qa", revision: 20 }, producer), /does not accept revision/)
 })
 
+test("generation approval persists exact quote authority without changing production lifecycle", async (t) => {
+  const { project, runtime, producer } = await fixture(t)
+  await runtime.productionPreflight({ project_id: "approval" }, producer)
+  const before = await seedCalculatedJob(project)
+  const result = await runtime.productionApproveGeneration({
+    job_id: "job_approval",
+    request_digest: "a".repeat(64),
+    approved_max_usd: 0.25,
+  }, producer)
+
+  const manifest = await manifestAt(project)
+  validateProductionManifest(manifest)
+  assert.deepEqual(result, {
+    job_id: "job_approval",
+    status: "awaiting_approval",
+    request_digest: "a".repeat(64),
+    approved_price_usd: 0.2,
+    approved_max_usd: 0.25,
+    manifest: {
+      canonical_path: "production/production-manifest.json",
+      runtime_path: join(await realpath(project), "production/production-manifest.json"),
+    },
+  })
+  assert.equal(manifest.generation_jobs[0].approved_usd, 0.25)
+  assert.equal(manifest.generation_jobs[0].approved_price_usd, 0.2)
+  assert.equal(manifest.generation_jobs[0].approved_max_usd, 0.25)
+  assert.equal(manifest.costs.approved_usd, 0.25)
+  assert.equal(manifest.project.status, before.project.status)
+  assert.equal(manifest.revision, before.revision)
+  assert.deepEqual(manifest.history, before.history)
+  assert.deepEqual(manifest.shots, before.shots)
+})
+
+test("generation approval rejects non-primary callers and delegated Producer sessions", async (t) => {
+  const { project, runtime, producer } = await fixture(t)
+  await runtime.productionPreflight({ project_id: "approval-auth" }, producer)
+  await seedCalculatedJob(project)
+  const args = { job_id: "job_approval", request_digest: "a".repeat(64), approved_max_usd: 0.25 }
+
+  for (const agent of ["Creator", "Director", "Editor", "Executor"]) {
+    await assert.rejects(runtime.productionApproveGeneration(args, {
+      agent,
+      sessionID: `${agent}-session`,
+      directory: project,
+    }), /only be called by the primary Producer/)
+  }
+  runtime.profiles.set("delegated-producer-session", { category: "quick", tools: {} })
+  await assert.rejects(runtime.productionApproveGeneration(args, {
+    ...producer,
+    sessionID: "delegated-producer-session",
+  }), /only be called by the primary Producer/)
+})
+
+test("generation approval rejects wrong jobs, stale digests, low ceilings, wrong states, and patches", async (t) => {
+  const { project, runtime, producer } = await fixture(t)
+  await runtime.productionPreflight({ project_id: "approval-validation" }, producer)
+  const good = { job_id: "job_approval", request_digest: "a".repeat(64), approved_max_usd: 0.25 }
+  for (const [options, args, expected] of [
+    [{}, { ...good, job_id: "missing_job" }, /has no generation job/],
+    [{}, { ...good, request_digest: "b".repeat(64) }, /does not match the calculated job/],
+    [{}, { ...good, approved_max_usd: 0.19 }, /below the calculated price/],
+    [{ status: "planned" }, good, /must be calculated before Producer approval/],
+    [{}, { ...good, project_status: "assets-ready" }, /does not accept project_status/],
+  ]) {
+    await seedCalculatedJob(project, options)
+    const before = await readFile(join(project, "production/production-manifest.json"), "utf8")
+    await assert.rejects(runtime.productionApproveGeneration(args, producer), expected)
+    assert.equal(await readFile(join(project, "production/production-manifest.json"), "utf8"), before)
+  }
+})
+
 test("runtime denies production tools to non-Producers and delegated children", async (t) => {
   const { runtime, producer } = await fixture(t)
   const operations = [
     ["productionPreflight", { project_id: "denied" }],
     ["productionPrepareArtifacts", { paths: ["production/previs/a.blend"] }],
     ["productionCheckpoint", {}],
+    ["productionApproveGeneration", { job_id: "job", request_digest: "a".repeat(64), approved_max_usd: 0 }],
     ["productionSetShots", { shots: [sampleShot()] }],
     ["productionTransition", { to_status: "previs" }],
   ]

@@ -1,11 +1,15 @@
 import test from "node:test"
 import assert from "node:assert/strict"
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import {
+  applyFilmProductionCreatorPermissions,
   categoryPermission,
   categorySessionPermission,
+  filmProductionSessionPermission,
+  isFilmProductionReferencePath,
   isWatchExternalPath,
   isWatchRuntimeCommand,
   isSafeGitCommand,
@@ -54,6 +58,37 @@ test("sensitive category sessions receive fail-closed session permissions", () =
   assert.ok(gitRules.some((rule) =>
     rule.permission === "bash" && rule.pattern === "git cherry-pick --*" && rule.action === "deny"))
   assert.equal(categorySessionPermission("quick"), undefined)
+})
+
+test("Creator receives only resolved film-production reference access in headless sessions", async (t) => {
+  const fixture = await mkdtemp(join(tmpdir(), "aio-creator-skill-permission-"))
+  t.after(() => rm(fixture, { recursive: true, force: true }))
+  const sourceRoot = join(fixture, "repository", "film-production")
+  const installedRoot = join(fixture, "home", ".config", "opencode", "skills", "film-production")
+  const reference = join(sourceRoot, "references", "production-routing.md")
+  await mkdir(join(sourceRoot, "references"), { recursive: true })
+  await writeFile(reference, "routing reference")
+  await mkdir(join(fixture, "home", ".config", "opencode", "skills"), { recursive: true })
+  await symlink(sourceRoot, installedRoot, "dir")
+
+  const access = { roots: [installedRoot], physicalRoot: await realpath(sourceRoot) }
+  const config = { agent: { Creator: { permission: { external_directory: "deny" } } } }
+  assert.equal(applyFilmProductionCreatorPermissions(config, access), true)
+  const referenceRoot = join(installedRoot, "references")
+  assert.deepEqual(config.agent.Creator.permission.external_directory, {
+    "*": "deny",
+    [referenceRoot]: "allow",
+    [`${referenceRoot}/*`]: "allow",
+  })
+
+  const sessionRules = filmProductionSessionPermission("Creator", access)
+  assert.ok(sessionRules.some((rule) =>
+    rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "deny"))
+  assert.ok(sessionRules.some((rule) =>
+    rule.permission === "external_directory" && rule.pattern === `${referenceRoot}/*` && rule.action === "allow"))
+  assert.equal(await isFilmProductionReferencePath(join(installedRoot, "references", "production-routing.md"), access), true)
+  assert.equal(await isFilmProductionReferencePath(join(installedRoot, "SKILL.md"), access), false)
+  assert.equal(await isFilmProductionReferencePath(join(fixture, "outside.txt"), access), false)
 })
 
 test("blender-previs exposes only the existing Blender MCP integration", () => {
@@ -275,6 +310,7 @@ test("sensitive categories preserve session permissions instead of replacing the
     production_preflight: false,
     production_prepare_artifacts: false,
     production_checkpoint: false,
+    production_approve_generation: false,
     production_set_shots: false,
     production_transition: false,
     workspace_prepare: false,
@@ -290,7 +326,7 @@ test("sensitive categories preserve session permissions instead of replacing the
 
 test("production control tools stay denied in delegated category and named-child sessions", () => {
   const names = [
-    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint", "production_approve_generation",
     "production_set_shots", "production_transition",
   ]
   for (const name of names) {

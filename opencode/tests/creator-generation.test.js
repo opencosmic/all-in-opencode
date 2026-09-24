@@ -153,13 +153,20 @@ test("headless M4 smoke routes media through Creator and keeps approval and mani
     }, creatorContext), /cannot delegate named agent/)
   }
 
+  const manifestBeforeCreatorControlAttempts = await readFile(join(project, MANIFEST_PATH), "utf8")
   for (const [name, call] of [
     ["production_preflight", () => runtime.productionPreflight({}, creatorContext)],
     ["production_prepare_artifacts", () => runtime.productionPrepareArtifacts({ paths: ["production/example.bin"] }, creatorContext)],
     ["production_checkpoint", () => runtime.productionCheckpoint({}, creatorContext)],
+    ["production_approve_generation", () => runtime.productionApproveGeneration({}, creatorContext)],
     ["production_set_shots", () => runtime.productionSetShots({ shots: [shot] }, creatorContext)],
     ["production_transition", () => runtime.productionTransition({ to_status: "assets-ready" }, creatorContext)],
   ]) await assert.rejects(call(), /may only be called by the primary Producer/, name)
+  assert.equal(
+    await readFile(join(project, MANIFEST_PATH), "utf8"),
+    manifestBeforeCreatorControlAttempts,
+    "Creator control-plane attempts must not mutate ShotSpecs, approval state, project status, or checkpoint",
+  )
 
   const directCalculate = tools.media_calculate.execute({
     media_type: "video",
@@ -211,17 +218,24 @@ test("headless M4 smoke routes media through Creator and keeps approval and mani
   await assert.rejects(tools.media_generate_video.execute({
     ...request,
     job_id: quote.job_id,
-    approved_request_digest: "0".repeat(64),
-    approved_max_usd: 0,
-  }, { sessionID: mediaTask.child_session_id }), /request_digest does not match the approved request/)
+    approved_request_digest: quote.request_digest,
+    approved_max_usd: 0.25,
+  }, { sessionID: mediaTask.child_session_id }), /is calculated and cannot be submitted again/)
   assert.equal(atlasCalls.some((call) => call.operation === "generateVideo"), false)
+
+  const persistedApproval = JSON.parse(await tools.production_approve_generation.execute({
+    job_id: quote.job_id,
+    request_digest: quote.request_digest,
+    approved_max_usd: 0,
+  }, producer))
+  assert.equal(persistedApproval.status, "awaiting_approval")
+  const approvedManifest = JSON.parse(await readFile(join(project, MANIFEST_PATH), "utf8"))
+  assert.equal(approvedManifest.generation_jobs[0].approved_price_usd, 0)
+  assert.equal(approvedManifest.generation_jobs[0].approved_max_usd, 0)
 
   const submission = JSON.parse(await tools.media_generate_video.execute({
     ...request,
     job_id: quote.job_id,
-    approved_request_digest: quote.request_digest,
-    approved_max_usd: 0,
-    approved_price_usd: 0,
   }, { sessionID: mediaTask.child_session_id }))
   assert.equal(submission.status, "submitted")
   assert.equal(atlasCalls.filter((call) => call.operation === "calculate").length, 2)

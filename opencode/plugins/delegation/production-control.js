@@ -17,6 +17,7 @@ const CHECKPOINT_INPUT_FIELDS = new Set([
   "current_focus", "completed", "remaining", "verification", "important_artifacts",
 ])
 const TRANSITION_INPUT_FIELDS = new Set(["to_status", "note"])
+const GENERATION_APPROVAL_INPUT_FIELDS = new Set(["job_id", "request_digest", "approved_max_usd"])
 
 async function existing(path) {
   try {
@@ -250,5 +251,66 @@ export async function productionCheckpoint(args = {}, directory) {
     manifest_revision: next.revision,
     manifest: { canonical_path: PRODUCTION_MANIFEST_PATH, runtime_path: path },
     latest_checkpoint: checkpoint,
+  }
+}
+
+export async function productionApproveGeneration(args = {}, directory) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("production_approve_generation input must be an object")
+  }
+  for (const field of Object.keys(args)) {
+    if (!GENERATION_APPROVAL_INPUT_FIELDS.has(field)) {
+      throw new Error(`production_approve_generation does not accept ${field}`)
+    }
+  }
+  if (typeof args.job_id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(args.job_id)) {
+    throw new Error("production_approve_generation requires a valid job_id")
+  }
+  if (typeof args.request_digest !== "string" || !/^[a-f0-9]{64}$/.test(args.request_digest)) {
+    throw new Error("production_approve_generation requires a lowercase SHA-256 request_digest")
+  }
+  if (typeof args.approved_max_usd !== "number" || !Number.isFinite(args.approved_max_usd) || args.approved_max_usd < 0) {
+    throw new Error("approved_max_usd must be a non-negative number")
+  }
+
+  const { path, manifest } = await requiredProduction(directory)
+  const job = manifest.generation_jobs.find((candidate) => candidate.job_id === args.job_id)
+  if (!job) throw new Error(`ProductionManifest has no generation job ${args.job_id}`)
+  if (job.status !== "calculated") {
+    throw new Error(`generation job ${args.job_id} must be calculated before Producer approval`)
+  }
+  if (job.request_digest !== args.request_digest) {
+    throw new Error("generation approval rejected: request_digest does not match the calculated job")
+  }
+  if (typeof job.estimated_usd !== "number" || !Number.isFinite(job.estimated_usd) || job.estimated_usd < 0) {
+    throw new Error(`generation job ${args.job_id} has no valid calculated price to approve`)
+  }
+  if (args.approved_max_usd < job.estimated_usd) {
+    throw new Error(`approved_max_usd ${args.approved_max_usd} is below the calculated price ${job.estimated_usd}`)
+  }
+
+  const timestamp = new Date().toISOString()
+  Object.assign(job, {
+    // Existing status used for a quoted job cleared by Producer and waiting for Creator submission.
+    status: "awaiting_approval",
+    approved_usd: args.approved_max_usd,
+    approved_max_usd: args.approved_max_usd,
+    approved_price_usd: job.estimated_usd,
+    updated_at: timestamp,
+  })
+  manifest.costs.approved_usd = manifest.generation_jobs
+    .map((candidate) => candidate.approved_usd)
+    .filter((value) => typeof value === "number" && Number.isFinite(value))
+    .reduce((total, value) => total + value, 0)
+  manifest.updated_at = timestamp
+  validateProductionManifest(manifest)
+  await writeJson(path, manifest)
+  return {
+    job_id: job.job_id,
+    status: job.status,
+    request_digest: job.request_digest,
+    approved_price_usd: job.approved_price_usd,
+    approved_max_usd: job.approved_max_usd,
+    manifest: { canonical_path: PRODUCTION_MANIFEST_PATH, runtime_path: path },
   }
 }

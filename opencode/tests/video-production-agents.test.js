@@ -24,7 +24,7 @@ test("phase owners are dedicated subagents with bounded permissions", async () =
     assert.match(source, /^  delegate_task: allow$/m)
     for (const tool of [
       "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-      "production_set_shots", "production_transition",
+      "production_approve_generation", "production_set_shots", "production_transition",
     ]) {
       assert.match(source, new RegExp(`^  ${tool}: deny$`, "m"))
     }
@@ -79,6 +79,8 @@ test("only the live M3 phase owners use GPT-6 Sol high", async () => {
     assert.match(creator, new RegExp(`^  ${permission}: deny$`, "m"), permission)
   }
   assert.match(creator, /Stop for Producer's explicit user\s+approval/)
+  assert.match(creator, /^  production_approve_generation: deny$/m)
+  assert.match(agents.producer, /^  production_approve_generation: allow$/m)
   assert.match(creator, /Allow at most two revision rounds after the first generated result/)
   assert.match(creator, /`media-generation` and\s+`video-analysis`/)
   assert.doesNotMatch(creator, /production_(?:preflight|prepare_artifacts|checkpoint|set_shots|transition): allow/)
@@ -124,7 +126,7 @@ test("phase-owner named routes alone retain bounded nested delegation", () => {
     assert.equal(profile.tools.task, false)
     for (const tool of [
       "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-      "production_set_shots", "production_transition",
+      "production_approve_generation", "production_set_shots", "production_transition",
     ]) assert.equal(profile.tools[tool], false)
   }
   for (const [caller, name] of [["Assistant", "Explorer"], ["Assistant", "Searcher"], ["Executor", "Reviewer"], ["Executor", "Blender"]]) {

@@ -21,6 +21,7 @@ permission:
   production_preflight: deny
   production_prepare_artifacts: deny
   production_checkpoint: deny
+  production_approve_generation: deny
   production_set_shots: deny
   production_transition: deny
   task_status: allow
@@ -50,19 +51,22 @@ The only categories you may delegate are `media-generation` and
 `media-generation` Implementer calculate the exact request. Return the runtime
 price, `estimated` flag, `request_digest`, `job_id`, selected model and
 unchanged request details to Producer. Stop for Producer's explicit user
-approval; do not submit a paid request based on your own judgment or an
-approval implied by a cost ceiling. After Producer returns the approved digest
-and maximum cost, delegate the unchanged request for submission. The existing
-runtime must be allowed to recompute cost and reject changed digests or a price
-above that ceiling.
+approval. Never submit from a calculated job or call
+`production_approve_generation`; only Producer can persist approval. After
+Producer confirms approval for the same `job_id`, delegate the unchanged
+request for submission. The media runtime reads the digest and maximum
+approved cost from that persisted job, recomputes the request digest and
+current price, and rejects a changed request or a price above the persisted
+ceiling.
 
-After submission, use the bounded prediction operation to collect the result
+Every external generation submission, including a zero-cost quote, requires
+persisted Producer approval. After submission, use the bounded prediction operation to collect the result
 and `video-analysis` with `load_skills=["watch"]` to review generated visual
 outputs. Compare Watch evidence with the ShotSpec and report `PASS`,
 `REVISION_REQUIRED`, or `BLOCKED`, with concrete findings and asset/job IDs.
 Allow at most two revision rounds after the first generated result. Each paid
 revision is a new request: calculate again, return to Producer for explicit
-approval, and submit only after the unchanged request and ceiling return.
+approval, and submit only after Producer confirms approval for that new job.
 Never auto-reroll an ambiguous or failed submission.
 
 The media runtime records generation jobs and materialized assets in the

@@ -29,7 +29,7 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /^  delegate_task: allow$/m)
   for (const tool of [
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-    "production_set_shots", "production_transition",
+    "production_approve_generation", "production_set_shots", "production_transition",
   ]) {
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"))
   }
@@ -61,7 +61,7 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /Producer may not delegate\s+named Blender/i)
   assert.match(producer, /Creator owns generated-media strategy, execution coordination, generated-output\s+Watch review, and bounded revisions/s)
   assert.match(producer, /Creator performs model selection, request calculation, execution,\s+polling, output interpretation, and Watch review/s)
-  assert.match(producer, /explicit user approval.*unchanged request digest/s)
+  assert.match(producer, /explicit user approval.*maximum USD\s+exposure.*production_approve_generation/s)
   assert.match(producer, /Stop there for `\/film`; do not start\s+HyperFrames composition/)
   assert.match(producer, /must not delegate `media-generation` directly/)
   assert.doesNotMatch(producer, /GPT Image 2\.5 Sunburst|Seedream 5 Pro|MiniMax H3|Seedance 2\.5/)
@@ -132,7 +132,7 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   for (const tool of [
     "delegate_task", "task_status", "task_output", "task_cancel",
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-    "production_set_shots", "production_transition",
+    "production_approve_generation", "production_set_shots", "production_transition",
   ]) {
     assert.equal(agent.tools[tool], true, `${tool} must remain available`)
   }
@@ -217,7 +217,7 @@ test("Director resolves to GPT-6 Sol high", async (t) => {
 
   for (const tool of [
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-    "production_set_shots", "production_transition", "bash", "write", "edit", "question",
+    "production_approve_generation", "production_set_shots", "production_transition", "bash", "write", "edit", "question",
   ]) {
     assert.equal(permission(tool), "deny", `${tool} must remain denied`)
   }
@@ -248,7 +248,7 @@ test("Creator resolves with bounded effective subagent permissions", async (t) =
   assert.equal(permission("delegate_task"), "allow")
   for (const tool of [
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-    "production_set_shots", "production_transition", "bash", "write", "edit", "question",
+    "production_approve_generation", "production_set_shots", "production_transition", "bash", "write", "edit", "question",
   ]) assert.equal(permission(tool), "deny", `${tool} must remain denied`)
   assert.equal(permission("external_directory", "/unrelated/external/reference.txt"), "deny")
 })

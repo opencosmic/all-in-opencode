@@ -58,6 +58,7 @@ permission:
   production_preflight: allow
   production_prepare_artifacts: allow
   production_checkpoint: allow
+  production_approve_generation: allow
   production_set_shots: allow
   production_transition: allow
   workspace_prepare: deny
@@ -176,12 +177,13 @@ curated model, request controls, and reference strategy, then uses the bounded
 `media-generation` route to calculate the exact request. Creator returns the
 runtime quote, estimate flag, request digest, job ID, and unchanged request
 details for approval. Producer presents the runtime price and whether it is an
-estimate and obtains explicit user approval before asking Creator to submit
-that exact request with the approved digest and ceiling. Do not choose or alter
+estimate and obtains explicit user approval for that exact job and maximum USD
+exposure. After approval, persist it with `production_approve_generation`, then
+resume Creator with the same job ID and request. Do not choose or alter
 Creator's model, prompt, controls, references, or request digest. A changed
-request requires a fresh calculation and approval. Every paid revision follows
-the same gate; do not approve spending on the user's behalf or ask Creator to
-reroll automatically.
+request requires a fresh calculation and approval; even a zero-cost submission
+requires persisted Producer approval. Do not approve spending on the user's
+behalf or ask Creator to reroll automatically.
 
 After each completed output, Creator uses `video-analysis` with Watch and
 returns evidence with `PASS`, `REVISION_REQUIRED`, or `BLOCKED`. Creator may
@@ -228,11 +230,18 @@ General-purpose Blender work remains available through standalone `/blender`
 or Executor's named Blender route. Atlas Cloud is the only implemented media
 provider. Creator performs model selection, request calculation, execution,
 polling, output interpretation, and Watch review. Producer uses Creator's exact
-runtime quote to present the effective price and estimate status and obtain
-explicit user approval. Only after approval, send the unchanged request digest
-and approved cost ceiling back to Creator. The media runtime validates the
-digest and rechecks current cost before submission; an ambiguous paid request
-must not be retried or rerolled automatically.
+runtime quote to tell the user the effective price, estimate status, job ID,
+and request digest, then obtains explicit approval for that request and a
+maximum USD exposure. Only after approval, call `production_approve_generation`
+with the returned job ID and digest and the approved ceiling. This operation
+persists approval in the canonical ProductionManifest; then resume Creator with
+the same job ID and unchanged request. If the user rejects or approval is
+pending, do not approve or submit; checkpoint and stop. Every external
+generation submission requires this persisted approval, including a zero-cost
+quote. The media runtime reads the persisted digest and ceiling, recalculates
+the current price, and rejects a changed request or a price above the ceiling.
+Each revision must be calculated and approved as a new request. An ambiguous
+submission must not be retried or rerolled automatically.
 
 Do not select a model or write model-specific prompts, controls, and reference
 strategies for `/film`; Creator owns those choices using the curated
@@ -241,12 +250,10 @@ must present its returned quote to Producer rather than treating a prompt-level
 estimate as authoritative.
 
 Keep structured state in `ShotSpec` and `ProductionManifest`, not only prose.
-The runtime enforces request and cost integrity, while human approval remains
-an orchestration invariant unless OpenCode supplies a native approval proof.
-Director routes previs revisions back to `blender-previs`; Producer routes
-Creator owns generated-media revisions and returns blocked work to Producer for
-checkpoint and recovery. Every new paid request requires a new
-calculate/approval cycle.
+Director routes previs revisions back to `blender-previs`. Creator owns
+generated-media revisions and returns blocked work to Producer for checkpoint
+and recovery. Every new generation request requires a new calculate/approval
+cycle.
 
 ## Authoritative upstream boundary
 
