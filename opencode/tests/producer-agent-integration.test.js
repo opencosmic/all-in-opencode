@@ -1,8 +1,8 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { access, readFile } from "node:fs/promises"
+import { access, readFile, realpath } from "node:fs/promises"
 import { execFile } from "node:child_process"
-import { dirname, resolve } from "node:path"
+import { dirname, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 
@@ -27,34 +27,41 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /question: allow/)
   assert.match(producer, /websearch: allow/)
   assert.match(producer, /^  delegate_task: allow$/m)
+  for (const tool of [
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition",
+  ]) {
+    assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"))
+  }
   for (const tool of ["task_status", "task_output", "task_cancel"]) {
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"), tool)
   }
-  assert.match(producer, /bounded supporting capabilities.*AIO delegation policy/s)
-  assert.match(producer, /`media` family.*`video-analysis` and `media-generation`.*Producer-only `blender-previs` implementation category/s)
-  assert.match(producer, /delegate_task\(category="blender-previs"\)/)
-  assert.match(producer, /explicit artifact destinations inside the active\s+production\s+workspace[\s\S]*`production\/previs\/<shot-or-group>\/`/i)
-  assert.match(producer, /`\.blend` source destination/i)
-  assert.match(producer, /key-stills directory\s+or\s+explicit still paths/i)
-  assert.match(producer, /moving-shot preview MP4 destination/i)
-  assert.match(producer, /do not omit destinations or let the category invent an output directory/i)
-  assert.match(producer, /editable `\.blend` source, key stills, and a low-resolution preview MP4/s)
-  assert.match(producer, /delegate_task\(category="video-analysis", load_skills=\["watch"\]\)/)
-  assert.match(producer, /Only after a PASS should Producer finalize generation instructions.*`media-generation`/s)
-  assert.match(producer, /delegate_task\(agent="Blender"\).*for `\/film` previs/s)
-  assert.match(producer, /named route remains\s+for general-purpose or explicitly technical Blender work outside this path/s)
-  assert.match(producer, /If the category or review\s+delegation is unavailable, stop and surface the delegation\/tooling problem/s)
-  assert.doesNotMatch(producer, /For every Blender-native task.*delegate_task\(agent="Blender"\)/s)
-  for (const forbiddenFallback of [
-    /must not write a `bpy` Python script/i,
-    /call\s+the Blender CLI/i,
-    /launch `\/Applications\/Blender\.app\/\.\.\.\/Blender`/i,
-    /invoke\s+Blender MCP directly/i,
-    /use bash to perform Blender-native implementation/i,
-    /create `\.blend` artifacts itself/i,
-  ]) assert.match(producer, forbiddenFallback)
-  assert.match(producer, /fast, rough previews for validation/s)
-  assert.match(producer, /Blender\s+does not receive categor(?:y|ies)/s)
+  assert.match(producer, /Producer owns production lifecycle, state, phase assignment, budget/i)
+  assert.match(producer, /transitional\s+capabilities/i)
+  assert.match(producer, /Producer may delegate these three named phase owners/i)
+  assert.match(producer, /production_preflight.*production\/production-manifest\.json/s)
+  assert.match(producer, /delegates Director\s+`PLAN` with the user brief/s)
+  assert.match(producer, /Director authors the CreativeBrief.*complete provider-neutral ShotSpecs/s)
+  assert.match(producer, /DIRECTOR_NEEDS_USER_INPUT.*ask the user and re-delegate/s)
+  assert.match(producer, /pass the complete Director-authored ShotSpec array to\s+`production_set_shots`/s)
+  assert.match(producer, /If validation fails, send the exact error.*complete corrected ShotSpec collection/s)
+  assert.match(producer, /Do not search for or\s+read `contracts\.js`/s)
+  assert.match(producer, /`production_transition`.*to_status: "previs".*to_status: "production"/s)
+  assert.match(producer, /Never\s+manually edit `project\.status`, `revision`, or `history`/)
+  assert.match(producer, /`production_transition` with `to_status: "production"`.*then write the\s+meaningful `production_checkpoint`/s)
+  assert.match(producer, /production_prepare_artifacts.*preferably once for all known shots/s)
+  assert.match(producer, /Delegate Director `PREVIS`.*absolute runtime path/s)
+  assert.match(producer, /Director, not Producer,.*delegates `blender-previs`.*`video-analysis` with Watch/s)
+  assert.match(producer, /DIRECTOR_NEEDS_ARTIFACT_PREPARATION.*prepare only its new\s+canonical destinations/s)
+  assert.match(producer, /DIRECTOR_PREVIS_COMPLETE.*per-shot PASS evidence/s)
+  assert.match(producer, /After every required\s+previs shot passes, call `production_transition`.*then write the meaningful `production_checkpoint`/s)
+  assert.match(producer, /If Director returns a blocked PREVIS result, keep the manifest in `previs` and\s+write a current `production_checkpoint`.*first-pass artifacts and Watch finding.*blocked or canceled revision\s+attempt.*Do not\s+transition to `production`.*until Watch returns\s+PASS/s)
+  assert.match(producer, /Producer must never call `blender-previs` or named\s+Blender as a fallback/s)
+  assert.doesNotMatch(producer, /mkdir -p|pwd -P|cd <parent> && pwd -P/)
+  assert.doesNotMatch(producer, /delegate_task\(category="blender-previs"\)/)
+  assert.match(producer, /Producer may not delegate\s+named Blender/i)
+  assert.match(producer, /transitional live generation strategy.*`media-generation` and `video-analysis`/s)
+  assert.match(producer, /HyperFrames composition until later milestones/)
   assert.match(producer, /Image shots use GPT Image 2 for ordinary\/value work.*GPT Image 2\.5 Sunburst.*Seedream 5 Pro/s)
   assert.match(producer, /Video shots use Wan 3\.0 for ordinary or\s+balanced work.*MiniMax H3.*Seedance 2\.5/s)
   assert.match(producer, /explicitly supported user model choice\s+always wins/s)
@@ -67,7 +74,8 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /never auto-escalate or hardcode media prices/s)
   assert.match(producer, /edit:\n    "\*": allow/)
   assert.match(producer, /write:\n    "\*": allow/)
-  assert.match(producer, /external_directory: ask/)
+  assert.match(producer, /external_directory:\n    "\*": ask/)
+  assert.doesNotMatch(producer, /~\/\.config\/opencode\/skills\/film-production/)
 
   for (const skill of [
     "hyperframes",
@@ -122,9 +130,15 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   const agent = JSON.parse(stdout)
   assert.equal(agent.name, "Producer")
   assert.equal(agent.mode, "primary")
+  assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-6-sol" })
+  assert.equal(agent.variant, "high")
   assert.equal(agent.tools.websearch, true)
   assert.equal(agent.tools.task, false)
-  for (const tool of ["delegate_task", "task_status", "task_output", "task_cancel"]) {
+  for (const tool of [
+    "delegate_task", "task_status", "task_output", "task_cancel",
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition",
+  ]) {
     assert.equal(agent.tools[tool], true, `${tool} must remain available`)
   }
 
@@ -140,6 +154,11 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(permission("task_status", "anything"), "allow")
   assert.equal(permission("task_output", "anything"), "allow")
   assert.equal(permission("task_cancel", "anything"), "allow")
+  assert.equal(permission("production_preflight", "anything"), "allow")
+  assert.equal(permission("production_prepare_artifacts", "anything"), "allow")
+  assert.equal(permission("production_checkpoint", "anything"), "allow")
+  assert.equal(permission("production_set_shots", "anything"), "allow")
+  assert.equal(permission("production_transition", "anything"), "allow")
   assert.equal(permission("workspace_prepare", "anything"), "deny")
   assert.equal(permission("workspace_release", "anything"), "deny")
   assert.equal(permission("bash", "npx hyperframes lint"), "allow")
@@ -151,6 +170,62 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(permission("bash", "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes init demo"), "ask")
   assert.equal(permission("bash", "npx skills add anything"), "deny")
   assert.equal(permission("bash", "git commit -m change"), "deny")
+
+  const filmRoot = `${env.HOME}/.config/opencode/skills/film-production`
+  const filmPhysicalRoot = await realpath(filmRoot)
+  const filmReference = `${filmRoot}/references/shot-spec.md`
+  assert.equal(permission("external_directory", filmReference), "allow")
+  assert.equal(permission("external_directory", `${filmRoot}/SKILL.md`), "deny")
+  assert.equal(permission("external_directory", `${filmPhysicalRoot}/SKILL.md`), "deny")
+  assert.equal(permission("external_directory", "/unrelated/external/reference.txt"), "ask")
+
+  for (const type of ["edit", "write"]) {
+    for (const target of [
+      relative(repository, `${filmRoot}/SKILL.md`),
+      relative(repository, `${filmRoot}/references/shot-spec.md`),
+      relative(repository, `${filmPhysicalRoot}/SKILL.md`),
+      relative(repository, `${filmPhysicalRoot}/references/shot-spec.md`),
+    ]) assert.equal(permission(type, target), "deny", `${type}: ${target}`)
+    assert.equal(permission(type, "src/producer-workspace-output.md"), "allow", `${type} must remain usable in the project workspace`)
+  }
+})
+
+test("Director resolves to GPT-6 Sol high", async (t) => {
+  const env = await isolatedOpenCodeEnv(t, repository)
+  const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Director"], { env, encoding: "utf8" })
+  const agent = JSON.parse(stdout)
+  const director = await readFile(`${repository}/opencode/agents/director.md`, "utf8")
+
+  assert.equal(agent.name, "Director")
+  assert.equal(agent.mode, "subagent")
+  assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-6-sol" })
+  assert.equal(agent.variant, "high")
+  assert.match(director, /external_directory:\n    "\*": deny/)
+  assert.doesNotMatch(director, /~\/\.config\/opencode\/skills\/film-production/)
+
+  const permission = (type, value = "anything") => {
+    let action
+    for (const rule of agent.permission ?? []) {
+      if (rule.permission === type && globMatches(rule.pattern, value)) action = rule.action
+    }
+    return action
+  }
+
+  const filmReferences = `${env.HOME}/.config/opencode/skills/film-production/references/shot-spec.md`
+  const filmRoot = `${env.HOME}/.config/opencode/skills/film-production`
+  assert.equal(permission("external_directory", filmReferences), "allow")
+  assert.equal(permission("external_directory", `${filmRoot}/SKILL.md`), "deny")
+  assert.equal(permission("external_directory", filmRoot), "deny")
+  assert.equal(permission("external_directory", `${env.HOME}/.config/opencode/skills/hyperframes/SKILL.md`), "deny")
+  assert.equal(permission("external_directory", "/tmp/aio-director-unrelated.txt"), "deny")
+  assert.equal(permission("delegate_task"), "allow")
+
+  for (const tool of [
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition", "bash", "write", "edit", "question",
+  ]) {
+    assert.equal(permission(tool), "deny", `${tool} must remain denied`)
+  }
 })
 
 function globMatches(pattern, value) {

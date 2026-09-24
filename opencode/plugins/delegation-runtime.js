@@ -1,7 +1,7 @@
 import { acquireDelegationControlPlane } from "./delegation/control-plane.js"
 import { delegationPluginHooks } from "./delegation/plugin-hooks.js"
 
-export default async function DelegationRuntimePlugin({ client, directory, serverUrl }, options = {}) {
+export default async function DelegationRuntimePlugin({ client, directory, worktree, serverUrl }, options = {}) {
   const controlPlane = await acquireDelegationControlPlane({
     client,
     directory,
@@ -14,5 +14,5 @@ export default async function DelegationRuntimePlugin({ client, directory, serve
     delegation: options.delegation,
     skillRoots: options.skillRoots,
   })
-  return delegationPluginHooks(controlPlane.runtime)
+  return delegationPluginHooks(controlPlane.runtime, { worktree })
 }

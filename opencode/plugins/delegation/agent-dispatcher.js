@@ -1,19 +1,25 @@
-import { DelegationPolicy, discoverAgents } from "./delegation-policy.js"
+import { DELEGATING_NAMED_AGENTS, DelegationPolicy, discoverAgents } from "./delegation-policy.js"
 
 function namedAgentRoute(agent) {
+  const phaseOwner = DELEGATING_NAMED_AGENTS.has(agent)
   return {
     category: null,
     agent,
     profile: {
-      description: `Read-only ${agent} specialist`,
+      description: phaseOwner ? `${agent} production phase owner` : `Read-only ${agent} specialist`,
       tools: {
+        production_preflight: false,
+        production_prepare_artifacts: false,
+        production_checkpoint: false,
+        production_set_shots: false,
+        production_transition: false,
         workspace_prepare: false,
-        delegate_task: false,
+        delegate_task: phaseOwner,
         workspace_checkpoint_update: false,
         consult_agents: false,
-        task_status: false,
-        task_output: false,
-        task_cancel: false,
+        task_status: phaseOwner,
+        task_output: phaseOwner,
+        task_cancel: phaseOwner,
         workspace_release: false,
         task: false,
       },

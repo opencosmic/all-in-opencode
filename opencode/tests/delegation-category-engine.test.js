@@ -34,17 +34,39 @@ test("category context meaningfully specializes the shared executor", () => {
     ["testing", /discriminating tests/i],
     ["git", /explicitly authorized Git operation/i],
     ["video-analysis", /actual video/i],
-    ["blender-previs", /already defined ShotSpec|Producer request/i],
+    ["blender-previs", /Director-supplied, already defined ShotSpec/i],
   ])
   for (const [name, pattern] of expected) assert.match(engine.resolve(name).profile.prompt_append, pattern)
   const previs = engine.resolve("blender-previs")
   assert.equal(previs.profile.family, "implementation")
+  assert.equal(previs.profile.model, "openai/gpt-6-luna")
+  assert.equal(previs.profile.variant, "max")
   assert.match(previs.profile.description, /Lightweight Blender previs/i)
-  assert.match(previs.profile.prompt_append, /Producer must supply explicit artifact destinations inside the active production workspace/i)
+  assert.match(previs.profile.prompt_append, /Director must supply explicit absolute runtime artifact destinations prepared by Producer inside the active production workspace/i)
   assert.match(previs.profile.prompt_append, /production\/previs\/<shot-or-group>\//i)
-  assert.match(previs.profile.prompt_append, /Use only those supplied destinations.*do not invent an output directory/i)
+  assert.match(previs.profile.prompt_append, /only the separately labeled absolute runtime destinations are usable for Blender I\/O/i)
+  assert.match(previs.profile.prompt_append, /never pass a workspace-relative destination to Blender/i)
+  assert.match(previs.profile.prompt_append, /never.*reinterpret or rebase a supplied path.*rely on Blender's working directory/i)
+  assert.match(previs.profile.prompt_append, /Do not discover the workspace root or create parent directories/i)
+  assert.match(previs.profile.prompt_append, /If a supplied runtime destination is not absolute.*stop/i)
+  assert.match(previs.profile.prompt_append, /Use exactly those supplied absolute paths.*invent a path/i)
+  assert.match(previs.profile.prompt_append, /Producer uses production_prepare_artifacts to prepare and verify the exact parent directories.*before delegation/i)
+  assert.match(previs.profile.prompt_append, /Assume those parent directories already exist/i)
+  assert.match(previs.profile.prompt_append, /If a required parent is missing, fail clearly and report the supplied destination and missing parent/i)
+  assert.match(previs.profile.prompt_append, /do not create directories from Blender.*invent paths.*list or explore the filesystem/i)
+  assert.doesNotMatch(previs.profile.prompt_append, /create only the exact parent director(?:y|ies)/i)
   assert.match(previs.profile.prompt_append, /Blender Python is not an operating-system sandbox/i)
   assert.match(previs.profile.prompt_append, /filesystem.*process.*shell.*network.*bypass denied OpenCode capabilities/i)
+  assert.match(previs.profile.prompt_append, /cheapest reliable viewport\/OpenGL\/playblast path, then Workbench.*lightweight Eevee only/i)
+  assert.match(previs.profile.prompt_append, /ordinary previs must not use Cycles, high sample counts, expensive denoising/i)
+  assert.match(previs.profile.prompt_append, /480×270.*320×180.*should not exceed 720p/s)
+  assert.match(previs.profile.prompt_append, /8–12 fps.*instead of inheriting the final ShotSpec frame rate/i)
+  assert.match(previs.profile.prompt_append, /Preserve the ShotSpec's real duration.*about 50 frames, not a shortened/i)
+  assert.match(previs.profile.prompt_append, /root translation alone is insufficient.*alternating leg or paw motion.*contact and swing phases/i)
+  assert.match(previs.profile.prompt_append, /avoid a stride rate that appears static at the preview sampling rate/i)
+  assert.match(previs.profile.prompt_append, /MCP timeout.*completion ambiguous/i)
+  assert.match(previs.profile.prompt_append, /Do not claim success without evidence.*automatically repeat the same render\/playblast/i)
+  assert.match(previs.profile.prompt_append, /Return control to Director with those exact paths and evidence/i)
   for (const tool of [
     "blender_get_addon_status",
     "blender_get_scene_info",
@@ -52,6 +74,30 @@ test("category context meaningfully specializes the shared executor", () => {
     "blender_get_viewport_screenshot",
     "blender_execute_blender_code",
   ]) assert.equal(previs.profile.tools[tool], true, tool)
+})
+
+test("blender-previs verifies requested motion before rendering and preserves Watch review", () => {
+  const prompt = new CategoryEngine({}).resolve("blender-previs").profile.prompt_append
+  const gateStart = prompt.indexOf("Before generating any moving preview MP4")
+  const mp4Allowed = prompt.indexOf("Only after every requested moving target passes may the MP4 be generated")
+  assert.ok(gateStart >= 0, "moving shots require a pre-render motion gate")
+  assert.ok(mp4Allowed > gateStart, "the MP4 is authorized only after verification")
+
+  const gateEnd = prompt.indexOf("Director must supply explicit absolute", gateStart)
+  const gate = prompt.slice(gateStart, gateEnd)
+  assert.match(gate, /frame_start.*floor\(\(frame_start \+ frame_end\) \/ 2\).*frame_end/s)
+  assert.match(gate, /Blender-native scene evaluation.*evaluated dependency graph.*evaluated world transform/i)
+  assert.match(gate, /requested camera motion.*world-space location and rotation.*all three samples/s)
+  assert.match(gate, /meaningful and consistent with the intent/s)
+  assert.match(gate, /pan\/tilt may pass through orientation change with fixed location/i)
+  assert.match(gate, /Do not apply one universal numeric threshold/i)
+  assert.match(gate, /requested subject\/object motion.*relevant proxy.*evaluated world transform or relevant animation state/s)
+  assert.match(gate, /If both camera and subject motion are requested, verify both/i)
+  assert.match(gate, /locked\/static camera must not fail.*genuinely static shot does not need a motion gate/s)
+  assert.match(gate, /If any requested motion is absent.*do not generate the preview MP4.*Correct the animation first/s)
+  assert.match(gate, /MOTION_NOT_IMPLEMENTED.*MOTION_VERIFICATION_FAILED/s)
+  assert.match(gate, /transient start\/middle\/end transform evidence/i)
+  assert.match(gate, /after MP4 generation, Watch review remains required and authoritative/i)
 })
 
 test("retired browser category is absent even when user config tries to add it", () => {

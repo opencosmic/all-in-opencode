@@ -19,6 +19,10 @@ const PARENT_AGENT_NAMED_AGENTS = new Map([
   ["Strategist", new Set(["Explorer", "Librarian", "Researcher", "Validator"])],
   ["Planner", new Set(["Explorer", "Librarian", "Technical Advisor", "Plan Reviewer"])],
   ["Executor", new Set(["Plan Reviewer", "Reviewer", "QA", "Verifier", "Blender"])],
+  ["Producer", new Set(["Director", "Creator", "Editor"])],
+  ["Director", new Set()],
+  ["Creator", new Set()],
+  ["Editor", new Set()],
 ])
 
 const BUILTIN_PRIMARY_AGENTS = new Set(["Assistant", "Strategist", "Planner", "Executor"])
@@ -28,17 +32,26 @@ const CATEGORY_FAMILY_CEILINGS = new Map([
   ["Executor", "implementation"],
   ["Producer", "media"],
 ])
+const PHASE_OWNER_CATEGORY_CEILINGS = new Map([
+  ["Director", new Set(["blender-previs", "video-analysis"])],
+  ["Creator", new Set(["media-generation", "video-analysis"])],
+  ["Editor", new Set(["video-analysis"])],
+])
+export const DELEGATING_NAMED_AGENTS = new Set(PHASE_OWNER_CATEGORY_CEILINGS.keys())
 // A category may need a narrower caller boundary than its family provides.
 // Keep that exception in DelegationPolicy so catalogs and runtime resolution
 // share the same authorization path; it is not a second permission system.
 const CATEGORY_CALLER_ALLOWLISTS = new Map([
-  ["blender-previs", new Set(["Producer"])],
+  ["blender-previs", new Set(["Director"])],
 ])
 const BUILTIN_AGENT_NAMES = new Set([
   ...BUILTIN_PRIMARY_AGENTS,
   "Browser",
   "Blender",
   "Producer",
+  "Director",
+  "Creator",
+  "Editor",
   "Searcher",
   "Professor",
   "Implementer",
@@ -129,6 +142,8 @@ export class DelegationPolicy {
 
   canUseCategory({ caller, category, profile } = {}) {
     if (!this.isKnownCaller(caller)) return false
+    const phaseCeiling = PHASE_OWNER_CATEGORY_CEILINGS.get(caller)
+    if (phaseCeiling && !phaseCeiling.has(category)) return false
     const callerAllowlist = CATEGORY_CALLER_ALLOWLISTS.get(category)
     if (callerAllowlist) return callerAllowlist.has(caller)
     if (CATEGORY_RESTRICTED_PARENTS.has(caller)) return false

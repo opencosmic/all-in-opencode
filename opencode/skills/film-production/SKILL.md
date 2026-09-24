@@ -20,29 +20,83 @@ request -> creative intent -> shot decomposition -> ShotSpec[]
 Use the references in this skill for shotcraft, contracts, routing, assets,
 and revision decisions. HyperFrames remains authoritative once composition
 starts: it owns motion graphics, typography, captions, transitions, audio
-assembly, and rendering. The Producer-only `blender-previs` category is the
-lightweight spatial/camera/timing Implementer; the named `Blender` route remains
-available for general-purpose or explicitly technical Blender work. The
+assembly, and rendering. Director owns creative intent and ShotSpec authorship;
+Creator owns generation strategy; Editor will own post-production through the
+official HyperFrames workflow after live migration. Producer owns orchestration,
+state, budget, and user approval. The `blender-previs` category is the
+lightweight spatial/camera/timing Implementer available to Director alone.
+Named Blender is outside the video-production graph. The
 `media-generation` category is the bounded provider-neutral Implementer route;
 `video-analysis`/Watch supplies grounded visual QA.
 
 ## Previs before paid generation
 
-When a ShotSpec has `control.previs: required` or `recommended`, Producer sends
-the already-defined request to `delegate_task(category="blender-previs")`.
+Producer calls `production_preflight` for the canonical
+`production/production-manifest.json`, then delegates Director PLAN with the
+brief and current canonical state. Director authors complete provider-neutral
+ShotSpecs, decides which shots need previs, and returns canonical
+`production/previs/<shot-id>/...` destinations. Producer validates and persists
+the ShotSpecs and legally advances `planning -> previs` when needed (or
+`planning -> production` when none is needed). Producer calls
+`production_prepare_artifacts` with the exact canonical file destinations;
+the deterministic tool prepares only required parents, rejects symlinks and
+traversal, and returns absolute runtime destinations. Producer gives those
+paths and finalized ShotSpecs to Director PREVIS. Director alone delegates
+`blender-previs` and interprets Watch evidence. `blender-previs` assumes the
+parents exist and must fail clearly if one is missing; it never creates or
+invents directories. Keep canonical paths workspace-relative in ShotSpecs and
+the ProductionManifest. Only returned absolute runtime values reach Blender;
+they remain transient and are never persisted as host-specific absolute paths.
+Producer persists Director-approved ShotSpec revisions, writes
+`production_checkpoint` at meaningful boundaries, and advances
+`previs -> production` only after required previs passes.
+
 That category implements only lightweight blocking, camera/framing, lens
 intent, motion/timing, and basic lighting direction. Its practical handoff is
 an editable `.blend` source, key stills, and a low-resolution preview MP4 for
 moving shots; stills may be sufficient for a genuinely static shot.
+Optimize ordinary previs for reviewability: prefer viewport/OpenGL/playblast,
+then Workbench, then lightweight Eevee only when needed. Do not use Cycles, high
+samples, expensive denoising, photoreal materials, high-resolution output, or
+final-film rendering. Use 480×270 or lower by default (720p maximum for
+ordinary previs) and about 8–12 fps for moving previews. Preserve each shot's
+full duration; reduced preview fps changes the evidence frame count, not the
+canonical ShotSpec duration or output fps. Stills establish framing and
+composition; the MP4 establishes motion and timing.
+
+For every shot requesting camera and/or subject motion, `blender-previs` must
+verify the requested animation before generating its preview MP4. After
+authoring, inspect Blender-native evaluated state at the shot's start frame,
+middle frame `floor((frame_start + frame_end) / 2)`, and end frame for each
+requested moving target. Check camera world transforms against the move's
+intent (pan/tilt may change orientation while location stays fixed); check the
+relevant proxy's evaluated transform or animation state for requested subject
+motion. Verify both independently when both are requested. Do not reject a
+locked/static camera or fully static shot for unchanged transforms when that
+motion was not requested, and do not invent motion. Missing or inconsistent
+requested motion blocks MP4 generation until the animation is corrected and
+verified. Return concise transient start/middle/end evidence without changing
+ShotSpec or manifest schemas. This proves motion was authored; Watch remains
+required after rendering to decide whether it looks correct.
+
+If a Blender MCP save/render/playblast call times out, treat completion as
+ambiguous. The child reports the exact supplied paths to Director and does not
+blindly retry; unresolved recovery returns to Producer. A non-empty `.blend`
+is sufficient, a still must also have a recognizable expected image format,
+and a non-empty MP4
+is preliminary until Watch can decode it. Missing or unusable output requires
+an explicit revision/recovery decision before another render.
 
 Review the stills and preview MP4 through
 `delegate_task(category="video-analysis", load_skills=["watch"])`. The `.blend`
-is an editable source artifact, not the review target. Producer compares the
-observed evidence with the ShotSpec and decides `PASS` or
-`REVISION_REQUIRED`. A revision should reuse the existing `.blend` where
-practical. Only after the previs evidence passes should Producer finalize
-generation instructions and enter the `media-generation` calculate/approval
-path. This review happens before any paid Atlas submission.
+is an editable source artifact, not the review target. Director compares the
+observed evidence with the ShotSpec and decides `PASS`, `REVISION_REQUIRED`,
+or `BLOCKED`. A revision should reuse the existing `.blend` where practical.
+If it needs new paths, Director returns only canonical destinations to Producer
+for preparation and re-delegation. A creative ShotSpec revision goes to Producer
+for persistence. Only after the previs evidence passes does Producer enter the
+transitional `media-generation` calculate/approval path. This review happens
+before any paid Atlas submission.
 
 For each shot, preserve intent, continuity, references, output constraints,
 and a reproducible request digest in the manifest. Atlas Cloud is currently the only implemented media provider behind the bounded `media-generation`
@@ -77,6 +131,20 @@ generation defaults to GPT Image 2 and video generation defaults to Wan 3.0.
 There is no automatic paid fallback; a failed or ambiguous generation remains
 an explicit user decision.
 
+### Provider-neutral persistence boundary
+
+Keep the canonical `ShotSpec` provider-neutral. Do not persist a selected
+provider, curated model ID, Atlas role, or provider request controls such as
+`reference_*_asset_ids` or `generate_audio` in `ShotSpec.extensions`. Producer
+may derive a transient routing plan that maps shot intent to a curated model
+immediately before execution. Once a generation job exists, provider/model
+selection, request digest, approval/cost state, prediction state, outputs, and
+provider status belong in the existing `ProductionManifest.generation_jobs`
+runtime state. Exact provider request controls may remain transient when they
+are bound by the canonical request digest; do not add them to ShotSpec merely
+to persist them. Keep placeholder planning references as stable manifest IDs;
+only materialized or uploaded asset IDs may enter provider request fields.
+
 Use the curated generation controls described in
 [production-routing](references/production-routing.md) only after model
 selection. They refine the provider request without changing routing: preserve
@@ -87,7 +155,8 @@ Audio conditioning uses ordinary manifest assets and the same stable-ID flow:
 record an MP3 or WAV asset, reference it in the generic `ShotSpec.references`
 object when useful, and pass its ID as `reference_audio_asset_ids`. This input
 conditions the selected video model and remains separate from `generate_audio`,
-which controls native audio in the output. Wan and H3 require visual references
+which controls native audio in the output. Those fields are transient execution
+request fields, not canonical ShotSpec fields. Wan and H3 require visual references
 when audio is supplied; Seedance also supports audio-only reference requests.
 
 Treat the repository film-production contract as authoritative. The manifest's

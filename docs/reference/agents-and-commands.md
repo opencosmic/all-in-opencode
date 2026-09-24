@@ -6,14 +6,26 @@
 |---|---|---|
 | Assistant | Ordinary questions, investigation, bounded work, and routing | Small direct edits or delegated implementation; no implicit OpenSpec state |
 | Browser | Direct browser navigation, interaction, visual inspection, and Task Spaces | Browser backend only; no application or workflow-file mutation |
-| Blender | Reusable 3D leaf for Blender scene/artifact inspection, authoring, previs, rendering, and visual verification through Blender MCP | Direct `/blender` or named `Executor`/general-purpose `Producer` route; no child AIO tasks, categories, repository, Git, OpenSpec, CategoryEngine, or Delegation Runtime ownership |
-| Producer | Single video-production owner for lightweight HyperFrames and advanced `/film` orchestration | Active-project artifacts; no Git/history or workflow-runtime ownership; media-family delegation plus Producer-only `blender-previs` for `/film` and named `Blender` for general-purpose work |
+| Blender | Reusable 3D leaf for Blender scene/artifact inspection, authoring, previs, rendering, and visual verification through Blender MCP | Direct `/blender` or named `Executor` route; no child AIO tasks, categories, repository, Git, OpenSpec, CategoryEngine, or Delegation Runtime ownership |
+| Producer | Single video-production owner for lightweight HyperFrames and advanced `/film` orchestration | Active-project artifacts; no Git/history or workflow-runtime ownership; named Director/Creator/Editor delegation plus transitional direct media routes; direct `blender-previs` and named Blender denied |
 | Searcher | Normal web Search / Answer Engine with grounded current answers | Read-only native web retrieval; direct or delegated leaf, no onward delegation or OpenSpec ownership |
 | Professor | Stateful evidence-first Deep Research with adaptive verification | Read-only native retrieval plus Professor ResearchState tools; no filesystem, Git, delegation, or browser access |
 | Strategist | Product WHAT, WHY, WHO, behavior, and scope | Product strategy, proposal, and specs only |
 | Planner | Engineering HOW and executable tasks | Active change's `design.md` and `tasks.md` only |
 | Executor | Execution preflight, change-workspace topology, implementation orchestration, review, integration, task transitions, recovery checkpoint context | `tasks.md` plus runtime workspace provenance; code changes occur through workers in the primary change workspace; local descriptions/checkpoints are advisory |
 | Verifier | Independent final proof | Read-only |
+
+## Video production phase owners
+
+| Agent | Responsibility | Delegation boundary |
+|---|---|---|
+| Director | Live `/film` PLAN and PREVIS: CreativeBrief, provider-neutral ShotSpecs, camera and motion intent, Watch interpretation, creative previs revisions | `blender-previs`, `video-analysis` with Watch; Producer prepares paths and persists state |
+| Creator | Generation strategy, prompts, references, curated models and controls, generation revisions | `media-generation`, `video-analysis` with Watch; Producer owns budget and user approval |
+| Editor | Timeline, graphics, captions, audio assembly, cuts, previews, renders | Official upstream HyperFrames directly, plus `video-analysis` with Watch |
+
+All three are `mode: subagent` and report to Producer. They cannot delegate
+named agents or ordinary implementation categories. Existing `/video` and
+`/film` commands remain with Producer until their live workflows migrate.
 
 ## Specialists
 
@@ -43,9 +55,9 @@ Ordinary Assistant work needs no dedicated command. Video production deliberatel
 
 Assistant remains the broad/general category orchestrator. Executor is capped at
 the `implementation` family (including the bounded `git` category), while
-Producer is capped at the `media` family plus the explicit Producer-only
-`blender-previs` category; these category ceilings are separate from
-named-agent policy. Built-in family labels are canonical architecture metadata
+Producer is temporarily capped at the `media` family plus
+`blender-previs`. Director, Creator, and Editor have exact category ceilings.
+These ceilings are separate from named-agent policy. Built-in family labels are canonical architecture metadata
 and cannot be reclassified through `aio.json`, while custom categories may
 choose their own family. Assistant may delegate `media-generation`
 technically, but not `blender-previs`; `/video` and `/film` remain
@@ -62,6 +74,6 @@ remain behind the calculate/approval boundary.
 
 Blender is the single reusable 3D specialist. Use `/blender` directly, or let
 Executor delegate Blender-native product/artifact work. Producer's `/film`
-previs uses the `blender-previs` category, while its named Blender route remains
-for general-purpose work. Blender does not delegate child AIO tasks or receive a
-category catalog.
+previs temporarily uses the `blender-previs` category until Director owns the
+live workflow. Named Blender is denied to Producer. Blender does not delegate
+child AIO tasks or receive a category catalog.

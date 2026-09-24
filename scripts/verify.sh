@@ -47,6 +47,9 @@ done < "$MANIFEST"
 [ -f "$REPO_ROOT/opencode/agents/browser.md" ] || fail "dedicated Browser agent is missing"
 [ -f "$REPO_ROOT/opencode/commands/browser.md" ] || fail "dedicated /browser command is missing"
 [ -f "$REPO_ROOT/opencode/agents/producer.md" ] || fail "dedicated Producer agent is missing"
+for phase_agent in director creator editor; do
+  [ -f "$REPO_ROOT/opencode/agents/$phase_agent.md" ] || fail "dedicated $phase_agent agent is missing"
+done
 [ ! -e "$REPO_ROOT/opencode/agents/video.md" ] || fail "retired Video agent definition still exists"
 [ -f "$REPO_ROOT/opencode/commands/video.md" ] || fail "dedicated /video command is missing"
 [ -f "$REPO_ROOT/opencode/commands/film.md" ] || fail "dedicated /film command is missing"

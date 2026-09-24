@@ -11,6 +11,7 @@ const availableAgents = [
   "Planner",
   "Strategist",
   "Producer",
+  "Director",
   "Blender",
   "Searcher",
   "Browser",
@@ -88,7 +89,7 @@ test("primary and formal workflow ceilings shape the injected catalog", async ()
 
   assert.match(producer[1], /- video-analysis:/)
   assert.match(producer[1], /- media-generation:/)
-  assert.match(producer[1], /- blender-previs:/)
+  assert.doesNotMatch(producer[1], /- blender-previs:/)
   assert.doesNotMatch(producer[1], /- quick:|- caller-only:|- git:/)
   assert.deepEqual(blenderDefault, ["authored system instructions"])
   for (const system of [planner, strategist]) {
@@ -97,16 +98,26 @@ test("primary and formal workflow ceilings shape the injected catalog", async ()
   }
 
   const explicit = runtime({
-    Producer: { categories: ["standard"] },
+    Producer: { categories: ["standard", "blender-previs"], category_families: ["implementation"] },
     Blender: { categories: ["video-analysis"], category_families: ["support"] },
   })
   const producerExtended = await systemFor(explicit, "Producer")
   const blenderExtended = await systemFor(explicit, "Blender")
   assert.match(producerExtended[1], /- video-analysis:/)
   assert.match(producerExtended[1], /- media-generation:/)
-  assert.match(producerExtended[1], /- blender-previs:/)
+  assert.doesNotMatch(producerExtended[1], /- blender-previs:/)
   assert.doesNotMatch(producerExtended[1], /- standard:/)
   assert.deepEqual(blenderExtended, ["authored system instructions"])
+})
+
+test("Director catalog advertises only its previs and Watch categories", async () => {
+  const instance = runtime({
+    Director: { categories: ["standard", "media-generation"], category_families: ["implementation", "media"] },
+  })
+  const director = await systemFor(instance, "Director")
+  assert.match(director[1], /- blender-previs:/)
+  assert.match(director[1], /- video-analysis:/)
+  assert.doesNotMatch(director[1], /- media-generation:|- standard:|- git:/)
 })
 
 test("catalog family ceilings follow future category families", async () => {

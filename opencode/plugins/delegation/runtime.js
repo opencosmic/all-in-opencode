@@ -6,14 +6,23 @@ import { AgentDispatcher } from "./agent-dispatcher.js"
 import { CategoryEngine } from "./category-engine.js"
 import {
   categoryPermission,
+  isFilmProductionReferencePath,
   isGitMutationCommand,
   openDesignResourceDecision,
   permissionValue,
+  resolveFilmProductionSkillAccess,
 } from "./category-permissions.js"
 import { CompletionTracker } from "./completion-tracker.js"
 import { readJson } from "./json-store.js"
 import { createAtlasMediaRuntime, createMockMediaRuntime, isMediaRuntimeTool } from "./media-runtime.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
+import {
+  productionCheckpoint,
+  productionPreflight,
+  productionPrepareArtifacts,
+  productionSetShots,
+  productionTransition,
+} from "./production-control.js"
 import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
 import { SkillResolver, discoverSkills } from "./skill-resolver.js"
@@ -124,7 +133,6 @@ export class DelegationRuntime {
         })
       }
     }
-    const runner = new SessionRunner({ client, registry, tracker, sessionProfiles: profiles })
     coordinator = new ParentResumeCoordinator({ client, registry })
     const workspaces = new WorkspaceManager({
       stateDirectory: resolvedState,
@@ -139,6 +147,10 @@ export class DelegationRuntime {
     const skills = skillEntries
       ? new SkillResolver({ entries: skillEntries })
       : new SkillResolver({ entries: directory ? await discoverSkills({ directory, roots: skillRoots }) : [] })
+    const filmProductionSkillAccess = await resolveFilmProductionSkillAccess(skills)
+    const runner = new SessionRunner({
+      client, registry, tracker, sessionProfiles: profiles, filmProductionSkillAccess,
+    })
     const config = aioConfig !== undefined
       ? normalizeAioConfig(aioConfig, { configPath: aioConfigPath })
       : categories !== undefined || agents !== undefined || delegation !== undefined
@@ -157,6 +169,7 @@ export class DelegationRuntime {
       workspaces,
       dispatcher: new AgentDispatcher(categoryEngine, { aioConfig: config, availableAgents }),
       skills,
+      filmProductionSkillAccess,
       profiles,
       agentDiscovery,
       directory,
@@ -164,7 +177,7 @@ export class DelegationRuntime {
     })
   }
 
-  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, agentDiscovery, directory, mediaRuntime }) {
+  constructor({ client, registry, tracker, runner, coordinator, workspaces, dispatcher, profiles, skills, filmProductionSkillAccess, agentDiscovery, directory, mediaRuntime }) {
     Object.assign(this, {
       client,
       registry,
@@ -175,6 +188,7 @@ export class DelegationRuntime {
       dispatcher,
       profiles,
       skills,
+      filmProductionSkillAccess,
       agentDiscovery,
       directory,
       mediaRuntime: mediaRuntime ?? createMockMediaRuntime(),
@@ -217,6 +231,39 @@ export class DelegationRuntime {
       input: structuredClone(args ?? {}),
     })
     return result
+  }
+
+  assertProducerProductionTool(context, name) {
+    if (context?.agent !== "Producer"
+      || (context?.sessionID && this.profiles?.has(context.sessionID))
+      || (context?.sessionID && this.registry?.list().some((task) => task.child_session_id === context.sessionID))) {
+      throw new Error(`${name} may only be called by the primary Producer`)
+    }
+  }
+
+  async productionPreflight(args, context) {
+    this.assertProducerProductionTool(context, "production_preflight")
+    return productionPreflight(args, context.directory)
+  }
+
+  async productionPrepareArtifacts(args, context) {
+    this.assertProducerProductionTool(context, "production_prepare_artifacts")
+    return productionPrepareArtifacts(args, context.directory)
+  }
+
+  async productionCheckpoint(args, context) {
+    this.assertProducerProductionTool(context, "production_checkpoint")
+    return productionCheckpoint(args, context.directory)
+  }
+
+  async productionSetShots(args, context) {
+    this.assertProducerProductionTool(context, "production_set_shots")
+    return productionSetShots(args, context.directory)
+  }
+
+  async productionTransition(args, context) {
+    this.assertProducerProductionTool(context, "production_transition")
+    return productionTransition(args, context.directory)
   }
 
   async ensureExecutionPreflight(args = {}, context, workspace) {
@@ -791,6 +838,18 @@ export class DelegationRuntime {
     task ??= this.registry?.list?.().find((candidate) => candidate.child_session_id === input.sessionID)
     let decision = categoryPermission(profile, input)
     const type = input.type ?? input.permission
+    if (type === "external_directory" && !profile?.category) {
+      const agent = profile?.agent ?? this.sessionAgents.get(input.sessionID)
+      if (agent === "Producer") {
+        if (await isFilmProductionReferencePath(permissionValue(input), this.filmProductionSkillAccess)) {
+          decision = "allow"
+        }
+      } else if (agent === "Director") {
+        decision = await isFilmProductionReferencePath(permissionValue(input), this.filmProductionSkillAccess)
+          ? "allow"
+          : "deny"
+      }
+    }
     if (decision && profile?.category === "git" && type === "bash" && isGitMutationCommand(permissionValue(input))) {
       try {
         const branchFacts = task?.execution_directory

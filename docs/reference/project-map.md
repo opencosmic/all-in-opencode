@@ -2,7 +2,7 @@
 
 | Path | Purpose |
 |---|---|
-| [`opencode/agents/`](../../opencode/agents/) | Assistant, Browser, Blender, Producer, Searcher, Professor, formal lifecycle roles, specialists, and Implementer. |
+| [`opencode/agents/`](../../opencode/agents/) | Assistant, Browser, Blender, Producer, Director, Creator, Editor, Searcher, Professor, formal lifecycle roles, specialists, and Implementer. |
 | [`opencode/commands/`](../../opencode/commands/) | `/spec`, `/plan`, `/execute`, `/verify`, `/ship`, `/browser`, `/blender`, `/video`, `/film`, `/search`, and `/research`. |
 | [`opencode/plugins/delegation-runtime.js`](../../opencode/plugins/delegation-runtime.js) | Loader-safe Delegation Runtime entrypoint. |
 | [`opencode/plugins/delegation/`](../../opencode/plugins/delegation/) | Execution preflight, change-centric WorkspaceManager, dynamic CategoryEngine, selective SkillResolver, TaskRegistry, SessionRunner, CompletionTracker, ParentResumeCoordinator, dispatch, and category permissions. |

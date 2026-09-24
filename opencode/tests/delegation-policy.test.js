@@ -6,9 +6,9 @@ import { CategoryEngine } from "../plugins/delegation/category-engine.js"
 import { DelegationPolicy, discoverAgents } from "../plugins/delegation/delegation-policy.js"
 
 const effectiveAgents = [
-  ...["Assistant", "Strategist", "Planner", "Executor", "Implementer", "Browser", "Blender", "Producer", "Searcher"].map((name) => ({
+  ...["Assistant", "Strategist", "Planner", "Executor", "Implementer", "Browser", "Blender", "Producer", "Director", "Creator", "Editor", "Searcher"].map((name) => ({
     name,
-    mode: name === "Implementer" ? "subagent" : name === "Searcher" ? "all" : "primary",
+    mode: ["Implementer", "Director", "Creator", "Editor"].includes(name) ? "subagent" : name === "Searcher" ? "all" : "primary",
     builtIn: true,
   })),
   ...[
@@ -126,15 +126,19 @@ test("configured callers may opt into Searcher while Searcher remains a leaf", (
   )
 })
 
-test("Producer receives media categories and the Producer-only blender-previs category", () => {
+test("Producer retains later-phase categories and delegates only phase owners", () => {
   const route = dispatcher()
   assert.equal(route.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
   assert.equal(route.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
-  assert.equal(route.resolve({ category: "blender-previs", parentAgent: "Producer" }).agent, "Implementer")
-  assert.equal(route.resolve({ agent: "Blender", parentAgent: "Producer" }).agent, "Blender")
+  assert.throws(() => route.resolve({ category: "blender-previs", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category blender-previs/)
+  for (const agent of ["Director", "Creator", "Editor"]) {
+    assert.equal(route.resolve({ agent, parentAgent: "Producer" }).agent, agent)
+  }
+  assert.throws(() => route.resolve({ agent: "Blender", parentAgent: "Producer" }), /cannot delegate named agent Blender/)
   assert.throws(
     () => route.resolve({ agent: "Searcher", parentAgent: "Producer" }),
-    /named agent is not allowed: Searcher/,
+    /cannot delegate named agent Searcher/,
   )
   for (const category of ["standard", "quick", "git", "database"]) {
     assert.throws(
@@ -145,8 +149,8 @@ test("Producer receives media categories and the Producer-only blender-previs ca
 
   const extendedConfig = config()
   extendedConfig.delegation.Producer = {
-    categories: ["standard"],
-    category_families: [],
+    categories: ["standard", "blender-previs"],
+    category_families: ["implementation", "media"],
     agents: ["Searcher", "Security Reviewer"],
   }
   const extended = new AgentDispatcher(new CategoryEngine(extendedConfig.categories), {
@@ -155,23 +159,25 @@ test("Producer receives media categories and the Producer-only blender-previs ca
   })
   assert.equal(extended.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
   assert.equal(extended.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
-  assert.equal(extended.resolve({ category: "blender-previs", parentAgent: "Producer" }).agent, "Implementer")
+  assert.throws(() => extended.resolve({ category: "blender-previs", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category blender-previs/)
   assert.throws(
     () => extended.resolve({ category: "standard", parentAgent: "Producer" }),
     /Producer is not allowed to delegate category standard/,
   )
-  assert.equal(extended.resolve({ agent: "Blender", parentAgent: "Producer" }).agent, "Blender")
-  assert.equal(extended.resolve({ agent: "Searcher", parentAgent: "Producer" }).agent, "Searcher")
-  assert.equal(extended.resolve({ agent: "Security Reviewer", parentAgent: "Producer" }).agent, "Security Reviewer")
+  for (const agent of ["Blender", "Searcher", "Security Reviewer"]) {
+    assert.throws(() => extended.resolve({ agent, parentAgent: "Producer" }), /cannot delegate named agent/)
+  }
   assert.throws(
     () => extended.resolve({ category: "quick", parentAgent: "Producer" }),
     /Producer is not allowed to delegate category quick/,
   )
 })
 
-test("blender-previs is not exposed to broad or non-Producer callers", () => {
+test("blender-previs is exposed only to Director", () => {
   const route = dispatcher()
-  for (const caller of ["Assistant", "Executor", "Planner", "Strategist", "Blender", "Implementer", "Browser"]) {
+  assert.equal(route.resolve({ category: "blender-previs", parentAgent: "Director" }).agent, "Implementer")
+  for (const caller of ["Assistant", "Executor", "Planner", "Strategist", "Blender", "Implementer", "Browser", "Creator", "Editor", "Producer"]) {
     assert.throws(
       () => route.resolve({ category: "blender-previs", parentAgent: caller }),
       /not allowed|category routes are not allowed/,
@@ -286,11 +292,10 @@ test("Blender is a category-free leaf even when config tries to add categories",
   }
 })
 
-test("Executor and Producer receive the default Blender named route", () => {
+test("Executor retains Blender while Producer cannot delegate it", () => {
   const route = dispatcher()
-  for (const caller of ["Executor", "Producer"]) {
-    assert.equal(route.resolve({ agent: "Blender", parentAgent: caller }).agent, "Blender")
-  }
+  assert.equal(route.resolve({ agent: "Blender", parentAgent: "Executor" }).agent, "Blender")
+  assert.throws(() => route.resolve({ agent: "Blender", parentAgent: "Producer" }), /cannot delegate named agent Blender/)
   for (const caller of ["Assistant", "Planner", "Strategist", "Implementer", "Searcher", "Browser"]) {
     assert.throws(
       () => route.resolve({ agent: "Blender", parentAgent: caller }),

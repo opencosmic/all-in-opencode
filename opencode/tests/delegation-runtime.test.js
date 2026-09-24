@@ -1,12 +1,13 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join, relative } from "node:path"
 import { promisify } from "node:util"
 
 import { DelegationRuntime } from "../plugins/delegation/runtime.js"
+import { delegationPluginHooks } from "../plugins/delegation/plugin-hooks.js"
 import { SkillResolver } from "../plugins/delegation/skill-resolver.js"
 import { WorkspaceManager } from "../plugins/delegation/workspace-manager.js"
 
@@ -15,6 +16,16 @@ const execFileAsync = promisify(execFile)
 async function git(directory, args) {
   const { stdout } = await execFileAsync("git", args, { cwd: directory, encoding: "utf8" })
   return stdout.trim()
+}
+
+function permissionAction(permission, type, pattern) {
+  const rules = permission?.[type] ?? {}
+  let action
+  for (const [glob, candidate] of Object.entries(rules)) {
+    const expression = `^${glob.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`
+    if (new RegExp(expression).test(pattern)) action = candidate
+  }
+  return action
 }
 
 function fakeClient({ agents } = {}) {
@@ -609,19 +620,17 @@ test("Executor can route Blender plus every declared review and verification han
   assert.deepEqual(client.state.prompts.map((call) => call.body.agent), agents)
 })
 
-test("Producer can route Blender while Blender cannot route a category", async (t) => {
+test("Producer cannot route Blender while Blender remains a leaf", async (t) => {
   const { client, runtime, context } = await fixture(t)
   const producer = { ...context, sessionID: "producer", messageID: "producer-turn", agent: "Producer" }
 
-  const result = await runtime.delegate({
+  await assert.rejects(runtime.delegate({
     agent: "Blender",
     description: "Producer previs handoff",
     prompt: "Block the shot and validate camera timing.",
     run_in_background: true,
-  }, producer)
-
-  assert.equal(runtime.registry.get(result.task_id).agent, "Blender")
-  assert.equal(client.state.prompts[0].body.agent, "Blender")
+  }, producer), /cannot delegate named agent Blender/)
+  assert.equal(client.state.prompts.length, 0)
   await assert.rejects(runtime.delegate({
     category: "test",
     description: "Blender must remain a leaf",
@@ -629,6 +638,244 @@ test("Producer can route Blender while Blender cannot route a category", async (
     run_in_background: true,
   }, { ...context, sessionID: "blender", messageID: "blender-turn", agent: "Blender" }),
   /Blender may only delegate its allowlisted named agents; category routes are not allowed/)
+})
+
+test("Producer cannot bypass Director with direct blender-previs", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const producer = { ...context, sessionID: "producer", messageID: "producer-turn", agent: "Producer" }
+  await assert.rejects(runtime.delegate({
+    category: "blender-previs",
+    description: "Forbidden direct previs",
+    prompt: "Create the shot directly",
+    run_in_background: true,
+  }, producer), /Producer is not allowed to delegate category blender-previs/)
+  assert.equal(client.state.prompts.length, 0)
+})
+
+test("Director sessions are restricted to film references while Producer behavior is preserved", async (t) => {
+  const { root, repository, client, context } = await fixture(t)
+  const source = join(root, "installed-film-source")
+  const installed = join(root, "home", ".config", "opencode", "skills", "film-production")
+  const otherSkill = join(root, "home", ".config", "opencode", "skills", "hyperframes")
+  const unrelatedConfig = join(root, "home", ".config", "opencode", "settings.json")
+  const reference = join(installed, "references", "shot-spec.md")
+  const unrelated = join(root, "unrelated.txt")
+  const outside = join(root, "outside")
+  await mkdir(join(source, "references"), { recursive: true })
+  await mkdir(outside)
+  await mkdir(join(root, "home", ".config", "opencode", "skills"), { recursive: true })
+  await mkdir(otherSkill, { recursive: true })
+  await writeFile(join(source, "SKILL.md"), "---\nname: film-production\ndescription: Film production fixture\n---\nRead references.\n")
+  await writeFile(join(source, "references", "shot-spec.md"), "ShotSpec reference\n")
+  await writeFile(join(otherSkill, "SKILL.md"), "Other skill\n")
+  await writeFile(unrelatedConfig, "unrelated config\n")
+  await writeFile(unrelated, "outside\n")
+  await symlink(source, installed, "dir")
+  await symlink(unrelated, join(source, "references", "escaped.md"))
+  await symlink(outside, join(source, "references", "escaped-directory"), "dir")
+
+  const runtime = await DelegationRuntime.create({
+    client,
+    stateDirectory: join(root, "film-state"),
+    directory: repository,
+    skillRoots: [join(root, "home", ".config", "opencode", "skills")],
+  })
+  assert.equal(runtime.skills.resolve(["film-production"])[0].path, join(installed, "SKILL.md"))
+
+  const producerConfig = {
+    agent: {
+      Producer: {
+        permission: {
+          external_directory: { "*": "ask" },
+          read: { "*": "allow" },
+          edit: { "*": "allow" },
+          write: { "*": "allow" },
+        },
+      },
+    },
+  }
+  await delegationPluginHooks(runtime, { worktree: repository }).config(producerConfig)
+  const producerPermissions = producerConfig.agent.Producer.permission
+  const physicalRoot = dirname(await realpath(join(source, "SKILL.md")))
+  const producerReference = join(installed, "references", "shot-spec.md")
+  const unrelatedExternal = join(root, "unrelated.txt")
+  assert.equal(permissionAction(producerPermissions, "read", producerReference), "allow")
+  assert.equal(permissionAction(producerPermissions, "external_directory", producerReference), "allow")
+  assert.equal(permissionAction(producerPermissions, "external_directory", join(installed, "SKILL.md")), "deny")
+  assert.equal(permissionAction(producerPermissions, "external_directory", unrelatedExternal), "ask")
+  assert.equal(producerPermissions.external_directory["*"], "ask")
+  assert.equal(Object.values(producerPermissions.external_directory).includes("allow"), true)
+  assert.equal(producerPermissions.external_directory["*"] === "allow", false)
+  for (const type of ["edit", "write"]) {
+    for (const target of [
+      join(installed, "SKILL.md"), producerReference,
+      join(physicalRoot, "SKILL.md"), join(physicalRoot, "references", "shot-spec.md"),
+    ]) assert.equal(permissionAction(producerPermissions, type, relative(repository, target)), "deny", `${type}: ${target}`)
+    assert.equal(permissionAction(producerPermissions, type, "src/producer-workspace-output.md"), "allow")
+  }
+
+  const directorConfig = {
+    agent: {
+      Director: {
+        permission: {
+          external_directory: { "*": "deny" },
+          read: { "*": "allow" },
+          edit: { "*": "deny" },
+          write: { "*": "deny" },
+        },
+      },
+    },
+  }
+  await delegationPluginHooks(runtime, { worktree: repository }).config(directorConfig)
+  const directorPermissions = directorConfig.agent.Director.permission
+  assert.equal(permissionAction(directorPermissions, "external_directory", producerReference), "allow")
+  assert.equal(permissionAction(directorPermissions, "external_directory", join(installed, "SKILL.md")), "deny")
+  assert.equal(permissionAction(directorPermissions, "external_directory", installed), "deny")
+  assert.equal(permissionAction(directorPermissions, "external_directory", otherSkill), "deny")
+  assert.equal(permissionAction(directorPermissions, "external_directory", unrelatedConfig), "deny")
+  assert.equal(directorPermissions.external_directory["*"], "deny")
+  assert.equal(Object.values(directorPermissions.external_directory).includes("allow"), true)
+  assert.equal(Object.values(directorPermissions.external_directory).filter((action) => action === "allow").length, 4)
+
+  const producerID = "film-producer"
+  runtime.observeSessionAgent({ sessionID: producerID, agent: "Producer" })
+  const producer = { ...context, sessionID: producerID, messageID: "film-producer-turn", agent: "Producer" }
+  const director = await runtime.delegate({
+    agent: "Director", description: "Director PLAN", prompt: "Plan one shot", run_in_background: true,
+  }, producer)
+  const directorID = director.child_session_id
+  assert.equal(client.state.prompts.at(-1).body.agent, "Director")
+  assert.equal(runtime.profiles.get(directorID).agent, "Director")
+
+  const rules = client.state.creates.at(-1).body.permission
+  assert.ok(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "deny"))
+  const expectedReferencePatterns = new Set([
+    join(installed, "references"), `${join(installed, "references")}/*`,
+    join(physicalRoot, "references"), `${join(physicalRoot, "references")}/*`,
+  ])
+  const externalRules = rules.filter((rule) => rule.permission === "external_directory")
+  assert.deepEqual(
+    new Set(externalRules.filter((rule) => rule.action === "allow").map((rule) => rule.pattern)),
+    expectedReferencePatterns,
+  )
+  for (const path of [installed, `${installed}/*`, join(physicalRoot, "SKILL.md")]) {
+    assert.equal(externalRules.some((rule) => rule.pattern === path && rule.action === "allow"), false, path)
+  }
+  assert.equal(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "allow"), false)
+  assert.equal(rules.some((rule) => ["bash", "write", "edit", "question"].includes(rule.permission) && rule.action === "allow"), false)
+
+  for (const sessionID of [producerID, directorID]) {
+    for (const path of [reference, join(dirname(await realpath(join(source, "SKILL.md"))), "references", "shot-spec.md")]) {
+      const result = { status: "ask" }
+      await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [path] }, result)
+      assert.equal(result.status, "allow", `${sessionID}: ${path}`)
+      assert.equal(await readFile(path, "utf8"), "ShotSpec reference\n")
+    }
+    for (const path of [
+      `${join(installed, "references")}/*`,
+      `${join(dirname(await realpath(join(source, "SKILL.md"))), "references")}/*`,
+    ]) {
+      const result = { status: "ask" }
+      await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [path] }, result)
+      assert.equal(result.status, "allow", `${sessionID}: ${path}`)
+    }
+    const escaped = { status: "ask" }
+    await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [join(installed, "references", "escaped.md")] }, escaped)
+    assert.notEqual(escaped.status, "allow")
+    for (const path of [
+      unrelated,
+      `${outside}/*`,
+      `${join(installed, "references", "escaped-directory")}/*`,
+      `${installed}/**`,
+      `${installed}/foo*bar`,
+      `${installed}/references/../*`,
+      `${installed}/references/?*`,
+    ]) {
+      const result = { status: "ask" }
+      await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [path] }, result)
+      assert.equal(result.status, sessionID === producerID ? "ask" : "deny", `${sessionID}: ${path}`)
+    }
+  }
+
+  for (const path of [
+    installed,
+    join(installed, "SKILL.md"),
+    join(otherSkill, "SKILL.md"),
+    unrelatedConfig,
+    "/tmp/aio-director-unrelated.txt",
+  ]) {
+    const result = { status: "ask" }
+    await runtime.applyPermission({ sessionID: directorID, permission: "external_directory", patterns: [path] }, result)
+    assert.equal(result.status, "deny", path)
+  }
+
+  for (const permission of [
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition",
+  ]) {
+    const result = { status: "ask" }
+    await runtime.applyPermission({ sessionID: directorID, permission, patterns: ["*"] }, result)
+    assert.equal(result.status, "deny")
+  }
+})
+
+test("blender-previs delegated child resolves GPT-6 Luna max", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  const director = { ...context, agent: "Director", sessionID: "model-director" }
+  runtime.observeSessionAgent({ sessionID: director.sessionID, agent: director.agent })
+
+  await runtime.delegate({
+    category: "blender-previs",
+    description: "Resolve previs model",
+    prompt: "Use a safe test assignment.",
+    run_in_background: true,
+  }, director)
+
+  const prompt = client.state.prompts.at(-1)
+  assert.equal(prompt.body.agent, "Implementer")
+  assert.deepEqual(prompt.body.model, { providerID: "openai", modelID: "gpt-6-luna" })
+  assert.equal(prompt.body.variant, "max")
+})
+
+test("delegated phase owners retain delegate_task and route only their bounded categories", async (t) => {
+  const { client, runtime, context } = await fixture(t)
+  runtime.skills = new SkillResolver({ entries: [{
+    name: "watch",
+    description: "Watch video evidence",
+    path: "/Users/example/.agents/skills/watch/SKILL.md",
+    content: "WATCH SKILL CONTENT",
+  }] })
+  const producer = { ...context, agent: "Producer", sessionID: "producer", messageID: "producer-turn" }
+  const phases = {
+    Director: ["blender-previs", "video-analysis"],
+    Creator: ["media-generation", "video-analysis"],
+    Editor: ["video-analysis"],
+  }
+  for (const [agent, categories] of Object.entries(phases)) {
+    const launched = await runtime.delegate({
+      agent,
+      description: `${agent} phase`,
+      prompt: "Own this phase",
+      run_in_background: true,
+    }, producer)
+    const childID = runtime.registry.get(launched.task_id).child_session_id
+    const launch = client.state.prompts.at(-1)
+    assert.equal(launch.body.agent, agent)
+    assert.equal(launch.body.tools.delegate_task, true)
+    assert.equal(launch.body.tools.workspace_prepare, false)
+    for (const category of categories) {
+      const result = await runtime.delegate({
+        category,
+        ...(category === "video-analysis" ? { load_skills: ["watch"] } : {}),
+        description: `${agent} ${category}`,
+        prompt: "Inspect bounded evidence",
+        run_in_background: true,
+      }, { ...context, agent, sessionID: childID, messageID: `${agent}-${category}` })
+      assert.equal(runtime.registry.get(result.task_id).category, category)
+      assert.equal(client.state.prompts.at(-1).body.agent, "Implementer")
+      if (category === "video-analysis") assert.match(client.state.prompts.at(-1).body.system, /WATCH SKILL CONTENT/)
+    }
+  }
 })
 
 test("configured model failure is surfaced without fallback", async (t) => {

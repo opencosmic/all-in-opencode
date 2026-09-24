@@ -272,6 +272,11 @@ test("sensitive categories preserve session permissions instead of replacing the
   assert.equal(toolsFor("Implementer", { edit: false, bash: true }, "git"), undefined)
   assert.deepEqual(toolsFor("Implementer", { edit: false }, "quick"), {
     edit: false,
+    production_preflight: false,
+    production_prepare_artifacts: false,
+    production_checkpoint: false,
+    production_set_shots: false,
+    production_transition: false,
     workspace_prepare: false,
     execution_preflight: false,
     delegate_task: false,
@@ -281,4 +286,23 @@ test("sensitive categories preserve session permissions instead of replacing the
     workspace_release: false,
     task: false,
   })
+})
+
+test("production control tools stay denied in delegated category and named-child sessions", () => {
+  const names = [
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition",
+  ]
+  for (const name of names) {
+    for (const category of ["quick", "git", "video-analysis", "media-generation", "blender-previs"]) {
+      assert.equal(categoryPermission({ agent: "Implementer", category }, { type: name, pattern: "*" }), "deny")
+      if (category !== "quick") {
+        assert.ok(categorySessionPermission(category).some((rule) =>
+          rule.permission === name && rule.pattern === "*" && rule.action === "deny"))
+      }
+    }
+    for (const agent of ["Director", "Creator", "Editor", "Explorer", "Blender"]) {
+      assert.equal(categoryPermission({ agent, category: null }, { type: name, pattern: "*" }), "deny")
+    }
+  }
 })
