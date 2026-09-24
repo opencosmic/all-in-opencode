@@ -67,7 +67,6 @@ permission:
   task_cancel: allow
   external_directory:
     "*": ask
-    "~/.config/opencode/skills/film-production/references/*": allow
 ---
 
 # Producer

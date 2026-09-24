@@ -1,5 +1,9 @@
 import { tool } from "@opencode-ai/plugin"
 
+import {
+  applyFilmProductionDirectorPermissions,
+  applyFilmProductionProducerPermissions,
+} from "./category-permissions.js"
 import { createMockMediaRuntime } from "./media-runtime.js"
 import { CHECKPOINT_STATUSES } from "./workspace-manager.js"
 
@@ -110,8 +114,12 @@ function mediaRuntimeTools(runtime) {
   }
 }
 
-export function delegationPluginHooks(runtime) {
+export function delegationPluginHooks(runtime, { worktree = runtime.directory } = {}) {
   return {
+    config: async (config) => {
+      applyFilmProductionProducerPermissions(config, runtime.filmProductionSkillAccess, worktree)
+      applyFilmProductionDirectorPermissions(config, runtime.filmProductionSkillAccess)
+    },
     tool: {
       execution_preflight: tool({
         description: "Reconcile one logical change with current Git, managed workspace, persisted task, dependency, source-overlap, contention, and verification state before execution topology is chosen.",

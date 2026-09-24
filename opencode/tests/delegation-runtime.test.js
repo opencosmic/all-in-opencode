@@ -3,10 +3,11 @@ import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { dirname, join, relative } from "node:path"
 import { promisify } from "node:util"
 
 import { DelegationRuntime } from "../plugins/delegation/runtime.js"
+import { delegationPluginHooks } from "../plugins/delegation/plugin-hooks.js"
 import { SkillResolver } from "../plugins/delegation/skill-resolver.js"
 import { WorkspaceManager } from "../plugins/delegation/workspace-manager.js"
 
@@ -15,6 +16,16 @@ const execFileAsync = promisify(execFile)
 async function git(directory, args) {
   const { stdout } = await execFileAsync("git", args, { cwd: directory, encoding: "utf8" })
   return stdout.trim()
+}
+
+function permissionAction(permission, type, pattern) {
+  const rules = permission?.[type] ?? {}
+  let action
+  for (const [glob, candidate] of Object.entries(rules)) {
+    const expression = `^${glob.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`
+    if (new RegExp(expression).test(pattern)) action = candidate
+  }
+  return action
 }
 
 function fakeClient({ agents } = {}) {
@@ -670,6 +681,62 @@ test("Director sessions are restricted to film references while Producer behavio
     skillRoots: [join(root, "home", ".config", "opencode", "skills")],
   })
   assert.equal(runtime.skills.resolve(["film-production"])[0].path, join(installed, "SKILL.md"))
+
+  const producerConfig = {
+    agent: {
+      Producer: {
+        permission: {
+          external_directory: { "*": "ask" },
+          read: { "*": "allow" },
+          edit: { "*": "allow" },
+          write: { "*": "allow" },
+        },
+      },
+    },
+  }
+  await delegationPluginHooks(runtime, { worktree: repository }).config(producerConfig)
+  const producerPermissions = producerConfig.agent.Producer.permission
+  const physicalRoot = dirname(await realpath(join(source, "SKILL.md")))
+  const producerReference = join(installed, "references", "shot-spec.md")
+  const unrelatedExternal = join(root, "unrelated.txt")
+  assert.equal(permissionAction(producerPermissions, "read", producerReference), "allow")
+  assert.equal(permissionAction(producerPermissions, "external_directory", producerReference), "allow")
+  assert.equal(permissionAction(producerPermissions, "external_directory", join(installed, "SKILL.md")), "deny")
+  assert.equal(permissionAction(producerPermissions, "external_directory", unrelatedExternal), "ask")
+  assert.equal(producerPermissions.external_directory["*"], "ask")
+  assert.equal(Object.values(producerPermissions.external_directory).includes("allow"), true)
+  assert.equal(producerPermissions.external_directory["*"] === "allow", false)
+  for (const type of ["edit", "write"]) {
+    for (const target of [
+      join(installed, "SKILL.md"), producerReference,
+      join(physicalRoot, "SKILL.md"), join(physicalRoot, "references", "shot-spec.md"),
+    ]) assert.equal(permissionAction(producerPermissions, type, relative(repository, target)), "deny", `${type}: ${target}`)
+    assert.equal(permissionAction(producerPermissions, type, "src/producer-workspace-output.md"), "allow")
+  }
+
+  const directorConfig = {
+    agent: {
+      Director: {
+        permission: {
+          external_directory: { "*": "deny" },
+          read: { "*": "allow" },
+          edit: { "*": "deny" },
+          write: { "*": "deny" },
+        },
+      },
+    },
+  }
+  await delegationPluginHooks(runtime, { worktree: repository }).config(directorConfig)
+  const directorPermissions = directorConfig.agent.Director.permission
+  assert.equal(permissionAction(directorPermissions, "external_directory", producerReference), "allow")
+  assert.equal(permissionAction(directorPermissions, "external_directory", join(installed, "SKILL.md")), "deny")
+  assert.equal(permissionAction(directorPermissions, "external_directory", installed), "deny")
+  assert.equal(permissionAction(directorPermissions, "external_directory", otherSkill), "deny")
+  assert.equal(permissionAction(directorPermissions, "external_directory", unrelatedConfig), "deny")
+  assert.equal(directorPermissions.external_directory["*"], "deny")
+  assert.equal(Object.values(directorPermissions.external_directory).includes("allow"), true)
+  assert.equal(Object.values(directorPermissions.external_directory).filter((action) => action === "allow").length, 4)
+
   const producerID = "film-producer"
   runtime.observeSessionAgent({ sessionID: producerID, agent: "Producer" })
   const producer = { ...context, sessionID: producerID, messageID: "film-producer-turn", agent: "Producer" }
@@ -682,7 +749,6 @@ test("Director sessions are restricted to film references while Producer behavio
 
   const rules = client.state.creates.at(-1).body.permission
   assert.ok(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "deny"))
-  const physicalRoot = dirname(await realpath(join(source, "SKILL.md")))
   const expectedReferencePatterns = new Set([
     join(installed, "references"), `${join(installed, "references")}/*`,
     join(physicalRoot, "references"), `${join(physicalRoot, "references")}/*`,

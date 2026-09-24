@@ -33,7 +33,6 @@ permission:
   write: deny
   external_directory:
     "*": deny
-    "~/.config/opencode/skills/film-production/references/*": allow
 ---
 
 # Director

@@ -284,6 +284,57 @@ export function filmProductionSessionPermission(agent, access) {
   ]
 }
 
+function permissionPatternMap(value) {
+  if (typeof value === "string") return { "*": value }
+  return value && typeof value === "object" ? { ...value } : {}
+}
+
+function appendPermissionRules(permission, type, rules) {
+  const patterns = permissionPatternMap(permission[type])
+  for (const { pattern, action } of rules) {
+    delete patterns[pattern]
+    patterns[pattern] = action
+  }
+  permission[type] = patterns
+}
+
+export function applyFilmProductionProducerPermissions(config, access, worktree) {
+  const producer = config?.agent?.Producer
+  if (!producer || !access || typeof worktree !== "string" || !worktree) return false
+
+  const permission = producer.permission ??= {}
+  appendPermissionRules(permission, "external_directory", access.roots.flatMap((root) => {
+    const references = resolve(root, "references")
+    return [
+      { pattern: root, action: "deny" },
+      { pattern: `${root}/*`, action: "deny" },
+      { pattern: references, action: "allow" },
+      { pattern: `${references}/*`, action: "allow" },
+    ]
+  }))
+
+  const editPatterns = access.roots.flatMap((root) => {
+    const relativeRoot = relative(resolve(worktree), resolve(root))
+    return [relativeRoot, `${relativeRoot}/*`]
+  })
+  for (const type of ["edit", "write"]) {
+    appendPermissionRules(permission, type, editPatterns.map((pattern) => ({ pattern, action: "deny" })))
+  }
+  return true
+}
+
+export function applyFilmProductionDirectorPermissions(config, access) {
+  const director = config?.agent?.Director
+  if (!director || !access) return false
+
+  const permission = director.permission ??= {}
+  appendPermissionRules(permission, "external_directory", access.roots.flatMap((root) => {
+    const references = resolve(root, "references")
+    return [references, `${references}/*`].map((pattern) => ({ pattern, action: "allow" }))
+  }))
+  return true
+}
+
 function isWatchTempPath(path) {
   const candidate = resolve(path)
   const remainder = relative(resolve(tmpdir()), candidate)

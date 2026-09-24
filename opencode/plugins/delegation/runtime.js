@@ -6,7 +6,6 @@ import { AgentDispatcher } from "./agent-dispatcher.js"
 import { CategoryEngine } from "./category-engine.js"
 import {
   categoryPermission,
-  isFilmProductionExternalPath,
   isFilmProductionReferencePath,
   isGitMutationCommand,
   openDesignResourceDecision,
@@ -842,7 +841,7 @@ export class DelegationRuntime {
     if (type === "external_directory" && !profile?.category) {
       const agent = profile?.agent ?? this.sessionAgents.get(input.sessionID)
       if (agent === "Producer") {
-        if (await isFilmProductionExternalPath(permissionValue(input), this.filmProductionSkillAccess)) {
+        if (await isFilmProductionReferencePath(permissionValue(input), this.filmProductionSkillAccess)) {
           decision = "allow"
         }
       } else if (agent === "Director") {

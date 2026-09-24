@@ -1,8 +1,8 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { access, readFile } from "node:fs/promises"
+import { access, readFile, realpath } from "node:fs/promises"
 import { execFile } from "node:child_process"
-import { dirname, resolve } from "node:path"
+import { dirname, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 
@@ -74,7 +74,8 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /never auto-escalate or hardcode media prices/s)
   assert.match(producer, /edit:\n    "\*": allow/)
   assert.match(producer, /write:\n    "\*": allow/)
-  assert.match(producer, /external_directory:\s+"\*": ask\s+"~\/\.config\/opencode\/skills\/film-production\/references\/\*": allow/)
+  assert.match(producer, /external_directory:\n    "\*": ask/)
+  assert.doesNotMatch(producer, /~\/\.config\/opencode\/skills\/film-production/)
 
   for (const skill of [
     "hyperframes",
@@ -170,13 +171,23 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(permission("bash", "npx skills add anything"), "deny")
   assert.equal(permission("bash", "git commit -m change"), "deny")
 
-  const filmReferencePattern = `${env.HOME}/.config/opencode/skills/film-production/references/*`
-  assert.ok(agent.permission.some((rule) =>
-    rule.permission === "external_directory"
-      && rule.pattern === filmReferencePattern
-      && rule.action === "allow"), "native permission profile must allow the isolated installed film reference subtree")
-  assert.equal(permission("external_directory", `${env.HOME}/.config/opencode/skills/film-production/references/shot-spec.md`), "allow")
+  const filmRoot = `${env.HOME}/.config/opencode/skills/film-production`
+  const filmPhysicalRoot = await realpath(filmRoot)
+  const filmReference = `${filmRoot}/references/shot-spec.md`
+  assert.equal(permission("external_directory", filmReference), "allow")
+  assert.equal(permission("external_directory", `${filmRoot}/SKILL.md`), "deny")
+  assert.equal(permission("external_directory", `${filmPhysicalRoot}/SKILL.md`), "deny")
   assert.equal(permission("external_directory", "/unrelated/external/reference.txt"), "ask")
+
+  for (const type of ["edit", "write"]) {
+    for (const target of [
+      relative(repository, `${filmRoot}/SKILL.md`),
+      relative(repository, `${filmRoot}/references/shot-spec.md`),
+      relative(repository, `${filmPhysicalRoot}/SKILL.md`),
+      relative(repository, `${filmPhysicalRoot}/references/shot-spec.md`),
+    ]) assert.equal(permission(type, target), "deny", `${type}: ${target}`)
+    assert.equal(permission(type, "src/producer-workspace-output.md"), "allow", `${type} must remain usable in the project workspace`)
+  }
 })
 
 test("Director resolves to GPT-6 Sol high", async (t) => {
@@ -189,9 +200,8 @@ test("Director resolves to GPT-6 Sol high", async (t) => {
   assert.equal(agent.mode, "subagent")
   assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-6-sol" })
   assert.equal(agent.variant, "high")
-  assert.ok(director.includes(
-    `  external_directory:\n    "*": deny\n    "~/.config/opencode/skills/film-production/references/*": allow`,
-  ))
+  assert.match(director, /external_directory:\n    "\*": deny/)
+  assert.doesNotMatch(director, /~\/\.config\/opencode\/skills\/film-production/)
 
   const permission = (type, value = "anything") => {
     let action
@@ -202,8 +212,10 @@ test("Director resolves to GPT-6 Sol high", async (t) => {
   }
 
   const filmReferences = `${env.HOME}/.config/opencode/skills/film-production/references/shot-spec.md`
+  const filmRoot = `${env.HOME}/.config/opencode/skills/film-production`
   assert.equal(permission("external_directory", filmReferences), "allow")
-  assert.equal(permission("external_directory", `${env.HOME}/.config/opencode/skills/film-production/SKILL.md`), "deny")
+  assert.equal(permission("external_directory", `${filmRoot}/SKILL.md`), "deny")
+  assert.equal(permission("external_directory", filmRoot), "deny")
   assert.equal(permission("external_directory", `${env.HOME}/.config/opencode/skills/hyperframes/SKILL.md`), "deny")
   assert.equal(permission("external_directory", "/tmp/aio-director-unrelated.txt"), "deny")
   assert.equal(permission("delegate_task"), "allow")
