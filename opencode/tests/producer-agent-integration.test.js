@@ -126,6 +126,7 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
 
 test("Producer's effective shell policy gates global HyperFrames updates", async (t) => {
   const env = await isolatedOpenCodeEnv(t, repository)
+  env.OPENCODE_ENABLE_EXA = "1"
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Producer"], { env, encoding: "utf8" })
   const agent = JSON.parse(stdout)
   assert.equal(agent.name, "Producer")

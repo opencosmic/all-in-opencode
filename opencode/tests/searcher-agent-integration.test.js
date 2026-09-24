@@ -48,6 +48,7 @@ test("Searcher is a reusable bounded read-only web answer engine", async () => {
 
 test("Searcher remains read-only when discovered as a delegated-capable agent", async (t) => {
   const env = await isolatedOpenCodeEnv(t, repository)
+  env.OPENCODE_ENABLE_EXA = "1"
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Searcher"], { env, encoding: "utf8" })
   const agent = JSON.parse(stdout)
 
