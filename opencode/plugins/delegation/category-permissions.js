@@ -272,7 +272,7 @@ export async function isFilmProductionReferencePath(path, access) {
 }
 
 export function filmProductionSessionPermission(agent, access) {
-  if (agent !== "Director" || !access) return undefined
+  if (!["Director", "Creator"].includes(agent) || !access) return undefined
   return [
     { permission: "external_directory", pattern: "*", action: "deny" },
     ...access.roots.flatMap((root) => {

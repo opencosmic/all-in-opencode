@@ -17,31 +17,47 @@ const availableAgents = [
   "Planner",
   "Strategist",
   "Producer",
+  "Creator",
   "Implementer",
   "Blender",
   "Browser",
-].map((name) => ({ name, mode: name === "Implementer" ? "subagent" : "primary" }))
+].map((name) => ({ name, mode: ["Implementer", "Creator"].includes(name) ? "subagent" : "primary" }))
 
-test("media-generation is a built-in Implementer category authorized for Assistant and Producer", () => {
+test("media-generation is a built-in Implementer category authorized for Assistant and Creator, not Producer", () => {
   const engine = new CategoryEngine({})
   const route = new AgentDispatcher(engine, { availableAgents })
-  const resolved = route.resolve({ category: "media-generation", parentAgent: "Producer" })
+  const resolved = route.resolve({ category: "media-generation", parentAgent: "Creator" })
 
   assert.equal(resolved.agent, "Implementer")
   assert.equal(resolved.category, "media-generation")
   assert.equal(resolved.profile.family, "media")
   assert.match(resolved.profile.prompt_append, /Atlas Cloud/i)
   assert.match(resolved.profile.prompt_append, /approved request digest/i)
-  assert.equal(DEFAULT_DELEGATION.Producer.categories.includes("media-generation"), true)
+  assert.equal(DEFAULT_DELEGATION.Producer.categories.includes("media-generation"), false)
+  assert.equal(DEFAULT_DELEGATION.Creator.categories.includes("media-generation"), true)
 
   assert.doesNotThrow(() => route.resolve({ category: "media-generation", parentAgent: "Assistant" }))
-  for (const parentAgent of ["Blender", "Planner", "Strategist", "Executor", "Implementer", "Browser"]) {
+  for (const parentAgent of ["Producer", "Blender", "Planner", "Strategist", "Executor", "Implementer", "Browser"]) {
     assert.throws(
       () => route.resolve({ category: "media-generation", parentAgent }),
       /not allowed|category routes are not allowed/,
       parentAgent,
     )
   }
+
+  const widenedProducer = new AgentDispatcher(new CategoryEngine({}), {
+    aioConfig: {
+      version: 1,
+      delegation: {
+        Producer: { categories: ["media-generation"], category_families: ["media"] },
+      },
+    },
+    availableAgents,
+  })
+  assert.throws(
+    () => widenedProducer.resolve({ category: "media-generation", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category media-generation/,
+  )
 })
 
 test("media-generation has a bounded session ceiling and no recursive delegation", () => {

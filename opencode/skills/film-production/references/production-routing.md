@@ -32,7 +32,10 @@ Director PLAN -> ShotSpec + canonical previs paths
   -> Director -> video-analysis / Watch
   -> Director compares evidence with ShotSpec
   -> PASS or REVISION_REQUIRED
-  -> Producer lifecycle/checkpoint -> transitional media-generation calculate/approval
+  -> Producer lifecycle/checkpoint -> Creator strategy and request calculation
+  -> Producer explicit paid approval -> Creator media-generation execution
+  -> Creator video-analysis / Watch -> PASS or BLOCKED
+  -> Producer lifecycle/checkpoint at assets-ready (M4 stop)
 ```
 
 The `.blend` is editable implementation source, not review evidence or the
@@ -43,7 +46,7 @@ rendering and roughly 480p or 720p are appropriate when a video is needed.
 
 ## Curated media model defaults
 
-Use GPT Image 2 for ordinary/value images, GPT Image 2.5 Sunburst for
+Creator chooses GPT Image 2 for ordinary/value images, GPT Image 2.5 Sunburst for
 premium/hero/key visuals, and Seedream 5 Pro for photoreal/reference images.
 Use Wan 3.0 for ordinary/balanced video, MiniMax H3 for identity/quality
 video, and Seedance 2.5 for complex/multi-reference video. An explicitly

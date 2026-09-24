@@ -747,7 +747,19 @@ test("Director sessions are restricted to film references while Producer behavio
   assert.equal(client.state.prompts.at(-1).body.agent, "Director")
   assert.equal(runtime.profiles.get(directorID).agent, "Director")
 
-  const rules = client.state.creates.at(-1).body.permission
+  const creator = await runtime.delegate({
+    agent: "Creator",
+    description: "Creator generation strategy",
+    prompt: "Plan one generated shot",
+    load_skills: ["film-production"],
+    run_in_background: true,
+  }, producer)
+  const creatorID = creator.child_session_id
+  assert.equal(client.state.prompts.at(-1).body.agent, "Creator")
+  assert.match(client.state.prompts.at(-1).body.system, /Read references/)
+  assert.equal(runtime.profiles.get(creatorID).agent, "Creator")
+
+  const rules = client.state.creates.at(-2).body.permission
   assert.ok(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "deny"))
   const expectedReferencePatterns = new Set([
     join(installed, "references"), `${join(installed, "references")}/*`,
@@ -764,7 +776,17 @@ test("Director sessions are restricted to film references while Producer behavio
   assert.equal(rules.some((rule) => rule.permission === "external_directory" && rule.pattern === "*" && rule.action === "allow"), false)
   assert.equal(rules.some((rule) => ["bash", "write", "edit", "question"].includes(rule.permission) && rule.action === "allow"), false)
 
-  for (const sessionID of [producerID, directorID]) {
+  const creatorRules = client.state.creates.at(-1).body.permission
+  const creatorExternalRules = creatorRules.filter((rule) => rule.permission === "external_directory")
+  assert.ok(creatorExternalRules.some((rule) => rule.pattern === "*" && rule.action === "deny"))
+  assert.deepEqual(
+    new Set(creatorExternalRules.filter((rule) => rule.action === "allow").map((rule) => rule.pattern)),
+    expectedReferencePatterns,
+  )
+  assert.equal(creatorExternalRules.some((rule) => rule.pattern === installed && rule.action === "allow"), false)
+  assert.equal(creatorRules.some((rule) => ["bash", "write", "edit", "question"].includes(rule.permission) && rule.action === "allow"), false)
+
+  for (const sessionID of [producerID, directorID, creatorID]) {
     for (const path of [reference, join(dirname(await realpath(join(source, "SKILL.md"))), "references", "shot-spec.md")]) {
       const result = { status: "ask" }
       await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [path] }, result)
@@ -797,7 +819,7 @@ test("Director sessions are restricted to film references while Producer behavio
     }
   }
 
-  for (const path of [
+  for (const sessionID of [directorID, creatorID]) for (const path of [
     installed,
     join(installed, "SKILL.md"),
     join(otherSkill, "SKILL.md"),
@@ -805,17 +827,19 @@ test("Director sessions are restricted to film references while Producer behavio
     "/tmp/aio-director-unrelated.txt",
   ]) {
     const result = { status: "ask" }
-    await runtime.applyPermission({ sessionID: directorID, permission: "external_directory", patterns: [path] }, result)
-    assert.equal(result.status, "deny", path)
+    await runtime.applyPermission({ sessionID, permission: "external_directory", patterns: [path] }, result)
+    assert.equal(result.status, "deny", `${sessionID}: ${path}`)
   }
 
   for (const permission of [
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
     "production_set_shots", "production_transition",
   ]) {
-    const result = { status: "ask" }
-    await runtime.applyPermission({ sessionID: directorID, permission, patterns: ["*"] }, result)
-    assert.equal(result.status, "deny")
+    for (const sessionID of [directorID, creatorID]) {
+      const result = { status: "ask" }
+      await runtime.applyPermission({ sessionID, permission, patterns: ["*"] }, result)
+      assert.equal(result.status, "deny", `${sessionID}: ${permission}`)
+    }
   }
 })
 

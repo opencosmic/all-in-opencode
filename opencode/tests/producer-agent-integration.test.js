@@ -37,7 +37,6 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"), tool)
   }
   assert.match(producer, /Producer owns production lifecycle, state, phase assignment, budget/i)
-  assert.match(producer, /transitional\s+capabilities/i)
   assert.match(producer, /Producer may delegate these three named phase owners/i)
   assert.match(producer, /production_preflight.*production\/production-manifest\.json/s)
   assert.match(producer, /delegates Director\s+`PLAN` with the user brief/s)
@@ -60,18 +59,13 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.doesNotMatch(producer, /mkdir -p|pwd -P|cd <parent> && pwd -P/)
   assert.doesNotMatch(producer, /delegate_task\(category="blender-previs"\)/)
   assert.match(producer, /Producer may not delegate\s+named Blender/i)
-  assert.match(producer, /transitional live generation strategy.*`media-generation` and `video-analysis`/s)
-  assert.match(producer, /HyperFrames composition until later milestones/)
-  assert.match(producer, /Image shots use GPT Image 2 for ordinary\/value work.*GPT Image 2\.5 Sunburst.*Seedream 5 Pro/s)
-  assert.match(producer, /Video shots use Wan 3\.0 for ordinary or\s+balanced work.*MiniMax H3.*Seedance 2\.5/s)
-  assert.match(producer, /explicitly supported user model choice\s+always wins/s)
-  assert.match(producer, /There is no automatic paid fallback/s)
-  assert.match(producer, /GPT Image 2 `quality` is low for drafts/s)
-  assert.match(producer, /`generate_audio: false` when downstream audio owns the soundtrack/s)
-  assert.match(producer, /reference_audio_asset_ids[\s\S]*generate_audio[\s\S]*independent/s)
-  assert.match(producer, /H3 still needs a visual reference[\s\S]*Seedance supports combined\s+audio\/visual references and audio-only references/s)
-  assert.match(producer, /does not create a new routing tier/s)
-  assert.match(producer, /never auto-escalate or hardcode media prices/s)
+  assert.match(producer, /Creator owns generated-media strategy, execution coordination, generated-output\s+Watch review, and bounded revisions/s)
+  assert.match(producer, /Creator performs model selection, request calculation, execution,\s+polling, output interpretation, and Watch review/s)
+  assert.match(producer, /explicit user approval.*unchanged request digest/s)
+  assert.match(producer, /Stop there for `\/film`; do not start\s+HyperFrames composition/)
+  assert.match(producer, /must not delegate `media-generation` directly/)
+  assert.doesNotMatch(producer, /GPT Image 2\.5 Sunburst|Seedream 5 Pro|MiniMax H3|Seedance 2\.5/)
+  assert.doesNotMatch(producer, /delegate_task\(category="media-generation"\)/)
   assert.match(producer, /edit:\n    "\*": allow/)
   assert.match(producer, /write:\n    "\*": allow/)
   assert.match(producer, /external_directory:\n    "\*": ask/)
@@ -227,6 +221,36 @@ test("Director resolves to GPT-6 Sol high", async (t) => {
   ]) {
     assert.equal(permission(tool), "deny", `${tool} must remain denied`)
   }
+})
+
+test("Creator resolves with bounded effective subagent permissions", async (t) => {
+  const env = await isolatedOpenCodeEnv(t, repository)
+  const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Creator"], { env, encoding: "utf8" })
+  const agent = JSON.parse(stdout)
+  const creator = await readFile(`${repository}/opencode/agents/creator.md`, "utf8")
+
+  assert.equal(agent.name, "Creator")
+  assert.equal(agent.mode, "subagent")
+  assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-5.6-sol" })
+  assert.equal(agent.variant, "high")
+  assert.match(creator, /external_directory: deny/)
+  assert.doesNotMatch(creator, /~\/.config\/opencode\/skills\/film-production/)
+  assert.equal(agent.tools.delegate_task, true)
+
+  const permission = (type, value = "anything") => {
+    let action
+    for (const rule of agent.permission ?? []) {
+      if (rule.permission === type && globMatches(rule.pattern, value)) action = rule.action
+    }
+    return action
+  }
+
+  assert.equal(permission("delegate_task"), "allow")
+  for (const tool of [
+    "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+    "production_set_shots", "production_transition", "bash", "write", "edit", "question",
+  ]) assert.equal(permission(tool), "deny", `${tool} must remain denied`)
+  assert.equal(permission("external_directory", "/unrelated/external/reference.txt"), "deny")
 })
 
 function globMatches(pattern, value) {

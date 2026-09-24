@@ -60,7 +60,7 @@ The runtime exposes delegation tools, three Producer-only production tools, and 
 - `media_prediction`
 - `media_wait_prediction`
 
-`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are repository-owned in the registry, while the optional user-local `~/.config/opencode/aio.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The loader reads this file once per control plane; an absent file means only built-ins are used. Delegation policy keeps Assistant broad, caps Executor at the `implementation` family, and caps Producer at the `media` family while reserving `blender-previs` for Director. Producer delegates named Director, Creator, and Editor; only Executor retains the named Blender route. Director may call `blender-previs` and `video-analysis`, Creator may call `media-generation` and `video-analysis`, and Editor may call `video-analysis`. These exact phase ceilings cannot be widened through `aio.json`. Blender remains category-free. The static `delegate_task` description is caller-neutral; each delegating agent receives only the enabled categories it is authorized to use in its AIO system context. That catalog is derived from `CategoryEngine` and `DelegationPolicy`, not maintained as a separate allowlist.
+`CategoryEngine` maps the current enabled category registry to one reusable `Implementer`. Built-ins are repository-owned in the registry, while the optional user-local `~/.config/opencode/aio.json` can override a built-in, add a custom category, or disable one without JavaScript changes. The loader reads this file once per control plane; an absent file means only built-ins are used. Delegation policy keeps Assistant broad, caps Executor at the `implementation` family, and caps Producer at the `media` family except for `media-generation`, reserved for Assistant/Creator, while reserving `blender-previs` for Director. Producer delegates named Director, Creator, and Editor; only Executor retains the named Blender route. Director may call `blender-previs` and `video-analysis`, Creator may call `media-generation` and `video-analysis`, and Editor may call `video-analysis`. These exact phase ceilings cannot be widened through `aio.json`. Blender remains category-free. The static `delegate_task` description is caller-neutral; each delegating agent receives only the enabled categories it is authorized to use in its AIO system context. That catalog is derived from `CategoryEngine` and `DelegationPolicy`, not maintained as a separate allowlist.
 
 `delegate_task` delegates a real scoped assignment. `consult_agents` is separate: only `Implementer` can call it, and only for a bounded batch of information-gathering requests to `Explorer` or `Librarian`. The batch starts its requests concurrently, waits synchronously for every outcome, and returns results in input order. Explorer reports local repository evidence; Librarian reports external documentation and upstream evidence. Neither consultant can edit, delegate, or consult another agent, and `Implementer` remains responsible for all implementation decisions, edits, and validation. Consultation tasks are always foreground (`background: false`, `completion_group: null`) and never enter the parent-resume lifecycle. A `session_id` may continue a completed consultation only for the same target, parent Implementer, and directory; skills are not exposed by this tool.
 
@@ -97,7 +97,7 @@ Categories define the model, optional variant, execution mindset, optional tool 
 }
 ```
 
-Each enabled category has exactly one configured `model` and may have one string `variant`; there are no model arrays, fallback models, category-level `reasoning`, presets, catalogs, overlays, or inheritance. `family` is an authorization grouping for configured callers; it does not grant the exact-category Git, video, or other runtime permissions. A category still routes only to the reusable Implementer. The built-in family catalog is `implementation` (`quick`, `standard`, `blender-previs`, `deep`, `ultrabrain`, `visual-engineering`, `writing`, `artistry`, `unspecified-low`, `unspecified-high`, `migration`, `database`, `testing`, `browser-testing`, `bugfix`, `tiny-refactor`, and `git`) plus `media` (`video-analysis` and `media-generation`). A built-in category's family is canonical architecture metadata: `aio.json` may repeat the same family, but cannot reclassify it; other built-in fields remain configurable. Custom categories may choose their own family. The `categories`, `category_families`, and `agents` lists in each `delegation` entry are unioned, then the hard role ceilings apply: Assistant remains broad except for caller-exclusive categories, Executor may use only `implementation` except for those same hard boundaries, Producer may use `media` while `blender-previs` is Director-only, Director may use exactly `blender-previs` and `video-analysis`, Creator exactly `media-generation` and `video-analysis`, and Editor exactly `video-analysis`; Strategist/Planner/Blender retain their existing restrictions. Named-agent ceilings and Blender's category-free leaf boundary remain separate hard boundaries. Custom callers and targets must be present in OpenCode's public effective-agent discovery, and custom targets additionally require the `agents` opt-in. Skills are separate specialized instructions and are injected only when selected, for example `delegate_task(category="deep", load_skills=["debugging"], ...)`.
+Each enabled category has exactly one configured `model` and may have one string `variant`; there are no model arrays, fallback models, category-level `reasoning`, presets, catalogs, overlays, or inheritance. `family` is an authorization grouping for configured callers; it does not grant the exact-category Git, video, or other runtime permissions. A category still routes only to the reusable Implementer. The built-in family catalog is `implementation` (`quick`, `standard`, `blender-previs`, `deep`, `ultrabrain`, `visual-engineering`, `writing`, `artistry`, `unspecified-low`, `unspecified-high`, `migration`, `database`, `testing`, `browser-testing`, `bugfix`, `tiny-refactor`, and `git`) plus `media` (`video-analysis` and `media-generation`). A built-in category's family is canonical architecture metadata: `aio.json` may repeat the same family, but cannot reclassify it; other built-in fields remain configurable. Custom categories may choose their own family. The `categories`, `category_families`, and `agents` lists in each `delegation` entry are unioned, then the hard role ceilings apply: Assistant remains broad except for caller-exclusive categories, Executor may use only `implementation` except for those same hard boundaries, Producer may use `media` except `media-generation`, which is Assistant/Creator-only; `blender-previs` is Director-only. Director may use exactly `blender-previs` and `video-analysis`, Creator exactly `media-generation` and `video-analysis`, and Editor exactly `video-analysis`; Strategist/Planner/Blender retain their existing restrictions. Named-agent ceilings and Blender's category-free leaf boundary remain separate hard boundaries. Custom callers and targets must be present in OpenCode's public effective-agent discovery, and custom targets additionally require the `agents` opt-in. Skills are separate specialized instructions and are injected only when selected, for example `delegate_task(category="deep", load_skills=["debugging"], ...)`.
 
 Independent background launches in one parent turn form one completion group. The parent does unrelated work or yields. `CompletionTracker` records terminal state and `ParentResumeCoordinator` resumes the idle parent exactly once after the group is terminal. The parent then retrieves bounded results with `task_output`; it does not run a model-driven polling loop.
 
@@ -177,18 +177,20 @@ Use `/film` for the advanced film-production workflow:
 
 ```text
 /film -> Producer -> film-production -> ShotSpec[] -> production routing
-      -> blender-previs -> video-analysis review -> media-generation -> HyperFrames composition
+      -> Director PREVIS -> blender-previs -> video-analysis/Watch
+      -> Creator strategy -> Producer approval -> Creator media-generation
+      -> Creator video-analysis/Watch -> Producer assets-ready checkpoint [M4 stop]
 ```
 
 `film-production` is a repository-owned methodology skill. It defines
 renderer-neutral shotcraft, validated `ShotSpec` entries, one resumable
 `ProductionManifest`, reference-asset handling, routing, and revision guidance.
-Producer currently runs the live film workflow. Director owns future creative
-intent and ShotSpecs, Creator owns generation strategy, and Editor owns
+Producer owns the live film workflow's interaction, canonical state, budget,
+approval, and lifecycle. Director owns creative intent, ShotSpecs, and previs;
+Creator owns generated-media strategy and execution coordination; Editor owns
 post-production with the official upstream HyperFrames skill directly. The
-`blender-previs` category is the reusable camera/blocking/timing
-Implementer for Director and, temporarily, Producer. Named Blender is outside
-the video-production graph. `media-generation` is a
+`blender-previs` category is the reusable camera/blocking/timing Implementer
+for Director. Named Blender is outside the video-production graph. `media-generation` is a
 bounded provider-neutral Implementer category, HyperFrames remains the
 composition and render authority, and `video-analysis`/Watch provides
 grounded QA of stills, preview video, and generated footage.
@@ -199,10 +201,15 @@ canonical `production/...` file destinations, creates only their safe parent
 directories, and returns transient absolute runtime paths for previs or later
 execution. `production_checkpoint` replaces one concise recovery summary in
 the same manifest without changing lifecycle revision or history. Producer
-still decides creative routing, spending, and approvals.
+decides spending and approvals and owns lifecycle transitions. Creator proposes
+generated-media strategy, obtains quotes through `media-generation`, and stops
+for Producer's explicit user approval before submission. In M4, `/film` stops
+after successful generated-media review at `assets-ready`; composition and
+final QA remain future work.
 
 Assistant remains technically able to delegate enabled media categories as part
-of its broad orchestration role; `/film` ownership still belongs to Producer.
+of its broad orchestration role; Producer cannot delegate `media-generation`,
+and `/film` ownership still belongs to Producer.
 
 The `/film` media runtime currently implements Atlas Cloud only. It calculates
 the exact effective request before submission, requires request-digest and cost

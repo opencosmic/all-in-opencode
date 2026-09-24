@@ -12,6 +12,7 @@ const availableAgents = [
   "Strategist",
   "Producer",
   "Director",
+  "Creator",
   "Blender",
   "Searcher",
   "Browser",
@@ -88,7 +89,7 @@ test("primary and formal workflow ceilings shape the injected catalog", async ()
   const strategist = await systemFor(defaults, "Strategist")
 
   assert.match(producer[1], /- video-analysis:/)
-  assert.match(producer[1], /- media-generation:/)
+  assert.doesNotMatch(producer[1], /- media-generation:/)
   assert.doesNotMatch(producer[1], /- blender-previs:/)
   assert.doesNotMatch(producer[1], /- quick:|- caller-only:|- git:/)
   assert.deepEqual(blenderDefault, ["authored system instructions"])
@@ -98,15 +99,18 @@ test("primary and formal workflow ceilings shape the injected catalog", async ()
   }
 
   const explicit = runtime({
-    Producer: { categories: ["standard", "blender-previs"], category_families: ["implementation"] },
+    Producer: { categories: ["standard", "blender-previs", "media-generation"], category_families: ["implementation", "media"] },
     Blender: { categories: ["video-analysis"], category_families: ["support"] },
   })
   const producerExtended = await systemFor(explicit, "Producer")
+  const creatorExtended = await systemFor(explicit, "Creator")
   const blenderExtended = await systemFor(explicit, "Blender")
   assert.match(producerExtended[1], /- video-analysis:/)
-  assert.match(producerExtended[1], /- media-generation:/)
+  assert.doesNotMatch(producerExtended[1], /- media-generation:/)
   assert.doesNotMatch(producerExtended[1], /- blender-previs:/)
   assert.doesNotMatch(producerExtended[1], /- standard:/)
+  assert.match(creatorExtended[1], /- media-generation:/)
+  assert.match(creatorExtended[1], /- video-analysis:/)
   assert.deepEqual(blenderExtended, ["authored system instructions"])
 })
 

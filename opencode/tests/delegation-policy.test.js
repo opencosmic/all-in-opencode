@@ -126,10 +126,13 @@ test("configured callers may opt into Searcher while Searcher remains a leaf", (
   )
 })
 
-test("Producer retains later-phase categories and delegates only phase owners", () => {
+test("Producer retains video-analysis and delegates only phase owners under the Creator generation boundary", () => {
   const route = dispatcher()
   assert.equal(route.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
-  assert.equal(route.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
+  assert.equal(route.resolve({ agent: "Creator", parentAgent: "Producer" }).agent, "Creator")
+  assert.equal(route.resolve({ category: "media-generation", parentAgent: "Creator" }).agent, "Implementer")
+  assert.throws(() => route.resolve({ category: "media-generation", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category media-generation/)
   assert.throws(() => route.resolve({ category: "blender-previs", parentAgent: "Producer" }),
     /Producer is not allowed to delegate category blender-previs/)
   for (const agent of ["Director", "Creator", "Editor"]) {
@@ -158,7 +161,8 @@ test("Producer retains later-phase categories and delegates only phase owners", 
     availableAgents: effectiveAgents,
   })
   assert.equal(extended.resolve({ category: "video-analysis", parentAgent: "Producer" }).agent, "Implementer")
-  assert.equal(extended.resolve({ category: "media-generation", parentAgent: "Producer" }).agent, "Implementer")
+  assert.throws(() => extended.resolve({ category: "media-generation", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category media-generation/)
   assert.throws(() => extended.resolve({ category: "blender-previs", parentAgent: "Producer" }),
     /Producer is not allowed to delegate category blender-previs/)
   assert.throws(

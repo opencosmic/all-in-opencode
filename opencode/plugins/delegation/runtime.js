@@ -844,7 +844,7 @@ export class DelegationRuntime {
         if (await isFilmProductionReferencePath(permissionValue(input), this.filmProductionSkillAccess)) {
           decision = "allow"
         }
-      } else if (agent === "Director") {
+      } else if (agent === "Director" || agent === "Creator") {
         decision = await isFilmProductionReferencePath(permissionValue(input), this.filmProductionSkillAccess)
           ? "allow"
           : "deny"
