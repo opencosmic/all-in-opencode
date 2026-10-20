@@ -4,7 +4,7 @@ import { createHash } from "node:crypto"
 import { spawn } from "node:child_process"
 import { execFile } from "node:child_process"
 import { createServer } from "node:net"
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -216,6 +216,9 @@ export default async function probe(input) {
 
 async function startServer({ cwd, root, plugin, diagnostics, stateDirectory, canonical, t1, t2 }) {
   const isolatedHome = join(root, "home")
+  const hostConfigDirectory = join(isolatedHome, ".config", "opencode")
+  await mkdir(hostConfigDirectory, { recursive: true })
+  await symlink(join(testDirectory, "..", "node_modules"), join(hostConfigDirectory, "node_modules"))
   const env = { ...process.env }
   for (const key of ["OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR", "OPENCODE_PURE"]) delete env[key]
   Object.assign(env, {

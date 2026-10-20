@@ -20,6 +20,7 @@ export const MEDIA_RUNTIME_TOOL_NAMES = Object.freeze([
 ])
 
 const MEDIA_RUNTIME_TOOL_SET = new Set(MEDIA_RUNTIME_TOOL_NAMES)
+const TERMINAL_GENERATION_STATUSES = new Set(["completed", "failed", "timeout"])
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"])
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".m4v"])
 const AUDIO_EXTENSIONS = new Set([".mp3", ".wav"])
@@ -360,6 +361,123 @@ async function persistManifestState(manifestPath, record, { assets = [], now } =
     refreshManifestCosts(manifest)
     manifest.updated_at = nowISO(now)
   })
+}
+
+function isTerminalGenerationStatus(status) {
+  return TERMINAL_GENERATION_STATUSES.has(status)
+}
+
+function assetsForJob(manifest, record, fallbackAssets = []) {
+  if (!manifest) return fallbackAssets
+  return (record.output_asset_ids ?? [])
+    .map((assetID) => manifest.assets.find((asset) => asset.asset_id === assetID))
+    .filter(Boolean)
+}
+
+function predictionResponse(jobID, record, manifest, fallbackAssets = []) {
+  const assets = assetsForJob(manifest, record, fallbackAssets)
+  return {
+    runtime: "atlas-cloud-v1",
+    job_id: jobID,
+    prediction_id: record.provider_prediction_id,
+    status: record.status,
+    provider_status: record.provider_status,
+    ...(record.error ? { error: record.error } : {}),
+    ...(record.wait_timed_out ? { wait_timed_out: true } : {}),
+    ...(assets.length ? {
+      output_asset_ids: assets.map((asset) => asset.asset_id),
+      output_paths: assets.map((asset) => asset.path),
+    } : {}),
+  }
+}
+
+async function persistPredictionResult(manifestPath, jobID, result, assets, now, localRecord) {
+  if (!manifestPath) {
+    const current = localRecord
+    if (!current) throw new Error(`Unknown Atlas media generation job: ${jobID}`)
+    if (!isTerminalGenerationStatus(current.status) || current.status === result.status) {
+      applyPredictionResult(current, result, assets, null, now)
+    }
+    return { record: current, manifest: null, assets }
+  }
+
+  const { manifest } = await updateProductionManifest(manifestPath, (latest) => {
+    const current = findManifestJob(latest, jobID)
+    if (!current) throw new Error(`Unknown Atlas media generation job: ${jobID}`)
+    const before = JSON.stringify(current)
+    if (!isTerminalGenerationStatus(current.status) || current.status === result.status) {
+      applyPredictionResult(current, result, assets, latest, now)
+    }
+    if (JSON.stringify(current) !== before) latest.updated_at = nowISO(now)
+  })
+  const record = findManifestJob(manifest, jobID)
+  return { record, manifest, assets: assetsForJob(manifest, record, assets) }
+}
+
+function applyPredictionResult(record, result, assets, manifest, now) {
+  const before = JSON.stringify(record)
+  if (isTerminalGenerationStatus(record.status)) {
+    // The same terminal result may safely fill metadata that an earlier response omitted.
+    if (result.actual_usd !== undefined && record.actual_usd == null) record.actual_usd = result.actual_usd
+    if (result.error && !record.error) {
+      record.error = result.error
+      record.provider_error = result.error
+    }
+    if (record.status === "completed" && !(record.output_asset_ids?.length) && assets.length) {
+      record.output_asset_ids = assets.map((asset) => asset.asset_id)
+      record.completed_at ??= nowISO(now)
+    }
+    if (JSON.stringify(record) !== before) record.updated_at = nowISO(now)
+  } else {
+    record.status = result.status
+    record.provider_status = result.provider_status
+    record.wait_timed_out = false
+    record.updated_at = nowISO(now)
+    record.error = result.error ?? null
+    record.provider_error = result.error ?? null
+    if (result.actual_usd !== undefined) record.actual_usd = result.actual_usd
+    if (assets.length) {
+      record.output_asset_ids = [...new Set([...(record.output_asset_ids ?? []), ...assets.map((asset) => asset.asset_id)])]
+      record.completed_at ??= nowISO(now)
+    }
+  }
+
+  if (manifest) {
+    for (const asset of assets) {
+      const assetIndex = manifest.assets.findIndex((candidate) => candidate.asset_id === asset.asset_id)
+      if (assetIndex === -1) manifest.assets.push(structuredClone(asset))
+      else manifest.assets[assetIndex] = { ...manifest.assets[assetIndex], ...structuredClone(asset) }
+    }
+    refreshManifestCosts(manifest)
+  }
+}
+
+async function persistWaitTimeout(manifestPath, jobID, localRecord, now) {
+  if (!manifestPath) {
+    if (!localRecord) return null
+    if (!isTerminalGenerationStatus(localRecord.status)) {
+      Object.assign(localRecord, {
+        status: "processing",
+        wait_timed_out: true,
+        updated_at: nowISO(now),
+      })
+    }
+    return { record: localRecord, manifest: null }
+  }
+
+  const { manifest } = await updateProductionManifest(manifestPath, (latest) => {
+    const current = findManifestJob(latest, jobID)
+    if (!current) throw new Error(`Unknown Atlas media generation job: ${jobID}`)
+    if (!isTerminalGenerationStatus(current.status)) {
+      Object.assign(current, {
+        status: "processing",
+        wait_timed_out: true,
+        updated_at: nowISO(now),
+      })
+      latest.updated_at = nowISO(now)
+    }
+  })
+  return { record: findManifestJob(manifest, jobID), manifest }
 }
 
 function outputExtension(mediaType, providerURL, contentType) {
@@ -826,34 +944,21 @@ export function createAtlasMediaRuntime({
       await client.prediction(state.record.provider_prediction_id),
       state.record.provider_prediction_id,
     )
-    const next = {
-      ...state.record,
-      status: result.status,
-      provider_status: result.provider_status,
-      wait_timed_out: false,
-      updated_at: nowISO(now),
-      ...(result.error ? { error: result.error, provider_error: result.error } : { error: null, provider_error: null }),
-      ...(result.actual_usd === undefined ? {} : { actual_usd: result.actual_usd }),
-    }
-    const assets = await materialize(state, next, result, { root, manifestPath, manifest })
-    if (assets.length) {
-      next.output_asset_ids = assets.map((asset) => asset.asset_id)
-      next.completed_at = nowISO(now)
-    }
-    state.record = next
-    await persistManifestState(manifestPath, next, { assets, now })
-    return {
-      runtime: "atlas-cloud-v1",
-      job_id: jobID,
-      prediction_id: result.prediction_id,
-      status: result.status,
-      provider_status: result.provider_status,
-      ...(result.error ? { error: result.error } : {}),
-      ...(assets.length ? {
-        output_asset_ids: assets.map((asset) => asset.asset_id),
-        output_paths: assets.map((asset) => asset.path),
-      } : {}),
-    }
+    const latestManifest = manifestPath ? await readManifest(manifestPath) : manifest
+    const latestRecord = latestManifest ? findManifestJob(latestManifest, jobID) : state.record
+    const resultCanMaterialize = !isTerminalGenerationStatus(latestRecord?.status)
+      || latestRecord.status === result.status
+    const assets = result.status === "completed" && resultCanMaterialize
+      ? await materialize(state, { ...latestRecord, status: result.status }, result, {
+          root,
+          manifestPath,
+          manifest: latestManifest,
+        })
+      : []
+    const persisted = await persistPredictionResult(manifestPath, jobID, result, assets, now, state.record)
+    state.record = persisted.record
+    state.materializedAssets = persisted.assets
+    return predictionResponse(jobID, persisted.record, persisted.manifest, persisted.assets)
   }
 
   async function waitPrediction(args = {}, context) {
@@ -886,17 +991,18 @@ export function createAtlasMediaRuntime({
       const elapsed = Number(typeof now === "function" ? now() : Date.now()) - started
       if (elapsed >= timeout) {
         const state = jobs.get(jobID)
+        let timedOut
         if (state) {
-          state.record = {
-            ...state.record,
-            status: "processing",
-            wait_timed_out: true,
-            updated_at: nowISO(now),
-          }
-          await persistManifestState(state.manifestPath, state.record, { now })
+          timedOut = await persistWaitTimeout(state.manifestPath, jobID, state.record, now)
+          state.record = timedOut.record
+        }
+        if (timedOut && isTerminalGenerationStatus(timedOut.record.status)) {
+          return predictionResponse(jobID, timedOut.record, timedOut.manifest, state.materializedAssets)
         }
         return {
-          ...latest,
+          ...(timedOut
+            ? predictionResponse(jobID, timedOut.record, timedOut.manifest, state.materializedAssets)
+            : latest),
           status: "processing",
           wait_timed_out: true,
           cancellation_requested: false,

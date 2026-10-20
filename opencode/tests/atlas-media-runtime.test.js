@@ -5,6 +5,7 @@ import { once } from "node:events"
 import { mkdtemp, mkdir, readFile, readlink, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { Worker } from "node:worker_threads"
 
 import { createProductionManifest, validateProductionManifest } from "../plugins/film-production/contracts.js"
 import { createAtlasClient } from "../plugins/delegation/atlas-client.js"
@@ -57,6 +58,36 @@ function outputResponse(bytes, contentType) {
     headers: new Headers({ "content-type": contentType }),
     arrayBuffer: async () => Buffer.from(bytes),
   }
+}
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+async function waitUntil(condition) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (condition()) return
+    await new Promise((resolve) => setImmediate(resolve))
+  }
+  throw new Error("condition was not met after 100 event-loop turns")
+}
+
+function deferredPredictionClient() {
+  const client = fakeClient()
+  const requests = []
+  client.prediction = (predictionID) => {
+    const response = deferred()
+    requests.push({ predictionID, response })
+    client.calls.push({ operation: "prediction", predictionID })
+    return response.promise
+  }
+  return { client, requests }
 }
 
 function fakeClient({
@@ -1829,6 +1860,197 @@ test("real Atlas paid flow requires persisted ProductionManifest context", async
       }),
       /Unknown Atlas media generation job: ephemeral-video-job/,
     )
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("stale processing polls from independent runtimes cannot overwrite completed generation metadata", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    const submissionClient = fakeClient()
+    const submissionRuntime = createAtlasMediaRuntime({ directory: root, client: submissionClient })
+    const quote = await submissionRuntime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A speaker",
+      manifest_path: manifestRequestPath,
+    })
+    await approveGeneration(root, quote, 0.1)
+    const submitted = await submissionRuntime.media_generate_image({
+      job_id: quote.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A speaker",
+      manifest_path: manifestRequestPath,
+    })
+
+    const stale = deferredPredictionClient()
+    const completedClient = fakeClient({ predictions: [{
+      status: "completed",
+      outputs: ["https://atlas.example/completed.png"],
+      price: 0.2,
+    }] })
+    const staleRuntime = createAtlasMediaRuntime({ directory: root, client: stale.client })
+    const completedRuntime = createAtlasMediaRuntime({ directory: root, client: completedClient })
+    const stalePoll = staleRuntime.media_prediction({ job_id: quote.job_id, manifest_path: manifestRequestPath })
+    await waitUntil(() => stale.requests.length === 1)
+    const completedPoll = completedRuntime.media_prediction({ job_id: quote.job_id, manifest_path: manifestRequestPath })
+    await waitUntil(() => completedClient.calls.some((call) => call.operation === "prediction"))
+    const completion = await completedPoll
+    stale.requests[0].response.resolve({ data: {
+      id: submitted.prediction_id,
+      status: "processing",
+      outputs: [],
+    } })
+    const staleResult = await stalePoll
+
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    const job = manifest.generation_jobs[0]
+    assert.equal(completion.status, "completed")
+    assert.equal(staleResult.status, "completed")
+    assert.equal(staleResult.prediction_id, submitted.prediction_id)
+    assert.deepEqual(staleResult.output_asset_ids, completion.output_asset_ids)
+    assert.equal(job.status, "completed")
+    assert.equal(job.provider_prediction_id, submitted.prediction_id)
+    assert.deepEqual(job.output_asset_ids, completion.output_asset_ids)
+    assert.equal(job.actual_usd, 0.2)
+    assert.equal(manifest.costs.actual_usd, 0.2)
+    assert.equal(job.output_asset_ids.length, 1)
+    assert.equal(manifest.assets.filter((asset) => job.output_asset_ids.includes(asset.asset_id)).length, 1)
+    assert.equal(completedClient.calls.filter((call) => call.operation === "download").length, 1)
+    assert.equal(submissionClient.calls.filter((call) => call.operation === "generateImage").length, 1)
+    assert.doesNotThrow(() => validateProductionManifest(manifest))
+  } finally {
+    await cleanup(root)
+  }
+})
+
+test("wait timeout persistence preserves completion committed by a concurrent runtime", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  let completionWorker
+  let completionResultPromise
+  try {
+    const submissionClient = fakeClient()
+    const submissionRuntime = createAtlasMediaRuntime({ directory: root, client: submissionClient })
+    const quote = await submissionRuntime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A speaker",
+      manifest_path: manifestRequestPath,
+    })
+    await approveGeneration(root, quote, 0.1)
+    const submitted = await submissionRuntime.media_generate_image({
+      job_id: quote.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A speaker",
+      manifest_path: manifestRequestPath,
+    })
+
+    let clock = 0
+    let nowCalls = 0
+    const stale = deferredPredictionClient()
+    const waitRuntime = createAtlasMediaRuntime({
+      directory: root,
+      client: stale.client,
+      now: () => {
+        nowCalls += 1
+        if (nowCalls === 4) {
+          const signal = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT)
+          const sharedSignal = new Int32Array(signal)
+          completionWorker = new Worker(new URL("./support/media-prediction-worker.js", import.meta.url), {
+            workerData: {
+              directory: root,
+              job_id: quote.job_id,
+              manifest_path: manifestRequestPath,
+              signal,
+            },
+          })
+          completionResultPromise = new Promise((resolveResult, reject) => {
+            completionWorker.once("message", (message) => message.error ? reject(new Error(message.error)) : resolveResult(message.result))
+            completionWorker.once("error", reject)
+          })
+          const result = Atomics.wait(sharedSignal, 0, 0, 10_000)
+          if (result !== "ok" || Atomics.load(sharedSignal, 0) !== 1) {
+            throw new Error("concurrent completion worker did not persist before wait timeout")
+          }
+          clock = 1_000
+        }
+        return clock
+      },
+    })
+    const waiting = waitRuntime.media_wait_prediction({
+      job_id: quote.job_id,
+      manifest_path: manifestRequestPath,
+      interval_ms: 250,
+      timeout_ms: 1_000,
+    })
+    await waitUntil(() => stale.requests.length === 1)
+    stale.requests[0].response.resolve({ data: {
+      id: submitted.prediction_id,
+      status: "processing",
+      outputs: [],
+    } })
+    const waited = await waiting
+    const workerResult = await completionResultPromise
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.equal(clock, 1_000)
+    assert.equal(waited.status, "completed")
+    assert.equal(waited.wait_timed_out, undefined)
+    assert.equal(workerResult.status, "completed")
+    assert.deepEqual(waited.output_asset_ids, workerResult.output_asset_ids)
+    assert.equal(manifest.generation_jobs[0].status, "completed")
+    assert.equal(manifest.generation_jobs[0].wait_timed_out, false)
+    assert.equal(manifest.generation_jobs[0].actual_usd, 0.2)
+    assert.equal(manifest.costs.actual_usd, 0.2)
+    assert.doesNotThrow(() => validateProductionManifest(manifest))
+  } finally {
+    if (completionWorker) await completionWorker.terminate()
+    await cleanup(root)
+  }
+})
+
+test("stale processing cannot reopen a terminal provider failure", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    const submissionClient = fakeClient()
+    const submissionRuntime = createAtlasMediaRuntime({ directory: root, client: submissionClient })
+    const quote = await submissionRuntime.media_calculate({
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A speaker",
+      manifest_path: manifestRequestPath,
+    })
+    await approveGeneration(root, quote, 0.1)
+    const submitted = await submissionRuntime.media_generate_image({
+      job_id: quote.job_id,
+      shot_id: "shot_01",
+      media_type: "image",
+      prompt: "A speaker",
+      manifest_path: manifestRequestPath,
+    })
+    const stale = deferredPredictionClient()
+    const failedClient = fakeClient({ predictions: [{ status: "failed", error: "content rejected", outputs: [], price: 0.08 }] })
+    const staleRuntime = createAtlasMediaRuntime({ directory: root, client: stale.client })
+    const failedRuntime = createAtlasMediaRuntime({ directory: root, client: failedClient })
+    const stalePoll = staleRuntime.media_prediction({ job_id: quote.job_id, manifest_path: manifestRequestPath })
+    await waitUntil(() => stale.requests.length === 1)
+    const failedPoll = await failedRuntime.media_prediction({ job_id: quote.job_id, manifest_path: manifestRequestPath })
+    stale.requests[0].response.resolve({ data: {
+      id: submitted.prediction_id,
+      status: "processing",
+      outputs: [],
+    } })
+    const staleResult = await stalePoll
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.equal(failedPoll.status, "failed")
+    assert.equal(staleResult.status, "failed")
+    assert.equal(staleResult.error, "content rejected")
+    assert.equal(manifest.generation_jobs[0].status, "failed")
+    assert.equal(manifest.generation_jobs[0].provider_error, "content rejected")
+    assert.equal(manifest.generation_jobs[0].actual_usd, 0.08)
+    assert.doesNotThrow(() => validateProductionManifest(manifest))
   } finally {
     await cleanup(root)
   }
