@@ -2,7 +2,7 @@
 name: Searcher
 description: Fast, grounded web Search / Answer Engine for current facts and source-backed answers
 mode: all
-model: openai/gpt-5.6-luna
+model: openai/gpt-6-luna
 variant: medium
 color: "#0F766E"
 steps: 6

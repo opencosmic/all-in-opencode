@@ -25,9 +25,10 @@ Creator owns generation strategy; Editor will own post-production through the
 official HyperFrames workflow after live migration. Producer owns orchestration,
 state, budget, and user approval. The `blender-previs` category is the
 lightweight spatial/camera/timing Implementer available to Director alone.
-Named Blender is outside the video-production graph. The
-`media-generation` category is the bounded provider-neutral Implementer route;
-`video-analysis`/Watch supplies grounded visual QA.
+Named Blender is outside the video-production graph. Creator owns generated-
+media strategy, execution coordination, and generated-output Watch review by
+using the bounded `media-generation` and `video-analysis` Implementer routes.
+Producer remains the sole lifecycle, checkpoint, and user approval owner.
 
 ## Previs before paid generation
 
@@ -94,28 +95,43 @@ observed evidence with the ShotSpec and decides `PASS`, `REVISION_REQUIRED`,
 or `BLOCKED`. A revision should reuse the existing `.blend` where practical.
 If it needs new paths, Director returns only canonical destinations to Producer
 for preparation and re-delegation. A creative ShotSpec revision goes to Producer
-for persistence. Only after the previs evidence passes does Producer enter the
-transitional `media-generation` calculate/approval path. This review happens
-before any paid Atlas submission.
+for persistence. Only after the previs evidence passes does Producer enter
+`production` and delegate generated-media work to Creator.
 
 For each shot, preserve intent, continuity, references, output constraints,
-and a reproducible request digest in the manifest. Atlas Cloud is currently the only implemented media provider behind the bounded `media-generation`
-category. Resolve stable manifest references, upload local files only through
-`media_upload`, call `media_calculate`, present its price and `estimated` flag
-for explicit approval, then submit the unchanged request through
-`media_generate_image` or `media_generate_video`. Use `media_prediction` for a
-single check or `media_wait_prediction` for bounded polling. `media_calculate`
-does not create a task or charge; generation submission is asynchronous, paid,
-and never automatically retried or rerolled. The runtime enforces request
-digest and cost integrity, while human approval remains an orchestration
-invariant rather than a cryptographic proof unless OpenCode provides one.
-Completed Atlas outputs are materialized into local production assets and
-linked from the same `ProductionManifest`; Atlas URLs are temporary transport
-metadata only.
+and a reproducible request digest in the manifest. Atlas Cloud is currently
+the only implemented media provider behind the bounded `media-generation`
+category. Resolve stable manifest references and upload local files only
+through `media_upload`. `media_calculate` does not create a task or charge.
+Generation submission is asynchronous and never automatically retried or
+rerolled. Producer persists approval for the exact calculated job, request
+digest, and maximum USD exposure through `production_approve_generation` in the
+canonical `ProductionManifest`. Submission requires that persisted state,
+recomputes the request digest and current price, and rejects a changed request
+or a price above the approved ceiling. Every external submission, including a
+zero-cost quote, requires Producer approval. Completed Atlas outputs are
+materialized into local production assets and linked from the same
+`ProductionManifest`; Atlas URLs are temporary transport metadata only.
+
+In M4, Creator owns model and reference selection, request construction,
+execution coordination, and generated-output review. Creator first calls
+`media_calculate` through `media-generation`, then returns the quote, estimate
+flag, request digest, job ID, and unchanged request details to Producer.
+Producer obtains explicit user approval and persists it with
+`production_approve_generation`; Creator then relays the unchanged request and
+same job ID to the execution child. The runtime reads the digest and ceiling
+from that canonical approval and checks the current price before submission. A
+changed request requires a new calculation and approval.
+Creator then uses Watch and reports `PASS`, `REVISION_REQUIRED`, or `BLOCKED`.
+Allow at most two revision rounds after the first result, with fresh Producer
+approval for every revised request. On pass, Producer transitions
+`production -> assets-ready` and checkpoints. On block, Producer checkpoints
+the evidence and remaining work while lifecycle stays `production`. Stop at
+`assets-ready` until M5; do not enter composition or QA in M4.
 
 ## Curated media model routing
 
-Producer applies these intent defaults for the six supported Atlas models:
+Creator applies these intent defaults for the six supported Atlas models:
 
 | Media intent | Model |
 | --- | --- |
@@ -135,7 +151,7 @@ an explicit user decision.
 
 Keep the canonical `ShotSpec` provider-neutral. Do not persist a selected
 provider, curated model ID, Atlas role, or provider request controls such as
-`reference_*_asset_ids` or `generate_audio` in `ShotSpec.extensions`. Producer
+`reference_*_asset_ids` or `generate_audio` in `ShotSpec.extensions`. Creator
 may derive a transient routing plan that maps shot intent to a curated model
 immediately before execution. Once a generation job exists, provider/model
 selection, request digest, approval/cost state, prediction state, outputs, and

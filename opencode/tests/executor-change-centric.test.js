@@ -425,7 +425,7 @@ test("child workspaces require isolation evidence and release against the primar
   const released = await manager.release(child.workspace_id, repository)
   assert.equal(released.status, "released")
   assert.ok(["ancestor", "patch-equivalent"].includes(released.integration))
-  assert.equal(released.branch_preserved, false)
+  assert.equal(released.branch_preserved, released.integration === "patch-equivalent")
   assert.equal(await worktreeCount(repository), 1)
 })
 

@@ -15,8 +15,24 @@ import {
   validateShotSpec,
 } from "../plugins/film-production/contracts.js"
 import { discoverSkills } from "../plugins/delegation/skill-resolver.js"
+import { buildAtlasMediaRequest, listAtlasMediaModels } from "../plugins/delegation/atlas-media-models.js"
 
 const repository = fileURLToPath(new URL("../..", import.meta.url))
+
+test("installed routing guidance names every curated identifier and its Wan example satisfies the runtime", async () => {
+  const routing = await readFile(join(repository, "opencode/skills/film-production/references/production-routing.md"), "utf8")
+  for (const spec of listAtlasMediaModels()) {
+    assert.ok(routing.includes(`\`${spec.model}\``), `${spec.model} must be documented exactly`)
+  }
+  const example = JSON.parse(routing.match(/```json\n([\s\S]*?)\n```/)[1])
+  const { body } = await buildAtlasMediaRequest(example.media_type, example)
+  assert.equal(body.model, "alibaba/wan-3.0/reference-to-video")
+  assert.equal(body.prompt_expansion, undefined)
+  assert.match(routing, /Only include model-specific optional fields when they are explicitly supported/)
+  const creator = await readFile(join(repository, "opencode/agents/creator.md"), "utf8")
+  assert.match(creator, /Before constructing a request, read the installed film-production\s+`references\/production-routing\.md`/)
+  assert.match(creator, /Copy the selected model's exact canonical\s+identifier/)
+})
 
 const shot = {
   shot_id: "shot_03",
@@ -49,7 +65,7 @@ test("/film is a thin Producer command for the film-production-first route", asy
   assert.match(command, /advanced AI filmmaking workflow/i)
   assert.match(command, /`film-production` skill/i)
   assert.match(command, /ShotSpec\[\].*blender-previs/s)
-  assert.doesNotMatch(command, /Atlas Cloud|calculate|billing|endpoint/i)
+  assert.doesNotMatch(command, /Atlas Cloud|billing endpoint|provider endpoint/i)
   assert.ok(command.length < 1_200, "the command should remain a thin route declaration")
 })
 
@@ -60,7 +76,9 @@ test("Producer keeps /video HyperFrames-first and /film film-production-first", 
   assert.match(producer, /\/film\s+-> Producer -> Director PLAN -> Producer prepare -> Director PREVIS/)
   assert.match(producer, /For `\/video`, load the official upstream `hyperframes` skill at the start/i)
   assert.match(producer, /For `\/film`, keep\s+`film-production` first/i)
-  assert.match(producer, /load `hyperframes` only when film planning and\s+production routing are complete and composition\/render begins/i)
+  assert.match(producer, /stop at `assets-ready` for the M4 boundary/i)
+  assert.match(producer, /`hyperframes` for `\/film` only after the M5 Editor migration/i)
+  assert.match(producer, /Stop there for `\/film`; do not start\s+HyperFrames composition/i)
   assert.match(video, /At the start of the request, load and follow the official upstream\s+`hyperframes` skill/i)
 })
 
@@ -95,8 +113,8 @@ test("film-production is repository-owned and discoverable with focused referenc
   assert.match(skill, /child reports the exact supplied paths to Director and does not\s+blindly retry/i)
   assert.match(skill, /non-empty MP4\s+is preliminary until Watch can decode it/i)
   assert.match(skill, /video-analysis.*Watch.*Director compares the\s+observed evidence.*PASS.*REVISION_REQUIRED/s)
-  assert.match(skill, /Atlas Cloud is currently the only implemented media provider/i)
-  assert.match(skill, /media_calculate.*media_generate_image/s)
+  assert.match(skill, /Atlas Cloud is currently\s+the only implemented media provider/i)
+  assert.match(skill, /media_calculate.*Producer obtains explicit user approval and persists it with\s+`production_approve_generation`.*Creator then relays the unchanged request/s)
   assert.match(skill, /Curated media model routing/)
   assert.match(skill, /ordinary or value.*GPT Image 2.*premium, hero, or key visual.*GPT Image 2\.5 Sunburst/s)
   assert.match(skill, /photoreal or reference-led.*Seedream 5 Pro.*ordinary or balanced.*Wan 3\.0/s)
@@ -104,7 +122,7 @@ test("film-production is repository-owned and discoverable with focused referenc
   assert.match(skill, /explicitly supported user model choice wins/s)
   assert.match(skill, /no automatic paid fallback/s)
   assert.match(routing, /Curated media model defaults/)
-  assert.match(routing, /Director PLAN[\s\S]*Producer persists ShotSpec[\s\S]*Director PREVIS -> blender-previs[\s\S]*video-analysis \/ Watch[\s\S]*media-generation calculate\/approval/)
+  assert.match(routing, /Director PLAN[\s\S]*Producer persists ShotSpec[\s\S]*Director PREVIS -> blender-previs[\s\S]*video-analysis \/ Watch[\s\S]*Creator strategy and request calculation[\s\S]*Producer persisted job approval[\s\S]*assets-ready \(M4 stop\)/)
   assert.match(routing, /\.blend[\s\S]*editable implementation source[\s\S]*not[\s\S]*review target/i)
   assert.match(routing, /GPT Image 2 for ordinary\/value images.*GPT Image 2\.5 Sunburst for\s+premium\/hero\/key visuals/s)
   assert.match(routing, /Wan 3\.0 for ordinary\/balanced video.*MiniMax H3 for identity\/quality\s+video.*Seedance 2\.5 for complex\/multi-reference/s)

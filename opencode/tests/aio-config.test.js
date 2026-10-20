@@ -149,12 +149,12 @@ test("default delegation is normalized and user lists extend it by union", () =>
   const withDefaults = withDefaultDelegation(normalized)
 
   assert.deepEqual(DEFAULT_DELEGATION.Producer, {
-    categories: ["video-analysis", "media-generation"],
+    categories: ["video-analysis"],
     category_families: ["media"],
     agents: ["Director", "Creator", "Editor"],
   })
   assert.deepEqual(withDefaults.delegation.Producer, {
-    categories: ["video-analysis", "media-generation", "standard"],
+    categories: ["video-analysis", "standard"],
     category_families: ["media"],
     agents: ["Director", "Creator", "Editor", "Searcher"],
   })

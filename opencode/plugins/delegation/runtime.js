@@ -17,6 +17,7 @@ import { readJson } from "./json-store.js"
 import { createAtlasMediaRuntime, createMockMediaRuntime, isMediaRuntimeTool } from "./media-runtime.js"
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
 import {
+  productionApproveGeneration,
   productionCheckpoint,
   productionPreflight,
   productionPrepareArtifacts,
@@ -235,6 +236,8 @@ export class DelegationRuntime {
 
   assertProducerProductionTool(context, name) {
     if (context?.agent !== "Producer"
+      || typeof context?.sessionID !== "string"
+      || !context.sessionID.trim()
       || (context?.sessionID && this.profiles?.has(context.sessionID))
       || (context?.sessionID && this.registry?.list().some((task) => task.child_session_id === context.sessionID))) {
       throw new Error(`${name} may only be called by the primary Producer`)
@@ -254,6 +257,11 @@ export class DelegationRuntime {
   async productionCheckpoint(args, context) {
     this.assertProducerProductionTool(context, "production_checkpoint")
     return productionCheckpoint(args, context.directory)
+  }
+
+  async productionApproveGeneration(args, context) {
+    this.assertProducerProductionTool(context, "production_approve_generation")
+    return productionApproveGeneration(args, context.directory)
   }
 
   async productionSetShots(args, context) {
@@ -844,7 +852,7 @@ export class DelegationRuntime {
         if (await isFilmProductionReferencePath(permissionValue(input), this.filmProductionSkillAccess)) {
           decision = "allow"
         }
-      } else if (agent === "Director") {
+      } else if (agent === "Director" || agent === "Creator") {
         decision = await isFilmProductionReferencePath(permissionValue(input), this.filmProductionSkillAccess)
           ? "allow"
           : "deny"

@@ -1,6 +1,7 @@
 import { tool } from "@opencode-ai/plugin"
 
 import {
+  applyFilmProductionCreatorPermissions,
   applyFilmProductionDirectorPermissions,
   applyFilmProductionProducerPermissions,
 } from "./category-permissions.js"
@@ -61,12 +62,7 @@ function mediaRuntimeTools(runtime) {
     prompt_expansion: z.boolean().optional(),
     video_output_format: z.enum(["mp4", "mov"]).optional(),
   }
-  const approvalArgs = {
-    job_id: z.string().min(1),
-    approved_request_digest: z.string().length(64),
-    approved_max_usd: z.number().nonnegative(),
-    approved_price_usd: z.number().nonnegative().optional(),
-  }
+  const submissionArgs = { job_id: z.string().min(1) }
   const generationRequestArgs = {
     ...commonGenerationArgs,
     ...imageGenerationArgs,
@@ -95,11 +91,11 @@ function mediaRuntimeTools(runtime) {
     }, media.media_upload),
     media_generate_image: guarded("media_generate_image", {
       ...imageGenerationArgs,
-      ...approvalArgs,
+      ...submissionArgs,
     }, media.media_generate_image),
     media_generate_video: guarded("media_generate_video", {
       ...videoGenerationArgs,
-      ...approvalArgs,
+      ...submissionArgs,
     }, media.media_generate_video),
     media_prediction: guarded("media_prediction", {
       job_id: z.string().min(1),
@@ -119,6 +115,7 @@ export function delegationPluginHooks(runtime, { worktree = runtime.directory } 
     config: async (config) => {
       applyFilmProductionProducerPermissions(config, runtime.filmProductionSkillAccess, worktree)
       applyFilmProductionDirectorPermissions(config, runtime.filmProductionSkillAccess)
+      applyFilmProductionCreatorPermissions(config, runtime.filmProductionSkillAccess)
     },
     tool: {
       execution_preflight: tool({
@@ -220,6 +217,15 @@ export function delegationPluginHooks(runtime, { worktree = runtime.directory } 
           important_artifacts: tool.schema.array(tool.schema.string().min(1).max(512)).max(40).optional(),
         },
         execute: async (args, context) => json(await runtime.productionCheckpoint(args, context)),
+      }),
+      production_approve_generation: tool({
+        description: "Persist Producer's explicit user approval for one calculated generation job in the canonical ProductionManifest. Bind the approval to its exact request digest and maximum USD exposure. Producer only; does not submit media or change lifecycle.",
+        args: {
+          job_id: tool.schema.string().min(1).max(128),
+          request_digest: tool.schema.string().regex(/^[a-f0-9]{64}$/),
+          approved_max_usd: tool.schema.number().nonnegative(),
+        },
+        execute: async (args, context) => json(await runtime.productionApproveGeneration(args, context)),
       }),
       production_set_shots: tool({
         description: "Replace only the canonical ProductionManifest shots with a complete ShotSpec array after validating the resulting manifest against the film-production contract. Invalid input leaves the manifest unchanged. Producer only; requires production_preflight.",

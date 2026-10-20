@@ -2,7 +2,7 @@
 name: Editor
 description: Post-production phase owner for Producer-led video work
 mode: subagent
-model: openai/gpt-5.6-sol
+model: openai/gpt-6.1-sol
 variant: high
 color: "#0891B2"
 permission:
@@ -54,6 +54,7 @@ permission:
   production_preflight: deny
   production_prepare_artifacts: deny
   production_checkpoint: deny
+  production_approve_generation: deny
   production_set_shots: deny
   production_transition: deny
   task_status: allow

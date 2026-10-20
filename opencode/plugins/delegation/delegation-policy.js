@@ -43,6 +43,7 @@ export const DELEGATING_NAMED_AGENTS = new Set(PHASE_OWNER_CATEGORY_CEILINGS.key
 // share the same authorization path; it is not a second permission system.
 const CATEGORY_CALLER_ALLOWLISTS = new Map([
   ["blender-previs", new Set(["Director"])],
+  ["media-generation", new Set(["Assistant", "Creator"])],
 ])
 const BUILTIN_AGENT_NAMES = new Set([
   ...BUILTIN_PRIMARY_AGENTS,

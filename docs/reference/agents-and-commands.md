@@ -7,7 +7,7 @@
 | Assistant | Ordinary questions, investigation, bounded work, and routing | Small direct edits or delegated implementation; no implicit OpenSpec state |
 | Browser | Direct browser navigation, interaction, visual inspection, and Task Spaces | Browser backend only; no application or workflow-file mutation |
 | Blender | Reusable 3D leaf for Blender scene/artifact inspection, authoring, previs, rendering, and visual verification through Blender MCP | Direct `/blender` or named `Executor` route; no child AIO tasks, categories, repository, Git, OpenSpec, CategoryEngine, or Delegation Runtime ownership |
-| Producer | Single video-production owner for lightweight HyperFrames and advanced `/film` orchestration | Active-project artifacts; no Git/history or workflow-runtime ownership; named Director/Creator/Editor delegation plus transitional direct media routes; direct `blender-previs` and named Blender denied |
+| Producer | Single video-production owner for lightweight HyperFrames and advanced `/film` orchestration | Active-project artifacts and canonical production state; no Git/history or workflow-runtime ownership; delegates Director/Creator/Editor and retains budget, explicit paid approval, and lifecycle control; no direct `media-generation`, `blender-previs`, or named Blender route |
 | Searcher | Normal web Search / Answer Engine with grounded current answers | Read-only native web retrieval; direct or delegated leaf, no onward delegation or OpenSpec ownership |
 | Professor | Stateful evidence-first Deep Research with adaptive verification | Read-only native retrieval plus Professor ResearchState tools; no filesystem, Git, delegation, or browser access |
 | Strategist | Product WHAT, WHY, WHO, behavior, and scope | Product strategy, proposal, and specs only |
@@ -20,12 +20,12 @@
 | Agent | Responsibility | Delegation boundary |
 |---|---|---|
 | Director | Live `/film` PLAN and PREVIS: CreativeBrief, provider-neutral ShotSpecs, camera and motion intent, Watch interpretation, creative previs revisions | `blender-previs`, `video-analysis` with Watch; Producer prepares paths and persists state |
-| Creator | Generation strategy, prompts, references, curated models and controls, generation revisions | `media-generation`, `video-analysis` with Watch; Producer owns budget and user approval |
+| Creator | Generation strategy, prompts, references, curated models and controls, generated-media execution and bounded revisions | `media-generation`, `video-analysis` with Watch; returns quotes for explicit Producer/user approval and has no production-state or checkpoint tools |
 | Editor | Timeline, graphics, captions, audio assembly, cuts, previews, renders | Official upstream HyperFrames directly, plus `video-analysis` with Watch |
 
 All three are `mode: subagent` and report to Producer. They cannot delegate
-named agents or ordinary implementation categories. Existing `/video` and
-`/film` commands remain with Producer until their live workflows migrate.
+named agents or ordinary implementation categories. `/film` stops at
+`assets-ready` in M4; `/video` remains with Producer for HyperFrames work.
 
 ## Specialists
 
@@ -55,8 +55,8 @@ Ordinary Assistant work needs no dedicated command. Video production deliberatel
 
 Assistant remains the broad/general category orchestrator. Executor is capped at
 the `implementation` family (including the bounded `git` category), while
-Producer is temporarily capped at the `media` family plus
-`blender-previs`. Director, Creator, and Editor have exact category ceilings.
+Producer is capped at the `media` family except for Creator-only
+`media-generation`. Director, Creator, and Editor have exact category ceilings.
 These ceilings are separate from named-agent policy. Built-in family labels are canonical architecture metadata
 and cannot be reclassified through `aio.json`, while custom categories may
 choose their own family. Assistant may delegate `media-generation`
@@ -67,13 +67,13 @@ Producer-owned workflows.
 the repository-owned `film-production` methodology, plans `ShotSpec[]` and a
 single `ProductionManifest`, then routes lightweight camera/blocking/timing
 previs to `blender-previs`, reviews stills and preview video through
-`video-analysis`, sends bounded Atlas media execution to `media-generation`
-only after previs approval, and leaves composition and rendering to
-HyperFrames. Atlas is the only implemented media provider; paid submissions
-remain behind the calculate/approval boundary.
+`video-analysis`, and sends generated-media strategy and bounded Atlas execution
+to Creator. Creator returns a quote for explicit Producer/user approval before
+submission. Producer owns lifecycle and checkpoint updates, and M4 stops at
+`assets-ready`; composition and rendering remain with HyperFrames for a later
+milestone. Atlas is the only implemented media provider.
 
 Blender is the single reusable 3D specialist. Use `/blender` directly, or let
-Executor delegate Blender-native product/artifact work. Producer's `/film`
-previs temporarily uses the `blender-previs` category until Director owns the
-live workflow. Named Blender is denied to Producer. Blender does not delegate
-child AIO tasks or receive a category catalog.
+Executor delegate Blender-native product/artifact work. Director's `/film`
+previs uses the `blender-previs` category. Named Blender is denied to Producer.
+Blender does not delegate child AIO tasks or receive a category catalog.

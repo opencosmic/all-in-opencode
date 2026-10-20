@@ -17,31 +17,48 @@ const availableAgents = [
   "Planner",
   "Strategist",
   "Producer",
+  "Creator",
   "Implementer",
   "Blender",
   "Browser",
-].map((name) => ({ name, mode: name === "Implementer" ? "subagent" : "primary" }))
+].map((name) => ({ name, mode: ["Implementer", "Creator"].includes(name) ? "subagent" : "primary" }))
 
-test("media-generation is a built-in Implementer category authorized for Assistant and Producer", () => {
+test("media-generation is a built-in Implementer category authorized for Assistant and Creator, not Producer", () => {
   const engine = new CategoryEngine({})
   const route = new AgentDispatcher(engine, { availableAgents })
-  const resolved = route.resolve({ category: "media-generation", parentAgent: "Producer" })
+  const resolved = route.resolve({ category: "media-generation", parentAgent: "Creator" })
 
   assert.equal(resolved.agent, "Implementer")
   assert.equal(resolved.category, "media-generation")
   assert.equal(resolved.profile.family, "media")
   assert.match(resolved.profile.prompt_append, /Atlas Cloud/i)
-  assert.match(resolved.profile.prompt_append, /approved request digest/i)
-  assert.equal(DEFAULT_DELEGATION.Producer.categories.includes("media-generation"), true)
+  assert.match(resolved.profile.prompt_append, /persisted job to contain Producer approval/i)
+  assert.match(resolved.profile.prompt_append, /Caller-supplied digests or ceilings never authorize submission/i)
+  assert.equal(DEFAULT_DELEGATION.Producer.categories.includes("media-generation"), false)
+  assert.equal(DEFAULT_DELEGATION.Creator.categories.includes("media-generation"), true)
 
   assert.doesNotThrow(() => route.resolve({ category: "media-generation", parentAgent: "Assistant" }))
-  for (const parentAgent of ["Blender", "Planner", "Strategist", "Executor", "Implementer", "Browser"]) {
+  for (const parentAgent of ["Producer", "Blender", "Planner", "Strategist", "Executor", "Implementer", "Browser"]) {
     assert.throws(
       () => route.resolve({ category: "media-generation", parentAgent }),
       /not allowed|category routes are not allowed/,
       parentAgent,
     )
   }
+
+  const widenedProducer = new AgentDispatcher(new CategoryEngine({}), {
+    aioConfig: {
+      version: 1,
+      delegation: {
+        Producer: { categories: ["media-generation"], category_families: ["media"] },
+      },
+    },
+    availableAgents,
+  })
+  assert.throws(
+    () => widenedProducer.resolve({ category: "media-generation", parentAgent: "Producer" }),
+    /Producer is not allowed to delegate category media-generation/,
+  )
 })
 
 test("media-generation has a bounded session ceiling and no recursive delegation", () => {
@@ -89,7 +106,7 @@ test("media-generation has a bounded session ceiling and no recursive delegation
   const contract = systemFor("Implementer", "media-generation", profile)
   assert.match(contract, /project-owned Implementer/)
   assert.match(contract, /Atlas Cloud/)
-  assert.match(contract, /media_calculate does not create a job or charge/)
+  assert.match(contract, /media_calculate.*records a calculated job.*canonical ProductionManifest/s)
 })
 
 test("mock media runtime is deterministic and exposes only bounded operations", () => {
@@ -133,8 +150,8 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   const fields = {
     media_calculate: ["shot_id", "media_type", "prompt", "model"],
     media_upload: ["asset_id", "path", "manifest_path"],
-    media_generate_image: ["job_id", "shot_id", "prompt", "manifest_path", "model", "approved_request_digest", "approved_max_usd"],
-    media_generate_video: ["job_id", "shot_id", "prompt", "manifest_path", "model", "approved_request_digest", "approved_max_usd"],
+    media_generate_image: ["job_id", "shot_id", "prompt", "manifest_path", "model"],
+    media_generate_video: ["job_id", "shot_id", "prompt", "manifest_path", "model"],
     media_prediction: ["job_id"],
     media_wait_prediction: ["job_id"],
   }
@@ -149,6 +166,10 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
   const uploadSchema = tool.schema.object(registered.media_upload.args)
   const imageSchema = tool.schema.object(registered.media_generate_image.args)
   const videoSchema = tool.schema.object(registered.media_generate_video.args)
+  for (const field of ["approved_request_digest", "approved_max_usd", "approved_price_usd"]) {
+    assert.equal(registered.media_generate_image.args[field], undefined)
+    assert.equal(registered.media_generate_video.args[field], undefined)
+  }
   const predictionSchema = tool.schema.object(registered.media_prediction.args)
   for (const field of ["size", "output_format", "quality", "background", "thinking", "prompt_optimization_mode"]) {
     assert.equal(typeof registered.media_generate_image.args[field]?.safeParse, "function", `image.${field}`)
@@ -206,8 +227,6 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     shot_id: "shot_01",
     prompt: "a reveal",
     manifest_path: "production-manifest.json",
-    approved_request_digest: "a".repeat(64),
-    approved_max_usd: 1,
     size: "1024*1024",
     quality: "high",
     background: "transparent",
@@ -217,8 +236,6 @@ test("media tool registrations expose raw OpenCode argument schema maps", () => 
     shot_id: "shot_01",
     prompt: "a reveal",
     manifest_path: "production-manifest.json",
-    approved_request_digest: "a".repeat(64),
-    approved_max_usd: 1,
     duration_seconds: 4,
     generate_audio: false,
     seed: 123,

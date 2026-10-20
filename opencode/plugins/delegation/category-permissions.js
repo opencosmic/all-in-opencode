@@ -28,7 +28,7 @@ const OPEN_DESIGN_RESOURCE_TOOLS = new Set([
 ])
 const MEDIA_WORKSPACE_TOOL_NAMES = Object.freeze(["read", "glob", "grep", "list", "lsp"])
 export const PRODUCTION_CONTROL_TOOL_NAMES = Object.freeze([
-  "production_preflight", "production_prepare_artifacts", "production_checkpoint",
+  "production_preflight", "production_prepare_artifacts", "production_checkpoint", "production_approve_generation",
   "production_set_shots", "production_transition",
 ])
 const BLENDER_PREVIS_TOOL_NAMES = Object.freeze([
@@ -272,7 +272,7 @@ export async function isFilmProductionReferencePath(path, access) {
 }
 
 export function filmProductionSessionPermission(agent, access) {
-  if (agent !== "Director" || !access) return undefined
+  if (!["Director", "Creator"].includes(agent) || !access) return undefined
   return [
     { permission: "external_directory", pattern: "*", action: "deny" },
     ...access.roots.flatMap((root) => {
@@ -323,16 +323,24 @@ export function applyFilmProductionProducerPermissions(config, access, worktree)
   return true
 }
 
-export function applyFilmProductionDirectorPermissions(config, access) {
-  const director = config?.agent?.Director
-  if (!director || !access) return false
+function applyFilmProductionReferencePermissions(config, agentName, access) {
+  const agent = config?.agent?.[agentName]
+  if (!agent || !access) return false
 
-  const permission = director.permission ??= {}
+  const permission = agent.permission ??= {}
   appendPermissionRules(permission, "external_directory", access.roots.flatMap((root) => {
     const references = resolve(root, "references")
     return [references, `${references}/*`].map((pattern) => ({ pattern, action: "allow" }))
   }))
   return true
+}
+
+export function applyFilmProductionDirectorPermissions(config, access) {
+  return applyFilmProductionReferencePermissions(config, "Director", access)
+}
+
+export function applyFilmProductionCreatorPermissions(config, access) {
+  return applyFilmProductionReferencePermissions(config, "Creator", access)
 }
 
 function isWatchTempPath(path) {

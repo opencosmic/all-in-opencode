@@ -2,7 +2,7 @@
 name: Technical Advisor
 description: Read-only high-reasoning consultant for difficult technical decisions
 mode: subagent
-model: openai/gpt-5.6-sol
+model: openai/gpt-6.1-sol
 variant: xhigh
 color: "#4F46E5"
 permission:

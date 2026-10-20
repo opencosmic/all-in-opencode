@@ -2,7 +2,7 @@
 name: Assistant
 description: General-purpose assistant for ordinary repository, research, Git, and video-analysis tasks
 mode: primary
-model: openai/gpt-5.6-terra
+model: openai/gpt-6.1-sol
 variant: medium
 color: "#D97706"
 permission:

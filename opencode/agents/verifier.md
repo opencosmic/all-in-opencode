@@ -2,7 +2,7 @@
 name: Verifier
 description: Independent implementation verification against an approved OpenSpec change
 mode: subagent
-model: openai/gpt-5.6-sol
+model: openai/gpt-6.1-sol
 variant: high
 color: "#0F766E"
 permission:

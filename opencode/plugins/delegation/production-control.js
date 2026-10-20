@@ -8,7 +8,8 @@ import {
   validateCanonicalProductionPath,
   validateProductionManifest,
 } from "../film-production/contracts.js"
-import { readJson, writeJson } from "./json-store.js"
+import { readJson } from "./json-store.js"
+import { createProductionManifestIfMissing, updateProductionManifest } from "./production-manifest-store.js"
 
 export const PRODUCTION_ROOT = "production"
 export const PRODUCTION_MANIFEST_PATH = "production/production-manifest.json"
@@ -17,6 +18,7 @@ const CHECKPOINT_INPUT_FIELDS = new Set([
   "current_focus", "completed", "remaining", "verification", "important_artifacts",
 ])
 const TRANSITION_INPUT_FIELDS = new Set(["to_status", "note"])
+const GENERATION_APPROVAL_INPUT_FIELDS = new Set(["job_id", "request_digest", "approved_max_usd"])
 
 async function existing(path) {
   try {
@@ -92,13 +94,10 @@ export async function productionPreflight({ project_id: projectID } = {}, direct
   if (!current) {
     const manifest = newManifest(projectID)
     production ??= await productionRoot(workspace, { create: true })
-    current = await canonicalManifest(production)
-    if (!current) {
-      const path = join(production, "production-manifest.json")
-      await writeJson(path, manifest)
-      current = { path, manifest }
-      created = true
-    }
+    const path = join(production, "production-manifest.json")
+    const initialized = await createProductionManifestIfMissing(path, manifest)
+    current = { path, manifest: initialized.manifest }
+    created = initialized.created
   }
   if (projectID !== undefined && projectID !== current.manifest.project.id) {
     throw new Error(`project_id ${projectID} does not match canonical production ${current.manifest.project.id}`)
@@ -187,10 +186,10 @@ export async function productionSetShots(args = {}, directory) {
   }
   if (!Array.isArray(args.shots)) throw new Error("production_set_shots requires a complete ShotSpec array in shots")
 
-  const { path, manifest } = await requiredProduction(directory)
-  const next = { ...manifest, shots: structuredClone(args.shots) }
-  validateProductionManifest(next)
-  await writeJson(path, next)
+  const { path } = await requiredProduction(directory)
+  const { manifest: next } = await updateProductionManifest(path, (manifest) => {
+    manifest.shots = structuredClone(args.shots)
+  })
   return {
     project_id: next.project.id,
     project_status: next.project.status,
@@ -208,14 +207,16 @@ export async function productionTransition(args = {}, directory) {
   for (const field of Object.keys(args)) {
     if (!TRANSITION_INPUT_FIELDS.has(field)) throw new Error(`production_transition does not accept ${field}`)
   }
-  const { path, manifest } = await requiredProduction(directory)
-  const previousStatus = manifest.project.status
-  const next = transitionProductionManifest(manifest, args.to_status, {
-    at: new Date().toISOString(),
-    ...(args.note === undefined ? {} : { note: args.note }),
+  const { path } = await requiredProduction(directory)
+  const { manifest: next, result: previousStatus } = await updateProductionManifest(path, (manifest) => {
+    const previous = manifest.project.status
+    const transitioned = transitionProductionManifest(manifest, args.to_status, {
+      at: new Date().toISOString(),
+      ...(args.note === undefined ? {} : { note: args.note }),
+    })
+    Object.assign(manifest, transitioned)
+    return previous
   })
-  validateProductionManifest(next)
-  await writeJson(path, next)
   return {
     project_id: next.project.id,
     previous_status: previousStatus,
@@ -227,28 +228,93 @@ export async function productionTransition(args = {}, directory) {
 }
 
 export async function productionCheckpoint(args = {}, directory) {
-  const { path, manifest } = await requiredProduction(directory)
+  const { path } = await requiredProduction(directory)
   if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("production_checkpoint input must be an object")
   for (const field of Object.keys(args)) {
     if (!CHECKPOINT_INPUT_FIELDS.has(field)) throw new Error(`production_checkpoint does not accept ${field}`)
   }
-  const checkpoint = {
-    phase: manifest.project.status,
-    current_focus: Object.hasOwn(args, "current_focus") ? args.current_focus : null,
-    completed: Object.hasOwn(args, "completed") ? args.completed : [],
-    remaining: Object.hasOwn(args, "remaining") ? args.remaining : [],
-    verification: Object.hasOwn(args, "verification") ? args.verification : {},
-    important_artifacts: Object.hasOwn(args, "important_artifacts") ? args.important_artifacts : [],
-    updated_at: new Date().toISOString(),
-  }
-  const next = { ...manifest, latest_checkpoint: checkpoint }
-  validateProductionManifest(next)
-  await writeJson(path, next)
+  const { manifest: next, result: checkpoint } = await updateProductionManifest(path, (manifest) => {
+    const currentCheckpoint = {
+      phase: manifest.project.status,
+      current_focus: Object.hasOwn(args, "current_focus") ? args.current_focus : null,
+      completed: Object.hasOwn(args, "completed") ? args.completed : [],
+      remaining: Object.hasOwn(args, "remaining") ? args.remaining : [],
+      verification: Object.hasOwn(args, "verification") ? args.verification : {},
+      important_artifacts: Object.hasOwn(args, "important_artifacts") ? args.important_artifacts : [],
+      updated_at: new Date().toISOString(),
+    }
+    manifest.latest_checkpoint = currentCheckpoint
+    return currentCheckpoint
+  })
   return {
     project_id: next.project.id,
     project_status: next.project.status,
     manifest_revision: next.revision,
     manifest: { canonical_path: PRODUCTION_MANIFEST_PATH, runtime_path: path },
     latest_checkpoint: checkpoint,
+  }
+}
+
+export async function productionApproveGeneration(args = {}, directory) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("production_approve_generation input must be an object")
+  }
+  for (const field of Object.keys(args)) {
+    if (!GENERATION_APPROVAL_INPUT_FIELDS.has(field)) {
+      throw new Error(`production_approve_generation does not accept ${field}`)
+    }
+  }
+  if (typeof args.job_id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(args.job_id)) {
+    throw new Error("production_approve_generation requires a valid job_id")
+  }
+  if (typeof args.request_digest !== "string" || !/^[a-f0-9]{64}$/.test(args.request_digest)) {
+    throw new Error("production_approve_generation requires a lowercase SHA-256 request_digest")
+  }
+  if (typeof args.approved_max_usd !== "number" || !Number.isFinite(args.approved_max_usd) || args.approved_max_usd < 0) {
+    throw new Error("approved_max_usd must be a non-negative number")
+  }
+
+  const { path } = await requiredProduction(directory)
+  const { result: approved } = await updateProductionManifest(path, (manifest) => {
+    const job = manifest.generation_jobs.find((candidate) => candidate.job_id === args.job_id)
+    if (!job) throw new Error(`ProductionManifest has no generation job ${args.job_id}`)
+    if (job.status !== "calculated") {
+      throw new Error(`generation job ${args.job_id} must be calculated before Producer approval`)
+    }
+    if (job.request_digest !== args.request_digest) {
+      throw new Error("generation approval rejected: request_digest does not match the calculated job")
+    }
+    if (typeof job.estimated_usd !== "number" || !Number.isFinite(job.estimated_usd) || job.estimated_usd < 0) {
+      throw new Error(`generation job ${args.job_id} has no valid calculated price to approve`)
+    }
+    if (args.approved_max_usd < job.estimated_usd) {
+      throw new Error(`approved_max_usd ${args.approved_max_usd} is below the calculated price ${job.estimated_usd}`)
+    }
+
+    const timestamp = new Date().toISOString()
+    Object.assign(job, {
+      // Existing status used for a quoted job cleared by Producer and waiting for Creator submission.
+      status: "awaiting_approval",
+      approved_usd: args.approved_max_usd,
+      approved_max_usd: args.approved_max_usd,
+      approved_price_usd: job.estimated_usd,
+      updated_at: timestamp,
+    })
+    manifest.costs.approved_usd = manifest.generation_jobs
+      .map((candidate) => candidate.approved_usd)
+      .filter((value) => typeof value === "number" && Number.isFinite(value))
+      .reduce((total, value) => total + value, 0)
+    manifest.updated_at = timestamp
+    return {
+      job_id: job.job_id,
+      status: job.status,
+      request_digest: job.request_digest,
+      approved_price_usd: job.approved_price_usd,
+      approved_max_usd: job.approved_max_usd,
+    }
+  })
+  return {
+    ...approved,
+    manifest: { canonical_path: PRODUCTION_MANIFEST_PATH, runtime_path: path },
   }
 }

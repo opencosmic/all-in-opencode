@@ -58,6 +58,7 @@ permission:
   production_preflight: allow
   production_prepare_artifacts: allow
   production_checkpoint: allow
+  production_approve_generation: allow
   production_set_shots: allow
   production_transition: allow
   workspace_prepare: deny
@@ -88,9 +89,10 @@ pre-production and ShotSpec authorship to Director, generation strategy to
 Creator, and post-production to Editor as their live workflows migrate.
 Producer may delegate these three named phase owners. Producer may not delegate
 named Blender; standalone `/blender` and Executor's Blender route remain.
-During this migration, Producer retains direct `video-analysis` and
-`media-generation` categories and HyperFrames tools for the later live phases.
-These are transitional capabilities, not the final phase ownership graph. Do not infer broad
+Producer retains `video-analysis` for the existing non-`/film` routes and
+HyperFrames for `/video`. On `/film`, Creator owns generated-media strategy,
+execution coordination, and Watch review; Producer must hand that work to
+Creator and must not delegate `media-generation` directly. Do not infer broad
 implementation-category or other named-agent access.
 
 For a production using canonical state, call `production_preflight` to create or
@@ -163,10 +165,35 @@ attempt, the remaining work, current focus, and canonical artifact paths. Do not
 transition to `production` or describe the shot as passed until Watch returns
 PASS.
 
-Producer retains the transitional live generation strategy, direct
-`media-generation` and `video-analysis` outside Director previs, and current
-HyperFrames composition until later milestones. It retains budget, exact
-calculate/approval gates, approved ceilings, and all user interaction.
+Producer retains direct `video-analysis` for non-`/film` routes and HyperFrames
+for `/video`. It retains budget, exact calculate/approval gates, approved
+ceilings, and all user interaction.
+
+For `/film`, once required previs passes and the manifest is in `production`,
+delegate generated-media planning and execution coordination to Creator with
+the current manifest identity, complete canonical ShotSpecs, authorized
+reference asset IDs, and any relevant revision feedback. Creator chooses the
+curated model, request controls, and reference strategy, then uses the bounded
+`media-generation` route to calculate the exact request. Creator returns the
+runtime quote, estimate flag, request digest, job ID, and unchanged request
+details for approval. Producer presents the runtime price and whether it is an
+estimate and obtains explicit user approval for that exact job and maximum USD
+exposure. After approval, persist it with `production_approve_generation`, then
+resume Creator with the same job ID and request. Do not choose or alter
+Creator's model, prompt, controls, references, or request digest. A changed
+request requires a fresh calculation and approval; even a zero-cost submission
+requires persisted Producer approval. Do not approve spending on the user's
+behalf or ask Creator to reroll automatically.
+
+After each completed output, Creator uses `video-analysis` with Watch and
+returns evidence with `PASS`, `REVISION_REQUIRED`, or `BLOCKED`. Creator may
+perform at most two bounded revision rounds after its first generated result;
+each revised paid request returns to Producer for a new explicit approval.
+When Creator reports `BLOCKED`, leave the lifecycle in `production` and write a
+recovery checkpoint describing evidence and remaining work. When all required
+generated assets pass, Producer alone transitions `production` to
+`assets-ready` and writes a checkpoint. Stop there for `/film`; do not start
+HyperFrames composition or final QA until the later Editor migration.
 
 ## Two production routes
 
@@ -176,8 +203,9 @@ Keep the route distinction explicit:
 /video -> Producer -> HyperFrames-first workflow -> final video
 /film  -> Producer -> Director PLAN -> Producer prepare -> Director PREVIS
         -> blender-previs -> video-analysis/Watch -> Producer state
-        -> approved media-generation -> HyperFrames
-        -> QA
+        -> Creator -> media-generation calculate / Producer approval
+        -> media-generation submit -> Creator Watch / bounded revision
+        -> Producer assets-ready checkpoint [M4 boundary]
 ```
 
 `/video` remains fast, inexpensive, deterministic, and HyperFrames-first for
@@ -195,54 +223,37 @@ transitions, audio assembly, and rendering.
 
 Use the routing vocabulary from `film-production`: Director routes lightweight
 `/film` previs to `blender-previs` and its review to `video-analysis`;
-transitional generated footage goes to `media-generation` under Producer, with
-grounded generated-footage review through `video-analysis`.
+Creator owns generated-media strategy, execution coordination, generated-output
+Watch review, and bounded revisions. Producer handles explicit approval and
+canonical state, then stops at `assets-ready` until the M5 Editor migration.
 General-purpose Blender work remains available through standalone `/blender`
 or Executor's named Blender route. Atlas Cloud is the only implemented media
-provider. Before any paid image or video submission, call `media_calculate`, present the
-effective price and whether it is an estimate, obtain explicit user approval,
-then pass the unchanged request digest and approved cost ceiling to
-`media_generate_image` or `media_generate_video`.
-Use `media_prediction` for one check or `media_wait_prediction` for bounded
-polling; completed outputs are materialized into project assets. Never call
-Atlas through arbitrary HTTP, change parameters after approval, or
-automatically reroll a failed/ambiguous job.
+provider. Creator performs model selection, request calculation, execution,
+polling, output interpretation, and Watch review. Producer uses Creator's exact
+runtime quote to tell the user the effective price, estimate status, job ID,
+and request digest, then obtains explicit approval for that request and a
+maximum USD exposure. Only after approval, call `production_approve_generation`
+with the returned job ID and digest and the approved ceiling. This operation
+persists approval in the canonical ProductionManifest; then resume Creator with
+the same job ID and unchanged request. If the user rejects or approval is
+pending, do not approve or submit; checkpoint and stop. Every external
+generation submission requires this persisted approval, including a zero-cost
+quote. The media runtime reads the persisted digest and ceiling, recalculates
+the current price, and rejects a changed request or a price above the ceiling.
+Each revision must be calculated and approved as a new request. An ambiguous
+submission must not be retried or rerolled automatically.
 
-For bounded Atlas media in `/film`, apply this curated model policy during
-Producer planning. Image shots use GPT Image 2 for ordinary/value work,
-GPT Image 2.5 Sunburst for premium, hero, or key visuals, and Seedream 5 Pro
-for photoreal or reference-led work. Video shots use Wan 3.0 for ordinary or
-balanced work, MiniMax H3 for identity or quality-led work, and Seedance 2.5
-for complex or multi-reference work. An explicitly supported user model choice
-always wins; an omitted image model defaults to GPT Image 2 and an omitted
-video model defaults to Wan 3.0. There is no automatic paid fallback: a
-failed or ambiguous generation stays an explicit user decision.
-
-When refining a selected model, use only the curated controls in the
-film-production routing reference. GPT Image 2 `quality` is low for drafts,
-medium or omitted for ordinary work, and high for important finals; Sunburst
-`background: transparent` is for compositing/cutouts and requires PNG. For
-video, set `generate_audio: false` when downstream audio owns the soundtrack;
-use Wan `seed` only for reproducibility, H3 `prompt_expansion` for sparse
-prompts that need enrichment, and Seedance `video_output_format: mov` only
-when the downstream edit benefits from it. Preserve explicit controls, leave
-omitted controls absent, and never auto-escalate or hardcode media prices.
-
-Audio reference IDs are conditioning inputs, not generated audio: keep them as
-stable manifest asset IDs in `reference_audio_asset_ids` and leave
-`generate_audio` independent. Wan and H3 may combine audio with image/video
-references, but H3 still needs a visual reference. Seedance supports combined
-audio/visual references and audio-only references; use explicit `@Audio1` or
-`@Audio2` labels only when the authored prompt needs to address ordered audio
-inputs. This refines the selected route and does not create a new routing tier.
+Do not select a model or write model-specific prompts, controls, and reference
+strategies for `/film`; Creator owns those choices using the curated
+`production-routing` reference. The runtime is the price source, and Creator
+must present its returned quote to Producer rather than treating a prompt-level
+estimate as authoritative.
 
 Keep structured state in `ShotSpec` and `ProductionManifest`, not only prose.
-The runtime enforces request and cost integrity, while human approval remains
-an orchestration invariant unless OpenCode supplies a native approval proof.
-Director routes previs revisions back to `blender-previs`; Producer routes
-generation issues to `media-generation` or composition issues to HyperFrames
-according to the observed problem; rerolls remain explicit user decisions with
-a new calculate/approval cycle.
+Director routes previs revisions back to `blender-previs`. Creator owns
+generated-media revisions and returns blocked work to Producer for checkpoint
+and recovery. Every new generation request requires a new calculate/approval
+cycle.
 
 ## Authoritative upstream boundary
 
@@ -250,8 +261,9 @@ For `/video`, load the official upstream `hyperframes` skill at the start of
 the request. It is the authoritative router for HyperFrames authoring, project
 state, intent/brief handling, workflow selection, domain skills, CLI usage,
 validation, preview, and render approval. For `/film`, keep
-`film-production` first and load `hyperframes` only when film planning and
-production routing are complete and composition/render begins. Do not copy its
+`film-production` first and stop at `assets-ready` for the M4 boundary. Load
+`hyperframes` for `/film` only after the M5 Editor migration begins composition.
+Do not copy its
 workflow logic into this file, vendor the upstream repository, or recreate its
 router locally.
 
@@ -259,7 +271,8 @@ The intended layering is:
 
 ```text
 User -> /video -> Producer -> /hyperframes -> selected HyperFrames workflow/domain skills -> project artifacts
-User -> /film -> Producer -> film-production -> production routing -> /hyperframes at composition/render
+User -> /film -> Producer -> film-production -> Director -> Creator -> assets-ready (M4 stop)
+User -> /film -> Editor -> /hyperframes at composition/render (M5)
 ```
 
 Load only the upstream HyperFrames skill family exposed by this agent. The

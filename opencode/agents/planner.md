@@ -2,7 +2,7 @@
 name: Planner
 description: Engineering design and executable task planning for an approved OpenSpec product contract
 mode: primary
-model: openai/gpt-5.6-sol
+model: openai/gpt-6.1-sol
 variant: high
 color: "#7C3AED"
 permission:

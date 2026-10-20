@@ -15,6 +15,19 @@ import {
 
 const referenceResolver = (references) => async (assetID) => references[assetID]
 
+test("Creator Wan requests require the canonical identifier and reject unsupported false defaults", async () => {
+  const request = {
+    model: ATLAS_WAN_MODEL, prompt: "A fox crosses a clearing", duration_seconds: 5,
+    resolution: "480p", ratio: "16:9", generate_audio: false, seed: 0,
+  }
+  const accepted = await buildAtlasMediaRequest("video", request)
+  assert.equal(accepted.body.model, "alibaba/wan-3.0/reference-to-video")
+  assert.equal(accepted.body.audio, false)
+  assert.equal(accepted.body.seed, 0)
+  await assert.rejects(buildAtlasMediaRequest("video", { ...request, model: "wan-3.0" }), /unsupported Atlas media model: wan-3.0/)
+  await assert.rejects(buildAtlasMediaRequest("video", { ...request, prompt_expansion: false }), /prompt_expansion is not supported for Wan/)
+})
+
 test("Atlas model definitions contain exactly six active models", () => {
   const imageModels = listAtlasMediaModels("image").map(({ model }) => model)
   const videoModels = listAtlasMediaModels("video").map(({ model }) => model)
