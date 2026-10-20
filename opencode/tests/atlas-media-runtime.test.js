@@ -71,11 +71,13 @@ function deferred() {
 }
 
 async function waitUntil(condition) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline) {
     if (condition()) return
-    await new Promise((resolve) => setImmediate(resolve))
+    await new Promise((resolve) => setTimeout(resolve, 5))
   }
-  throw new Error("condition was not met after 100 event-loop turns")
+  if (condition()) return
+  throw new Error("condition was not met within 2000ms")
 }
 
 function deferredPredictionClient() {
