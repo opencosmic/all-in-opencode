@@ -3,7 +3,8 @@ import { mkdir, readFile, realpath, rename, stat, unlink, writeFile } from "node
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 import { validateProductionManifest } from "../film-production/contracts.js"
-import { readJson, writeJson } from "./json-store.js"
+import { readJson } from "./json-store.js"
+import { updateProductionManifest } from "./production-manifest-store.js"
 import { createAtlasClient } from "./atlas-client.js"
 import { buildAtlasMediaRequest } from "./atlas-media-models.js"
 
@@ -347,19 +348,18 @@ function refreshManifestCosts(manifest) {
 
 async function persistManifestState(manifestPath, record, { assets = [], now } = {}) {
   if (!manifestPath) return
-  const manifest = await readManifest(manifestPath)
-  const existingIndex = manifest.generation_jobs.findIndex((job) => job.job_id === record.job_id)
-  if (existingIndex === -1) manifest.generation_jobs.push(structuredClone(record))
-  else manifest.generation_jobs[existingIndex] = { ...manifest.generation_jobs[existingIndex], ...structuredClone(record) }
-  for (const asset of assets) {
-    const assetIndex = manifest.assets.findIndex((candidate) => candidate.asset_id === asset.asset_id)
-    if (assetIndex === -1) manifest.assets.push(structuredClone(asset))
-    else manifest.assets[assetIndex] = { ...manifest.assets[assetIndex], ...structuredClone(asset) }
-  }
-  refreshManifestCosts(manifest)
-  manifest.updated_at = nowISO(now)
-  validateProductionManifest(manifest)
-  await writeJson(manifestPath, manifest)
+  await updateProductionManifest(manifestPath, (manifest) => {
+    const existingIndex = manifest.generation_jobs.findIndex((job) => job.job_id === record.job_id)
+    if (existingIndex === -1) manifest.generation_jobs.push(structuredClone(record))
+    else manifest.generation_jobs[existingIndex] = { ...manifest.generation_jobs[existingIndex], ...structuredClone(record) }
+    for (const asset of assets) {
+      const assetIndex = manifest.assets.findIndex((candidate) => candidate.asset_id === asset.asset_id)
+      if (assetIndex === -1) manifest.assets.push(structuredClone(asset))
+      else manifest.assets[assetIndex] = { ...manifest.assets[assetIndex], ...structuredClone(asset) }
+    }
+    refreshManifestCosts(manifest)
+    manifest.updated_at = nowISO(now)
+  })
 }
 
 function outputExtension(mediaType, providerURL, contentType) {
@@ -623,17 +623,19 @@ export function createAtlasMediaRuntime({
       size_bytes: result.size_bytes,
     }
     if (manifestPath) {
-      manifestAsset.metadata = {
-        ...(manifestAsset.metadata ?? {}),
-        atlascloud: {
-          ...(manifestAsset.metadata?.atlascloud ?? {}),
-          ...uploadRecord,
-          uploaded_at: nowISO(now),
-        },
-      }
-      manifest.updated_at = nowISO(now)
-      validateProductionManifest(manifest)
-      await writeJson(manifestPath, manifest)
+      await updateProductionManifest(manifestPath, (latest) => {
+        const currentAsset = latest.assets.find((candidate) => candidate.asset_id === assetID)
+        if (!currentAsset) throw new Error(`ProductionManifest no longer has asset ${assetID}`)
+        currentAsset.metadata = {
+          ...(currentAsset.metadata ?? {}),
+          atlascloud: {
+            ...(currentAsset.metadata?.atlascloud ?? {}),
+            ...uploadRecord,
+            uploaded_at: nowISO(now),
+          },
+        }
+        latest.updated_at = nowISO(now)
+      })
     }
     uploads.set(assetID, {
       ...uploadRecord,

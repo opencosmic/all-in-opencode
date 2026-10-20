@@ -8,15 +8,24 @@ const runtime = createAtlasMediaRuntime({
   directory,
   client: {
     calculate: async () => {
-      await delay(75)
+      if (mode === "hold-calculate") {
+        process.send({ type: "calculate_ready", job_id: request.job_id })
+        await new Promise((resolve) => {
+          process.once("message", (message) => {
+            if (message.type === "continue_calculate") resolve()
+          })
+        })
+      } else {
+        await delay(75)
+      }
       return { data: { price: 0.20, estimated: false } }
     },
     generateVideo: async () => {
       // The canonical reservation is already persisted, but no provider dispatch happened.
       if (mode === "crash-before-dispatch") process.exit(23)
-      process.send({ type: "provider_submission" })
+      process.send({ type: "provider_submission", job_id: request.job_id })
       await delay(75)
-      return { data: { id: "fake-worker-prediction", status: "processing" } }
+      return { data: { id: `fake-worker-${request.job_id}`, status: "processing" } }
     },
   },
 })

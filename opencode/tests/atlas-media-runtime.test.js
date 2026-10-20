@@ -19,7 +19,7 @@ import {
   createAtlasMediaRuntime,
   requestDigest,
 } from "../plugins/delegation/media-runtime.js"
-import { productionApproveGeneration } from "../plugins/delegation/production-control.js"
+import { productionApproveGeneration, productionCheckpoint } from "../plugins/delegation/production-control.js"
 
 const shot = {
   shot_id: "shot_01",
@@ -165,10 +165,13 @@ function submissionWorker(t, root, request, mode, onSubmission = () => {}) {
   const child = fork(new URL("./support/media-submission-worker.js", import.meta.url), [root, JSON.stringify(request), mode], {
     stdio: ["ignore", "ignore", "pipe", "ipc"],
   })
+  let readyCalculate
+  const calculateReady = new Promise((resolveReady) => { readyCalculate = resolveReady })
   const ready = once(child, "message")
   const outcome = new Promise((resolveResult, reject) => {
     child.on("message", (message) => {
       if (message.type === "provider_submission") onSubmission()
+      if (message.type === "calculate_ready") readyCalculate(message)
       if (message.type === "result") {
         if (message.error) reject(new Error(message.error))
         else resolveResult(message.value)
@@ -179,7 +182,13 @@ function submissionWorker(t, root, request, mode, onSubmission = () => {}) {
   })
   outcome.catch(() => {})
   t.after(() => { if (child.exitCode === null) child.kill() })
-  return { ready, outcome, start: () => child.send({ type: "submit" }) }
+  return {
+    ready,
+    calculateReady,
+    outcome,
+    start: () => child.send({ type: "submit" }),
+    continueCalculate: () => child.send({ type: "continue_calculate" }),
+  }
 }
 
 function videoRequest(manifestPath) {
@@ -188,6 +197,46 @@ function videoRequest(manifestPath) {
     prompt: "A fox wearing a blue scarf crosses a misty dawn clearing",
     duration_seconds: 5, resolution: "480p", ratio: "16:9", manifest_path: manifestPath,
   }
+}
+
+function concurrentSubmissionClient({ quoteCount, submissionCount, price = 0.20 }) {
+  const calls = []
+  let calculations = 0
+  let recalculations = 0
+  let releaseRecalculations
+  const recalculationBarrier = new Promise((resolveBarrier) => { releaseRecalculations = resolveBarrier })
+  return {
+    calls,
+    calculate: async (body) => {
+      calls.push({ operation: "calculate", body: structuredClone(body) })
+      calculations += 1
+      if (calculations > quoteCount) {
+        recalculations += 1
+        if (recalculations === submissionCount) releaseRecalculations()
+        await recalculationBarrier
+      }
+      return { data: { price, origin_price: price, discount: 100, estimated: false } }
+    },
+    generateVideo: async (body) => {
+      const predictionID = `prediction-${requestDigest(body).slice(0, 16)}`
+      calls.push({ operation: "generateVideo", body: structuredClone(body), predictionID })
+      return { data: { id: predictionID, status: "processing" } }
+    },
+  }
+}
+
+async function createApprovedVideoJobs(root, runtime, manifestRequestPath, count) {
+  const jobs = []
+  for (let index = 0; index < count; index += 1) {
+    const request = {
+      ...videoRequest(manifestRequestPath),
+      prompt: `Approved concurrent fox request ${index + 1}`,
+    }
+    const quote = await runtime.media_calculate(request)
+    await approveGeneration(root, quote, quote.price_usd)
+    jobs.push({ request, quote })
+  }
+  return jobs
 }
 
 test("concurrent submission in one runtime or independent runtimes consumes one approval once", async (t) => {
@@ -221,6 +270,142 @@ test("concurrent submission in one runtime or independent runtimes consumes one 
   }
 })
 
+test("two distinct approved jobs submit concurrently and both canonical updates persist", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    const client = concurrentSubmissionClient({ quoteCount: 2, submissionCount: 2 })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const jobs = await createApprovedVideoJobs(root, runtime, manifestRequestPath, 2)
+    const outcomes = await Promise.allSettled(jobs.map(({ request, quote }) =>
+      runtime.media_generate_video({ ...request, job_id: quote.job_id })))
+    assert.deepEqual(outcomes.map((result) => result.status), ["fulfilled", "fulfilled"])
+    const results = outcomes.map((result) => result.value)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 2)
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    validateProductionManifest(manifest)
+    for (const { quote } of jobs) {
+      const stored = manifest.generation_jobs.find((job) => job.job_id === quote.job_id)
+      assert.equal(stored.status, "submitted")
+      assert.equal(stored.provider_prediction_id, results.find((result) => result.job_id === quote.job_id).prediction_id)
+    }
+  } finally { await cleanup(root) }
+})
+
+test("five distinct approved jobs preserve every reservation and prediction ID under contention", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    const client = concurrentSubmissionClient({ quoteCount: 5, submissionCount: 5 })
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const jobs = await createApprovedVideoJobs(root, runtime, manifestRequestPath, 5)
+    const outcomes = await Promise.allSettled(jobs.map(({ request, quote }) =>
+      runtime.media_generate_video({ ...request, job_id: quote.job_id })))
+    assert.deepEqual(outcomes.map((result) => result.status), ["fulfilled", "fulfilled", "fulfilled", "fulfilled", "fulfilled"])
+    const results = outcomes.map((result) => result.value)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 5)
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    validateProductionManifest(manifest)
+    assert.equal(manifest.generation_jobs.length, 5)
+    for (const { quote } of jobs) {
+      const stored = manifest.generation_jobs.find((job) => job.job_id === quote.job_id)
+      assert.equal(stored.status, "submitted")
+      assert.ok(stored.provider_prediction_id)
+      assert.equal(results.find((result) => result.job_id === quote.job_id).prediction_id, stored.provider_prediction_id)
+    }
+  } finally { await cleanup(root) }
+})
+
+test("different runtime instances serialize their writes to one shared ProductionManifest", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    const client = concurrentSubmissionClient({ quoteCount: 2, submissionCount: 2 })
+    const first = createAtlasMediaRuntime({ directory: root, client })
+    const second = createAtlasMediaRuntime({ directory: root, client })
+    const jobs = await createApprovedVideoJobs(root, first, manifestRequestPath, 2)
+    const outcomes = await Promise.allSettled(jobs.map(({ request, quote }, index) =>
+      (index === 0 ? first : second).media_generate_video({ ...request, job_id: quote.job_id })))
+    assert.deepEqual(outcomes.map((result) => result.status), ["fulfilled", "fulfilled"])
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    validateProductionManifest(manifest)
+    assert.equal(manifest.generation_jobs.filter((job) => job.status === "submitted").length, 2)
+    assert.equal(client.calls.filter((call) => call.operation === "generateVideo").length, 2)
+  } finally { await cleanup(root) }
+})
+
+test("a submission reservation and Producer approval for another job preserve both job states", async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  try {
+    let calculationNumber = 0
+    let releaseCalculation
+    let markCalculationEntered
+    const calculationEntered = new Promise((resolveEntered) => { markCalculationEntered = resolveEntered })
+    const client = fakeClient({ costs: [{ price: 0.20 }, { price: 0.20 }, { price: 0.20 }] })
+    const originalCalculate = client.calculate
+    client.calculate = async (body) => {
+      calculationNumber += 1
+      if (calculationNumber === 3) {
+        markCalculationEntered()
+        await new Promise((resolveCalculation) => { releaseCalculation = resolveCalculation })
+      }
+      return originalCalculate(body)
+    }
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const firstRequest = { ...videoRequest(manifestRequestPath), prompt: "First concurrent approved request" }
+    const secondRequest = { ...videoRequest(manifestRequestPath), prompt: "Second concurrent approval request" }
+    const firstQuote = await runtime.media_calculate(firstRequest)
+    const secondQuote = await runtime.media_calculate(secondRequest)
+    await approveGeneration(root, firstQuote, 0.20)
+
+    const submission = runtime.media_generate_video({ ...firstRequest, job_id: firstQuote.job_id })
+    await calculationEntered
+    const secondApproval = approveGeneration(root, secondQuote, 0.20)
+    releaseCalculation()
+    const outcomes = await Promise.allSettled([submission, secondApproval])
+    assert.deepEqual(outcomes.map((result) => result.status), ["fulfilled", "fulfilled"])
+
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    validateProductionManifest(manifest)
+    assert.equal(manifest.generation_jobs.find((job) => job.job_id === firstQuote.job_id).status, "submitted")
+    assert.equal(manifest.generation_jobs.find((job) => job.job_id === secondQuote.job_id).status, "awaiting_approval")
+    assert.equal(manifest.costs.approved_usd, 0.40)
+  } finally { await cleanup(root) }
+})
+
+test("job submission reservation preserves a concurrent Producer checkpoint and provider work stays outside the lock", { timeout: 10_000 }, async () => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  let submission
+  let releaseCalculation
+  try {
+    let markCalculationEntered
+    const calculationEntered = new Promise((resolveEntered) => { markCalculationEntered = resolveEntered })
+    const client = fakeClient({ costs: [{ price: 0.25 }, { price: 0.20 }] })
+    const originalCalculate = client.calculate
+    client.calculate = async (body) => {
+      if (client.calls.filter((call) => call.operation === "calculate").length === 1) {
+        markCalculationEntered()
+        await new Promise((resolveCalculation) => { releaseCalculation = resolveCalculation })
+      }
+      return originalCalculate(body)
+    }
+    const runtime = createAtlasMediaRuntime({ directory: root, client })
+    const request = videoRequest(manifestRequestPath)
+    const quote = await runtime.media_calculate(request)
+    await approveGeneration(root, quote, 0.25)
+    submission = runtime.media_generate_video({ ...request, job_id: quote.job_id })
+    await calculationEntered
+    await productionCheckpoint({ current_focus: "parallel review state" }, root)
+    releaseCalculation()
+    await submission
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    validateProductionManifest(manifest)
+    assert.equal(manifest.generation_jobs[0].status, "submitted")
+    assert.equal(manifest.latest_checkpoint.current_focus, "parallel review state")
+  } finally {
+    releaseCalculation?.()
+    await submission?.catch(() => {})
+    await cleanup(root)
+  }
+})
+
 test("separate Node workers cannot submit the same approved job twice", { timeout: 10_000 }, async (t) => {
   const { root, manifestPath, manifestRequestPath } = await fixture()
   t.after(() => cleanup(root))
@@ -241,6 +426,31 @@ test("separate Node workers cannot submit the same approved job twice", { timeou
   assert.equal(manifest.generation_jobs[0].status, "submitted")
   await assert.rejects(runtime.media_generate_video({ ...request, job_id: quote.job_id }), /cannot be submitted again/)
   t.diagnostic(JSON.stringify({ boundary: "separate Node processes", attempts: 2, provider_submissions: submissions, results: results.map((r) => r.status), final_status: "submitted" }))
+})
+
+test("separate Node processes preserve submissions for two different approved jobs", { timeout: 15_000 }, async (t) => {
+  const { root, manifestPath, manifestRequestPath } = await fixture()
+  t.after(() => cleanup(root))
+  const runtime = createAtlasMediaRuntime({ directory: root, client: fakeClient({ costs: [{ price: 0.20 }, { price: 0.20 }] }) })
+  const jobs = await createApprovedVideoJobs(root, runtime, manifestRequestPath, 2)
+  let submissions = 0
+  const workers = jobs.map(({ request, quote }) =>
+    submissionWorker(t, root, { ...request, job_id: quote.job_id }, "hold-calculate", () => submissions++))
+  await Promise.all(workers.map((worker) => worker.ready))
+  workers.forEach((worker) => worker.start())
+  const calculateArrivals = await Promise.all(workers.map((worker) => worker.calculateReady))
+  assert.deepEqual(calculateArrivals.map((message) => message.job_id).sort(), jobs.map(({ quote }) => quote.job_id).sort())
+  workers.forEach((worker) => worker.continueCalculate())
+  const results = await Promise.allSettled(workers.map((worker) => worker.outcome))
+  assert.deepEqual(results.map((result) => result.status), ["fulfilled", "fulfilled"])
+  assert.equal(submissions, 2)
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+  validateProductionManifest(manifest)
+  for (const { quote } of jobs) {
+    const stored = manifest.generation_jobs.find((job) => job.job_id === quote.job_id)
+    assert.equal(stored.status, "submitted")
+    assert.equal(stored.provider_prediction_id, `fake-worker-${quote.job_id}`)
+  }
 })
 
 test("a process crash after reservation but before dispatch cannot authorize an automatic retry", { timeout: 10_000 }, async (t) => {
