@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
-import { mkdir, readFile, realpath, rename, stat, writeFile } from "node:fs/promises"
+import { mkdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises"
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 import { validateProductionManifest } from "../film-production/contracts.js"
@@ -291,6 +291,46 @@ function findManifestJob(manifest, jobID) {
   return manifest.generation_jobs.find((job) => job.job_id === jobID) ?? null
 }
 
+async function claimGenerationJob(manifestPath, jobID, purpose) {
+  const path = join(dirname(manifestPath), `.media-${jobID}.claim`)
+  try {
+    await writeFile(path, `${JSON.stringify({ job_id: jobID, purpose, claimed_at: new Date().toISOString() })}\n`, { flag: "wx" })
+  } catch (error) {
+    if (error?.code === "EEXIST") {
+      throw new Error(`Atlas media job ${jobID} submission already claimed or quote refresh in progress; do not retry automatically`)
+    }
+    throw error
+  }
+  return () => unlink(path)
+}
+
+function persistedApprovalCeiling(job) {
+  if (typeof job?.approved_max_usd !== "number" || !Number.isFinite(job.approved_max_usd) || job.approved_max_usd < 0
+    || typeof job.approved_price_usd !== "number" || !Number.isFinite(job.approved_price_usd) || job.approved_price_usd < 0
+    || job.approved_usd !== job.approved_max_usd
+    || job.approved_price_usd > job.approved_max_usd) return null
+  return job.approved_max_usd
+}
+
+function requireGenerationApproval(job, jobID, mediaType, digest, args) {
+  if (!job) throw new Error(`Unknown Atlas media generation job: ${jobID}; call media_calculate first`)
+  if (job.media_type !== mediaType) throw new Error(`Atlas media job ${jobID} is for ${job.media_type}, not ${mediaType}`)
+  if (digest !== job.request_digest) {
+    throw new Error("Atlas generation approval rejected: request_digest does not match the approved request")
+  }
+  if (job.status !== "awaiting_approval") {
+    throw new Error(`Atlas media job ${jobID} is ${job.status} and cannot be submitted again`)
+  }
+  if (["approved_request_digest", "approved_max_usd", "approved_price_usd"].some((field) => Object.hasOwn(args, field))) {
+    throw new Error("Atlas generation approval must come from the persisted Producer-approved job")
+  }
+  const ceiling = persistedApprovalCeiling(job)
+  if (ceiling === null) {
+    throw new Error("Atlas generation approval rejected: the persisted Producer approval is incomplete or inconsistent")
+  }
+  return ceiling
+}
+
 function sumNullable(values) {
   const numbers = values.filter((value) => typeof value === "number" && Number.isFinite(value))
   return numbers.length ? numbers.reduce((total, value) => total + value, 0) : null
@@ -446,7 +486,7 @@ export function createAtlasMediaRuntime({
     if (manifestPath !== join(root, "production", "production-manifest.json")) {
       throw new Error("media generation requires the canonical production/production-manifest.json")
     }
-    const manifest = await readManifest(manifestPath)
+    await readManifest(manifestPath)
     const { body, inputAssetIds } = await buildAtlasMediaRequest(
       args.media_type,
       args,
@@ -454,57 +494,71 @@ export function createAtlasMediaRuntime({
     )
     const digest = requestDigest(body)
     const cost = normalizeCost(await client.calculate(body))
-    const reusable = manifest.generation_jobs.find((job) =>
+    const manifest = await readManifest(manifestPath)
+    let reusable = manifest.generation_jobs.find((job) =>
       job.shot_id === shotID
       && job.media_type === args.media_type
       && job.request_digest === digest
       && ["calculated", "awaiting_approval"].includes(job.status))
-    const jobID = reusable?.job_id ?? `job_${randomUUID()}`
-    const record = {
-      ...(reusable ?? {}),
-      job_id: jobID,
-      shot_id: shotID,
-      media_type: args.media_type,
-      model: body.model,
-      request_digest: digest,
-      status: "calculated",
-      estimated_usd: cost.price_usd,
-      origin_price_usd: cost.origin_price_usd,
-      discount: cost.discount,
-      estimated: cost.estimated,
-      ...(cost.estimated_tokens === undefined ? {} : { estimated_tokens: cost.estimated_tokens }),
-      input_asset_ids: inputAssetIds,
-      approved_usd: null,
-      approved_max_usd: null,
-      approved_price_usd: null,
-      actual_usd: reusable?.actual_usd ?? null,
-      wait_timed_out: false,
-      created_at: reusable?.created_at ?? nowISO(now),
-      updated_at: nowISO(now),
-      error: null,
-      provider_error: null,
-    }
-    const local = {
-      record,
-      body,
-      manifestPath,
-      root,
-    }
-    jobs.set(jobID, local)
-    await persistManifestState(manifestPath, record, { now })
-    return {
-      runtime: "atlas-cloud-v1",
-      status: "calculated",
-      job_id: jobID,
-      shot_id: shotID,
-      media_type: args.media_type,
-      model: body.model,
-      request_digest: digest,
-      price_usd: cost.price_usd,
-      origin_price_usd: cost.origin_price_usd,
-      discount: cost.discount,
-      estimated: cost.estimated,
-      ...(cost.estimated_tokens === undefined ? {} : { estimated_tokens: cost.estimated_tokens }),
+    const release = reusable ? await claimGenerationJob(manifestPath, reusable.job_id, "quote-refresh") : null
+    try {
+      if (reusable) {
+        reusable = findManifestJob(await readManifest(manifestPath), reusable.job_id)
+        if (!reusable || !["calculated", "awaiting_approval"].includes(reusable.status) || reusable.request_digest !== digest) {
+          throw new Error("Atlas quote refresh rejected: generation job state changed during calculation")
+        }
+      }
+      const approvedMax = persistedApprovalCeiling(reusable)
+      const preserveApproval = reusable?.status === "awaiting_approval" && approvedMax !== null && cost.price_usd <= approvedMax
+      const jobID = reusable?.job_id ?? `job_${randomUUID()}`
+      const record = {
+        ...(reusable ?? {}),
+        job_id: jobID,
+        shot_id: shotID,
+        media_type: args.media_type,
+        model: body.model,
+        request_digest: digest,
+        status: preserveApproval ? "awaiting_approval" : "calculated",
+        estimated_usd: cost.price_usd,
+        origin_price_usd: cost.origin_price_usd,
+        discount: cost.discount,
+        estimated: cost.estimated,
+        ...(cost.estimated_tokens === undefined ? {} : { estimated_tokens: cost.estimated_tokens }),
+        input_asset_ids: inputAssetIds,
+        approved_usd: preserveApproval ? approvedMax : null,
+        approved_max_usd: preserveApproval ? approvedMax : null,
+        approved_price_usd: preserveApproval ? reusable.approved_price_usd : null,
+        actual_usd: reusable?.actual_usd ?? null,
+        wait_timed_out: false,
+        created_at: reusable?.created_at ?? nowISO(now),
+        updated_at: nowISO(now),
+        error: null,
+        provider_error: null,
+      }
+      const local = {
+        record,
+        body,
+        manifestPath,
+        root,
+      }
+      jobs.set(jobID, local)
+      await persistManifestState(manifestPath, record, { now })
+      return {
+        runtime: "atlas-cloud-v1",
+        status: record.status,
+        job_id: jobID,
+        shot_id: shotID,
+        media_type: args.media_type,
+        model: body.model,
+        request_digest: digest,
+        price_usd: cost.price_usd,
+        origin_price_usd: cost.origin_price_usd,
+        discount: cost.discount,
+        estimated: cost.estimated,
+        ...(cost.estimated_tokens === undefined ? {} : { estimated_tokens: cost.estimated_tokens }),
+      }
+    } finally {
+      await release?.()
     }
   }
 
@@ -613,7 +667,7 @@ export function createAtlasMediaRuntime({
       throw new Error("media generation requires the canonical production/production-manifest.json")
     }
     const manifest = await readManifest(manifestPath)
-    const existing = findManifestJob(manifest, jobID)
+    let existing = findManifestJob(manifest, jobID)
     if (!existing) throw new Error(`Unknown Atlas media generation job: ${jobID}; call media_calculate first`)
     if (existing.media_type !== mediaType) throw new Error(`Atlas media job ${jobID} is for ${existing.media_type}, not ${mediaType}`)
 
@@ -623,99 +677,96 @@ export function createAtlasMediaRuntime({
       (assetID) => resolveReferenceAsset(assetID, { manifestPath }),
     )
     const digest = requestDigest(body)
-    if (digest !== existing.request_digest) {
-      throw new Error("Atlas generation approval rejected: request_digest does not match the approved request")
-    }
-    if (existing.status !== "awaiting_approval") {
-      throw new Error(`Atlas media job ${jobID} is ${existing.status} and cannot be submitted again`)
-    }
-    if (["approved_request_digest", "approved_max_usd", "approved_price_usd"].some((field) => Object.hasOwn(args, field))) {
-      throw new Error("Atlas generation approval must come from the persisted Producer-approved job")
-    }
-    if (typeof existing.approved_max_usd !== "number" || !Number.isFinite(existing.approved_max_usd) || existing.approved_max_usd < 0
-      || typeof existing.approved_price_usd !== "number" || !Number.isFinite(existing.approved_price_usd) || existing.approved_price_usd < 0
-      || existing.approved_usd !== existing.approved_max_usd
-      || existing.approved_price_usd !== existing.estimated_usd) {
-      throw new Error("Atlas generation approval rejected: the persisted Producer approval is incomplete or inconsistent")
-    }
-    const approvedMax = existing.approved_max_usd
-    const cost = normalizeCost(await client.calculate(body))
-    if (cost.price_usd > approvedMax) {
-      throw new Error(`Atlas generation approval rejected: current preflight price ${cost.price_usd} exceeds approved_max_usd ${approvedMax}`)
-    }
-
-    const record = {
-      ...existing,
-      media_type: mediaType,
-      model: body.model,
-      request_digest: digest,
-      input_asset_ids: inputAssetIds,
-      status: "submitted",
-      estimated_usd: cost.price_usd,
-      origin_price_usd: cost.origin_price_usd,
-      discount: cost.discount,
-      estimated: cost.estimated,
-      ...(cost.estimated_tokens === undefined ? {} : { estimated_tokens: cost.estimated_tokens }),
-      approved_usd: approvedMax,
-      approved_max_usd: approvedMax,
-      approved_price_usd: existing.approved_price_usd,
-      actual_usd: null,
-      wait_timed_out: false,
-      updated_at: nowISO(now),
-      error: null,
-      provider_error: null,
-    }
-    const state = local ?? { record, body, manifestPath, root }
-    state.record = record
-    state.body = body
-    state.manifestPath = manifestPath
-    state.root = root
-    jobs.set(jobID, state)
-    await persistManifestState(manifestPath, record, { now })
-
-    let submission
+    requireGenerationApproval(existing, jobID, mediaType, digest, args)
+    const release = await claimGenerationJob(manifestPath, jobID, "submission")
+    let reserved = false
     try {
-      submission = normalizeSubmission(await (mediaType === "image"
-        ? client.generateImage(body)
-        : client.generateVideo(body)))
-    } catch (error) {
-      const uncertain = {
-        ...record,
-        status: "submitted",
-        error: "Atlas submission outcome is unknown; automatic retry is disabled",
-        provider_error: error instanceof Error ? safeProviderText(error.message) : "Atlas submission outcome is unknown",
-        updated_at: nowISO(now),
+      // Session workers and separate Node processes compete for the same filesystem claim.
+      existing = findManifestJob(await readManifest(manifestPath), jobID)
+      const approvedMax = requireGenerationApproval(existing, jobID, mediaType, digest, args)
+      const cost = normalizeCost(await client.calculate(body))
+      if (cost.price_usd > approvedMax) {
+        throw new Error(`Atlas generation approval rejected: current preflight price ${cost.price_usd} exceeds approved_max_usd ${approvedMax}`)
       }
-      state.record = uncertain
-      await persistManifestState(manifestPath, uncertain, { now })
-      throw error
-    }
 
-    const submitted = {
-      ...record,
-      provider_prediction_id: submission.prediction_id,
-      status: "submitted",
-      provider_status: submission.provider_status,
-      submitted_at: nowISO(now),
-      updated_at: nowISO(now),
-      error: null,
-      provider_error: null,
-    }
-    state.record = submitted
-    await persistManifestState(manifestPath, submitted, { now })
-    return {
-      runtime: "atlas-cloud-v1",
-      status: "submitted",
-      job_id: jobID,
-      shot_id: submitted.shot_id,
-      media_type: mediaType,
-      model: body.model,
-      request_digest: digest,
-      prediction_id: submission.prediction_id,
-      provider_prediction_id: submission.prediction_id,
-      estimated_usd: cost.price_usd,
-      approved_usd: approvedMax,
-      estimated: cost.estimated,
+      const record = {
+        ...existing,
+        media_type: mediaType,
+        model: body.model,
+        request_digest: digest,
+        input_asset_ids: inputAssetIds,
+        status: "submitted",
+        estimated_usd: cost.price_usd,
+        origin_price_usd: cost.origin_price_usd,
+        discount: cost.discount,
+        estimated: cost.estimated,
+        ...(cost.estimated_tokens === undefined ? {} : { estimated_tokens: cost.estimated_tokens }),
+        approved_usd: approvedMax,
+        approved_max_usd: approvedMax,
+        approved_price_usd: existing.approved_price_usd,
+        actual_usd: null,
+        wait_timed_out: false,
+        updated_at: nowISO(now),
+        error: null,
+        provider_error: null,
+      }
+      const state = local ?? { record, body, manifestPath, root }
+      state.record = record
+      state.body = body
+      state.manifestPath = manifestPath
+      state.root = root
+      jobs.set(jobID, state)
+      // Keep the claim after any reservation write attempt, even if persistence or dispatch
+      // fails. A crash before the provider receives the request is conservatively uncertain.
+      reserved = true
+      await persistManifestState(manifestPath, record, { now })
+
+      let submission
+      try {
+        submission = normalizeSubmission(await (mediaType === "image"
+          ? client.generateImage(body)
+          : client.generateVideo(body)))
+      } catch (error) {
+        const uncertain = {
+          ...record,
+          status: "submitted",
+          error: "Atlas submission outcome is unknown; automatic retry is disabled",
+          provider_error: error instanceof Error ? safeProviderText(error.message) : "Atlas submission outcome is unknown",
+          updated_at: nowISO(now),
+        }
+        state.record = uncertain
+        await persistManifestState(manifestPath, uncertain, { now })
+        throw error
+      }
+
+      const submitted = {
+        ...record,
+        provider_prediction_id: submission.prediction_id,
+        status: "submitted",
+        provider_status: submission.provider_status,
+        submitted_at: nowISO(now),
+        updated_at: nowISO(now),
+        error: null,
+        provider_error: null,
+      }
+      state.record = submitted
+      await persistManifestState(manifestPath, submitted, { now })
+      return {
+        runtime: "atlas-cloud-v1",
+        status: "submitted",
+        job_id: jobID,
+        shot_id: submitted.shot_id,
+        media_type: mediaType,
+        model: body.model,
+        request_digest: digest,
+        prediction_id: submission.prediction_id,
+        provider_prediction_id: submission.prediction_id,
+        estimated_usd: cost.price_usd,
+        approved_usd: approvedMax,
+        estimated: cost.estimated,
+      }
+    } finally {
+      if (!reserved) await release()
     }
   }
 

@@ -46,6 +46,16 @@ preserve identity and visual continuity, and assess outputs through Watch.
 Model price truth always comes from `media_calculate`; never hardcode prices or
 treat your own estimate as authoritative.
 
+Before constructing a request, read the installed film-production
+`references/production-routing.md`. Copy the selected model's exact canonical
+identifier from its curated model table; never derive an identifier from a
+display name (for example, `wan-3.0` is not a supported identifier). Include a
+model-specific optional field only when that model explicitly supports it and
+the request needs it. Omit unsupported or unnecessary defaults, including
+explicit `false`: Wan does not support `prompt_expansion`. Give the execution
+child the exact request; it must not add controls or substitute a model. On a
+validation error, return the exact rejection to Producer before a new decision.
+
 The only categories you may delegate are `media-generation` and
 `video-analysis`. For each proposed generation, first have the bounded
 `media-generation` Implementer calculate the exact request. Return the runtime

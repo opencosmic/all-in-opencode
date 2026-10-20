@@ -15,8 +15,24 @@ import {
   validateShotSpec,
 } from "../plugins/film-production/contracts.js"
 import { discoverSkills } from "../plugins/delegation/skill-resolver.js"
+import { buildAtlasMediaRequest, listAtlasMediaModels } from "../plugins/delegation/atlas-media-models.js"
 
 const repository = fileURLToPath(new URL("../..", import.meta.url))
+
+test("installed routing guidance names every curated identifier and its Wan example satisfies the runtime", async () => {
+  const routing = await readFile(join(repository, "opencode/skills/film-production/references/production-routing.md"), "utf8")
+  for (const spec of listAtlasMediaModels()) {
+    assert.ok(routing.includes(`\`${spec.model}\``), `${spec.model} must be documented exactly`)
+  }
+  const example = JSON.parse(routing.match(/```json\n([\s\S]*?)\n```/)[1])
+  const { body } = await buildAtlasMediaRequest(example.media_type, example)
+  assert.equal(body.model, "alibaba/wan-3.0/reference-to-video")
+  assert.equal(body.prompt_expansion, undefined)
+  assert.match(routing, /Only include model-specific optional fields when they are explicitly supported/)
+  const creator = await readFile(join(repository, "opencode/agents/creator.md"), "utf8")
+  assert.match(creator, /Before constructing a request, read the installed film-production\s+`references\/production-routing\.md`/)
+  assert.match(creator, /Copy the selected model's exact canonical\s+identifier/)
+})
 
 const shot = {
   shot_id: "shot_03",
