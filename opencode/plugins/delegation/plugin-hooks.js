@@ -3,6 +3,7 @@ import { tool } from "@opencode-ai/plugin"
 import {
   applyFilmProductionCreatorPermissions,
   applyFilmProductionDirectorPermissions,
+  applyFilmProductionEditorPermissions,
   applyFilmProductionProducerPermissions,
 } from "./category-permissions.js"
 import { createMockMediaRuntime } from "./media-runtime.js"
@@ -116,6 +117,7 @@ export function delegationPluginHooks(runtime, { worktree = runtime.directory } 
       applyFilmProductionProducerPermissions(config, runtime.filmProductionSkillAccess, worktree)
       applyFilmProductionDirectorPermissions(config, runtime.filmProductionSkillAccess)
       applyFilmProductionCreatorPermissions(config, runtime.filmProductionSkillAccess)
+      applyFilmProductionEditorPermissions(config, worktree)
     },
     tool: {
       execution_preflight: tool({
@@ -226,6 +228,22 @@ export function delegationPluginHooks(runtime, { worktree = runtime.directory } 
           approved_max_usd: tool.schema.number().nonnegative(),
         },
         execute: async (args, context) => json(await runtime.productionApproveGeneration(args, context)),
+      }),
+      production_record_output: tool({
+        description: "Register one existing regular local composition output in the canonical ProductionManifest. Accepts only rough_cut or final plus a canonical production path. Final output requires persisted Producer approval for the current rough cut and destination. Producer only.",
+        args: {
+          slot: tool.schema.enum(["rough_cut", "final"]),
+          canonical_path: tool.schema.string().min(1).max(512),
+        },
+        execute: async (args, context) => json(await runtime.productionRecordOutput(args, context)),
+      }),
+      production_approve_final_render: tool({
+        description: "Persist Producer's explicit user approval for one local final HyperFrames render. Approval binds the registered rough cut digest, canonical HyperFrames project, and exact final output path, then is consumed when the output is registered. Producer only.",
+        args: {
+          project_path: tool.schema.string().min(1).max(512),
+          final_path: tool.schema.string().min(1).max(512),
+        },
+        execute: async (args, context) => json(await runtime.productionApproveFinalRender(args, context)),
       }),
       production_set_shots: tool({
         description: "Replace only the canonical ProductionManifest shots with a complete ShotSpec array after validating the resulting manifest against the film-production contract. Invalid input leaves the manifest unchanged. Producer only; requires production_preflight.",

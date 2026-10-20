@@ -69,6 +69,7 @@ export class SessionRunner {
       ...profile,
       category,
       agent,
+      directory,
       skill_names: skills.map((skill) => skill.name),
       skill_paths: skills.map((skill) => skill.path ?? skill.location).filter(Boolean),
       selected_skills: skills.map((skill) => ({

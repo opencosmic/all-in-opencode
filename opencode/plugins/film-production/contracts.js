@@ -259,6 +259,13 @@ function validateArtifact(value, path) {
   for (const field of ["path", "uri", "asset_id", "kind"]) {
     if (artifact[field] !== undefined) nonEmptyString(artifact[field], `${path}.${field}`)
   }
+  if (artifact.sha256 !== undefined && (typeof artifact.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(artifact.sha256))) {
+    contractError(`${path}.sha256`, "must be a lowercase SHA-256 digest")
+  }
+  if (artifact.size_bytes !== undefined
+    && (!Number.isSafeInteger(artifact.size_bytes) || artifact.size_bytes <= 0)) {
+    contractError(`${path}.size_bytes`, "must be a positive safe integer")
+  }
 }
 
 function validateHistory(value, path) {

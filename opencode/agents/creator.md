@@ -22,6 +22,8 @@ permission:
   production_prepare_artifacts: deny
   production_checkpoint: deny
   production_approve_generation: deny
+  production_record_output: deny
+  production_approve_final_render: deny
   production_set_shots: deny
   production_transition: deny
   task_status: allow

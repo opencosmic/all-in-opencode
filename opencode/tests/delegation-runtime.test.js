@@ -854,7 +854,7 @@ test("Director sessions are restricted to film references while Producer behavio
 
   for (const permission of [
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-    "production_set_shots", "production_transition",
+    "production_set_shots", "production_transition", "production_record_output", "production_approve_final_render",
   ]) {
     for (const sessionID of [directorID, creatorID]) {
       const result = { status: "ask" }

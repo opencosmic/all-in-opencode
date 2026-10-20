@@ -1,3 +1,4 @@
+import { PRODUCTION_CONTROL_TOOL_NAMES } from "./category-permissions.js"
 import { DELEGATING_NAMED_AGENTS, DelegationPolicy, discoverAgents } from "./delegation-policy.js"
 
 function namedAgentRoute(agent) {
@@ -8,12 +9,7 @@ function namedAgentRoute(agent) {
     profile: {
       description: phaseOwner ? `${agent} production phase owner` : `Read-only ${agent} specialist`,
       tools: {
-        production_preflight: false,
-        production_prepare_artifacts: false,
-        production_checkpoint: false,
-        production_approve_generation: false,
-        production_set_shots: false,
-        production_transition: false,
+        ...Object.fromEntries(PRODUCTION_CONTROL_TOOL_NAMES.map((name) => [name, false])),
         workspace_prepare: false,
         delegate_task: phaseOwner,
         workspace_checkpoint_update: false,

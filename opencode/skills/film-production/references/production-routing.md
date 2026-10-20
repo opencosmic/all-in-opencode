@@ -17,7 +17,7 @@ for `/film` previs and only Director calls it. Producer prepares canonical
 artifact paths and gives Director the absolute runtime mapping. Named Blender
 is not a video-production fallback. For
 `/film`, film planning comes before HyperFrames; the official upstream
-HyperFrames workflow belongs directly to Editor after M5. No composition
+HyperFrames workflow belongs directly to Editor after `assets-ready`. No composition
 category or separate HyperFrames agent is part of this graph.
 
 ## Previs and review order
@@ -35,7 +35,10 @@ Director PLAN -> ShotSpec + canonical previs paths
   -> Producer lifecycle/checkpoint -> Creator strategy and request calculation
   -> Producer persisted job approval -> Creator media-generation execution
   -> Creator video-analysis / Watch -> PASS or BLOCKED
-  -> Producer lifecycle/checkpoint at assets-ready (M4 stop)
+  -> Producer assets-ready checkpoint
+  -> Editor -> HyperFrames composition -> rough cut + Watch
+  -> Producer final-render approval -> Editor local final render
+  -> Producer qa -> Editor Watch -> PASS -> completed checkpoint
 ```
 
 The `.blend` is editable implementation source, not review evidence or the

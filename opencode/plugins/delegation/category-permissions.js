@@ -29,7 +29,7 @@ const OPEN_DESIGN_RESOURCE_TOOLS = new Set([
 const MEDIA_WORKSPACE_TOOL_NAMES = Object.freeze(["read", "glob", "grep", "list", "lsp"])
 export const PRODUCTION_CONTROL_TOOL_NAMES = Object.freeze([
   "production_preflight", "production_prepare_artifacts", "production_checkpoint", "production_approve_generation",
-  "production_set_shots", "production_transition",
+  "production_set_shots", "production_transition", "production_record_output", "production_approve_final_render",
 ])
 const BLENDER_PREVIS_TOOL_NAMES = Object.freeze([
   "blender_get_addon_status",
@@ -341,6 +341,49 @@ export function applyFilmProductionDirectorPermissions(config, access) {
 
 export function applyFilmProductionCreatorPermissions(config, access) {
   return applyFilmProductionReferencePermissions(config, "Creator", access)
+}
+
+export function applyFilmProductionEditorPermissions(config, worktree) {
+  const editor = config?.agent?.Editor
+  if (!editor || typeof worktree !== "string" || !worktree.trim()) return false
+
+  const permission = editor.permission ??= {}
+  const protectedRelativePath = "production/production-manifest.json"
+  const protectedAbsolutePath = resolve(worktree, protectedRelativePath)
+  for (const type of ["edit", "write"]) {
+    appendPermissionRules(permission, type, [
+      { pattern: protectedRelativePath, action: "deny" },
+      { pattern: `**/${protectedRelativePath}`, action: "deny" },
+      { pattern: protectedAbsolutePath, action: "deny" },
+    ])
+  }
+
+  const bashRules = [
+    { pattern: "*", action: "deny" },
+    { pattern: "npx hyperframes *", action: "deny" },
+    ...["check", "lint", "snapshot", "preview", "info", "compositions", "catalog", "doctor", "add"].flatMap((command) => [
+      { pattern: `npx hyperframes ${command}`, action: "allow" },
+      { pattern: `npx hyperframes ${command} *`, action: "allow" },
+      { pattern: `HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes ${command}`, action: "allow" },
+      { pattern: `HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes ${command} *`, action: "allow" },
+    ]),
+    ...["render", "init", "skills update"].flatMap((command) => [
+      { pattern: `npx hyperframes ${command}`, action: "ask" },
+      { pattern: `npx hyperframes ${command} *`, action: "ask" },
+      { pattern: `HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes ${command}`, action: "ask" },
+      { pattern: `HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes ${command} *`, action: "ask" },
+    ]),
+    { pattern: "ffprobe *", action: "allow" },
+    { pattern: "cp -- production/* production/composition/assets/*", action: "allow" },
+    ...["publish", "cloud", "lambda", "cloudrun", "auth"].flatMap((command) => [
+      { pattern: `npx hyperframes ${command}`, action: "deny" },
+      { pattern: `npx hyperframes ${command} *`, action: "deny" },
+      { pattern: `HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes ${command}`, action: "deny" },
+      { pattern: `HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes ${command} *`, action: "deny" },
+    ]),
+  ]
+  appendPermissionRules(permission, "bash", bashRules)
+  return true
 }
 
 function isWatchTempPath(path) {

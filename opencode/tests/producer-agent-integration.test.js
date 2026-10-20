@@ -29,7 +29,8 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /^  delegate_task: allow$/m)
   for (const tool of [
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-    "production_approve_generation", "production_set_shots", "production_transition",
+    "production_approve_generation", "production_record_output", "production_approve_final_render",
+    "production_set_shots", "production_transition",
   ]) {
     assert.match(producer, new RegExp(`^  ${tool}: allow$`, "m"))
   }
@@ -62,7 +63,9 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /Creator owns generated-media strategy, execution coordination, generated-output\s+Watch review, and bounded revisions/s)
   assert.match(producer, /Creator performs model selection, request calculation, execution,\s+polling, output interpretation, and Watch review/s)
   assert.match(producer, /explicit user approval.*maximum USD\s+exposure.*production_approve_generation/s)
-  assert.match(producer, /Stop there for `\/film`; do not start\s+HyperFrames composition/)
+  assert.match(producer, /Then delegate `\/film` post-production\s+to Editor/s)
+  assert.match(producer, /production_record_output.*production_approve_final_render/s)
+  assert.match(producer, /transitions? `composition -> qa`.*transition `qa -> completed`/s)
   assert.match(producer, /must not delegate `media-generation` directly/)
   assert.doesNotMatch(producer, /GPT Image 2\.5 Sunburst|Seedream 5 Pro|MiniMax H3|Seedance 2\.5/)
   assert.doesNotMatch(producer, /delegate_task\(category="media-generation"\)/)
@@ -132,7 +135,8 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   for (const tool of [
     "delegate_task", "task_status", "task_output", "task_cancel",
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-    "production_approve_generation", "production_set_shots", "production_transition",
+    "production_approve_generation", "production_record_output", "production_approve_final_render",
+    "production_set_shots", "production_transition",
   ]) {
     assert.equal(agent.tools[tool], true, `${tool} must remain available`)
   }
@@ -152,6 +156,8 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(permission("production_preflight", "anything"), "allow")
   assert.equal(permission("production_prepare_artifacts", "anything"), "allow")
   assert.equal(permission("production_checkpoint", "anything"), "allow")
+  assert.equal(permission("production_record_output", "anything"), "allow")
+  assert.equal(permission("production_approve_final_render", "anything"), "allow")
   assert.equal(permission("production_set_shots", "anything"), "allow")
   assert.equal(permission("production_transition", "anything"), "allow")
   assert.equal(permission("workspace_prepare", "anything"), "deny")
@@ -217,7 +223,7 @@ test("Director resolves to GPT-6 Sol high", async (t) => {
 
   for (const tool of [
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-    "production_approve_generation", "production_set_shots", "production_transition", "bash", "write", "edit", "question",
+    "production_approve_generation", "production_record_output", "production_approve_final_render", "production_set_shots", "production_transition", "bash", "write", "edit", "question",
   ]) {
     assert.equal(permission(tool), "deny", `${tool} must remain denied`)
   }
@@ -248,7 +254,7 @@ test("Creator resolves with bounded effective subagent permissions", async (t) =
   assert.equal(permission("delegate_task"), "allow")
   for (const tool of [
     "production_preflight", "production_prepare_artifacts", "production_checkpoint",
-    "production_approve_generation", "production_set_shots", "production_transition", "bash", "write", "edit", "question",
+    "production_approve_generation", "production_record_output", "production_approve_final_render", "production_set_shots", "production_transition", "bash", "write", "edit", "question",
   ]) assert.equal(permission(tool), "deny", `${tool} must remain denied`)
   assert.equal(permission("external_directory", "/unrelated/external/reference.txt"), "deny")
 })
@@ -258,6 +264,35 @@ function globMatches(pattern, value) {
   const expression = `^${pattern.split("*").map(escapeRegExp).join(".*")}$`
   return new RegExp(expression).test(value)
 }
+
+test("Editor resolves with effective composition access and canonical state restrictions", async (t) => {
+  const env = await isolatedOpenCodeEnv(t, repository)
+  const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Editor"], { env, encoding: "utf8" })
+  const agent = JSON.parse(stdout)
+  assert.equal(agent.mode, "subagent")
+  assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-6.1-sol" })
+  assert.equal(agent.variant, "high")
+  const permission = (type, value = "anything") => {
+    let result
+    for (const rule of agent.permission ?? []) {
+      if (rule.permission === type && globMatches(rule.pattern, value)) result = rule.action
+    }
+    return result
+  }
+  for (const type of ["edit", "write"]) {
+    assert.equal(permission(type, `${repository}/production/production-manifest.json`), "deny")
+    assert.equal(permission(type, `${repository}/production/composition/index.html`), "allow")
+  }
+  for (const type of ["production_record_output", "production_approve_final_render", "production_transition", "question"]) {
+    assert.equal(permission(type), "deny")
+  }
+  assert.equal(permission("bash", "npx hyperframes check production/composition"), "allow")
+  assert.equal(permission("bash", "npx hyperframes render production/composition --output production/outputs/final.mp4"), "ask")
+  assert.equal(permission("bash", "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes init production/composition"), "ask")
+  assert.equal(permission("bash", "git commit -m bypass"), "deny")
+  assert.equal(permission("bash", "npx hyperframes cloud production/composition"), "deny")
+  assert.equal(permission("external_directory", "/unrelated/private/file"), "ask")
+})
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
