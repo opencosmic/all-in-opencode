@@ -2,7 +2,7 @@
 name: Strategist
 description: Product strategy, idea exploration, validation, scope decisions, and product/design direction
 mode: primary
-model: openai/gpt-5.6-sol
+model: openai/gpt-6.1-sol
 variant: high
 color: "#DC2626"
 permission:

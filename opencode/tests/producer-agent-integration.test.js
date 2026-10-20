@@ -231,7 +231,7 @@ test("Creator resolves with bounded effective subagent permissions", async (t) =
 
   assert.equal(agent.name, "Creator")
   assert.equal(agent.mode, "subagent")
-  assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-5.6-sol" })
+  assert.deepEqual(agent.model, { providerID: "openai", modelID: "gpt-6.1-sol" })
   assert.equal(agent.variant, "high")
   assert.match(creator, /external_directory: deny/)
   assert.doesNotMatch(creator, /~\/.config\/opencode\/skills\/film-production/)

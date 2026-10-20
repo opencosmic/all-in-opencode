@@ -34,7 +34,7 @@ test("browser-testing is a built-in Implementer category using its configured mo
   const category = DEFAULT_CATEGORIES["browser-testing"]
   assert.ok(category)
   assert.equal(category.family, "implementation")
-  assert.equal(category.model, "openai/gpt-5.6-terra")
+  assert.equal(category.model, "openai/gpt-6.1-sol")
   assert.equal(category.variant, "medium")
   const engine = new CategoryEngine({})
   assert.equal(engine.has("browser-testing"), true)

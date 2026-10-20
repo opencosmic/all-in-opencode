@@ -2,7 +2,7 @@
 name: Creator
 description: Generated-media strategy and execution phase owner for Producer-led film work
 mode: subagent
-model: openai/gpt-5.6-sol
+model: openai/gpt-6.1-sol
 variant: high
 color: "#EA580C"
 permission:

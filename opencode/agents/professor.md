@@ -2,7 +2,7 @@
 name: Professor
 description: Stateful evidence-first Deep Research agent with persistent adaptive planning and verification
 mode: primary
-model: openai/gpt-5.6-sol
+model: openai/gpt-6.1-sol
 variant: high
 color: "#7C3AED"
 steps: 32

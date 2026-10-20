@@ -2,7 +2,7 @@
 name: Plan Reviewer
 description: Independent read-only review of OpenSpec engineering planning artifacts
 mode: subagent
-model: openai/gpt-5.6-sol
+model: openai/gpt-6.1-sol
 variant: high
 color: "#9333EA"
 permission:

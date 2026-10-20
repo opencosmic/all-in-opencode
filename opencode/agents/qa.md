@@ -2,7 +2,7 @@
 name: QA
 description: Read-only runtime and user-facing QA evidence for OpenSpec changes
 mode: subagent
-model: openai/gpt-5.6-terra
+model: openai/gpt-6.1-sol
 variant: medium
 color: "#0891B2"
 permission:

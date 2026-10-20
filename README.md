@@ -74,7 +74,7 @@ Categories define the model, optional variant, execution mindset, optional tool 
 {
   "version": 1,
   "categories": {
-    "deep": { "model": "openai/gpt-5.6-sol", "variant": "max", "family": "implementation" },
+    "deep": { "model": "openai/gpt-6.1-sol", "variant": "max", "family": "implementation" },
     "backend-heavy": {
       "description": "Complex backend implementation work",
       "model": "provider/model",

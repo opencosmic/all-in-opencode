@@ -77,10 +77,10 @@ if [ -L "$HOME/.omo/omo.jsonc" ] && [ "$(readlink "$HOME/.omo/omo.jsonc")" = "$R
   fail "obsolete repository-managed OMO symlink still exists"
 fi
 
-check_hash opencode/agents/planner.md 804c4dcd206b3074119c8c3fc5f4e1db7ad0093b9e214d800a46b8443a0c927b
-check_hash opencode/agents/plan-reviewer.md aea1dc13ea55a7f6c59233fd516215e7aff8bcf9fd6bd3120b3de2e01d577829
-check_hash opencode/agents/executor.md 360204cf3693f60a489026186251344c78d8f33fc4d11ac96d46c17ea864f9b8
-check_hash opencode/agents/reviewer.md 243023cbcb1e3e670ff0ca4df9207a19f587527441651f15c5cbca64bc66d641
+check_hash opencode/agents/planner.md 8fed9f201932b9cb3599e36f33919d759752a2637b40e75e1af5e6c19af5e438
+check_hash opencode/agents/plan-reviewer.md d78071c4ba16b847d76489d43f20213cd12ed87e08ac8b110dff1fef86a6963c
+check_hash opencode/agents/executor.md 1e1109a36beac4fc7a85f2a70f1b4c8dcacbce18b33175bcbeb0bcf91719a363
+check_hash opencode/agents/reviewer.md 7a4199f4f064945c0222cb89faf11cc20b97008f792c02104e5e30b6f584851e
 
 "$SCRIPT_DIR/check-codegraph.sh" "$REPO_ROOT"
 

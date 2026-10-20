@@ -70,7 +70,7 @@ test("only the live M3 phase owners use GPT-6 Sol high", async () => {
     assert.match(agents[name], /^variant: high$/m, name)
   }
   for (const name of ["creator", "editor"]) {
-    assert.match(agents[name], /^model: openai\/gpt-5\.6-sol$/m, name)
+    assert.match(agents[name], /^model: openai\/gpt-6\.1-sol$/m, name)
     assert.match(agents[name], /^variant: high$/m, name)
   }
 

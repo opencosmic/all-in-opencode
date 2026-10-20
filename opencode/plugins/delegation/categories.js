@@ -11,7 +11,7 @@ You are working on a small, contained task. Move quickly, inspect only the conte
   standard: {
     description: "Normal scoped implementation work",
     family: "implementation",
-    model: "openai/gpt-5.6-luna",
+    model: "openai/gpt-6-luna",
     variant: "medium",
     prompt_append: `<Category_Context name="standard">
 You are working on ordinary implementation work. Understand the local context and established patterns before editing, make the smallest clean change that meets the goal, and verify the affected behavior. Do not expand a bounded assignment into unrelated improvements.
@@ -58,7 +58,7 @@ Do not expand into production-quality modeling, photoreal materials, texture aut
   deep: {
     description: "Complex implementation requiring deeper analysis",
     family: "implementation",
-    model: "openai/gpt-5.6-luna",
+    model: "openai/gpt-6-luna",
     variant: "high",
     prompt_append: `<Category_Context name="deep">
 You are working on a complex goal that rewards understanding before action. Trace the relevant callers, dependencies, and failure paths broadly enough to explain the mechanism, favor a root-cause fix over a symptom guard, consider important alternatives, and complete the requested goal rather than stopping at a proposal. Validate the affected behavior thoroughly and report the evidence.
@@ -85,7 +85,7 @@ You are working on frontend, UI, styling, layout, or interaction work. Inspect t
   writing: {
     description: "Documentation and technical writing",
     family: "implementation",
-    model: "openai/gpt-5.6-luna",
+    model: "openai/gpt-6-luna",
     variant: "low",
     prompt_append: `<Category_Context name="writing">
 You are working on documentation or prose. Identify the audience and purpose, use the project's terminology, organize the material so it is easy to scan, and write clearly in a natural human voice. Remove generic filler and verify that examples and claims match the current implementation.
@@ -103,7 +103,7 @@ You are working on a creative task where a conventional implementation would mis
   "unspecified-low": {
     description: "Low-effort implementation not covered by a narrower category",
     family: "implementation",
-    model: "openai/gpt-5.6-luna",
+    model: "openai/gpt-6-luna",
     variant: "medium",
     prompt_append: `<Category_Context name="unspecified-low">
 No narrower category fits this contained task. Use a practical, moderate-effort implementation mindset: inspect the few relevant files, follow local conventions, avoid unnecessary abstractions, and verify the concrete result.
@@ -112,7 +112,7 @@ No narrower category fits this contained task. Use a practical, moderate-effort 
   "unspecified-high": {
     description: "High-effort implementation not covered by a narrower category",
     family: "implementation",
-    model: "openai/gpt-5.6-terra",
+    model: "openai/gpt-6.1-sol",
     variant: "high",
     prompt_append: `<Category_Context name="unspecified-high">
 No narrower category fits this broad task. Survey the affected modules, callers, configuration, tests, and documentation before choosing an approach. Weigh meaningful alternatives, deliver the change across every surface that encodes the behavior, and validate the important end-to-end path.
@@ -121,7 +121,7 @@ No narrower category fits this broad task. Survey the affected modules, callers,
   git: {
     description: "Bounded Git mechanics explicitly selected by the caller",
     family: "implementation",
-    model: "openai/gpt-5.6-luna",
+    model: "openai/gpt-6-luna",
     variant: "low",
     tools: {
       edit: false,
@@ -150,7 +150,7 @@ You are working on VIDEO ANALYSIS tasks. Analyze evidence from the actual video,
   "media-generation": {
     description: "Bounded provider-neutral media runtime execution",
     family: "media",
-    model: "openai/gpt-5.6-sol",
+    model: "openai/gpt-6.1-sol",
     variant: "medium",
     tools: {
       edit: false,
@@ -172,7 +172,7 @@ You are the bounded media-generation Implementer. Execute only the explicit Atla
   migration: {
     description: "Compatibility-sensitive migration work",
     family: "implementation",
-    model: "openai/gpt-5.6-sol",
+    model: "openai/gpt-6.1-sol",
     variant: "high",
     prompt_append: `<Category_Context name="migration">
 You are working on a compatibility-sensitive migration. Understand the current state and existing migration conventions first, preserve backward or forward compatibility where relevant, make transformations safe and appropriately idempotent, and validate both the upgraded state and the affected path. Make rollback or recovery evidence explicit when it matters.
@@ -190,7 +190,7 @@ You are working on schema, query, or persistence behavior. Inspect the current d
   testing: {
     description: "Focused automated test implementation",
     family: "implementation",
-    model: "openai/gpt-5.6-luna",
+    model: "openai/gpt-6-luna",
     variant: "medium",
     prompt_append: `<Category_Context name="testing">
 You are working on tests. Reproduce or characterize the behavior first, identify the correct testing layer, match existing conventions, and write discriminating tests that fail for the regression rather than merely exercising lines. Run focused validation before broader checks and preserve useful regression coverage.
@@ -199,7 +199,7 @@ You are working on tests. Reproduce or characterize the behavior first, identify
   "browser-testing": {
     description: "Technical browser verification for web implementations",
     family: "implementation",
-    model: "openai/gpt-5.6-terra",
+    model: "openai/gpt-6.1-sol",
     variant: "medium",
     prompt_append: `<Category_Context name="browser-testing">
 You are working on technical browser verification for an engineering assignment. For runtime verification, exploratory QA, reproduction, console or network inspection, screenshots, accessibility checks, and browser evidence, prefer the installed agent-browser CLI. Before first use, check that agent-browser exists; if this assignment requires that runtime and it is missing, stop with an actionable prerequisite (npm install -g agent-browser followed by agent-browser install) and do not silently switch tools or install dependencies. After session setup, use the current CLI-served guidance (agent-browser --session "<session-id>" skills get core, or agent-browser --session "<session-id>" skills get dogfood for exploratory testing) rather than copying stale manuals. Follow the open -> wait -> snapshot -> interact -> re-snapshot after DOM or navigation changes -> inspect or capture evidence workflow.
@@ -233,7 +233,7 @@ You are working on a reported defect. Reproduce or concretely understand the sym
   "tiny-refactor": {
     description: "Small behavior-preserving refactor",
     family: "implementation",
-    model: "openai/gpt-5.6-luna",
+    model: "openai/gpt-6-luna",
     variant: "low",
     prompt_append: `<Category_Context name="tiny-refactor">
 You are working on a small behavior-preserving refactor. Find the narrowest existing pattern to improve, keep the diff deliberately small, avoid semantic changes or opportunistic cleanup, and run a focused check that demonstrates behavior is unchanged.

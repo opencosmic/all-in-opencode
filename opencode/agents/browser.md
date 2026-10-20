@@ -2,7 +2,7 @@
 name: Browser
 description: Dedicated real-browser automation through the configured browser skill and Task Spaces
 mode: primary
-model: openai/gpt-5.6-sol
+model: openai/gpt-6.1-sol
 variant: medium
 color: "#EA580C"
 permission:
