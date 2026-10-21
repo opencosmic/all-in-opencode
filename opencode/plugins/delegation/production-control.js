@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { createReadStream } from "node:fs"
 import { lstat, mkdir, readdir, realpath, stat } from "node:fs/promises"
-import { isAbsolute, join, relative, sep } from "node:path"
+import { isAbsolute, join, relative, resolve, sep } from "node:path"
 
 import {
   createProductionManifest,
@@ -241,12 +241,13 @@ async function safeCompositionTree(workspace, directory) {
   const manifest = await stat(join(workspace, PRODUCTION_MANIFEST_PATH))
   async function visit(folder) {
     for (const entry of await readdir(folder)) {
+      if (entry === ".git" || entry.startsWith(".env")) return false
       const target = join(folder, entry)
       const info = await lstat(target)
       if (info.isSymbolicLink()) return false
       if (info.isDirectory()) {
         if (!await visit(target)) return false
-      } else if (!info.isFile() || (info.dev === manifest.dev && info.ino === manifest.ino)) return false
+      } else if (!info.isFile() || info.nlink !== 1 || (info.dev === manifest.dev && info.ino === manifest.ino)) return false
     }
     return true
   }
@@ -323,6 +324,51 @@ export async function isCanonicalManifestMutationTarget(target, directory) {
   }
 }
 
+/** Editor's direct filesystem mutation authority is limited to the active composition tree. */
+export async function editorCompositionMutationAllows(target, directory) {
+  if (typeof target !== "string" || !target.trim() || typeof directory !== "string" || !directory.trim()) return false
+  try {
+    const { workspace, manifest } = await requiredProduction(directory)
+    if (manifest.project.status !== "composition") return false
+    let canonicalPath = target
+    if (isAbsolute(target)) {
+      if (target.split(sep).includes("..")) return false
+      const absoluteTarget = resolve(target)
+      if (!inside(workspace, absoluteTarget)) return false
+      canonicalPath = relative(workspace, absoluteTarget).split(sep).join("/")
+    }
+    validateCanonicalProductionPath(canonicalPath, "editor_mutation_path")
+    if (canonicalPath.split("/").some((part) => part === ".git" || part.startsWith(".env"))) return false
+    const compositionRoot = join(workspace, "production/composition")
+    const targetPath = join(workspace, canonicalPath)
+    if (!inside(compositionRoot, targetPath) || targetPath === compositionRoot) return false
+    if (!await productionRoot(workspace)) return false
+
+    const relativePath = relative(workspace, targetPath)
+    let cursor = workspace
+    let missingAncestor = false
+    const parts = relativePath.split(sep)
+    for (const [index, part] of parts.entries()) {
+      cursor = join(cursor, part)
+      if (missingAncestor) continue
+      const info = await existing(cursor)
+      if (!info) {
+        missingAncestor = true
+        continue
+      }
+      if (info.isSymbolicLink()) return false
+      const isTarget = index === parts.length - 1
+      if (!isTarget && !info.isDirectory()) return false
+      if (isTarget && (!info.isFile() || info.nlink !== 1)) return false
+      const physicalPath = await realpath(cursor)
+      if (index >= 1 && !inside(compositionRoot, physicalPath)) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function finalRenderApprovalAllows(finalPath, projectPath, directory) {
   if (typeof finalPath !== "string" || !finalPath.trim() || isAbsolute(finalPath)
     || typeof projectPath !== "string" || !projectPath.trim() || isAbsolute(projectPath)) return false
@@ -340,6 +386,7 @@ export async function finalRenderApprovalAllows(finalPath, projectPath, director
     if (inside(composition.runtime_path, destination.runtime_path)) return false
     if (destination.exists) {
       const [destinationInfo, roughCutInfo] = await Promise.all([stat(destination.runtime_path), stat(roughCut.runtime_path)])
+      if (destinationInfo.nlink !== 1) return false
       if (destinationInfo.dev === roughCutInfo.dev && destinationInfo.ino === roughCutInfo.ino) return false
     }
     const expected = approvalDigest({
@@ -478,7 +525,8 @@ export async function editorHyperFramesRenderAllows(command, directory) {
     if (manifest.project.status !== "composition") return false
     if (manifest.latest_checkpoint?.verification?.[FINAL_RENDER_APPROVAL_FIELD]) return false
     await requiredProductionDirectory(workspace, options.project_path)
-    await requiredProductionFile(workspace, options.output, { allowMissing: true })
+    const output = await requiredProductionFile(workspace, options.output, { allowMissing: true })
+    if (output.exists && (await stat(output.runtime_path)).nlink !== 1) return false
     return options.output === "production/outputs/rough-cut.mp4"
       && options.quality === "draft" && options.workers === "1"
       && Number(options.fps) >= 1 && Number(options.fps) <= 12
@@ -489,14 +537,19 @@ export async function editorHyperFramesRenderAllows(command, directory) {
 
 export async function editorHyperFramesPathAllows(target, directory) {
   try {
-    const { workspace } = await requiredProduction(directory)
+    const { workspace, manifest } = await requiredProduction(directory)
+    if (manifest.project.status !== "composition") return false
     validateCanonicalProductionPath(target, "HyperFrames path")
-    if (await isCanonicalManifestMutationTarget(target, directory)) return false
+    if (target.split("/").some((part) => part === ".git" || part.startsWith(".env"))) return false
+    const compositionRoot = join(workspace, "production/composition")
+    const candidate = join(workspace, target)
+    if (!inside(compositionRoot, candidate)) return false
     let cursor = workspace
     for (const part of target.split("/")) {
       cursor = join(cursor, part)
       const info = await existing(cursor)
       if (info?.isSymbolicLink()) return false
+      if (info?.isFile() && info.nlink !== 1) return false
     }
     const info = await existing(cursor)
     if (info?.isDirectory() && !await safeCompositionTree(workspace, cursor)) return false
@@ -533,6 +586,7 @@ export async function editorAssetCopyAllows(command, directory) {
     if (manifest.assets.some((asset) => asset.path === destination)) return false
     const input = await requiredProductionFile(workspace, source)
     const output = await requiredProductionFile(workspace, destination, { allowMissing: true })
+    if (output.exists && (await stat(output.runtime_path)).nlink !== 1) return false
     if (await isApprovedRenderProjectMutationTarget(destination, directory)) return false
     if (output.exists) {
       const [inputInfo, outputInfo] = await Promise.all([stat(input.runtime_path), stat(output.runtime_path)])

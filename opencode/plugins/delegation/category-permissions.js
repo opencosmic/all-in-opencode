@@ -343,19 +343,16 @@ export function applyFilmProductionCreatorPermissions(config, access) {
   return applyFilmProductionReferencePermissions(config, "Creator", access)
 }
 
-export function applyFilmProductionEditorPermissions(config, worktree) {
+export function applyFilmProductionEditorPermissions(config) {
   const editor = config?.agent?.Editor
-  if (!editor || typeof worktree !== "string" || !worktree.trim()) return false
+  if (!editor) return false
 
   const permission = editor.permission ??= {}
-  const protectedRelativePath = "production/production-manifest.json"
-  const protectedAbsolutePath = resolve(worktree, protectedRelativePath)
+  // The AIO runtime enforces the composition-only path boundary at both
+  // permission and tool-execution time. Scalar grants avoid OpenCode's
+  // top-level wildcard deny shadowing path-scoped object rules.
   for (const type of ["edit", "write"]) {
-    appendPermissionRules(permission, type, [
-      { pattern: protectedRelativePath, action: "deny" },
-      { pattern: `**/${protectedRelativePath}`, action: "deny" },
-      { pattern: protectedAbsolutePath, action: "deny" },
-    ])
+    permission[type] = "allow"
   }
 
   const bashRules = [

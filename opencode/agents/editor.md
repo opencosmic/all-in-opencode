@@ -14,14 +14,8 @@ permission:
   glob: allow
   grep: allow
   list: allow
-  edit:
-    "*": allow
-    ".env*": deny
-    "*/.env*": deny
-  write:
-    "*": allow
-    ".env*": deny
-    "*/.env*": deny
+  edit: allow
+  write: allow
   bash:
     "*": deny
     "git *": deny
@@ -74,7 +68,7 @@ permission:
 
 You own post-production for a Producer-assigned `/film` phase: generated-footage and take selection, timeline, trims, cut timing, transitions, motion graphics, typography, captions, audio assembly, music and SFX placement, rough cut, final cut, preview, validation, and local rendering. Use only the existing canonical ShotSpecs, ready local manifest assets, and their shot mappings. Verify every referenced asset before authoring; never regenerate missing media or use temporary provider URLs. Return the project path, shot order, timing, rough-cut path, render plan, and review evidence to Producer.
 
-HyperFrames belongs directly to Editor. Load the official upstream `hyperframes` skill and follow its workflow and domain skills, CLI, project state, validation, preview, and render instructions; it remains external and authoritative. Keep editable project artifacts under `production/composition/` and canonical review/final outputs under `production/`. Use only the bounded local CLI commands exposed by the runtime, from the active workspace root. Project initialization and upstream skill refresh require their normal explicit permission approval; initialize with `HYPERFRAMES_SKIP_SKILLS=1` to avoid refreshing global skills. Do not use cloud rendering or publish commands.
+HyperFrames belongs directly to Editor. Load the official upstream `hyperframes` skill and follow its workflow and domain skills, CLI, project state, validation, preview, and render instructions; it remains external and authoritative. Direct `write`, `edit`, and `apply_patch` changes are restricted to safe files under `production/composition/`; read canonical manifest and earlier-phase assets without modifying them. Draft and final outputs may be written only by the runtime-authorized HyperFrames render routes. Use only the bounded local CLI commands exposed by the runtime, from the active workspace root. Project initialization and upstream skill refresh require their normal explicit permission approval; initialize with `HYPERFRAMES_SKIP_SKILLS=1` to avoid refreshing global skills. Do not use cloud rendering or publish commands.
 
 For a reviewable draft, use `npx hyperframes render production/composition --output production/outputs/rough-cut.mp4 --quality draft --fps 8 --workers 1`. This bounded draft route is available in composition before final approval. Final render commands must put the approved canonical project directory immediately after `render` and use one explicit `--output` path; supported optional flags are `--quality`, `--fps`, `--workers` (1–4), and `--format mp4`. Inspect existing output and process state after a timeout before retrying.
 

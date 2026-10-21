@@ -27,6 +27,7 @@ import {
   productionTransition,
   editorFfprobeAllows,
   editorAssetCopyAllows,
+  editorCompositionMutationAllows,
   hyperFramesCommandPathTargets,
   editorHyperFramesRenderAllows,
   editorHyperFramesPathAllows,
@@ -75,11 +76,15 @@ async function editorBashDecision(command, directory) {
   }
   if (hyperframes.subcommand !== "render" && !EDITOR_HYPERFRAMES_COMMANDS.has(hyperframes.subcommand)) return "deny"
   if (hyperframes.subcommand === "init" && hyperframes.words[0] !== "HYPERFRAMES_SKIP_SKILLS=1") return "deny"
+  if (hyperframes.subcommand === "render") {
+    const projectPath = hyperframes.words[hyperframes.commandIndex + 1]
+    if (!await editorHyperFramesPathAllows(projectPath, directory)) return "deny"
+    return await editorHyperFramesRenderAllows(command, directory) ? "allow" : "deny"
+  }
   for (const target of hyperframes.paths) {
     if (!await editorHyperFramesPathAllows(target, directory)) return "deny"
-    if (hyperframes.subcommand !== "render" && await isApprovedRenderProjectMutationTarget(target, directory)) return "deny"
+    if (await isApprovedRenderProjectMutationTarget(target, directory)) return "deny"
   }
-  if (hyperframes.subcommand === "render") return await editorHyperFramesRenderAllows(command, directory) ? "allow" : "deny"
   return hyperframes.subcommand === "init" ? "ask" : "allow"
 }
 
@@ -901,8 +906,8 @@ export class DelegationRuntime {
     const directory = profile?.directory ?? input.directory ?? this.directory
     if (agent === "Editor" && ["edit", "write"].includes(type)) {
       const target = permissionValue(input)
-      if (target && (await isCanonicalManifestMutationTarget(target, directory)
-        || await isApprovedRenderProjectMutationTarget(target, directory))) decision = "deny"
+      decision = target && !await isApprovedRenderProjectMutationTarget(target, directory)
+        && await editorCompositionMutationAllows(target, directory) ? "allow" : "deny"
     }
     if (agent === "Editor" && type === "bash") {
       decision = await editorBashDecision(permissionValue(input), directory)
@@ -951,6 +956,9 @@ export class DelegationRuntime {
           }
           if (await isApprovedRenderProjectMutationTarget(target, directory)) {
             throw new Error("Editor cannot change the approved HyperFrames project before its final render")
+          }
+          if (!await editorCompositionMutationAllows(target, directory)) {
+            throw new Error("Editor file mutations are limited to safe files under production/composition/")
           }
         }
       }

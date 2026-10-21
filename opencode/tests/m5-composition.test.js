@@ -74,6 +74,7 @@ async function fixture(t, { compose = true } = {}) {
 
 test("M5 lifecycle registers approved outputs and completes only after current Watch PASS", async (t) => {
   const f = await fixture(t)
+  assert.equal(await f.decision("bash", "npx hyperframes check production/composition"), "allow")
   await f.recordFinal()
   const manifest = await f.load()
   assert.equal(manifest.outputs.final.path, final)
@@ -82,6 +83,8 @@ test("M5 lifecycle registers approved outputs and completes only after current W
   assert.equal(manifest.latest_checkpoint.verification.final_render_approval_digest, undefined)
   assert.equal(await finalRenderApprovalAllows(final, composition, f.project), false)
   await f.runtime.productionTransition({ to_status: "qa" }, f.producer)
+  assert.equal(await f.decision("bash", "npx hyperframes check production/composition"), "deny")
+  await assert.rejects(f.hook("bash", { command: "npx hyperframes check production/composition" }))
   await assert.rejects(f.runtime.productionTransition({ to_status: "completed" }, f.producer), /QA checkpoint/)
   await f.runtime.productionCheckpoint({ verification: { watch_verdict: "BLOCKED" }, remaining: ["fix edit"] }, f.producer)
   await assert.rejects(f.runtime.productionTransition({ to_status: "completed" }, f.producer), /watch_verdict PASS/)
@@ -152,7 +155,7 @@ test("only primary Producer can register outputs or persist render approval", as
   await assert.rejects(f.runtime.productionApproveFinalRender(approval, delegated), /primary Producer/)
 })
 
-test("Editor can author composition files but cannot mutate manifest through tools or path aliases", async (t) => {
+test("Editor mutations are limited to safe composition files and preserve Producer-owned state", async (t) => {
   const f = await fixture(t)
   const manifest = join(f.project, "production/production-manifest.json")
   await symlink(manifest, join(f.project, "alias.json"))
@@ -165,9 +168,26 @@ test("Editor can author composition files but cannot mutate manifest through too
     }
     await assert.rejects(f.hook("apply_patch", { patchText: `*** Begin Patch\n*** Update File: ${target}\n@@\n-old\n+new\n*** End Patch` }), /canonical production/)
   }
+  const generated = join(f.project, "production/assets/generated/job.mp4")
+  await mkdir(join(f.project, "production/assets/generated"), { recursive: true })
+  await writeFile(generated, "accepted generated footage")
+  await mkdir(join(f.project, composition, "assets"), { recursive: true })
+  await symlink(join(f.project, "production/assets/generated"), join(f.project, composition, "escaped"))
+  await link(generated, join(f.project, composition, "assets/generated-alias.mp4"))
+  for (const target of [`${composition}/escaped/job.mp4`, `${composition}/assets/generated-alias.mp4`]) {
+    assert.equal(await f.decision("write", target), "deny", target)
+    await assert.rejects(f.hook("write", { filePath: target }), /production\/composition/)
+  }
+  assert.equal(await f.decision("bash", `npx hyperframes check ${composition}`), "deny")
+  await rm(join(f.project, composition, "escaped"))
+  assert.equal(await f.decision("bash", `npx hyperframes check ${composition}`), "deny")
+
   await f.hook("write", { filePath: `${composition}/index.html` })
+  await f.hook("write", { filePath: `${composition}/hyperframes.json` })
   await f.hook("edit", { filePath: `${composition}/style.css` })
   await f.hook("apply_patch", { patchText: `*** Begin Patch\n*** Add File: ${composition}/style.css\n+body {}\n*** End Patch` })
+  assert.equal(await f.decision("write", join(f.project, `${composition}/index.html`)), "allow")
+  await rm(join(f.project, composition, "assets/generated-alias.mp4"))
   const entry = join(f.project, composition, "index.html")
   const add = `npx hyperframes add shader-wipe --dir ${composition}`
   await f.hook("bash", { command: add })
@@ -178,6 +198,42 @@ test("Editor can author composition files but cannot mutate manifest through too
   await rm(entry)
   await link(manifest, entry)
   await assert.rejects(f.hook("bash", { command: add }))
+})
+
+test("Editor cannot change Producer lock and assets or Git state, and checkpoint remains writable", async (t) => {
+  const f = await fixture(t)
+  const generated = join(f.project, "production/assets/generated/job.mp4")
+  await mkdir(join(f.project, "production/assets/generated"), { recursive: true })
+  await mkdir(join(f.project, ".git"), { recursive: true })
+  await writeFile(generated, "accepted generated footage")
+  await writeFile(join(f.project, ".git/config"), "[core]\n")
+  await link(join(f.project, ".git/config"), join(f.project, composition, "git-config-alias"))
+
+  const deniedTargets = [
+    "production/production-manifest.json.lock",
+    "production/.media-job.claim",
+    "production/assets/generated/job.mp4",
+    ".git/config",
+    "README.md",
+    "production/outputs/final.mp4",
+    `${composition}/.env.local`,
+    `${composition}/nested/.env`,
+    `${composition}/.git/config`,
+    `${composition}/git-config-alias`,
+    "production/composition/../assets/generated/job.mp4",
+    join(f.project, "production/assets/generated/job.mp4"),
+    join(f.project, "outside.txt"),
+  ]
+  for (const target of deniedTargets) {
+    for (const tool of ["write", "edit"]) {
+      assert.equal(await f.decision(tool, target), "deny", `${tool}: ${target}`)
+      await assert.rejects(f.hook(tool, { filePath: target }), /production\/composition/)
+    }
+    await assert.rejects(f.hook("apply_patch", { patchText: `*** Begin Patch\n*** Add File: ${target}\n+denied\n*** End Patch` }), /production\/composition/)
+  }
+
+  await f.runtime.productionCheckpoint({ current_focus: "Editor lockfile write was rejected" }, f.producer)
+  assert.equal((await f.load()).latest_checkpoint.current_focus, "Editor lockfile write was rejected")
 })
 
 test("draft rendering is bounded while final rendering requires exact Producer approval", async (t) => {
@@ -232,7 +288,7 @@ test("Editor Bash rejects shell escapes, external destinations, Git and cloud or
   assert.equal(await f.decision("bash", "npx hyperframes check production/composition"), "allow")
   assert.equal(await f.decision("bash", "ffprobe production/assets/one.mp4"), "allow")
   await assert.rejects(f.hook("bash", { command: draftCommand, workdir: tmpdir() }), /bound production workspace/)
-  assert.equal(await f.decision("bash", "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes init production/new-project --non-interactive"), "ask")
+  assert.equal(await f.decision("bash", "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes init production/composition --non-interactive"), "ask")
   assert.equal(await f.decision("bash", "npx hyperframes skills update general-video"), "ask")
 })
 
@@ -254,11 +310,15 @@ test("Editor can stage only ready canonical media into composition assets", asyn
   const command = "cp -- production/assets/one.mp4 production/composition/assets/one.mp4"
   assert.equal(await f.decision("bash", command), "allow")
   await f.hook("bash", { command })
+  await mkdir(join(f.project, ".git"), { recursive: true })
+  await writeFile(join(f.project, ".git/config"), "[core]\n")
+  await link(join(f.project, ".git/config"), join(f.project, composition, "assets/git-config-alias"))
   for (const denied of [
     "cp -- /etc/passwd production/composition/assets/one.mp4",
     "cp -- production/assets/one.mp4 production/production-manifest.json",
     "cp -- production/production-manifest.json production/composition/assets/one.mp4",
     "cp -- production/assets/one.mp4 production/assets/two.mp4",
+    "cp -- production/assets/one.mp4 production/composition/assets/git-config-alias",
     "cp -R production/assets production/composition/assets",
   ]) {
     assert.equal(await f.decision("bash", denied), "deny")
@@ -266,6 +326,25 @@ test("Editor can stage only ready canonical media into composition assets", asyn
   }
   await f.patch((manifest) => { manifest.assets[0].status = "failed" })
   assert.equal(await f.decision("bash", command), "deny")
+})
+
+test("Editor render routes reject output hardlinks to Git metadata", async (t) => {
+  const f = await fixture(t)
+  await mkdir(join(f.project, ".git"), { recursive: true })
+  await writeFile(join(f.project, ".git/config"), "[core]\n")
+
+  await rm(join(f.project, rough), { force: true })
+  await link(join(f.project, ".git/config"), join(f.project, rough))
+  assert.equal(await f.decision("bash", draftCommand), "deny")
+  await rm(join(f.project, rough))
+  assert.equal(await f.decision("bash", draftCommand), "allow")
+
+  await f.recordRough()
+  await f.runtime.productionApproveFinalRender(approval, f.producer)
+  await rm(join(f.project, final), { force: true })
+  await link(join(f.project, ".git/config"), join(f.project, final))
+  assert.equal(await f.decision("bash", finalCommand), "deny")
+  await assert.rejects(f.hook("bash", { command: finalCommand }))
 })
 
 test("generic checkpoint cannot invent render approval and output registration preserves concurrent checkpoint", async (t) => {
@@ -327,13 +406,13 @@ test("output and render approval require composition state and safe distinct des
   }
 })
 
-test("Editor effective permission injection protects canonical state and narrows CLI permissions", () => {
-  const config = { agent: { Editor: { permission: { edit: "allow", write: "allow", bash: { "npx hyperframes *": "allow" }, external_directory: "ask" } } } }
-  applyFilmProductionEditorPermissions(config, "/workspace")
+test("Editor static profile exposes file tools behind the runtime path guard", () => {
+  const config = { agent: { Editor: { permission: { read: "allow", edit: "allow", write: "allow", bash: { "npx hyperframes *": "allow" }, external_directory: "ask" } } } }
+  applyFilmProductionEditorPermissions(config)
   const p = config.agent.Editor.permission
-  assert.equal(p.edit["production/production-manifest.json"], "deny")
-  assert.equal(p.write["/workspace/production/production-manifest.json"], "deny")
-  assert.equal(p.edit["*"], "allow")
+  assert.equal(p.edit, "allow")
+  assert.equal(p.write, "allow")
+  assert.equal(p.read, "allow")
   assert.equal(p.bash["*"], "deny")
   assert.equal(p.bash["npx hyperframes render *"], "ask")
   assert.equal(p.bash["npx hyperframes init *"], "ask")

@@ -117,7 +117,7 @@ export function delegationPluginHooks(runtime, { worktree = runtime.directory } 
       applyFilmProductionProducerPermissions(config, runtime.filmProductionSkillAccess, worktree)
       applyFilmProductionDirectorPermissions(config, runtime.filmProductionSkillAccess)
       applyFilmProductionCreatorPermissions(config, runtime.filmProductionSkillAccess)
-      applyFilmProductionEditorPermissions(config, worktree)
+      applyFilmProductionEditorPermissions(config)
     },
     tool: {
       execution_preflight: tool({

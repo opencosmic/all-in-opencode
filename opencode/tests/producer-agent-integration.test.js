@@ -265,7 +265,7 @@ function globMatches(pattern, value) {
   return new RegExp(expression).test(value)
 }
 
-test("Editor resolves with effective composition access and canonical state restrictions", async (t) => {
+test("Editor profile exposes composition tools for the runtime path guard", async (t) => {
   const env = await isolatedOpenCodeEnv(t, repository)
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Editor"], { env, encoding: "utf8" })
   const agent = JSON.parse(stdout)
@@ -280,7 +280,9 @@ test("Editor resolves with effective composition access and canonical state rest
     return result
   }
   for (const type of ["edit", "write"]) {
-    assert.equal(permission(type, `${repository}/production/production-manifest.json`), "deny")
+    // OpenCode's static profile grants the tool; DelegationRuntime applies the
+    // per-path allow/deny decision in its permission and execution hooks.
+    assert.equal(permission(type, `${repository}/production/production-manifest.json`), "allow")
     assert.equal(permission(type, `${repository}/production/composition/index.html`), "allow")
   }
   for (const type of ["production_record_output", "production_approve_final_render", "production_transition", "question"]) {
