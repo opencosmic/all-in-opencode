@@ -117,7 +117,7 @@ export function delegationPluginHooks(runtime, { worktree = runtime.directory } 
       applyFilmProductionProducerPermissions(config, runtime.filmProductionSkillAccess, worktree)
       applyFilmProductionDirectorPermissions(config, runtime.filmProductionSkillAccess)
       applyFilmProductionCreatorPermissions(config, runtime.filmProductionSkillAccess)
-      applyFilmProductionEditorPermissions(config)
+      applyFilmProductionEditorPermissions(config, runtime.hyperFramesSkillAccess)
     },
     tool: {
       execution_preflight: tool({
@@ -317,6 +317,7 @@ export function delegationPluginHooks(runtime, { worktree = runtime.directory } 
       ...mediaRuntimeTools(runtime),
     },
     event: async ({ event }) => runtime.handleEvent(event),
+    "command.execute.before": async (input) => runtime.observeCommandExecution(input),
     "chat.message": async (input) => runtime.observeSessionAgent(input),
     "chat.params": async (input, output) => runtime.applyChatParams(input.sessionID, output, input.agent),
     "experimental.chat.system.transform": async (input, output) => runtime.applyChatSystem(input.sessionID, output),

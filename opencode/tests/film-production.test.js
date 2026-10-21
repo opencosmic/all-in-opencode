@@ -69,16 +69,16 @@ test("/film is a thin Producer command for the film-production-first route", asy
   assert.ok(command.length < 1_200, "the command should remain a thin route declaration")
 })
 
-test("Producer keeps /video HyperFrames-first and /film film-production-first", async () => {
+test("Producer routes /video through Editor and keeps /film film-production-first", async () => {
   const producer = await readFile(join(repository, "opencode/agents/producer.md"), "utf8")
   const video = await readFile(join(repository, "opencode/commands/video.md"), "utf8")
-  assert.match(producer, /\/video\s+-> Producer -> HyperFrames-first workflow/)
+  assert.match(producer, /\/video\s+-> Producer -> Editor -> HyperFrames/)
   assert.match(producer, /\/film\s+-> Producer -> Director PLAN -> Producer prepare -> Director PREVIS/)
-  assert.match(producer, /For `\/video`, load the official upstream `hyperframes` skill at the start/i)
+  assert.match(producer, /For `\/video`, assign Editor to load the official upstream `hyperframes` skill/i)
   assert.match(producer, /For `\/film`, keep\s+`film-production` first/i)
-  assert.match(producer, /load `hyperframes` when Editor begins composition\s+after `assets-ready`/i)
+  assert.match(producer, /load `hyperframes`\s+when Editor begins composition after `assets-ready`/i)
   assert.match(producer, /Producer final-render approval/)
-  assert.match(video, /At the start of the request, load and follow the official upstream\s+`hyperframes` skill/i)
+  assert.match(video, /delegate a named Editor task with `load_skills=\["hyperframes"\]`/i)
 })
 
 test("film-production is repository-owned and discoverable with focused references", async () => {

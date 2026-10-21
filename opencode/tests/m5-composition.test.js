@@ -417,6 +417,7 @@ test("Editor static profile exposes file tools behind the runtime path guard", (
   assert.equal(p.bash["npx hyperframes render *"], "ask")
   assert.equal(p.bash["npx hyperframes init *"], "ask")
   assert.equal(p.bash["npx hyperframes check *"], "allow")
+  assert.equal(p.bash["npx hyperframes skills check --json"], "allow")
   assert.equal(p.bash["npx hyperframes cloud *"], "deny")
   assert.equal(p.external_directory, "ask")
 })

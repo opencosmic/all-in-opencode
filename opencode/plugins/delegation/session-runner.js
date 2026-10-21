@@ -70,6 +70,7 @@ export class SessionRunner {
       category,
       agent,
       directory,
+      video_project_path: task.video_project_path ?? null,
       skill_names: skills.map((skill) => skill.name),
       skill_paths: skills.map((skill) => skill.path ?? skill.location).filter(Boolean),
       selected_skills: skills.map((skill) => ({

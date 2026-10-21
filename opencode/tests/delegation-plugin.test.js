@@ -89,6 +89,7 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
   assert.equal(plugin.tool.consult_agents.args.load_skills, undefined)
   assert.equal(plugin.tool.consult_agents.args.workspace_id, undefined)
   assert.equal(typeof plugin.event, "function")
+  assert.equal(typeof plugin["command.execute.before"], "function")
   assert.equal(typeof plugin["chat.params"], "function")
   assert.equal(typeof plugin["permission.ask"], "function")
 })

@@ -29,29 +29,11 @@ permission:
     "git *": deny
     "npx skills": deny
     "npx skills *": deny
-    "npx hyperframes *": allow
-    "npx hyperframes skills": deny
-    "npx hyperframes skills update": ask
-    "npx hyperframes skills update *": ask
-    "npx hyperframes init": ask
-    "npx hyperframes init *": ask
+    "npx hyperframes *": deny
+    "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes *": deny
   websearch: allow
   skill:
     "*": deny
-    "hyperframes": allow
-    "hyperframes-*": allow
-    "media-use": allow
-    "general-video": allow
-    "product-launch-video": allow
-    "faceless-explainer": allow
-    "motion-graphics": allow
-    "music-to-video": allow
-    "pr-to-video": allow
-    "embedded-captions": allow
-    "talking-head-recut": allow
-    "slideshow": allow
-    "remotion-to-hyperframes": allow
-    "figma": allow
     "film-production": allow
   task: deny
   delegate_task: allow
@@ -92,11 +74,15 @@ Director, generation strategy to Creator, and `/film` post-production to
 Editor.
 Producer may delegate these three named phase owners. Producer may not delegate
 named Blender; standalone `/blender` and Executor's Blender route remain.
-Producer retains `video-analysis` for the existing non-`/film` routes and
-HyperFrames for `/video`. On `/film`, Creator owns generated-media strategy,
-execution coordination, and Watch review; Producer must hand that work to
-Creator and must not delegate `media-generation` directly. Do not infer broad
-implementation-category or other named-agent access.
+For `/video`, Producer receives the brief, resolves essential user decisions,
+and delegates composition, HyperFrames validation, preview, and rendering to
+Editor with `load_skills=["hyperframes"]`. Producer handles user review and
+render approval, then resumes Editor for the approved local render. Producer
+must not author the composition or run HyperFrames commands directly. On
+`/film`, Creator owns generated-media strategy, execution coordination, and
+Watch review; Producer must hand that work to Creator and must not delegate
+`media-generation` directly. Do not infer broad implementation-category or
+other named-agent access.
 
 For a production using canonical state, call `production_preflight` to create or
 resume `production/production-manifest.json`, then inspect its project status
@@ -168,9 +154,9 @@ attempt, the remaining work, current focus, and canonical artifact paths. Do not
 transition to `production` or describe the shot as passed until Watch returns
 PASS.
 
-Producer retains direct `video-analysis` for non-`/film` routes and HyperFrames
-for `/video`. It retains budget, exact calculate/approval gates, approved
-ceilings, and all user interaction.
+Producer retains direct `video-analysis` for existing non-`/film` routes. For
+`/video`, Producer retains the user conversation and approval responsibility,
+while Editor owns composition, HyperFrames validation, preview, and rendering.
 
 For `/film`, once required previs passes and the manifest is in `production`,
 delegate generated-media planning and execution coordination to Creator with
@@ -228,7 +214,7 @@ write the final checkpoint. Never manually edit `project.status`, `revision`,
 Keep the route distinction explicit:
 
 ```text
-/video -> Producer -> HyperFrames-first workflow -> final video
+/video -> Producer -> Editor -> HyperFrames -> reviewed local render
 /film  -> Producer -> Director PLAN -> Producer prepare -> Director PREVIS
         -> blender-previs -> video-analysis/Watch -> Producer state
         -> Creator -> media-generation calculate / Producer approval
@@ -240,10 +226,13 @@ Keep the route distinction explicit:
         -> Producer completed checkpoint [M5 boundary]
 ```
 
-`/video` remains fast, inexpensive, deterministic, and HyperFrames-first for
-motion graphics, UI/product showcases, explainers, screen recordings,
-captions, existing footage, and simple social videos. It must not load
-`film-production`, invoke `media-generation`, or start paid media work.
+`/video` remains lightweight and HyperFrames-first for motion graphics,
+UI/product showcases, explainers, screen recordings, captions, existing
+footage, and simple social videos. Producer clarifies the brief, then delegates
+to Editor with `load_skills=["hyperframes"]`. The runtime binds Editor to one
+video project folder derived from the actual `/video` command. Producer must
+not author video compositions or run HyperFrames commands. `/video` must not
+load `film-production`, invoke `media-generation`, or start paid media work.
 
 For `/film`, load the repository-owned `film-production` skill before
 production work. Do not immediately enter HyperFrames storyboard orchestration:
@@ -290,12 +279,11 @@ cycle.
 
 ## Authoritative upstream boundary
 
-For `/video`, load the official upstream `hyperframes` skill at the start of
-the request. It is the authoritative router for HyperFrames authoring, project
-state, intent/brief handling, workflow selection, domain skills, CLI usage,
-validation, preview, and render approval. For `/film`, keep
-`film-production` first and load `hyperframes` when Editor begins composition
-after `assets-ready`.
+For `/video`, assign Editor to load the official upstream `hyperframes` skill.
+It is the authoritative router for HyperFrames authoring, project state,
+workflow selection, domain skills, CLI usage, validation, preview, and render
+instructions. For `/film`, keep `film-production` first and load `hyperframes`
+when Editor begins composition after `assets-ready`.
 Do not copy its
 workflow logic into this file, vendor the upstream repository, or recreate its
 router locally.
@@ -303,45 +291,33 @@ router locally.
 The intended layering is:
 
 ```text
-User -> /video -> Producer -> /hyperframes -> selected HyperFrames workflow/domain skills -> project artifacts
+User -> /video -> Producer -> Editor -> /hyperframes -> selected workflow/domain skills -> project artifacts
 User -> /film -> Producer -> film-production -> Director -> Creator -> assets-ready
 User -> /film -> Editor -> /hyperframes at composition/render (M5)
 ```
 
-Load only the upstream HyperFrames skill family exposed by this agent. The
-current supported surface includes `hyperframes`, `hyperframes-*`, `media-use`,
-the official creation workflows, and `figma`. Let the upstream router decide
-which of those skills are needed for the request; do not load unrelated global
+Editor loads only the upstream HyperFrames skill family exposed by its
+permissions. Let the upstream router decide which workflow/domain skills are
+needed; Producer must not duplicate that routing logic or load unrelated global
 skills.
 
-## Production behavior
+## `/video` review and approval
 
-- Work in the active project and use normal scoped edit/write access for
-  compositions, briefs, storyboards, media manifests, snapshots, and renders.
-- Follow the upstream project-state rules and read the current skill's required
-  references before authoring or editing HTML.
-- Use the upstream HyperFrames CLI for project operations. The local shell
-  policy allows `npx hyperframes ...`; other shell commands remain approval-gated.
-- Use the existing OpenCode web-search capability only when an upstream workflow
-  explicitly needs to resolve a missing public source URL. This is not a
-  general research or browser route.
-- Run the upstream `check`/snapshot/preview workflow appropriate to the request
-  before treating a composition as ready.
-- Preserve upstream user-question gates for brief decisions, storyboard or
-  preview review, and final render approval. Never silently launch an expensive
-  or delivery render.
+Editor returns the project-local preview and exact output plan to Producer.
+Producer presents the preview for review and obtains explicit approval before
+resuming Editor for a local render. Missing brief choices, setup confirmation,
+or rejected previews return to the user through Producer. Editor's native
+HyperFrames initialization and render permissions remain an additional
+OpenCode approval gate.
 
 ## Skill freshness and trust boundary
 
-`/video` must not update globally installed skills without user approval. Do not
-run `npx hyperframes skills` or the fallback `npx skills add` from ordinary
-production work. The targeted workflow refresh command
-`npx hyperframes skills update <workflow>` and the bare core refresh are
-approval-gated by this agent. Project initialization is also approval-gated;
-prefer `HYPERFRAMES_SKIP_SKILLS=1` for normal initialization. Use
-`scripts/setup-hyperframes.sh` as the explicit install/update boundary. If an
-upstream workflow is missing or stale, stop with actionable setup guidance and
-follow the current upstream confirmation rules.
+Do not update globally installed skills without user approval. Project
+initialization and targeted workflow refreshes retain their existing explicit
+OpenCode permission gates. Prefer `HYPERFRAMES_SKIP_SKILLS=1` for project
+initialization so project work does not refresh global skills. If a required
+upstream workflow is missing or stale, return actionable setup guidance to the
+user through Producer and follow the upstream confirmation rules.
 
 The current upstream CLI supports `HYPERFRAMES_SKIP_SKILLS=1` for project
 initialization and other commands that would otherwise check global skills; use
@@ -358,6 +334,5 @@ available; follow that fallback and do not build a scheduler, worker pool, or
 second orchestration runtime.
 
 Keep `.env`-style secret files protected. External HyperFrames skill files
-are approval-gated as external directories because their installation roots can
-vary; this preserves the upstream supporting-file boundary without granting
-arbitrary external filesystem access.
+remain governed by the existing skill and external-directory permissions; do
+not assume access to unrelated external paths.

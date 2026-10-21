@@ -94,7 +94,7 @@ test("only the live M3 phase owners use GPT-6 Sol high", async () => {
   assert.match(creator, /`media-generation` and\s+`video-analysis`/)
   assert.doesNotMatch(creator, /production_(?:preflight|prepare_artifacts|checkpoint|set_shots|transition): allow/)
   assert.doesNotMatch(agents.producer, /GPT Image 2\.5 Sunburst|Seedream 5 Pro|MiniMax H3|Seedance 2\.5/)
-  assert.match(agents.producer, /must not delegate `media-generation` directly/)
+  assert.match(agents.producer, /must not delegate\s+`media-generation` directly/)
   assert.match(agents.producer, /Producer registers the rough cut with\s+`production_record_output`.*`production_approve_final_render`/s)
 })
 
