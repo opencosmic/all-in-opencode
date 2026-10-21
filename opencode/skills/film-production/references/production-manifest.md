@@ -96,3 +96,18 @@ checkpoint writes replace the previous value without changing `revision` or
 `history`. Old manifests without this field normalize to `null`. A checkpoint
 may be stale after a lifecycle transition; preflight reports that fact and does
 not rewrite it.
+
+For M5, Producer alone registers `outputs.rough_cut` and `outputs.final` through
+`production_record_output`; each record includes the canonical production path,
+SHA-256, and byte size. `assets-ready -> composition` requires ready local visual
+assets mapped to every ShotSpec. `composition -> qa` requires an intact
+registered final output. `qa -> completed` requires the current QA checkpoint
+to contain `verification.watch_verdict: PASS`.
+
+Before a final local HyperFrames render, Producer obtains explicit user approval
+and calls `production_approve_final_render` with the canonical HyperFrames
+project path and exact final output path. The runtime binds the approval to the
+current registered rough-cut digest, project path, and final path. It is
+consumed by final-output registration and cannot be supplied through a generic
+checkpoint write. Editor cannot mutate this manifest or edit the approved
+HyperFrames project before rendering.

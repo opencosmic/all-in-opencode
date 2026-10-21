@@ -59,6 +59,8 @@ permission:
   production_prepare_artifacts: allow
   production_checkpoint: allow
   production_approve_generation: allow
+  production_record_output: allow
+  production_approve_final_render: allow
   production_set_shots: allow
   production_transition: allow
   workspace_prepare: deny
@@ -84,9 +86,10 @@ Do not enter the repository's formal workflow, create workflow state, or take
 ownership of Git history or the Delegation Runtime.
 
 Producer owns production lifecycle, state, phase assignment, budget, approval
-gates, checkpoints, revision routing, and completion. Delegate creative
-pre-production and ShotSpec authorship to Director, generation strategy to
-Creator, and post-production to Editor as their live workflows migrate.
+gates, checkpoints, revision routing, canonical output registration, and
+completion. Delegate creative pre-production and ShotSpec authorship to
+Director, generation strategy to Creator, and `/film` post-production to
+Editor.
 Producer may delegate these three named phase owners. Producer may not delegate
 named Blender; standalone `/blender` and Executor's Blender route remain.
 Producer retains `video-analysis` for the existing non-`/film` routes and
@@ -192,8 +195,33 @@ each revised paid request returns to Producer for a new explicit approval.
 When Creator reports `BLOCKED`, leave the lifecycle in `production` and write a
 recovery checkpoint describing evidence and remaining work. When all required
 generated assets pass, Producer alone transitions `production` to
-`assets-ready` and writes a checkpoint. Stop there for `/film`; do not start
-HyperFrames composition or final QA until the later Editor migration.
+`assets-ready` and writes a checkpoint. Then delegate `/film` post-production
+to Editor with the production identity, canonical manifest path, complete
+ShotSpecs, ready local asset IDs and canonical paths, shot-to-asset mapping,
+intended order and durations, aspect ratio and FPS, continuity and audio/caption
+requirements, and latest checkpoint. Call `production_transition` with
+`to_status: "composition"` after verifying the ready assets. Editor resumes a valid composition project
+or initializes one under `production/composition/` through the normal explicit
+permission gate. Missing or unsuitable assets return to Producer for recovery;
+do not let them fall through to paid regeneration.
+
+Editor authors and validates the composition, previews it, and returns the
+canonical rough-cut path, project path, exact proposed final output path, and
+Watch/technical evidence. Producer registers the rough cut with
+`production_record_output`, reviews it with the user, obtains explicit
+approval, and persists approval through `production_approve_final_render` using
+the exact project and final paths. Resume Editor with those unchanged paths.
+Editor performs the local final render only after persisted approval; the
+runtime requires the approval and protects the approved project from Editor
+edits. Producer registers the final file, transitions `composition -> qa`, and
+delegates Editor for final `video-analysis` with Watch plus deterministic media
+verification. If QA is blocked, checkpoint the evidence and remaining work and
+route through the legal `qa -> composition` transition before bounded editorial
+revisions. Allow at most two editing revision rounds after the first QA result.
+Persist the final QA verdict as `verification.watch_verdict` in a QA checkpoint.
+Only after Watch returns PASS does Producer transition `qa -> completed` and
+write the final checkpoint. Never manually edit `project.status`, `revision`,
+`history`, or `outputs`.
 
 ## Two production routes
 
@@ -205,7 +233,11 @@ Keep the route distinction explicit:
         -> blender-previs -> video-analysis/Watch -> Producer state
         -> Creator -> media-generation calculate / Producer approval
         -> media-generation submit -> Creator Watch / bounded revision
-        -> Producer assets-ready checkpoint [M4 boundary]
+        -> Producer assets-ready checkpoint
+        -> Editor HyperFrames composition / rough-cut Watch
+        -> Producer final-render approval
+        -> Editor local final render / Watch QA
+        -> Producer completed checkpoint [M5 boundary]
 ```
 
 `/video` remains fast, inexpensive, deterministic, and HyperFrames-first for
@@ -217,15 +249,16 @@ For `/film`, load the repository-owned `film-production` skill before
 production work. Do not immediately enter HyperFrames storyboard orchestration:
 delegate Director to derive creative intent, ShotSpec entries, references,
 and previs choices; Producer persists the one ProductionManifest and routes
-Director PREVIS before generation. HyperFrames owns the later composition/render
-stage and remains authoritative for motion graphics, typography, captions,
-transitions, audio assembly, and rendering.
+Director PREVIS before generation. After Creator's generated assets pass and
+Producer advances to `assets-ready`, delegate composition and render work to
+Editor. HyperFrames owns its composition/render workflow and remains authoritative
+for motion graphics, typography, captions, transitions, audio assembly, and rendering.
 
 Use the routing vocabulary from `film-production`: Director routes lightweight
 `/film` previs to `blender-previs` and its review to `video-analysis`;
 Creator owns generated-media strategy, execution coordination, generated-output
 Watch review, and bounded revisions. Producer handles explicit approval and
-canonical state, then stops at `assets-ready` until the M5 Editor migration.
+canonical state, then routes assets-ready production to Editor for composition.
 General-purpose Blender work remains available through standalone `/blender`
 or Executor's named Blender route. Atlas Cloud is the only implemented media
 provider. Creator performs model selection, request calculation, execution,
@@ -261,8 +294,8 @@ For `/video`, load the official upstream `hyperframes` skill at the start of
 the request. It is the authoritative router for HyperFrames authoring, project
 state, intent/brief handling, workflow selection, domain skills, CLI usage,
 validation, preview, and render approval. For `/film`, keep
-`film-production` first and stop at `assets-ready` for the M4 boundary. Load
-`hyperframes` for `/film` only after the M5 Editor migration begins composition.
+`film-production` first and load `hyperframes` when Editor begins composition
+after `assets-ready`.
 Do not copy its
 workflow logic into this file, vendor the upstream repository, or recreate its
 router locally.
@@ -271,7 +304,7 @@ The intended layering is:
 
 ```text
 User -> /video -> Producer -> /hyperframes -> selected HyperFrames workflow/domain skills -> project artifacts
-User -> /film -> Producer -> film-production -> Director -> Creator -> assets-ready (M4 stop)
+User -> /film -> Producer -> film-production -> Director -> Creator -> assets-ready
 User -> /film -> Editor -> /hyperframes at composition/render (M5)
 ```
 

@@ -21,8 +21,8 @@ Use the references in this skill for shotcraft, contracts, routing, assets,
 and revision decisions. HyperFrames remains authoritative once composition
 starts: it owns motion graphics, typography, captions, transitions, audio
 assembly, and rendering. Director owns creative intent and ShotSpec authorship;
-Creator owns generation strategy; Editor will own post-production through the
-official HyperFrames workflow after live migration. Producer owns orchestration,
+Creator owns generation strategy; Editor owns post-production through the
+official HyperFrames workflow. Producer owns orchestration,
 state, budget, and user approval. The `blender-previs` category is the
 lightweight spatial/camera/timing Implementer available to Director alone.
 Named Blender is outside the video-production graph. Creator owns generated-
@@ -113,7 +113,7 @@ zero-cost quote, requires Producer approval. Completed Atlas outputs are
 materialized into local production assets and linked from the same
 `ProductionManifest`; Atlas URLs are temporary transport metadata only.
 
-In M4, Creator owns model and reference selection, request construction,
+Creator owns model and reference selection, request construction,
 execution coordination, and generated-output review. Creator first calls
 `media_calculate` through `media-generation`, then returns the quote, estimate
 flag, request digest, job ID, and unchanged request details to Producer.
@@ -126,8 +126,30 @@ Creator then uses Watch and reports `PASS`, `REVISION_REQUIRED`, or `BLOCKED`.
 Allow at most two revision rounds after the first result, with fresh Producer
 approval for every revised request. On pass, Producer transitions
 `production -> assets-ready` and checkpoints. On block, Producer checkpoints
-the evidence and remaining work while lifecycle stays `production`. Stop at
-`assets-ready` until M5; do not enter composition or QA in M4.
+the evidence and remaining work while lifecycle stays `production`.
+
+## Editor composition and QA
+
+After `assets-ready`, Producer gives Editor the canonical manifest identity,
+complete ShotSpecs, ready local asset IDs and paths, shot-to-asset mapping,
+intended shot order and durations, output format, continuity, audio/caption
+requirements, and latest checkpoint. Editor verifies each local asset and
+resumes or initializes an editable HyperFrames project under
+`production/composition/`. Missing or unsuitable footage returns to Producer
+for recovery; do not repeat generation automatically.
+
+Editor follows the official HyperFrames workflow to build and validate the
+composition, then previews it and delegates Watch. Producer registers the
+reviewable rough cut with `production_record_output`, presents it to the user,
+and persists approval for the exact rough-cut digest, project path, and final
+output path with `production_approve_final_render`. Editor renders only that
+local project to that exact output path. Producer registers the final output,
+transitions `composition -> qa`, and delegates Editor for Watch QA plus
+deterministic media verification. On a blocked result, checkpoint it and use
+the legal `qa -> composition` transition before no more than two editorial
+revision rounds. After Watch returns PASS, Producer transitions to `completed`
+and writes the final checkpoint. Producer alone changes lifecycle, checkpoint,
+or canonical outputs; Editor never edits the ProductionManifest.
 
 ## Curated media model routing
 

@@ -1,5 +1,7 @@
-import { lstat, mkdir, realpath, stat } from "node:fs/promises"
-import { isAbsolute, join, relative, sep } from "node:path"
+import { createHash } from "node:crypto"
+import { createReadStream } from "node:fs"
+import { lstat, mkdir, readdir, realpath, stat } from "node:fs/promises"
+import { isAbsolute, join, relative, resolve, sep } from "node:path"
 
 import {
   createProductionManifest,
@@ -19,6 +21,11 @@ const CHECKPOINT_INPUT_FIELDS = new Set([
 ])
 const TRANSITION_INPUT_FIELDS = new Set(["to_status", "note"])
 const GENERATION_APPROVAL_INPUT_FIELDS = new Set(["job_id", "request_digest", "approved_max_usd"])
+const OUTPUT_INPUT_FIELDS = new Set(["slot", "canonical_path"])
+const FINAL_RENDER_APPROVAL_INPUT_FIELDS = new Set(["final_path", "project_path"])
+const OUTPUT_SLOTS = new Set(["rough_cut", "final"])
+const FINAL_RENDER_APPROVAL_FIELD = "final_render_approval_digest"
+const FINAL_RENDER_PROJECT_PATH_FIELD = "final_render_project_path"
 
 async function existing(path) {
   try {
@@ -123,6 +130,576 @@ async function requiredProduction(directory) {
   return { workspace, production, ...current }
 }
 
+async function requiredProductionFile(workspace, canonicalPath, { allowMissing = false } = {}) {
+  validateCanonicalProductionPath(canonicalPath, "canonical_path")
+  if (canonicalPath === PRODUCTION_MANIFEST_PATH) {
+    throw new Error("the canonical production manifest cannot be used as an output")
+  }
+  const production = await productionRoot(workspace)
+  if (!production) throw new Error("canonical production root is missing")
+
+  const parts = canonicalPath.split("/")
+  let parent = production
+  for (const part of parts.slice(1, -1)) {
+    const candidate = join(parent, part)
+    const info = await existing(candidate)
+    if (!info) throw new Error(`canonical production file parent is missing: ${candidate}`)
+    if (info.isSymbolicLink()) throw new Error(`canonical production file parent must not be a symlink: ${candidate}`)
+    if (!info.isDirectory()) throw new Error(`canonical production file parent must be a directory: ${candidate}`)
+    parent = await realpath(candidate)
+    if (!inside(workspace, parent)) throw new Error(`canonical production file escapes the active workspace: ${canonicalPath}`)
+  }
+
+  const runtimePath = join(parent, parts.at(-1))
+  const info = await existing(runtimePath)
+  if (!info) {
+    if (allowMissing) return { canonical_path: canonicalPath, runtime_path: runtimePath, exists: false }
+    throw new Error(`canonical production file does not exist: ${canonicalPath}`)
+  }
+  if (info.isSymbolicLink()) throw new Error(`canonical production file must not be a symlink: ${canonicalPath}`)
+  if (!info.isFile()) throw new Error(`canonical production output must be a regular file: ${canonicalPath}`)
+  if (info.size <= 0) throw new Error(`canonical production output must not be empty: ${canonicalPath}`)
+
+  const physicalPath = await realpath(runtimePath)
+  if (!inside(workspace, physicalPath)) throw new Error(`canonical production file escapes the active workspace: ${canonicalPath}`)
+  const manifestPath = join(production, "production-manifest.json")
+  const manifestInfo = await stat(manifestPath)
+  const fileInfo = await stat(runtimePath)
+  if (manifestInfo.dev === fileInfo.dev && manifestInfo.ino === fileInfo.ino) {
+    throw new Error(`canonical production file aliases the protected ProductionManifest: ${canonicalPath}`)
+  }
+  return { canonical_path: canonicalPath, runtime_path: runtimePath, exists: true, size_bytes: fileInfo.size }
+}
+
+async function sha256File(path) {
+  const digest = createHash("sha256")
+  for await (const chunk of createReadStream(path)) digest.update(chunk)
+  return digest.digest("hex")
+}
+
+function artifactPath(artifact, label) {
+  const path = typeof artifact === "string" ? artifact : artifact?.path
+  if (typeof path !== "string") throw new Error(`${label} must identify a local canonical production path`)
+  validateCanonicalProductionPath(path, label)
+  return path
+}
+
+function approvalDigest({ projectID, roughCutPath, roughCutDigest, projectPath, finalPath }) {
+  return createHash("sha256").update(JSON.stringify({
+    project_id: projectID,
+    rough_cut_path: roughCutPath,
+    rough_cut_sha256: roughCutDigest,
+    project_path: projectPath,
+    final_path: finalPath,
+  })).digest("hex")
+}
+
+async function verifiedOutput(workspace, manifest, slot) {
+  const record = manifest.outputs?.[slot]
+  if (!record) throw new Error(`ProductionManifest has no registered ${slot} output`)
+  const canonicalPath = artifactPath(record, `outputs.${slot}`)
+  const file = await requiredProductionFile(workspace, canonicalPath)
+  const sha256 = await sha256File(file.runtime_path)
+  if (record.sha256 !== undefined && record.sha256 !== sha256) {
+    throw new Error(`registered ${slot} output has changed since it was recorded`)
+  }
+  if (record.size_bytes !== undefined && record.size_bytes !== file.size_bytes) {
+    throw new Error(`registered ${slot} output size has changed since it was recorded`)
+  }
+  return { canonical_path: canonicalPath, runtime_path: file.runtime_path, sha256, size_bytes: file.size_bytes }
+}
+
+async function requiredProductionDirectory(workspace, canonicalPath) {
+  validateCanonicalProductionPath(canonicalPath, "project_path")
+  const production = await productionRoot(workspace)
+  if (!production) throw new Error("canonical production root is missing")
+  const parts = canonicalPath.split("/")
+  let parent = production
+  for (const part of parts.slice(1, -1)) {
+    const candidate = join(parent, part)
+    const info = await existing(candidate)
+    if (!info) throw new Error(`canonical production project parent is missing: ${candidate}`)
+    if (info.isSymbolicLink()) throw new Error(`canonical production project parent must not be a symlink: ${candidate}`)
+    if (!info.isDirectory()) throw new Error(`canonical production project parent must be a directory: ${candidate}`)
+    parent = await realpath(candidate)
+    if (!inside(workspace, parent)) throw new Error(`canonical production project escapes the active workspace: ${canonicalPath}`)
+  }
+  const runtimePath = join(parent, parts.at(-1))
+  const info = await existing(runtimePath)
+  if (!info) throw new Error(`canonical production project does not exist: ${canonicalPath}`)
+  if (info.isSymbolicLink()) throw new Error(`canonical production project must not be a symlink: ${canonicalPath}`)
+  if (!info.isDirectory()) throw new Error(`canonical production project must be a directory: ${canonicalPath}`)
+  const physicalPath = await realpath(runtimePath)
+  if (!inside(workspace, physicalPath)) throw new Error(`canonical production project escapes the active workspace: ${canonicalPath}`)
+  if (!await safeCompositionTree(workspace, physicalPath)) {
+    throw new Error("HyperFrames project must not contain symlinks or aliases to the canonical ProductionManifest")
+  }
+  return { canonical_path: canonicalPath, runtime_path: runtimePath }
+}
+
+async function safeCompositionTree(workspace, directory) {
+  const manifest = await stat(join(workspace, PRODUCTION_MANIFEST_PATH))
+  async function visit(folder) {
+    for (const entry of await readdir(folder)) {
+      if (entry === ".git" || entry.startsWith(".env")) return false
+      const target = join(folder, entry)
+      const info = await lstat(target)
+      if (info.isSymbolicLink()) return false
+      if (info.isDirectory()) {
+        if (!await visit(target)) return false
+      } else if (!info.isFile() || info.nlink !== 1 || (info.dev === manifest.dev && info.ino === manifest.ino)) return false
+    }
+    return true
+  }
+  return visit(directory)
+}
+
+function visualAsset(asset) {
+  return typeof asset?.kind === "string" && ["video", "image"].includes(asset.kind.toLowerCase())
+}
+
+async function requireCompositionAssets(workspace, manifest) {
+  if (!manifest.shots.length) throw new Error("composition requires at least one canonical ShotSpec")
+  const visuals = manifest.assets.filter(visualAsset).filter((asset) => ["ready", "used"].includes(asset.status))
+  for (const shot of manifest.shots) {
+    const selected = visuals.filter((asset) => asset.shot_ids?.includes(shot.shot_id))
+    if (!selected.length) throw new Error(`composition requires a ready local visual asset for shot ${shot.shot_id}`)
+    for (const asset of selected) {
+      if (typeof asset.path !== "string") {
+        throw new Error(`video asset ${asset.asset_id} for shot ${shot.shot_id} has no local workspace path`)
+      }
+      await requiredProductionFile(workspace, asset.path)
+    }
+  }
+}
+
+export async function isCanonicalManifestMutationTarget(target, directory) {
+  if (typeof target !== "string" || !target.trim() || typeof directory !== "string" || !directory.trim()) return false
+  const workspace = await workspaceRoot(directory)
+  const manifestPath = join(workspace, PRODUCTION_MANIFEST_PATH)
+  const candidate = isAbsolute(target) ? target : join(workspace, target)
+  if (candidate === manifestPath) return true
+  const production = await productionRoot(workspace)
+  if (!production) return false
+  const manifestInfo = await existing(manifestPath)
+  if (!manifestInfo || manifestInfo.isSymbolicLink() || !manifestInfo.isFile()) return false
+  const canonicalPath = await realpath(manifestPath)
+
+  let cursor = candidate
+  const suffix = []
+  while (true) {
+    try {
+      const info = await lstat(cursor)
+      if (info.isSymbolicLink()) {
+        const physical = await realpath(cursor)
+        const resolved = join(physical, ...suffix)
+        if (resolved === canonicalPath) return true
+      }
+      break
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error
+      const parent = join(cursor, "..")
+      if (parent === cursor) return false
+      suffix.unshift(cursor.slice(parent.length + 1))
+      cursor = parent
+    }
+  }
+
+  try {
+    const physical = await realpath(cursor)
+    const resolved = join(physical, ...suffix)
+    if (resolved === canonicalPath) return true
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error
+    return false
+  }
+
+  try {
+    const candidateInfo = await stat(candidate)
+    const canonicalInfo = await stat(manifestPath)
+    return candidateInfo.dev === canonicalInfo.dev && candidateInfo.ino === canonicalInfo.ino
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return false
+    throw error
+  }
+}
+
+/** Editor's direct filesystem mutation authority is limited to the active composition tree. */
+export async function editorCompositionMutationAllows(target, directory) {
+  if (typeof target !== "string" || !target.trim() || typeof directory !== "string" || !directory.trim()) return false
+  try {
+    const { workspace, manifest } = await requiredProduction(directory)
+    if (manifest.project.status !== "composition") return false
+    let canonicalPath = target
+    if (isAbsolute(target)) {
+      if (target.split(sep).includes("..")) return false
+      const absoluteTarget = resolve(target)
+      if (!inside(workspace, absoluteTarget)) return false
+      canonicalPath = relative(workspace, absoluteTarget).split(sep).join("/")
+    }
+    validateCanonicalProductionPath(canonicalPath, "editor_mutation_path")
+    if (canonicalPath.split("/").some((part) => part === ".git" || part.startsWith(".env"))) return false
+    const compositionRoot = join(workspace, "production/composition")
+    const targetPath = join(workspace, canonicalPath)
+    if (!inside(compositionRoot, targetPath) || targetPath === compositionRoot) return false
+    if (!await productionRoot(workspace)) return false
+
+    const relativePath = relative(workspace, targetPath)
+    let cursor = workspace
+    let missingAncestor = false
+    const parts = relativePath.split(sep)
+    for (const [index, part] of parts.entries()) {
+      cursor = join(cursor, part)
+      if (missingAncestor) continue
+      const info = await existing(cursor)
+      if (!info) {
+        missingAncestor = true
+        continue
+      }
+      if (info.isSymbolicLink()) return false
+      const isTarget = index === parts.length - 1
+      if (!isTarget && !info.isDirectory()) return false
+      if (isTarget && (!info.isFile() || info.nlink !== 1)) return false
+      const physicalPath = await realpath(cursor)
+      if (index >= 1 && !inside(compositionRoot, physicalPath)) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function finalRenderApprovalAllows(finalPath, projectPath, directory) {
+  if (typeof finalPath !== "string" || !finalPath.trim() || isAbsolute(finalPath)
+    || typeof projectPath !== "string" || !projectPath.trim() || isAbsolute(projectPath)) return false
+  let canonicalPath
+  let canonicalProjectPath
+  try {
+    canonicalPath = validateCanonicalProductionPath(finalPath, "final_path")
+    canonicalProjectPath = validateCanonicalProductionPath(projectPath, "project_path")
+    const { workspace, manifest } = await requiredProduction(directory)
+    if (manifest.project.status !== "composition" || manifest.latest_checkpoint?.phase !== "composition") return false
+    const roughCut = await verifiedOutput(workspace, manifest, "rough_cut")
+    const destination = await requiredProductionFile(workspace, canonicalPath, { allowMissing: true })
+    const composition = await requiredProductionDirectory(workspace, canonicalProjectPath)
+    if (canonicalPath === roughCut.canonical_path) return false
+    if (inside(composition.runtime_path, destination.runtime_path)) return false
+    if (destination.exists) {
+      const [destinationInfo, roughCutInfo] = await Promise.all([stat(destination.runtime_path), stat(roughCut.runtime_path)])
+      if (destinationInfo.nlink !== 1) return false
+      if (destinationInfo.dev === roughCutInfo.dev && destinationInfo.ino === roughCutInfo.ino) return false
+    }
+    const expected = approvalDigest({
+      projectID: manifest.project.id,
+      roughCutPath: roughCut.canonical_path,
+      roughCutDigest: roughCut.sha256,
+      projectPath: canonicalProjectPath,
+      finalPath: canonicalPath,
+    })
+    return manifest.latest_checkpoint.verification?.[FINAL_RENDER_APPROVAL_FIELD] === expected
+      && manifest.latest_checkpoint.verification?.[FINAL_RENDER_PROJECT_PATH_FIELD] === canonicalProjectPath
+  } catch {
+    return false
+  }
+}
+
+function shellWords(command) {
+  if (typeof command !== "string" || /[;&|<>`$*?\[\]{}()!\r\n]/.test(command)) return null
+  const words = []
+  let word = ""
+  let quote = ""
+  let escaped = false
+  let active = false
+  for (const character of command) {
+    if (escaped) {
+      word += character
+      escaped = false
+      active = true
+    } else if (character === "\\" && quote !== "'") {
+      escaped = true
+      active = true
+    } else if (quote) {
+      if (character === quote) quote = ""
+      else word += character
+      active = true
+    } else if (character === "'" || character === '"') {
+      quote = character
+      active = true
+    } else if (/\s/.test(character)) {
+      if (active) words.push(word)
+      word = ""
+      active = false
+    } else {
+      word += character
+      active = true
+    }
+  }
+  if (escaped || quote) return null
+  if (active) words.push(word)
+  return words
+}
+
+function parsedHyperFramesCommand(command) {
+  const prefix = /^(?:HYPERFRAMES_SKIP_SKILLS=1\s+)?(?:npx\s+hyperframes|hyperframes)(?:\s|$)/
+  if (typeof command !== "string" || !prefix.test(command.trim())) return null
+  const words = shellWords(command.trim())
+  if (!words) return { matched: true, invalid: true, words: [] }
+  let index = 0
+  if (words[index] === "HYPERFRAMES_SKIP_SKILLS=1") index += 1
+  if (words[index] === "npx") index += 1
+  if (words[index] !== "hyperframes") return { matched: true, invalid: true, words }
+  index += 1
+  if (!words[index]) return { matched: true, invalid: true, words }
+  return { matched: true, invalid: false, subcommand: words[index], words, commandIndex: index }
+}
+
+export function hyperFramesCommandPathTargets(command) {
+  const parsed = parsedHyperFramesCommand(command)
+  if (!parsed) return null
+  if (parsed.invalid) return { invalid: true, subcommand: null, paths: [] }
+  const paths = []
+  const args = parsed.words.slice(parsed.commandIndex + 1)
+  const pathOptions = new Set(["-o", "--output", "--dir", "--project", "--against", "--composition"])
+  for (const [index, word] of args.entries()) {
+    const candidate = word.includes("=") && word.startsWith("-") ? word.slice(word.indexOf("=") + 1) : word
+    const option = word.includes("=") ? word.slice(0, word.indexOf("=")) : null
+    if (candidate && (pathOptions.has(args[index - 1]) || pathOptions.has(option)
+      || candidate === "." || candidate === ".." || /\.[a-z][a-z0-9]*$/i.test(candidate)
+      || candidate.includes("/") || candidate.includes("\\") || isAbsolute(candidate))) paths.push(candidate)
+  }
+  const projectCommands = new Set(["check", "lint", "snapshot", "preview", "info", "compositions", "init"])
+  if (projectCommands.has(parsed.subcommand)) {
+    try {
+      validateCanonicalProductionPath(args[0], "project_path")
+    } catch {
+      return { ...parsed, invalid: true, paths }
+    }
+  }
+  if (parsed.subcommand === "add") {
+    const directories = args.flatMap((word, index) => word === "--dir" ? [args[index + 1]] : word.startsWith("--dir=") ? [word.slice(6)] : [])
+    if (directories.length !== 1 || typeof directories[0] !== "string" || !directories[0].startsWith("production/")) {
+      return { ...parsed, invalid: true, paths }
+    }
+  }
+  return { ...parsed, paths }
+}
+
+function hyperFramesRenderOptions(command) {
+  const parsed = parsedHyperFramesCommand(command)
+  if (!parsed || parsed.subcommand !== "render") return null
+  const invalid = { invalid: true }
+  if (parsed.invalid) return invalid
+  const args = parsed.words.slice(parsed.commandIndex + 1)
+  let projectPath
+  try {
+    projectPath = validateCanonicalProductionPath(args.shift(), "project_path")
+  } catch {
+    return invalid
+  }
+  const aliases = { "-o": "output", "-f": "fps", "-q": "quality", "-w": "workers" }
+  const values = {}
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index]
+    const separator = token.indexOf("=")
+    const name = separator < 0 ? token : token.slice(0, separator)
+    const key = aliases[name] ?? (name.startsWith("--") ? name.slice(2) : null)
+    if (!["output", "fps", "quality", "workers", "format"].includes(key) || Object.hasOwn(values, key)) return invalid
+    const value = separator < 0 ? args[++index] : token.slice(separator + 1)
+    if (!value || value.startsWith("-")) return invalid
+    values[key] = value
+  }
+  if (!values.output) return invalid
+  if (values.fps !== undefined && (!/^\d+$/.test(values.fps) || Number(values.fps) < 1 || Number(values.fps) > 240)) return invalid
+  if (values.workers !== undefined && !/^[1-4]$/.test(values.workers)) return invalid
+  if (values.quality !== undefined && !["draft", "looks", "delivery", "standard", "high"].includes(values.quality)) return invalid
+  if (values.format !== undefined && values.format !== "mp4") return invalid
+  return { invalid: false, project_path: projectPath, ...values }
+}
+
+export async function editorHyperFramesRenderAllows(command, directory) {
+  const options = hyperFramesRenderOptions(command)
+  if (!options || options.invalid) return false
+  if (await finalRenderApprovalAllows(options.output, options.project_path, directory)) return true
+  try {
+    const { workspace, manifest } = await requiredProduction(directory)
+    if (manifest.project.status !== "composition") return false
+    if (manifest.latest_checkpoint?.verification?.[FINAL_RENDER_APPROVAL_FIELD]) return false
+    await requiredProductionDirectory(workspace, options.project_path)
+    const output = await requiredProductionFile(workspace, options.output, { allowMissing: true })
+    if (output.exists && (await stat(output.runtime_path)).nlink !== 1) return false
+    return options.output === "production/outputs/rough-cut.mp4"
+      && options.quality === "draft" && options.workers === "1"
+      && Number(options.fps) >= 1 && Number(options.fps) <= 12
+  } catch {
+    return false
+  }
+}
+
+export async function editorHyperFramesPathAllows(target, directory) {
+  try {
+    const { workspace, manifest } = await requiredProduction(directory)
+    if (manifest.project.status !== "composition") return false
+    validateCanonicalProductionPath(target, "HyperFrames path")
+    if (target.split("/").some((part) => part === ".git" || part.startsWith(".env"))) return false
+    const compositionRoot = join(workspace, "production/composition")
+    const candidate = join(workspace, target)
+    if (!inside(compositionRoot, candidate)) return false
+    let cursor = workspace
+    for (const part of target.split("/")) {
+      cursor = join(cursor, part)
+      const info = await existing(cursor)
+      if (info?.isSymbolicLink()) return false
+      if (info?.isFile() && info.nlink !== 1) return false
+    }
+    const info = await existing(cursor)
+    if (info?.isDirectory() && !await safeCompositionTree(workspace, cursor)) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function editorFfprobeAllows(command, directory) {
+  const words = shellWords(command?.trim())
+  if (!words || words.length !== 2 || words[0] !== "ffprobe") return false
+  try {
+    const canonicalPath = validateCanonicalProductionPath(words[1], "media_path")
+    const { workspace } = await requiredProduction(directory)
+    await requiredProductionFile(workspace, canonicalPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function editorAssetCopyAllows(command, directory) {
+  const words = shellWords(command?.trim())
+  if (!words || words.length !== 4 || words[0] !== "cp" || words[1] !== "--") return false
+  const [, , source, destination] = words
+  try {
+    const { workspace, manifest } = await requiredProduction(directory)
+    if (manifest.project.status !== "composition") return false
+    if (source.split("/").some((part) => part.startsWith(".env"))) return false
+    if (!manifest.assets.some((asset) => asset.path === source
+      && ["video", "image", "audio"].includes(asset.kind) && ["ready", "used"].includes(asset.status))) return false
+    if (!destination.startsWith("production/composition/assets/") || source === destination) return false
+    if (manifest.assets.some((asset) => asset.path === destination)) return false
+    const input = await requiredProductionFile(workspace, source)
+    const output = await requiredProductionFile(workspace, destination, { allowMissing: true })
+    if (output.exists && (await stat(output.runtime_path)).nlink !== 1) return false
+    if (await isApprovedRenderProjectMutationTarget(destination, directory)) return false
+    if (output.exists) {
+      const [inputInfo, outputInfo] = await Promise.all([stat(input.runtime_path), stat(output.runtime_path)])
+      if (inputInfo.dev === outputInfo.dev && inputInfo.ino === outputInfo.ino) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function isApprovedRenderProjectMutationTarget(target, directory) {
+  if (typeof target !== "string" || !target.trim() || typeof directory !== "string" || !directory.trim()) return false
+  try {
+    const { workspace, manifest } = await requiredProduction(directory)
+    const approvedPath = manifest.latest_checkpoint?.verification?.[FINAL_RENDER_PROJECT_PATH_FIELD]
+    if (typeof approvedPath !== "string") return false
+    const project = await requiredProductionDirectory(workspace, approvedPath)
+    const candidate = isAbsolute(target) ? target : join(workspace, target)
+    const root = await realpath(project.runtime_path)
+    let resolved
+    try {
+      resolved = await realpath(candidate)
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error
+      let cursor = candidate
+      const suffix = []
+      while (true) {
+        try {
+          resolved = join(await realpath(cursor), ...suffix)
+          break
+        } catch (parentError) {
+          if (parentError?.code !== "ENOENT") throw parentError
+          const parent = join(cursor, "..")
+          if (parent === cursor) return false
+          suffix.unshift(cursor.slice(parent.length + 1))
+          cursor = parent
+        }
+      }
+    }
+    return inside(root, resolved)
+  } catch {
+    return false
+  }
+}
+
+export async function productionRecordOutput(args = {}, directory) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("production_record_output input must be an object")
+  }
+  for (const field of Object.keys(args)) {
+    if (!OUTPUT_INPUT_FIELDS.has(field)) throw new Error(`production_record_output does not accept ${field}`)
+  }
+  if (!OUTPUT_SLOTS.has(args.slot)) throw new Error("production_record_output slot must be rough_cut or final")
+  const canonicalPath = validateCanonicalProductionPath(args.canonical_path, "canonical_path")
+  const { path, workspace, manifest: current } = await requiredProduction(directory)
+  if (current.project.status !== "composition") {
+    throw new Error(`production_record_output requires composition state, got ${current.project.status}`)
+  }
+  const output = await requiredProductionFile(workspace, canonicalPath)
+  if (args.slot === "final" && !await finalRenderApprovalAllows(
+    canonicalPath, current.latest_checkpoint?.verification?.[FINAL_RENDER_PROJECT_PATH_FIELD], directory,
+  )) throw new Error("final output registration requires current Producer render approval for this rough cut and path")
+  const digest = await sha256File(output.runtime_path)
+  const record = {
+    path: canonicalPath,
+    kind: args.slot === "rough_cut" ? "rough-cut-video" : "final-video",
+    sha256: digest,
+    size_bytes: output.size_bytes,
+  }
+
+  const { manifest: next, result } = await updateProductionManifest(path, (manifest) => {
+    if (manifest.project.status !== "composition") {
+      throw new Error(`production_record_output requires composition state, got ${manifest.project.status}`)
+    }
+    if (args.slot === "final") {
+      const roughCutPath = artifactPath(manifest.outputs.rough_cut, "outputs.rough_cut")
+      const roughCutDigest = manifest.outputs.rough_cut?.sha256
+      if (typeof roughCutDigest !== "string" || !/^[a-f0-9]{64}$/.test(roughCutDigest)) {
+        throw new Error("final output registration requires a hashed registered rough cut")
+      }
+      const expectedApproval = approvalDigest({
+        projectID: manifest.project.id,
+        roughCutPath,
+        roughCutDigest,
+        projectPath: manifest.latest_checkpoint?.verification?.[FINAL_RENDER_PROJECT_PATH_FIELD],
+        finalPath: canonicalPath,
+      })
+      if (manifest.latest_checkpoint?.phase !== "composition"
+        || typeof manifest.latest_checkpoint.verification?.[FINAL_RENDER_PROJECT_PATH_FIELD] !== "string"
+        || manifest.latest_checkpoint.verification?.[FINAL_RENDER_APPROVAL_FIELD] !== expectedApproval) {
+        throw new Error("final output registration requires current Producer render approval for this rough cut and path")
+      }
+      delete manifest.latest_checkpoint.verification[FINAL_RENDER_APPROVAL_FIELD]
+      delete manifest.latest_checkpoint.verification[FINAL_RENDER_PROJECT_PATH_FIELD]
+    } else if (manifest.latest_checkpoint?.verification) {
+      delete manifest.latest_checkpoint.verification[FINAL_RENDER_APPROVAL_FIELD]
+      delete manifest.latest_checkpoint.verification[FINAL_RENDER_PROJECT_PATH_FIELD]
+    }
+    manifest.outputs[args.slot] = record
+    manifest.updated_at = new Date().toISOString()
+    return { slot: args.slot, output: record }
+  })
+  validateProductionManifest(next)
+  return {
+    ...result,
+    project_id: next.project.id,
+    project_status: next.project.status,
+    manifest_revision: next.revision,
+    manifest: { canonical_path: PRODUCTION_MANIFEST_PATH, runtime_path: path },
+  }
+}
+
 function artifactPaths(paths) {
   if (!Array.isArray(paths) || paths.length === 0 || paths.length > MAX_ARTIFACTS) {
     throw new Error(`production_prepare_artifacts requires 1 to ${MAX_ARTIFACTS} canonical file paths`)
@@ -207,14 +784,48 @@ export async function productionTransition(args = {}, directory) {
   for (const field of Object.keys(args)) {
     if (!TRANSITION_INPUT_FIELDS.has(field)) throw new Error(`production_transition does not accept ${field}`)
   }
-  const { path } = await requiredProduction(directory)
+  const { path, workspace, manifest: current } = await requiredProduction(directory)
+  transitionProductionManifest(current, args.to_status)
+  if (args.to_status === "composition" && current.project.status === "assets-ready") {
+    await requireCompositionAssets(workspace, current)
+  }
+  if (args.to_status === "qa") await verifiedOutput(workspace, current, "final")
+  if (args.to_status === "completed") {
+    await verifiedOutput(workspace, current, "final")
+    if (current.project.status !== "qa"
+      || current.latest_checkpoint?.phase !== "qa"
+      || current.latest_checkpoint.verification?.watch_verdict !== "PASS") {
+      throw new Error("production_transition to completed requires a QA checkpoint with watch_verdict PASS")
+    }
+  }
   const { manifest: next, result: previousStatus } = await updateProductionManifest(path, (manifest) => {
     const previous = manifest.project.status
+    if (previous !== current.project.status) {
+      throw new Error("ProductionManifest lifecycle changed before the transition could be persisted")
+    }
+    if (args.to_status === "composition" && previous === "assets-ready"
+      && (JSON.stringify(manifest.assets) !== JSON.stringify(current.assets)
+        || JSON.stringify(manifest.shots) !== JSON.stringify(current.shots))) {
+      throw new Error("composition inputs changed before the transition could be persisted")
+    }
+    if (["qa", "completed"].includes(args.to_status)
+      && JSON.stringify(manifest.outputs.final) !== JSON.stringify(current.outputs.final)) {
+      throw new Error("final output changed before the transition could be persisted")
+    }
+    if (args.to_status === "completed"
+      && (manifest.latest_checkpoint?.phase !== "qa"
+        || manifest.latest_checkpoint.verification?.watch_verdict !== "PASS")) {
+      throw new Error("production_transition to completed requires a QA checkpoint with watch_verdict PASS")
+    }
     const transitioned = transitionProductionManifest(manifest, args.to_status, {
       at: new Date().toISOString(),
       ...(args.note === undefined ? {} : { note: args.note }),
     })
     Object.assign(manifest, transitioned)
+    if (["composition", "qa"].includes(args.to_status) && manifest.latest_checkpoint?.verification) {
+      delete manifest.latest_checkpoint.verification[FINAL_RENDER_APPROVAL_FIELD]
+      delete manifest.latest_checkpoint.verification[FINAL_RENDER_PROJECT_PATH_FIELD]
+    }
     return previous
   })
   return {
@@ -232,6 +843,11 @@ export async function productionCheckpoint(args = {}, directory) {
   if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("production_checkpoint input must be an object")
   for (const field of Object.keys(args)) {
     if (!CHECKPOINT_INPUT_FIELDS.has(field)) throw new Error(`production_checkpoint does not accept ${field}`)
+  }
+  if (args.verification && typeof args.verification === "object"
+    && (Object.hasOwn(args.verification, FINAL_RENDER_APPROVAL_FIELD)
+      || Object.hasOwn(args.verification, FINAL_RENDER_PROJECT_PATH_FIELD))) {
+    throw new Error("production_checkpoint cannot create final-render approval state")
   }
   const { manifest: next, result: checkpoint } = await updateProductionManifest(path, (manifest) => {
     const currentCheckpoint = {
@@ -315,6 +931,77 @@ export async function productionApproveGeneration(args = {}, directory) {
   })
   return {
     ...approved,
+    manifest: { canonical_path: PRODUCTION_MANIFEST_PATH, runtime_path: path },
+  }
+}
+
+export async function productionApproveFinalRender(args = {}, directory) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("production_approve_final_render input must be an object")
+  }
+  for (const field of Object.keys(args)) {
+    if (!FINAL_RENDER_APPROVAL_INPUT_FIELDS.has(field)) {
+      throw new Error(`production_approve_final_render does not accept ${field}`)
+    }
+  }
+  const finalPath = validateCanonicalProductionPath(args.final_path, "final_path")
+  const projectPath = validateCanonicalProductionPath(args.project_path, "project_path")
+  const { path, workspace, manifest: current } = await requiredProduction(directory)
+  if (current.project.status !== "composition") {
+    throw new Error(`production_approve_final_render requires composition state, got ${current.project.status}`)
+  }
+  if (current.latest_checkpoint?.phase !== "composition") {
+    throw new Error("production_approve_final_render requires a current composition checkpoint")
+  }
+
+  const roughCut = await verifiedOutput(workspace, current, "rough_cut")
+  const project = await requiredProductionDirectory(workspace, projectPath)
+  if (finalPath === roughCut.canonical_path) {
+    throw new Error("final render destination must differ from the registered rough cut")
+  }
+  const destination = await requiredProductionFile(workspace, finalPath, { allowMissing: true })
+  if (inside(project.runtime_path, destination.runtime_path)) {
+    throw new Error("final render destination must be outside the HyperFrames project directory")
+  }
+  if (destination.exists) {
+    const [outputInfo, roughInfo] = await Promise.all([stat(destination.runtime_path), stat(roughCut.runtime_path)])
+    if (outputInfo.dev === roughInfo.dev && outputInfo.ino === roughInfo.ino) {
+      throw new Error("final render destination must not alias the registered rough cut")
+    }
+  }
+
+  const digest = approvalDigest({
+    projectID: current.project.id,
+    roughCutPath: roughCut.canonical_path,
+    roughCutDigest: roughCut.sha256,
+    projectPath,
+    finalPath,
+  })
+  const timestamp = new Date().toISOString()
+  const { manifest: next } = await updateProductionManifest(path, (manifest) => {
+    if (manifest.project.status !== "composition" || manifest.latest_checkpoint?.phase !== "composition") {
+      throw new Error("production changed before final-render approval could be persisted")
+    }
+    const persistedRoughPath = artifactPath(manifest.outputs.rough_cut, "outputs.rough_cut")
+    if (persistedRoughPath !== roughCut.canonical_path || manifest.outputs.rough_cut?.sha256 !== roughCut.sha256) {
+      throw new Error("registered rough cut changed before final-render approval could be persisted")
+    }
+    if (manifest.latest_checkpoint.verification[FINAL_RENDER_PROJECT_PATH_FIELD] !== undefined) {
+      throw new Error("clear the previous final-render approval before approving another render")
+    }
+    manifest.latest_checkpoint.verification[FINAL_RENDER_PROJECT_PATH_FIELD] = projectPath
+    manifest.latest_checkpoint.verification[FINAL_RENDER_APPROVAL_FIELD] = digest
+    manifest.latest_checkpoint.updated_at = timestamp
+    manifest.updated_at = timestamp
+  })
+  return {
+    project_id: next.project.id,
+    project_status: next.project.status,
+    final_path: finalPath,
+    project_path: projectPath,
+    rough_cut_path: roughCut.canonical_path,
+    rough_cut_sha256: roughCut.sha256,
+    approval_digest: digest,
     manifest: { canonical_path: PRODUCTION_MANIFEST_PATH, runtime_path: path },
   }
 }

@@ -18,11 +18,21 @@ import { createAtlasMediaRuntime, createMockMediaRuntime, isMediaRuntimeTool } f
 import { ParentResumeCoordinator } from "./parent-resume-coordinator.js"
 import {
   productionApproveGeneration,
+  productionApproveFinalRender,
   productionCheckpoint,
   productionPreflight,
   productionPrepareArtifacts,
+  productionRecordOutput,
   productionSetShots,
   productionTransition,
+  editorFfprobeAllows,
+  editorAssetCopyAllows,
+  editorCompositionMutationAllows,
+  hyperFramesCommandPathTargets,
+  editorHyperFramesRenderAllows,
+  editorHyperFramesPathAllows,
+  isApprovedRenderProjectMutationTarget,
+  isCanonicalManifestMutationTarget,
 } from "./production-control.js"
 import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
@@ -41,6 +51,42 @@ const CATEGORY_CATALOG_AGENTS = new Set([
   "Producer",
 ])
 const CATEGORY_CATALOG_MARKER = "<AIO_Delegation_Categories>"
+const EDITOR_HYPERFRAMES_COMMANDS = new Set([
+  "check", "lint", "snapshot", "preview", "info", "compositions", "catalog", "doctor", "add", "init",
+])
+
+async function editorBashDecision(command, directory) {
+  const hyperframes = hyperFramesCommandPathTargets(command)
+  if (!hyperframes) return await editorFfprobeAllows(command, directory)
+    || await editorAssetCopyAllows(command, directory) ? "allow" : "deny"
+  if (hyperframes.invalid) return "deny"
+  if (hyperframes.subcommand === "catalog") {
+    const args = hyperframes.words.slice(hyperframes.commandIndex + 1)
+    return (args.length === 1 && args[0] === "--json")
+      || (args.length === 3 && args[0] === "--query" && args[1] && args[2] === "--json") ? "allow" : "deny"
+  }
+  if (hyperframes.subcommand === "doctor") {
+    const args = hyperframes.words.slice(hyperframes.commandIndex + 1)
+    return args.length === 0 || (args.length === 1 && args[0] === "--json") ? "allow" : "deny"
+  }
+  if (hyperframes.subcommand === "skills") {
+    const args = hyperframes.words.slice(hyperframes.commandIndex + 1)
+    return args[0] === "update" && args.length <= 2
+      && (args[1] === undefined || /^[a-z0-9-]+$/.test(args[1])) ? "ask" : "deny"
+  }
+  if (hyperframes.subcommand !== "render" && !EDITOR_HYPERFRAMES_COMMANDS.has(hyperframes.subcommand)) return "deny"
+  if (hyperframes.subcommand === "init" && hyperframes.words[0] !== "HYPERFRAMES_SKIP_SKILLS=1") return "deny"
+  if (hyperframes.subcommand === "render") {
+    const projectPath = hyperframes.words[hyperframes.commandIndex + 1]
+    if (!await editorHyperFramesPathAllows(projectPath, directory)) return "deny"
+    return await editorHyperFramesRenderAllows(command, directory) ? "allow" : "deny"
+  }
+  for (const target of hyperframes.paths) {
+    if (!await editorHyperFramesPathAllows(target, directory)) return "deny"
+    if (await isApprovedRenderProjectMutationTarget(target, directory)) return "deny"
+  }
+  return hyperframes.subcommand === "init" ? "ask" : "allow"
+}
 
 function assertDelegatedSkillsAllowed(names) {
   if (Array.isArray(names) && names.includes(RESERVED_DELEGATED_SKILL)) {
@@ -262,6 +308,16 @@ export class DelegationRuntime {
   async productionApproveGeneration(args, context) {
     this.assertProducerProductionTool(context, "production_approve_generation")
     return productionApproveGeneration(args, context.directory)
+  }
+
+  async productionRecordOutput(args, context) {
+    this.assertProducerProductionTool(context, "production_record_output")
+    return productionRecordOutput(args, context.directory)
+  }
+
+  async productionApproveFinalRender(args, context) {
+    this.assertProducerProductionTool(context, "production_approve_final_render")
+    return productionApproveFinalRender(args, context.directory)
   }
 
   async productionSetShots(args, context) {
@@ -805,7 +861,7 @@ export class DelegationRuntime {
       const task = Object.values(persisted?.tasks ?? {}).find(
         (candidate) => candidate.child_session_id === sessionID,
       )
-      if (task) profile = { category: task.category, agent: task.agent }
+      if (task) profile = { category: task.category, agent: task.agent, directory: task.execution_directory ?? this.directory }
     }
     const decision = categoryPermission(profile, { type: toolName, pattern: "*" })
     if (decision !== "allow") {
@@ -841,13 +897,22 @@ export class DelegationRuntime {
       task = Object.values(persisted?.tasks ?? {}).find(
         (candidate) => candidate.child_session_id === input.sessionID,
       )
-      if (task) profile = { category: task.category, agent: task.agent }
+      if (task) profile = { category: task.category, agent: task.agent, directory: task.execution_directory ?? this.directory }
     }
     task ??= this.registry?.list?.().find((candidate) => candidate.child_session_id === input.sessionID)
     let decision = categoryPermission(profile, input)
     const type = input.type ?? input.permission
+    const agent = profile?.agent ?? this.sessionAgents.get(input.sessionID)
+    const directory = profile?.directory ?? input.directory ?? this.directory
+    if (agent === "Editor" && ["edit", "write"].includes(type)) {
+      const target = permissionValue(input)
+      decision = target && !await isApprovedRenderProjectMutationTarget(target, directory)
+        && await editorCompositionMutationAllows(target, directory) ? "allow" : "deny"
+    }
+    if (agent === "Editor" && type === "bash") {
+      decision = await editorBashDecision(permissionValue(input), directory)
+    }
     if (type === "external_directory" && !profile?.category) {
-      const agent = profile?.agent ?? this.sessionAgents.get(input.sessionID)
       if (agent === "Producer") {
         if (await isFilmProductionReferencePath(permissionValue(input), this.filmProductionSkillAccess)) {
           decision = "allow"
@@ -873,6 +938,41 @@ export class DelegationRuntime {
   }
 
   async applyToolExecutionBefore(input, output) {
+    const profile = this.profiles?.get(input.sessionID)
+    const agent = profile?.agent ?? this.sessionAgents.get(input.sessionID)
+    if (agent === "Editor") {
+      const directory = profile?.directory ?? input.directory ?? this.directory
+      const args = output?.args ?? input.args ?? {}
+      if (["edit", "write", "apply_patch"].includes(input.tool)) {
+        const targets = input.tool === "apply_patch"
+          ? [...String(args.patchText ?? args.patch_text ?? "").matchAll(/^\*\*\* (?:Add File:|Update File:|Delete File:|Move to:) (.+)$/gm)].map((match) => match[1])
+          : [args.filePath ?? args.file_path ?? args.path ?? args.file ?? args.filename]
+        if (!targets.length || targets.some((target) => typeof target !== "string" || !target.trim()) || typeof directory !== "string") {
+          throw new Error("Editor file mutation requires a bound project path")
+        }
+        for (const target of targets) {
+          if (await isCanonicalManifestMutationTarget(target, directory)) {
+            throw new Error("Editor cannot mutate the canonical production/production-manifest.json")
+          }
+          if (await isApprovedRenderProjectMutationTarget(target, directory)) {
+            throw new Error("Editor cannot change the approved HyperFrames project before its final render")
+          }
+          if (!await editorCompositionMutationAllows(target, directory)) {
+            throw new Error("Editor file mutations are limited to safe files under production/composition/")
+          }
+        }
+      }
+      if (input.tool === "bash") {
+        const command = input.metadata?.command ?? input.command ?? args.command ?? args.cmd
+        const requestedDirectory = args.workdir ?? args.cwd
+        if (requestedDirectory !== undefined && await realpath(requestedDirectory) !== await realpath(directory)) {
+          throw new Error("Editor HyperFrames commands must run from the bound production workspace")
+        }
+        if (await editorBashDecision(command, directory) === "deny") {
+          throw new Error("Editor Bash requires a safe local HyperFrames command; final rendering requires current Producer approval")
+        }
+      }
+    }
     if (isMediaRuntimeTool(input.tool)) {
       await this.assertMediaToolAccess(input.sessionID, input.tool)
     }

@@ -4,22 +4,19 @@ agent: Producer
 subtask: false
 ---
 
-Handle this as AIO's advanced AI filmmaking workflow, distinct from the
-lightweight `/video` route. Load and follow the repository-owned
-`film-production` skill first. Delegate Director to author ShotSpecs and own
-`blender-previs` and `video-analysis` for lightweight previs. Producer prepares
-previs artifact destinations and owns production state and paid approval.
-After previs passes, Creator owns generated-media strategy, bounded
-`media-generation` execution, and Watch review. In M4, stop after Producer
-advances passing generated assets to `assets-ready`; do not enter HyperFrames
-composition or final QA before the M5 Editor migration.
-The named Blender route remains available for general-purpose Blender work
-outside `/film` previs.
+Handle this as AIO's advanced AI filmmaking workflow. Load the repository-owned
+`film-production` skill first. Producer owns canonical state, lifecycle,
+checkpoints, user interaction, and approvals. Delegate creative planning and
+previs to Director, generated-media strategy/execution to Creator, and
+post-production through the official HyperFrames workflow to Editor.
 
-The ordering is `film-production -> Director PLAN -> ShotSpec[] -> Producer
-prepare -> Director PREVIS -> blender-previs -> Director Watch review ->
-Creator calculate -> Producer approval -> Creator media-generation -> Creator
-Watch review -> Producer assets-ready checkpoint (M4 stop)`.
+The order is `film-production -> Director PLAN -> ShotSpec[] -> Producer
+prepare -> Director PREVIS -> blender-previs -> Director Watch -> Creator
+calculate -> Producer approval -> Creator media-generation / Watch -> Producer
+assets-ready -> Editor HyperFrames composition / rough cut -> Producer
+final-render approval -> Editor local final render / Watch QA -> Producer
+completed checkpoint`. A blocked earlier phase cannot fall through to Editor.
+The lightweight `/video` route stays HyperFrames-first on Producer.
 
 Film-production goal:
 

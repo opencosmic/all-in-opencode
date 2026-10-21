@@ -493,6 +493,8 @@ test("runtime denies production tools to non-Producers and delegated children", 
     ["productionPrepareArtifacts", { paths: ["production/previs/a.blend"] }],
     ["productionCheckpoint", {}],
     ["productionApproveGeneration", { job_id: "job", request_digest: "a".repeat(64), approved_max_usd: 0 }],
+    ["productionRecordOutput", { slot: "rough_cut", canonical_path: "production/outputs/rough-cut.mp4" }],
+    ["productionApproveFinalRender", { project_path: "production/composition", final_path: "production/outputs/final.mp4" }],
     ["productionSetShots", { shots: [sampleShot()] }],
     ["productionTransition", { to_status: "previs" }],
   ]
