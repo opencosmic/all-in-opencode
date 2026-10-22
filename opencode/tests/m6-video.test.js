@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { link, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises"
+import { link, mkdir, mkdtemp, realpath, rename, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -502,4 +502,113 @@ test("the video project root is runtime-created and refuses linked roots", async
   await symlink(outside, join(root, "videos"))
   await assert.rejects(prepareEditorVideoProject(root, "videos/demo-0123456789"), /must be a real directory/)
   assert.equal(await editorVideoHyperFramesPathAllows("videos/demo-0123456789", root, "videos/demo-0123456789"), false)
+})
+
+test("/video revision inspection passes both hooks only for the authenticated safe project", async (t) => {
+  const f = await fixture(t)
+  const hooks = delegationPluginHooks(f.runtime)
+  const allowed = [
+    `npx hyperframes timeline ${f.path} --json`,
+    `HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes timeline ${f.path} --json`,
+    `npx hyperframes history --dir ${f.path} --since mine --who editor --json`,
+    `npx hyperframes history --dir=${f.path} --json --who Editor --since=mine`,
+  ]
+  for (const command of allowed) {
+    const output = { status: "ask" }
+    await hooks["permission.ask"]({ sessionID: f.editorID, permission: "bash", patterns: [command] }, output)
+    assert.equal(output.status, "allow", command)
+    await hooks["tool.execute.before"]({ sessionID: f.editorID, tool: "bash" }, { args: { command } })
+  }
+  // Inspection grants no native render approval; the existing /video gate stays ASK.
+  assert.equal(await permission(f.runtime, f.editorID, "bash", `npx hyperframes render ${f.path} --output ${f.path}/final.mp4 --fps 24 --workers 1`), "ask")
+  const denied = [
+    `npx hyperframes timeline videos/other-project-0123456789 --json`,
+    `npx hyperframes timeline ${f.path}/../outside --json`,
+    `npx hyperframes timeline ${join(f.root, f.path)} --json`,
+    `npx hyperframes timeline ${f.path} --json && touch marker`,
+    `npx hyperframes timeline ${f.path} --json | cat`,
+    `npx hyperframes timeline ${f.path} --json > result.json`,
+    `npx hyperframes timeline ${f.path} --json $(touch marker)`,
+    `npx hyperframes timeline ${f.path} move clip --start 1`,
+    `npx hyperframes timeline ${f.path} --json --component clip`,
+    `npx hyperframes history ${f.path} --since mine --who editor`,
+    `npx hyperframes history --dir ${f.path} --dir videos/other-project-0123456789 --json`,
+    `npx hyperframes history --dir videos/other-project-0123456789 --json`,
+    ...["undo", "restore", "rollback", "begin", "end", "pin"].map((verb) => `npx hyperframes history ${verb} --dir ${f.path}`),
+  ]
+  for (const command of denied) {
+    assert.equal(await permission(f.runtime, f.editorID, "bash", command), "deny", command)
+    await assert.rejects(hooks["tool.execute.before"]({ sessionID: f.editorID, tool: "bash" }, { args: { command } }))
+  }
+  for (const profile of [
+    { agent: "Editor", directory: f.root, film_composition_context: true },
+    { agent: "Editor", directory: f.root },
+    { agent: "Editor", directory: f.root, video_project_path: "videos/invalid" },
+    { agent: "Editor", directory: f.root, video_project_path: "videos/missing-0123456789" },
+  ]) {
+    f.runtime.profiles.set("inspection-other", profile)
+    for (const command of allowed.slice(0, 1)) {
+      assert.equal(await permission(f.runtime, "inspection-other", "bash", command), "deny")
+      await assert.rejects(hooks["tool.execute.before"]({ sessionID: "inspection-other", tool: "bash" }, { args: { command } }))
+    }
+  }
+  for (const invalidPath of ["videos/invalid", "videos/missing-0123456789"]) {
+    f.runtime.profiles.set("inspection-other", { agent: "Editor", directory: f.root, video_project_path: invalidPath })
+    const command = `npx hyperframes timeline ${invalidPath} --json`
+    assert.equal(await permission(f.runtime, "inspection-other", "bash", command), "deny")
+    await assert.rejects(hooks["tool.execute.before"]({ sessionID: "inspection-other", tool: "bash" }, { args: { command } }))
+  }
+  f.runtime.profiles.delete("inspection-other")
+  const moved = join(f.root, "moved-project")
+  await rename(f.prepared.project_root, moved)
+  assert.equal(await permission(f.runtime, f.editorID, "bash", allowed[0]), "deny")
+  await symlink(moved, f.prepared.project_root)
+  assert.equal(await permission(f.runtime, f.editorID, "bash", allowed[0]), "deny")
+  await assert.rejects(hooks["tool.execute.before"]({ sessionID: f.editorID, tool: "bash" }, { args: { command: allowed[0] } }))
+  await rm(f.prepared.project_root)
+  await rename(moved, f.prepared.project_root)
+  // The root is revalidated by both hooks; changing the tree after permission is not a bypass.
+  const command = allowed[0]
+  const outside = join(f.root, "outside.txt")
+  await writeFile(outside, "outside")
+  await symlink(outside, join(f.prepared.project_root, "escape.txt"))
+  assert.equal(await permission(f.runtime, f.editorID, "bash", command), "deny")
+  await assert.rejects(hooks["tool.execute.before"]({ sessionID: f.editorID, tool: "bash" }, { args: { command } }))
+  await rm(join(f.prepared.project_root, "escape.txt"))
+  await link(outside, join(f.prepared.project_root, "alias.txt"))
+  assert.equal(await permission(f.runtime, f.editorID, "bash", command), "deny")
+  await assert.rejects(hooks["tool.execute.before"]({ sessionID: f.editorID, tool: "bash" }, { args: { command } }))
+})
+
+test("Editor command denials distinguish unsafe syntax, arguments, scope and unsupported commands", async (t) => {
+  const f = await fixture(t)
+  const hooks = delegationPluginHooks(f.runtime)
+  for (const [command, reason] of [
+    [`npx hyperframes timeline ${f.path} --json && touch marker`, "DENIED_UNSAFE_SHELL_SYNTAX"],
+    [`npx hyperframes timeline ${f.path} --bad`, "DENIED_INVALID_HYPERFRAMES_ARGUMENTS"],
+    ["npx hyperframes timeline videos/other-project-0123456789 --json", "DENIED_VIDEO_PROJECT_SCOPE"],
+    [`npx hyperframes history undo --dir ${f.path}`, "DENIED_INVALID_HYPERFRAMES_ARGUMENTS"],
+    [`npx hyperframes publish ${f.path}`, "DENIED_UNSUPPORTED_HYPERFRAMES_COMMAND"],
+  ]) {
+    await assert.rejects(hooks["tool.execute.before"]({ sessionID: f.editorID, tool: "bash" }, { args: { command } }), (error) => {
+      assert.match(error.message, new RegExp(reason))
+      assert.doesNotMatch(error.message, /final rendering requires|\/Users\//)
+      return true
+    })
+  }
+})
+
+
+test("Producer and Editor receive the verified installed setup location without new execution authority", async (t) => {
+  const f = await fixture(t)
+  for (const [id, agent] of [[f.producer.sessionID, "Producer"], [f.editorID, "Editor"]]) {
+    f.runtime.observeSessionAgent({ sessionID: id, agent })
+    const output = { system: ["Existing instructions"] }
+    f.runtime.applyChatSystem(id, output)
+    const text = output.system.join("\n")
+    assert.match(text, /installed AIO setup script is .*scripts\/setup-hyperframes.sh/)
+    assert.match(text, /Shared\/global skill installation or refresh requires explicit user approval/)
+    assert.match(text, /location grants no execution permission/)
+    assert.equal(await permission(f.runtime, id, "bash", "sh scripts/setup-hyperframes.sh"), "deny")
+  }
 })

@@ -54,14 +54,11 @@ if skill_dir=$(sh "$SKILL_RESOLVER"); then
     entry_status="present ($skill_dir)"
   else
     entry_status="incomplete ($skill_dir)"
-    ready=0
   fi
-else
-  ready=0
 fi
 
 discovery_status="not checked"
-if [ -n "$skill_dir" ] && command -v opencode >/dev/null 2>&1; then
+if command -v opencode >/dev/null 2>&1; then
   discovery_file=$(mktemp "${TMPDIR:-/tmp}/hyperframes-opencode-skill.XXXXXX")
   if opencode debug skill >"$discovery_file" 2>/dev/null &&
     discovered_skill=$(node -e '
@@ -71,7 +68,10 @@ if [ -n "$skill_dir" ] && command -v opencode >/dev/null 2>&1; then
       if (!skill?.location) process.exit(1)
       process.stdout.write(skill.location)
     ' "$discovery_file") &&
-    [ "$discovered_skill" = "$skill_dir/SKILL.md" ]; then
+    [ -f "$discovered_skill" ] && [ "$(basename -- "$discovered_skill")" = "SKILL.md" ]; then
+    # OpenCode discovery is authoritative when another installed copy exists.
+    skill_dir=$(dirname -- "$discovered_skill")
+    entry_status="present ($skill_dir)"
     discovery_status="discoverable ($skill_dir)"
   else
     discovery_status="not discoverable ($skill_dir)"
@@ -84,9 +84,14 @@ else
 fi
 
 skill_health="not checked"
-if [ "$npx_status" != "missing" ] && command -v node >/dev/null 2>&1; then
+if [ "$npx_status" != "missing" ] && command -v node >/dev/null 2>&1 &&
+  [ -n "$skill_dir" ] && [ -d "$skill_dir" ]; then
+  # Resolve the skill symlink before selecting its installation directory.
+  # The CLI --dir option takes the parent containing installed skills.
+  physical_skill_dir=$(CDPATH= cd -P -- "$skill_dir" && pwd -P)
+  skill_installation=$(dirname -- "$physical_skill_dir")
   skill_check_file=$(mktemp "${TMPDIR:-/tmp}/hyperframes-skill-check.XXXXXX")
-  if npx --yes hyperframes skills check --json >"$skill_check_file" 2>/dev/null; then
+  if npx --yes hyperframes skills check --json --dir "$skill_installation" >"$skill_check_file" 2>/dev/null; then
     skill_check_exit=0
   else
     skill_check_exit=$?
@@ -129,7 +134,7 @@ if [ "$npx_status" != "missing" ] && command -v node >/dev/null 2>&1; then
     ready=0
   fi
 else
-  skill_health="not checked (npx or Node.js unavailable)"
+  skill_health="not checked (npx, Node.js or installed skill unavailable)"
   ready=0
 fi
 
@@ -144,6 +149,6 @@ printf 'HyperFrames skills check: %s\n' "$skill_health"
 if [ "$ready" -eq 1 ]; then
   printf '%s\n' "HyperFrames status: READY"
 else
-  printf '%s\n' "HyperFrames status: NOT READY (run scripts/setup-hyperframes.sh for the explicit install/update boundary)"
+  printf 'HyperFrames status: NOT READY (setup script: %s/setup-hyperframes.sh; shared/global changes require explicit user approval)\n' "$SCRIPT_DIR"
   exit 1
 fi

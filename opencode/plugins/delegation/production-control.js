@@ -677,7 +677,7 @@ function parsedHyperFramesCommand(command) {
   const prefix = /^(?:HYPERFRAMES_SKIP_SKILLS=1\s+)?(?:npx\s+hyperframes|hyperframes)(?:\s|$)/
   if (typeof command !== "string" || !prefix.test(command.trim())) return null
   const words = shellWords(command.trim())
-  if (!words) return { matched: true, invalid: true, words: [] }
+  if (!words) return { matched: true, invalid: true, reason: "DENIED_UNSAFE_SHELL_SYNTAX", words: [] }
   let index = 0
   if (words[index] === "HYPERFRAMES_SKIP_SKILLS=1") index += 1
   if (words[index] === "npx") index += 1
@@ -690,9 +690,39 @@ function parsedHyperFramesCommand(command) {
 export function hyperFramesCommandPathTargets(command, { videoProjectPath } = {}) {
   const parsed = parsedHyperFramesCommand(command)
   if (!parsed) return null
-  if (parsed.invalid) return { invalid: true, subcommand: null, paths: [] }
+  if (parsed.invalid) return { ...parsed, paths: [] }
   const paths = []
   const args = parsed.words.slice(parsed.commandIndex + 1)
+  // Inspection is a separate, read-only grammar: never admit timeline edits or
+  // history restore/undo/begin/end via the general project-command parser.
+  if (["timeline", "history"].includes(parsed.subcommand)) {
+    const invalid = (reason = "DENIED_INVALID_HYPERFRAMES_ARGUMENTS") => ({ ...parsed, invalid: true, reason, paths: [] })
+    let target
+    if (parsed.subcommand === "timeline") {
+      if (args.length !== 2 || args[1] !== "--json") return invalid()
+      target = args[0]
+    } else {
+      let index = 0
+      if (args[0] === "--dir") { target = args[1]; index = 2 }
+      else if (args[0]?.startsWith("--dir=")) { target = args[0].slice(6); index = 1 }
+      else return invalid()
+      const seen = new Set(["--dir"])
+      for (; index < args.length; index += 1) {
+        const [option, ...inline] = args[index].split("=")
+        if (seen.has(option) || !["--json", "--since", "--who"].includes(option)) return invalid()
+        seen.add(option)
+        if (option === "--json") {
+          if (inline.length) return invalid()
+          continue
+        }
+        const value = inline.length ? inline.join("=") : args[++index]
+        if (option === "--since" ? value !== "mine" : !/^[a-zA-Z0-9_-]{1,64}$/.test(value ?? "")) return invalid()
+      }
+      if (seen.has("--since") && !seen.has("--who")) return invalid()
+    }
+    if (!videoProjectPath || target !== videoProjectPath) return invalid("DENIED_VIDEO_PROJECT_SCOPE")
+    return { ...parsed, paths: [target], inspection: true }
+  }
   const pathOptions = new Set(["-o", "--output", "--dir", "--project", "--against", "--composition"])
   for (const [index, word] of args.entries()) {
     const candidate = word.includes("=") && word.startsWith("-") ? word.slice(word.indexOf("=") + 1) : word

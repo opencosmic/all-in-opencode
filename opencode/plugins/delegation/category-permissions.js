@@ -408,6 +408,12 @@ export function applyFilmProductionEditorPermissions(config, hyperFramesSkillAcc
       { pattern: `HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes ${command}`, action: "allow" },
       { pattern: `HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes ${command} *`, action: "allow" },
     ]),
+    ...["npx hyperframes", "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes"].flatMap((prefix) => [
+      // The execution hook validates the full read-only grammar and task scope.
+      { pattern: `${prefix} timeline * --json`, action: "allow" },
+      { pattern: `${prefix} history --dir *`, action: "allow" },
+      { pattern: `${prefix} history --dir=*`, action: "allow" },
+    ]),
     ...["render", "init", "skills update"].flatMap((command) => [
       { pattern: `npx hyperframes ${command}`, action: "ask" },
       { pattern: `npx hyperframes ${command} *`, action: "ask" },

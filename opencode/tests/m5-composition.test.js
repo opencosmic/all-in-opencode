@@ -264,7 +264,8 @@ test("draft rendering is bounded while final rendering requires exact Producer a
     `${finalCommand} --composition other.html`,
   ]) {
     assert.equal(await f.decision("bash", command), "deny", command)
-    await assert.rejects(f.hook("bash", { command }), /Producer approval/)
+    await assert.rejects(f.hook("bash", { command }), command.includes("production/other-project")
+      ? /DENIED_VIDEO_PROJECT_SCOPE/ : /Producer approval/)
   }
 })
 

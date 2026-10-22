@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto"
+import { existsSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 import { realpath } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
@@ -92,7 +94,10 @@ function invokesHyperFrames(command) {
 }
 
 async function editorBashDecision(command, directory, { videoProjectPath, filmCompositionContext = false } = {}) {
-  if (!videoProjectPath && !filmCompositionContext) return "deny"
+  const allow = { status: "allow" }
+  const ask = { status: "ask" }
+  const deny = (reason = "DENIED_INVALID_HYPERFRAMES_ARGUMENTS") => ({ status: "deny", reason })
+  if (!videoProjectPath && !filmCompositionContext) return deny("DENIED_VIDEO_PROJECT_SCOPE")
   const hyperframes = hyperFramesCommandPathTargets(command, { videoProjectPath })
   if (!hyperframes) {
     const allowed = videoProjectPath
@@ -100,42 +105,46 @@ async function editorBashDecision(command, directory, { videoProjectPath, filmCo
         || await editorVideoAssetCopyAllows(command, directory, videoProjectPath)
       : await editorFfprobeAllows(command, directory)
         || await editorAssetCopyAllows(command, directory)
-    return allowed ? "allow" : "deny"
+    return allowed ? allow : deny("DENIED_UNSUPPORTED_HYPERFRAMES_COMMAND")
   }
-  if (hyperframes.invalid) return "deny"
+  if (hyperframes.invalid) return deny(hyperframes.reason)
+  if (hyperframes.inspection) {
+    return videoProjectPath && await editorVideoHyperFramesPathAllows(videoProjectPath, directory, videoProjectPath)
+      ? allow : deny("DENIED_VIDEO_PROJECT_SCOPE")
+  }
   if (hyperframes.subcommand === "catalog") {
     const args = hyperframes.words.slice(hyperframes.commandIndex + 1)
     return (args.length === 1 && args[0] === "--json")
-      || (args.length === 3 && args[0] === "--query" && args[1] && args[2] === "--json") ? "allow" : "deny"
+      || (args.length === 3 && args[0] === "--query" && args[1] && args[2] === "--json") ? allow : deny()
   }
   if (hyperframes.subcommand === "doctor") {
     const args = hyperframes.words.slice(hyperframes.commandIndex + 1)
-    return args.length === 0 || (args.length === 1 && args[0] === "--json") ? "allow" : "deny"
+    return args.length === 0 || (args.length === 1 && args[0] === "--json") ? allow : deny()
   }
   if (hyperframes.subcommand === "skills") {
     const args = hyperframes.words.slice(hyperframes.commandIndex + 1)
-    if (args.length === 2 && args[0] === "check" && args[1] === "--json") return "allow"
+    if (args.length === 2 && args[0] === "check" && args[1] === "--json") return allow
     return args[0] === "update" && args.length <= 2
-      && (args[1] === undefined || /^[a-z0-9-]+$/.test(args[1])) ? "ask" : "deny"
+      && (args[1] === undefined || /^[a-z0-9-]+$/.test(args[1])) ? ask : deny()
   }
-  if (hyperframes.subcommand !== "render" && !EDITOR_HYPERFRAMES_COMMANDS.has(hyperframes.subcommand)) return "deny"
-  if (hyperframes.subcommand === "init" && hyperframes.words[0] !== "HYPERFRAMES_SKIP_SKILLS=1") return "deny"
+  if (hyperframes.subcommand !== "render" && !EDITOR_HYPERFRAMES_COMMANDS.has(hyperframes.subcommand)) return deny("DENIED_UNSUPPORTED_HYPERFRAMES_COMMAND")
+  if (hyperframes.subcommand === "init" && hyperframes.words[0] !== "HYPERFRAMES_SKIP_SKILLS=1") return deny()
   if (hyperframes.subcommand === "render") {
     const projectPath = hyperframes.words[hyperframes.commandIndex + 1]
     if (videoProjectPath) {
-      return await editorVideoHyperFramesRenderAllows(command, directory, videoProjectPath) ? "ask" : "deny"
+      return await editorVideoHyperFramesRenderAllows(command, directory, videoProjectPath) ? ask : deny("DENIED_VIDEO_PROJECT_SCOPE")
     }
-    if (!await editorHyperFramesPathAllows(projectPath, directory)) return "deny"
-    return await editorHyperFramesRenderAllows(command, directory) ? "allow" : "deny"
+    if (!await editorHyperFramesPathAllows(projectPath, directory)) return deny("DENIED_VIDEO_PROJECT_SCOPE")
+    return await editorHyperFramesRenderAllows(command, directory) ? allow : deny("DENIED_RENDER_APPROVAL_REQUIRED")
   }
   for (const target of hyperframes.paths) {
     const allowed = videoProjectPath
       ? await editorVideoHyperFramesPathAllows(target, directory, videoProjectPath)
       : await editorHyperFramesPathAllows(target, directory)
-    if (!allowed) return "deny"
-    if (!videoProjectPath && await isApprovedRenderProjectMutationTarget(target, directory)) return "deny"
+    if (!allowed) return deny("DENIED_VIDEO_PROJECT_SCOPE")
+    if (!videoProjectPath && await isApprovedRenderProjectMutationTarget(target, directory)) return deny("DENIED_RENDER_APPROVAL_REQUIRED")
   }
-  return hyperframes.subcommand === "init" ? "ask" : "allow"
+  return hyperframes.subcommand === "init" ? ask : allow
 }
 
 function assertDelegatedSkillsAllowed(names) {
@@ -1049,7 +1058,11 @@ export class DelegationRuntime {
     const categoryList = categories.length
       ? categories.map((entry) => `- ${entry.name}: ${entry.description || "No description"}`).join("\n")
       : "- none"
-    const context = `${CATEGORY_CATALOG_MARKER}\nCaller-authorized AIO categories for ${agent} (disabled categories omitted):\n${categoryList}\n</AIO_Delegation_Categories>`
+    const setupScript = fileURLToPath(new URL("../../../scripts/setup-hyperframes.sh", import.meta.url))
+    const recovery = ["Producer", "Editor"].includes(agent) && existsSync(setupScript)
+      ? `\nHyperFrames setup recovery: the installed AIO setup script is ${JSON.stringify(setupScript)}. Show this verified location to the user when setup is blocked; do not resolve scripts/setup-hyperframes.sh relative to the video workspace. Shared/global skill installation or refresh requires explicit user approval; this location grants no execution permission.`
+      : ""
+    const context = `${CATEGORY_CATALOG_MARKER}\nCaller-authorized AIO categories for ${agent} (disabled categories omitted):\n${categoryList}\n</AIO_Delegation_Categories>${recovery}`
     const system = Array.isArray(output?.system)
       ? output.system
       : typeof output?.system === "string"
@@ -1088,10 +1101,10 @@ export class DelegationRuntime {
           && await editorCompositionMutationAllows(target, directory) ? "allow" : "deny"
     }
     if (agent === "Editor" && type === "bash") {
-      decision = await editorBashDecision(permissionValue(input), directory, {
+      decision = (await editorBashDecision(permissionValue(input), directory, {
         videoProjectPath: profile?.video_project_path,
         filmCompositionContext: profile?.film_composition_context === true,
-      })
+      })).status
     }
     if (agent === "Producer" && type === "bash" && invokesHyperFrames(permissionValue(input))) decision = "deny"
     if (agent === "Producer" && ["edit", "write"].includes(type)) {
@@ -1199,11 +1212,19 @@ export class DelegationRuntime {
         if (requestedDirectory !== undefined && await realpath(requestedDirectory) !== await realpath(directory)) {
           throw new Error("Editor HyperFrames commands must run from the bound production workspace")
         }
-        if (await editorBashDecision(command, directory, {
+        const decision = await editorBashDecision(command, directory, {
           videoProjectPath,
           filmCompositionContext: profile?.film_composition_context === true,
-        }) === "deny") {
-          throw new Error("Editor Bash requires a safe local HyperFrames command; final rendering requires current Producer approval")
+        })
+        if (decision.status === "deny") {
+          const guidance = {
+            DENIED_UNSAFE_SHELL_SYNTAX: "Shell chaining, substitution, pipes and redirection are not permitted.",
+            DENIED_INVALID_HYPERFRAMES_ARGUMENTS: "Use the documented bounded inspection syntax; history state changes are not permitted.",
+            DENIED_VIDEO_PROJECT_SCOPE: "The command requires this task's existing, safe runtime-authorized project.",
+            DENIED_UNSUPPORTED_HYPERFRAMES_COMMAND: "This operation is outside Editor's supported local commands.",
+            DENIED_RENDER_APPROVAL_REQUIRED: "Final rendering requires current Producer approval for the project and output.",
+          }
+          throw new Error(`Editor requires a safe local HyperFrames command: ${decision.reason}. ${guidance[decision.reason]}`)
         }
       }
     }
