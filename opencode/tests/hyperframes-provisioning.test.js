@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { access, chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { tmpdir } from "node:os"
 import { fileURLToPath } from "node:url"
@@ -85,11 +85,13 @@ async function fixture(
     discovery = true,
     skillUpdateAvailable = false,
     cliUpdateAvailable = false,
+    activeRoot = ".agents/skills",
+    discoveredRoot = activeRoot,
   } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "hyperframes-provisioning-test-"))
   const home = join(root, "home with spaces")
-  const skill = join(home, ".agents", "skills", "hyperframes")
+  const skill = join(home, activeRoot, "hyperframes")
   const bin = join(root, "bin")
   const npxLog = join(root, "npx.log")
   await mkdir(skill, { recursive: true })
@@ -101,8 +103,8 @@ async function fixture(
   }
 
   await writeExecutable(join(bin, "opencode"), `#!/bin/sh
-if [ "${discovery ? "1" : "0"}" = "1" ] && [ -f "$HOME/.agents/skills/hyperframes/SKILL.md" ]; then
-  printf '[{"name":"hyperframes","location":"%s"}]\\n' "$HOME/.agents/skills/hyperframes/SKILL.md"
+if [ "${discovery ? "1" : "0"}" = "1" ] && [ -f "$HOME/${discoveredRoot}/hyperframes/SKILL.md" ]; then
+  printf '[{"name":"hyperframes","location":"%s"}]\\n' "$HOME/${discoveredRoot}/hyperframes/SKILL.md"
 else
   printf '[]\\n'
 fi
@@ -111,13 +113,22 @@ fi
 printf '%s\\n' "$*" >> "$HF_NPX_LOG"
 case "$*" in
   *"hyperframes skills update"*)
-    mkdir -p "$HOME/.agents/skills/hyperframes"
-    printf '%s\\n' '---' 'name: hyperframes' 'description: fixture-current' '---' > "$HOME/.agents/skills/hyperframes/SKILL.md"
+    mkdir -p "$HOME/${activeRoot}/hyperframes"
+    printf '%s\\n' '---' 'name: hyperframes' 'description: fixture-current' '---' > "$HOME/${activeRoot}/hyperframes/SKILL.md"
     exit 0
     ;;
   *"hyperframes skills check --json"*)
+    target=""
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "--dir" ]; then shift; target=$1; fi
+      shift
+    done
+    [ -n "$target" ] || target="$HOME/.claude/skills"
+    state=current
+    if [ ! -f "$target/hyperframes/SKILL.md" ]; then state=missing
+    elif grep -q fixture-stale "$target/hyperframes/SKILL.md"; then state=outdated; fi
     printf '%s\\n' 'noise before json'
-    printf '%s\\n' '{"updateAvailable":${skillUpdateAvailable ? "true" : "false"},"summary":{"current":9,"outdated":0,"missing":11,"coreMissing":0},"skills":[{"name":"hyperframes","status":"current"}],"_meta":{"updateAvailable":${cliUpdateAvailable ? "true" : "false"}}}'
+    printf '%s\\n' '{"updateAvailable":${skillUpdateAvailable ? "true" : "false"},"summary":{"current":9,"outdated":0,"missing":11,"coreMissing":0},"skills":[{"name":"hyperframes","status":"'"$state"'"}],"_meta":{"updateAvailable":${cliUpdateAvailable ? "true" : "false"}}}'
     exit 0
     ;;
 esac
@@ -169,3 +180,42 @@ async function writeExecutable(path, content) {
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
+
+
+test("readiness checks the discovered physical installation, not an unrelated default copy", async (t) => {
+  for (const activeRoot of [".agents/skills", ".claude/skills", ".config/opencode/skills"]) {
+    for (const state of ["current", "stale"]) {
+      const f = await fixture(t, { initialState: state, activeRoot })
+      if (state === "current") assert.match((await execFileAsync(check, [], { env: f.env })).stdout, /status: READY/)
+      else await assert.rejects(execFileAsync(check, [], { env: f.env }), /Command failed/)
+      assert.match(await readFile(f.npxLog, "utf8"), new RegExp(`--dir ${escapeRegExp(dirname(await realpath(f.skill)))}`))
+    }
+  }
+  // Resolver preference differs from OpenCode discovery; the discovered copy must win.
+  const f = await fixture(t, { initialState: "stale", discoveredRoot: ".claude/skills" })
+  const discovered = join(f.env.HOME, ".claude/skills/hyperframes")
+  await mkdir(discovered, { recursive: true })
+  await writeFile(join(discovered, "SKILL.md"), "fixture-current")
+  const result = await execFileAsync(check, [], { env: f.env })
+  assert.match(result.stdout, /status: READY/)
+  assert.match(await readFile(f.npxLog, "utf8"), new RegExp(`--dir ${escapeRegExp(dirname(await realpath(discovered)))}`))
+  await writeFile(join(discovered, "SKILL.md"), "fixture-stale")
+  await writeFile(join(f.skill, "SKILL.md"), "fixture-current")
+  await assert.rejects(execFileAsync(check, [], { env: f.env }), (error) => {
+    assert.match(error.stdout, /status: NOT READY/)
+    assert.match(error.stdout, /shared\/global changes require explicit user approval/)
+    assert.ok(error.stdout.includes(setup))
+    return true
+  })
+})
+
+
+test("readiness resolves a discovered skill symlink before selecting its installation parent", async (t) => {
+  const f = await fixture(t, { initialState: "current", discoveredRoot: ".config/opencode/skills" })
+  const links = join(f.env.HOME, ".config/opencode/skills")
+  await mkdir(links, { recursive: true })
+  await symlink(f.skill, join(links, "hyperframes"))
+  const result = await execFileAsync(check, [], { env: f.env })
+  assert.match(result.stdout, /status: READY/)
+  assert.match(await readFile(f.npxLog, "utf8"), new RegExp(`--dir ${escapeRegExp(dirname(await realpath(f.skill)))}`))
+})

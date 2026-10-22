@@ -36,5 +36,7 @@ local render. Handle blocked work and missing input assets with the user. Do
 not enter Director, Creator, Blender PREVIS, Atlas generation, or the
 `/film` ProductionManifest lifecycle. Preserve HyperFrames initialization and
 skill-refresh permission gates. Never silently update globally installed
-skills; direct setup/refresh needs to `scripts/setup-hyperframes.sh` and the
-upstream confirmation flow.
+skills. Use the verified installed setup-script location supplied in the runtime
+context for recovery; never assume it exists relative to the production workspace.
+If unavailable, ask the user for their AIO installation location. Keep the upstream
+confirmation flow and obtain explicit approval for shared/global changes.
