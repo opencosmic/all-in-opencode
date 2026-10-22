@@ -52,6 +52,7 @@ export class TaskRegistry {
         parent_directory: input.parent_directory,
         execution_directory: input.execution_directory,
         video_project_path: input.video_project_path ?? null,
+        film_composition_context: input.film_composition_context === true,
         workspace_id: input.workspace_id ?? null,
         change_id: input.change_id ?? null,
         category: input.category ?? null,

@@ -119,8 +119,18 @@ test("the authenticated /video command binds the primary Producer handoff to one
   assert.equal(f.runtime.profiles.get("video-editor-1").video_project_path, task.video_project_path)
   assert.equal(f.runtime.videoCommands.has(f.producer.sessionID), true)
 
+  const differentWorkspace = await mkdtemp(join(tmpdir(), "aio-m6-video-wrong-workspace-"))
+  t.after(async () => rm(differentWorkspace, { recursive: true, force: true }))
+  await assert.rejects(f.runtime.delegate({
+    agent: "Editor",
+    description: "Cross-workspace continuation",
+    prompt: "Do not reuse the original project elsewhere",
+    load_skills: ["hyperframes"],
+    run_in_background: true,
+  }, { ...f.producer, directory: differentWorkspace }), /bound to its original workspace/)
+
   const childPretendingToBeProducer = { ...f.producer, sessionID: "video-editor-1" }
-  f.runtime.observeCommandExecution({ command: "/video", sessionID: childPretendingToBeProducer.sessionID, arguments: brief })
+  await f.runtime.observeCommandExecution({ command: "/video", sessionID: childPretendingToBeProducer.sessionID, arguments: brief })
   await assert.rejects(f.runtime.delegate({
     agent: "Editor",
     description: "Child attempts primary route",
@@ -129,6 +139,26 @@ test("the authenticated /video command binds the primary Producer handoff to one
     run_in_background: true,
   }, childPretendingToBeProducer), /may only be called by the primary Producer/)
   f.runtime.videoCommands.delete(childPretendingToBeProducer.sessionID)
+
+  await f.runtime.handleEvent({ type: "session.idle", properties: { sessionID: f.producer.sessionID } })
+  assert.equal(f.runtime.videoCommands.has(f.producer.sessionID), true)
+
+  const otherProducer = { ...f.producer, sessionID: "m6-other-producer", messageID: "other-video-turn" }
+  await f.runtime.delegate({
+    agent: "Editor",
+    description: "Independent Editor session",
+    prompt: "Build an unrelated project",
+    load_skills: ["hyperframes"],
+    run_in_background: true,
+  }, otherProducer)
+  const otherTask = f.runtime.registry.list({ parent_session_id: otherProducer.sessionID })[0]
+  assert.equal(otherTask.video_project_path, null)
+  assert.notEqual(otherTask.video_project_path, task.video_project_path)
+  assert.equal(await permission(f.runtime, otherTask.child_session_id, "write", `${task.video_project_path}/index.html`), "deny")
+  await assert.rejects(f.runtime.applyToolExecutionBefore(
+    { tool: "write", sessionID: otherTask.child_session_id },
+    { args: { filePath: `${task.video_project_path}/index.html` } },
+  ), /safe files under production\/composition/)
 
   await f.runtime.delegate({
     agent: "Editor",
@@ -139,7 +169,29 @@ test("the authenticated /video command binds the primary Producer handoff to one
   }, f.producer)
   const resumedTask = f.runtime.registry.list({ parent_session_id: f.producer.sessionID })[1]
   assert.equal(resumedTask.video_project_path, task.video_project_path)
-  assert.equal(f.runtime.profiles.get("video-editor-2").video_project_path, task.video_project_path)
+  assert.equal(f.runtime.profiles.get(resumedTask.child_session_id).video_project_path, task.video_project_path)
+
+  await hooks["command.execute.before"]({ command: "/video", sessionID: f.producer.sessionID, arguments: brief }, { parts: [] })
+  await f.runtime.delegate({
+    agent: "Editor",
+    description: "A new video request with the same brief",
+    prompt: brief,
+    load_skills: ["hyperframes"],
+    run_in_background: true,
+  }, f.producer)
+  const newVideoTask = f.runtime.registry.list({ parent_session_id: f.producer.sessionID })[2]
+  assert.notEqual(newVideoTask.video_project_path, task.video_project_path)
+
+  f.runtime.videoCommands.get(f.producer.sessionID).expires_at = Date.now() - 1
+  await f.runtime.delegate({
+    agent: "Editor",
+    description: "Expired video context",
+    prompt: "This must not revive an expired project",
+    load_skills: ["hyperframes"],
+    run_in_background: true,
+  }, f.producer)
+  const expiredTask = f.runtime.registry.list({ parent_session_id: f.producer.sessionID })[3]
+  assert.equal(expiredTask.video_project_path, null)
 
   const spoofed = { ...f.producer, sessionID: "m6-producer-without-command" }
   await assert.rejects(f.runtime.delegate({
@@ -204,6 +256,50 @@ test("Editor writes and HyperFrames operations stay inside its runtime-issued li
   await rm(join(f.prepared.project_root, "unsafe"), { recursive: true })
   await link(external, join(f.prepared.project_root, "aliased.html"))
   assert.equal(await editorVideoProjectMutationAllows(file, f.root, f.path), false)
+})
+
+test("Editor asset imports reject escaped sources and destinations through runtime Bash authorization", async (t) => {
+  const f = await fixture(t)
+  const localSource = join(f.root, "local-video.mp4")
+  await writeFile(localSource, "local media")
+  await mkdir(join(f.prepared.project_root, "assets"), { recursive: true })
+  const copy = (source, destination = `${f.path}/assets/copied.mp4`) => `cp -- ${source} ${destination}`
+  const permissionFor = (command) => permission(f.runtime, f.editorID, "bash", command)
+  const execute = (command) => f.runtime.applyToolExecutionBefore(
+    { tool: "bash", sessionID: f.editorID },
+    { args: { command } },
+  )
+
+  assert.equal(await permissionFor(copy("local-video.mp4")), "allow")
+  await execute(copy("local-video.mp4"))
+
+  const outside = await realpath(await mkdtemp(join(tmpdir(), "aio-m6-video-source-outside-")))
+  t.after(async () => rm(outside, { recursive: true, force: true }))
+  await writeFile(join(outside, "private-video.mp4"), "private media")
+  await symlink(outside, join(f.root, "external-media"))
+  const escapedParent = copy("external-media/private-video.mp4")
+  assert.equal(await permissionFor(escapedParent), "deny")
+  await assert.rejects(execute(escapedParent), /safe local HyperFrames command/)
+
+  await symlink(localSource, join(f.root, "linked-video.mp4"))
+  const linkedFile = copy("linked-video.mp4")
+  assert.equal(await permissionFor(linkedFile), "deny")
+  await assert.rejects(execute(linkedFile), /safe local HyperFrames command/)
+
+  await link(localSource, join(f.root, "hardlinked-video.mp4"))
+  const hardlink = copy("hardlinked-video.mp4")
+  assert.equal(await permissionFor(hardlink), "deny")
+  await assert.rejects(execute(hardlink), /safe local HyperFrames command/)
+
+  const absoluteSource = copy(join(outside, "private-video.mp4"))
+  assert.equal(await permissionFor(absoluteSource), "deny")
+  const traversalDestination = copy("local-video.mp4", `${f.path}/assets/../outside.mp4`)
+  assert.equal(await permissionFor(traversalDestination), "deny")
+
+  await symlink(outside, join(f.prepared.project_root, "assets", "external"))
+  const linkedDestination = copy("local-video.mp4", `${f.path}/assets/external/copied.mp4`)
+  assert.equal(await permissionFor(linkedDestination), "deny")
+  await assert.rejects(execute(linkedDestination), /safe local HyperFrames command/)
 })
 
 test("the video project root is runtime-created and refuses linked roots", async (t) => {

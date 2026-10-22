@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { realpath } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
@@ -31,6 +31,7 @@ import {
   editorFfprobeAllows,
   editorAssetCopyAllows,
   editorCompositionMutationAllows,
+  editorFilmCompositionContextAllows,
   editorVideoAssetCopyAllows,
   editorVideoFfprobeAllows,
   editorVideoHyperFramesPathAllows,
@@ -81,7 +82,7 @@ function videoProjectPathFromBrief(sessionID, brief) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 36)
     .replace(/-+$/g, "") || "video"
-  const digest = createHash("sha256").update(`${sessionID}\0${String(brief ?? "")}`).digest("hex").slice(0, 10)
+  const digest = createHash("sha256").update(`${sessionID}\0${String(brief ?? "")}\0${randomUUID()}`).digest("hex").slice(0, 10)
   return `videos/${slug}-${digest}`
 }
 
@@ -89,12 +90,17 @@ function invokesHyperFrames(command) {
   return typeof command === "string" && /\b(?:npx\s+)?hyperframes\b/i.test(command)
 }
 
-async function editorBashDecision(command, directory, videoProjectPath) {
+async function editorBashDecision(command, directory, { videoProjectPath, filmCompositionContext = false } = {}) {
+  if (!videoProjectPath && !filmCompositionContext) return "deny"
   const hyperframes = hyperFramesCommandPathTargets(command, { videoProjectPath })
-  if (!hyperframes) return await editorFfprobeAllows(command, directory)
-    || await editorAssetCopyAllows(command, directory)
-    || (videoProjectPath && await editorVideoFfprobeAllows(command, directory, videoProjectPath))
-    || (videoProjectPath && await editorVideoAssetCopyAllows(command, directory, videoProjectPath)) ? "allow" : "deny"
+  if (!hyperframes) {
+    const allowed = videoProjectPath
+      ? await editorVideoFfprobeAllows(command, directory, videoProjectPath)
+        || await editorVideoAssetCopyAllows(command, directory, videoProjectPath)
+      : await editorFfprobeAllows(command, directory)
+        || await editorAssetCopyAllows(command, directory)
+    return allowed ? "allow" : "deny"
+  }
   if (hyperframes.invalid) return "deny"
   if (hyperframes.subcommand === "catalog") {
     const args = hyperframes.words.slice(hyperframes.commandIndex + 1)
@@ -549,6 +555,21 @@ export class DelegationRuntime {
     const workspace = args.workspace_id
       ? await this.workspaces.get(args.workspace_id)
       : { workspace_id: null, directory: await realpath(context.directory) }
+    if (videoProjectPath) {
+      if (videoInvocation.workspace_directory && videoInvocation.workspace_directory !== workspace.directory) {
+        throw new Error("an authenticated /video project is bound to its original workspace")
+      }
+      if (!videoInvocation.workspace_directory) {
+        videoInvocation = { ...videoInvocation, workspace_directory: workspace.directory }
+        this.videoCommands.set(context.sessionID, videoInvocation)
+      }
+    }
+    let filmCompositionContext = false
+    if (!videoProjectPath && route.agent === "Editor" && context?.agent === "Producer"
+      && await editorFilmCompositionContextAllows(workspace.directory)) {
+      this.assertProducerProductionTool(context, "the /film Editor route")
+      filmCompositionContext = true
+    }
     if (videoProjectPath) await prepareEditorVideoProject(workspace.directory, videoProjectPath)
     const repository = args.workspace_id
       ? await this.workspaces.requireRepositoryFacts(context.directory, "delegate_task")
@@ -598,6 +619,7 @@ export class DelegationRuntime {
       description: args.description,
       background: args.run_in_background,
       video_project_path: videoProjectPath,
+      film_composition_context: filmCompositionContext,
     })
     return this.launchTask(task, {
       directory: workspace.directory,
@@ -902,7 +924,10 @@ export class DelegationRuntime {
     const idle = event?.type === "session.idle"
       || (event?.type === "session.status" && properties.status?.type === "idle")
     if (!idle || !sessionID) return
-    this.videoCommands.delete(sessionID)
+    const now = Date.now()
+    for (const [parentSessionID, invocation] of this.videoCommands) {
+      if (invocation.expires_at <= now) this.videoCommands.delete(parentSessionID)
+    }
     const taskID = this.tracker.taskForSession(sessionID)
     if (taskID) await this.runner.observeTask(taskID)
     await this.coordinator.onParentIdle(sessionID)
@@ -925,7 +950,7 @@ export class DelegationRuntime {
     this.sessionAgents.set(sessionID, agent.trim())
   }
 
-  observeCommandExecution({ command, sessionID, arguments: commandArguments } = {}) {
+  async observeCommandExecution({ command, sessionID, arguments: commandArguments, directory } = {}) {
     if (typeof sessionID !== "string" || !sessionID.trim()) return
     const normalized = String(command ?? "").trim().replace(/^\/+/, "").toLowerCase()
     if (normalized !== "video") {
@@ -933,8 +958,12 @@ export class DelegationRuntime {
       return
     }
     const brief = typeof commandArguments === "string" ? commandArguments : ""
+    const workspaceDirectory = typeof directory === "string" && directory.trim()
+      ? await realpath(directory).catch(() => null)
+      : null
     this.videoCommands.set(sessionID, {
       project_path: videoProjectPathFromBrief(sessionID, brief),
+      workspace_directory: workspaceDirectory,
       expires_at: Date.now() + VIDEO_COMMAND_TTL_MS,
     })
   }
@@ -951,6 +980,7 @@ export class DelegationRuntime {
         agent: task.agent,
         directory: task.execution_directory ?? this.directory,
         video_project_path: task.video_project_path ?? null,
+        film_composition_context: task.film_composition_context === true,
       }
     }
     const decision = categoryPermission(profile, { type: toolName, pattern: "*" })
@@ -992,6 +1022,7 @@ export class DelegationRuntime {
         agent: task.agent,
         directory: task.execution_directory ?? this.directory,
         video_project_path: task.video_project_path ?? null,
+        film_composition_context: task.film_composition_context === true,
       }
     }
     task ??= this.registry?.list?.().find((candidate) => candidate.child_session_id === input.sessionID)
@@ -1003,11 +1034,14 @@ export class DelegationRuntime {
       const target = permissionValue(input)
       decision = profile?.video_project_path
         ? target && await editorVideoProjectMutationAllows(target, directory, profile.video_project_path) ? "allow" : "deny"
-        : target && !await isApprovedRenderProjectMutationTarget(target, directory)
+        : profile?.film_composition_context === true && target && !await isApprovedRenderProjectMutationTarget(target, directory)
           && await editorCompositionMutationAllows(target, directory) ? "allow" : "deny"
     }
     if (agent === "Editor" && type === "bash") {
-      decision = await editorBashDecision(permissionValue(input), directory, profile?.video_project_path)
+      decision = await editorBashDecision(permissionValue(input), directory, {
+        videoProjectPath: profile?.video_project_path,
+        filmCompositionContext: profile?.film_composition_context === true,
+      })
     }
     if (agent === "Producer" && type === "bash" && invokesHyperFrames(permissionValue(input))) decision = "deny"
     if (agent === "Producer" && ["edit", "write"].includes(type)) {
@@ -1053,6 +1087,7 @@ export class DelegationRuntime {
         agent: task.agent,
         directory: task.execution_directory ?? this.directory,
         video_project_path: task.video_project_path ?? null,
+        film_composition_context: task.film_composition_context === true,
       }
     }
     const agent = profile?.agent ?? this.sessionAgents.get(input.sessionID)
@@ -1098,7 +1133,8 @@ export class DelegationRuntime {
           }
           const allowed = videoProjectPath
             ? await editorVideoProjectMutationAllows(target, directory, videoProjectPath)
-            : await editorCompositionMutationAllows(target, directory)
+            : profile?.film_composition_context === true
+              && await editorCompositionMutationAllows(target, directory)
           if (!allowed) {
             if (videoProjectPath) {
               throw new Error("Editor file mutations are limited to the runtime-authorized lightweight video project")
@@ -1113,7 +1149,10 @@ export class DelegationRuntime {
         if (requestedDirectory !== undefined && await realpath(requestedDirectory) !== await realpath(directory)) {
           throw new Error("Editor HyperFrames commands must run from the bound production workspace")
         }
-        if (await editorBashDecision(command, directory, videoProjectPath) === "deny") {
+        if (await editorBashDecision(command, directory, {
+          videoProjectPath,
+          filmCompositionContext: profile?.film_composition_context === true,
+        }) === "deny") {
           throw new Error("Editor Bash requires a safe local HyperFrames command; final rendering requires current Producer approval")
         }
       }

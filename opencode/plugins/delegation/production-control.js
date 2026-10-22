@@ -438,11 +438,23 @@ export async function editorVideoAssetCopyAllows(command, directory, videoProjec
   const [, , source, destination] = words
   try {
     const roots = await editorVideoProjectRoot(directory, videoProjectPath)
-    if (!roots || source.split("/").some((part) => !part || part === "." || part === ".." || part === ".git" || part === "node_modules" || part.startsWith(".env"))) return false
+    if (!roots || isAbsolute(source) || source.includes("\\") || source.includes("~")
+      || /[\u0000-\u001f\u007f:]/.test(source)
+      || source.split("/").some((part) => !part || part === "." || part === ".." || part === ".git" || part === "node_modules" || part.startsWith(".env"))) return false
     if (!/\.(?:png|jpe?g|webp|gif|svg|mp4|mov|webm|mp3|wav|m4a|ogg)$/i.test(source)) return false
-    const sourcePath = join(roots.workspace, source)
+    let sourceParent = roots.workspace
+    for (const part of source.split("/").slice(0, -1)) {
+      const candidate = join(sourceParent, part)
+      const parentInfo = await existing(candidate)
+      if (!parentInfo || parentInfo.isSymbolicLink() || !parentInfo.isDirectory()) return false
+      sourceParent = await realpath(candidate)
+      if (!inside(roots.workspace, sourceParent)) return false
+    }
+    const sourcePath = join(sourceParent, source.split("/").at(-1))
     const sourceInfo = await existing(sourcePath)
     if (!sourceInfo?.isFile() || sourceInfo.isSymbolicLink() || sourceInfo.nlink !== 1) return false
+    const sourcePhysicalPath = await realpath(sourcePath)
+    if (sourcePhysicalPath !== sourcePath || !inside(roots.workspace, sourcePhysicalPath)) return false
     const destinationPath = videoTargetPath(destination, videoProjectPath)
     if (!destinationPath || !destinationPath.startsWith(`${videoProjectPath}/assets/`)) return false
     if (!await editorVideoTargetAllows(destinationPath, directory, videoProjectPath)) return false
@@ -528,6 +540,16 @@ export async function isCanonicalManifestMutationTarget(target, directory) {
 }
 
 /** Editor's direct filesystem mutation authority is limited to the active composition tree. */
+export async function editorFilmCompositionContextAllows(directory) {
+  try {
+    const { manifest } = await requiredProduction(directory)
+    return manifest.project.status === "composition"
+      && manifest.latest_checkpoint?.phase === "composition"
+  } catch {
+    return false
+  }
+}
+
 export async function editorCompositionMutationAllows(target, directory) {
   if (typeof target !== "string" || !target.trim() || typeof directory !== "string" || !directory.trim()) return false
   try {
