@@ -6,7 +6,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { applyFilmProductionEditorPermissions } from "../plugins/delegation/category-permissions.js"
-import { finalRenderApprovalAllows } from "../plugins/delegation/production-control.js"
+import { finalRenderApprovalAllows, prepareEditorVideoProject } from "../plugins/delegation/production-control.js"
 import { updateProductionManifest } from "../plugins/delegation/production-manifest-store.js"
 import { DelegationRuntime } from "../plugins/delegation/runtime.js"
 import { createShotSpec, validateProductionManifest } from "../plugins/film-production/contracts.js"
@@ -21,10 +21,18 @@ const draftCommand = `npx hyperframes render ${composition} --output ${rough} --
 async function fixture(t, { compose = true } = {}) {
   const root = await mkdtemp(join(tmpdir(), "aio-m5-test-"))
   const project = await realpath(root)
-  const runtime = await DelegationRuntime.create({ client: {}, directory: project, stateDirectory: join(root, ".state"), skillEntries: [] })
+  let childIndex = 0
+  const client = { session: {
+    create: async () => ({ data: { id: `m5-editor-from-runtime-${++childIndex}` } }),
+    promptAsync: async () => ({ data: undefined }),
+    abort: async () => ({ data: true }),
+    status: async () => ({ data: {} }),
+    messages: async () => ({ data: [] }),
+  } }
+  const runtime = await DelegationRuntime.create({ client, directory: project, stateDirectory: join(root, ".state"), skillEntries: [] })
   const producer = { agent: "Producer", sessionID: `${root}-producer`, directory: project }
   const editorID = `${root}-editor`
-  runtime.profiles.set(editorID, { agent: "Editor", category: null, directory: project })
+  runtime.profiles.set(editorID, { agent: "Editor", category: null, directory: project, film_composition_context: true })
   t.after(async () => {
     runtime.profiles.delete(editorID)
     await rm(root, { recursive: true, force: true })
@@ -328,6 +336,56 @@ test("Editor can stage only ready canonical media into composition assets", asyn
   assert.equal(await f.decision("bash", command), "deny")
 })
 
+test("M5 Bash and file access requires a runtime-bound film composition context", async (t) => {
+  const f = await fixture(t)
+  const videoPath = "videos/m6-isolation-0123456789"
+  await prepareEditorVideoProject(f.project, videoPath)
+  await mkdir(join(f.project, composition, "assets"), { recursive: true })
+  const filmCopy = "cp -- production/assets/one.mp4 production/composition/assets/staged.mp4"
+  const filmProbe = "ffprobe production/assets/one.mp4"
+  const videoCopy = `cp -- production/assets/one.mp4 ${videoPath}/assets/staged.mp4`
+  const permissionFor = async (sessionID, type, pattern) => {
+    const output = { status: "ask" }
+    await f.runtime.applyPermission({ sessionID, permission: type, patterns: [pattern] }, output)
+    return output.status
+  }
+  const before = (sessionID, tool, args) => f.runtime.applyToolExecutionBefore({ sessionID, tool }, { args })
+
+  const delegated = await f.runtime.delegate({
+    agent: "Editor",
+    description: "Continue authorized film composition",
+    prompt: "Stage the ready footage and continue the composition.",
+    run_in_background: true,
+  }, f.producer)
+  const filmTask = f.runtime.registry.get(delegated.task_id)
+  const filmSession = filmTask.child_session_id
+  assert.equal(filmTask.film_composition_context, true)
+  assert.equal(f.runtime.profiles.get(filmSession).film_composition_context, true)
+  assert.equal(await permissionFor(filmSession, "bash", filmCopy), "allow")
+  assert.equal(await permissionFor(filmSession, "bash", filmProbe), "allow")
+  await before(filmSession, "bash", { command: filmCopy })
+  await before(filmSession, "bash", { command: filmProbe })
+  assert.equal(await permissionFor(filmSession, "write", `${composition}/index.html`), "allow")
+  assert.equal(await permissionFor(filmSession, "bash", videoCopy), "deny")
+
+  const videoSession = "m6-editor-in-m5-workspace"
+  f.runtime.profiles.set(videoSession, {
+    agent: "Editor", category: null, directory: f.project, video_project_path: videoPath,
+  })
+  assert.equal(await permissionFor(videoSession, "bash", filmCopy), "deny")
+  assert.equal(await permissionFor(videoSession, "bash", filmProbe), "deny")
+  assert.equal(await permissionFor(videoSession, "write", `${composition}/index.html`), "deny")
+  await assert.rejects(before(videoSession, "bash", { command: filmCopy }), /safe local HyperFrames command/)
+  await assert.rejects(before(videoSession, "bash", { command: filmProbe }), /safe local HyperFrames command/)
+
+  const contextlessSession = "editor-without-film-context"
+  f.runtime.profiles.set(contextlessSession, { agent: "Editor", category: null, directory: f.project })
+  assert.equal(await permissionFor(contextlessSession, "bash", filmCopy), "deny")
+  assert.equal(await permissionFor(contextlessSession, "bash", filmProbe), "deny")
+  assert.equal(await permissionFor(contextlessSession, "write", `${composition}/index.html`), "deny")
+  await assert.rejects(before(contextlessSession, "bash", { command: filmCopy }), /safe local HyperFrames command/)
+})
+
 test("Editor render routes reject output hardlinks to Git metadata", async (t) => {
   const f = await fixture(t)
   await mkdir(join(f.project, ".git"), { recursive: true })
@@ -417,6 +475,7 @@ test("Editor static profile exposes file tools behind the runtime path guard", (
   assert.equal(p.bash["npx hyperframes render *"], "ask")
   assert.equal(p.bash["npx hyperframes init *"], "ask")
   assert.equal(p.bash["npx hyperframes check *"], "allow")
+  assert.equal(p.bash["npx hyperframes skills check --json"], "allow")
   assert.equal(p.bash["npx hyperframes cloud *"], "deny")
   assert.equal(p.external_directory, "ask")
 })

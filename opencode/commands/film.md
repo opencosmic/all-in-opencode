@@ -16,7 +16,9 @@ calculate -> Producer approval -> Creator media-generation / Watch -> Producer
 assets-ready -> Editor HyperFrames composition / rough cut -> Producer
 final-render approval -> Editor local final render / Watch QA -> Producer
 completed checkpoint`. A blocked earlier phase cannot fall through to Editor.
-The lightweight `/video` route stays HyperFrames-first on Producer.
+The lightweight `/video` route also enters through Producer, then delegates
+HyperFrames composition and rendering to Editor in its runtime-issued video
+project scope. `/video` does not use this film manifest or lifecycle.
 
 Film-production goal:
 

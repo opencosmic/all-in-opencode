@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { createReadStream } from "node:fs"
 import { lstat, mkdir, readdir, realpath, stat } from "node:fs/promises"
-import { isAbsolute, join, relative, resolve, sep } from "node:path"
+import { extname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 import {
   createProductionManifest,
@@ -254,6 +254,230 @@ async function safeCompositionTree(workspace, directory) {
   return visit(directory)
 }
 
+function validateEditorVideoProjectPath(value) {
+  if (typeof value !== "string" || !/^videos\/[a-z0-9]+(?:-[a-z0-9]+)*-[a-f0-9]{10}$/.test(value)) {
+    throw new Error("Editor video project must be a runtime-issued videos/<slug>-<digest> path")
+  }
+  return value
+}
+
+async function safeVideoProjectTree(directory) {
+  async function visit(folder) {
+    for (const entry of await readdir(folder)) {
+      if (entry === ".git" || entry === "node_modules" || entry.startsWith(".env")) return false
+      const target = join(folder, entry)
+      const info = await lstat(target)
+      if (info.isSymbolicLink()) return false
+      if (info.isDirectory()) {
+        if (!await visit(target)) return false
+      } else if (!info.isFile() || info.nlink !== 1) return false
+    }
+    return true
+  }
+  return visit(directory)
+}
+
+async function editorVideoProjectRoot(directory, videoProjectPath) {
+  const workspace = await workspaceRoot(directory)
+  validateEditorVideoProjectPath(videoProjectPath)
+  const videos = join(workspace, "videos")
+  const project = join(workspace, videoProjectPath)
+  const videosInfo = await existing(videos)
+  if (!videosInfo || videosInfo.isSymbolicLink() || !videosInfo.isDirectory()) return null
+  const videosPhysical = await realpath(videos)
+  if (videosPhysical !== videos || !inside(workspace, videosPhysical)) return null
+  const projectInfo = await existing(project)
+  if (!projectInfo || projectInfo.isSymbolicLink() || !projectInfo.isDirectory()) return null
+  const projectPhysical = await realpath(project)
+  if (projectPhysical !== project || !inside(videosPhysical, projectPhysical)) return null
+  if (!await safeVideoProjectTree(projectPhysical)) return null
+  return { workspace, videos: videosPhysical, project: projectPhysical }
+}
+
+/** Create only the runtime-derived lightweight project directory under the active workspace. */
+export async function prepareEditorVideoProject(directory, videoProjectPath) {
+  const workspace = await workspaceRoot(directory)
+  validateEditorVideoProjectPath(videoProjectPath)
+  const videos = join(workspace, "videos")
+  let videosInfo = await existing(videos)
+  if (!videosInfo) {
+    try {
+      await mkdir(videos)
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error
+    }
+    videosInfo = await existing(videos)
+  }
+  if (!videosInfo || videosInfo.isSymbolicLink() || !videosInfo.isDirectory()) {
+    throw new Error("lightweight video root must be a real directory under the active workspace")
+  }
+  const videosPhysical = await realpath(videos)
+  if (videosPhysical !== videos || !inside(workspace, videosPhysical)) {
+    throw new Error("lightweight video root escapes the active workspace")
+  }
+  const project = join(workspace, videoProjectPath)
+  let projectInfo = await existing(project)
+  if (!projectInfo) {
+    try {
+      await mkdir(project)
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error
+    }
+    projectInfo = await existing(project)
+  }
+  if (!projectInfo || projectInfo.isSymbolicLink() || !projectInfo.isDirectory()) {
+    throw new Error("lightweight video project must be a real directory under videos/")
+  }
+  if (await realpath(project) !== project || !inside(videosPhysical, await realpath(project))) {
+    throw new Error("lightweight video project escapes the active workspace")
+  }
+  if (!await safeVideoProjectTree(project)) {
+    throw new Error("lightweight video project contains protected, linked, or unsafe files")
+  }
+  return { workspace_root: workspace, project_root: project, project_path: videoProjectPath }
+}
+
+/** Validate an existing runtime-issued video project without creating or repairing it. */
+export async function validateExistingEditorVideoProject(directory, videoProjectPath) {
+  const roots = await editorVideoProjectRoot(directory, videoProjectPath)
+  if (!roots) {
+    throw new Error("resumed lightweight video project is missing, escapes the workspace, or contains unsafe files")
+  }
+  return { workspace_root: roots.workspace, project_root: roots.project, project_path: videoProjectPath }
+}
+
+function videoTargetPath(target, videoProjectPath, { allowProjectRoot = false } = {}) {
+  validateEditorVideoProjectPath(videoProjectPath)
+  if (typeof target !== "string" || !target.trim() || target.includes("\\") || target.includes("~")
+    || /[\u0000-\u001f\u007f:]/.test(target) || target.split("/").some((part) => part === ".." || part === ".env*" || part === ".git" || part === "node_modules" || part.startsWith(".env"))) return null
+  const canonical = target.replace(/^\.\//, "")
+  if (canonical === videoProjectPath) return allowProjectRoot ? canonical : null
+  if (!canonical.startsWith(`${videoProjectPath}/`)) return null
+  const parts = canonical.split("/")
+  if (parts.some((part) => !part || part === ".")) return null
+  return canonical
+}
+
+async function editorVideoTargetAllows(target, directory, videoProjectPath, { allowMissing = true } = {}) {
+  try {
+    const roots = await editorVideoProjectRoot(directory, videoProjectPath)
+    if (!roots) return false
+    let scoped
+    if (isAbsolute(target)) {
+      if (target.split(sep).includes("..")) return false
+      const physicalTarget = resolve(target)
+      if (!inside(roots.project, physicalTarget) || physicalTarget === roots.project) return false
+      scoped = relative(roots.workspace, physicalTarget).split(sep).join("/")
+    } else {
+      scoped = videoTargetPath(target, videoProjectPath)
+      if (!scoped) return false
+    }
+    const candidate = join(roots.workspace, scoped)
+    let cursor = roots.workspace
+    let missingAncestor = false
+    const parts = relative(roots.workspace, candidate).split(sep)
+    for (const [index, part] of parts.entries()) {
+      cursor = join(cursor, part)
+      if (missingAncestor) continue
+      const info = await existing(cursor)
+      if (!info) {
+        if (!allowMissing) return false
+        missingAncestor = true
+        continue
+      }
+      if (info.isSymbolicLink()) return false
+      const isTarget = index === parts.length - 1
+      if (!isTarget && !info.isDirectory()) return false
+      if (isTarget && (!info.isFile() || info.nlink !== 1)) return false
+      if (index >= 1 && !inside(roots.project, await realpath(cursor))) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Editor's lightweight /video write scope; separate from the M5 manifest-gated composition scope. */
+export async function editorVideoProjectMutationAllows(target, directory, videoProjectPath) {
+  return await editorVideoTargetAllows(target, directory, videoProjectPath)
+}
+
+export async function isLightweightVideoProjectTarget(target, directory) {
+  if (typeof target !== "string" || !target.trim()) return false
+  try {
+    const workspace = await workspaceRoot(directory)
+    const root = join(workspace, "videos")
+    const candidate = isAbsolute(target) ? resolve(target) : resolve(workspace, target)
+    return candidate !== root && inside(root, candidate)
+  } catch {
+    return false
+  }
+}
+
+export async function editorVideoHyperFramesPathAllows(target, directory, videoProjectPath) {
+  try {
+    const roots = await editorVideoProjectRoot(directory, videoProjectPath)
+    if (!roots) return false
+    const scoped = videoTargetPath(target, videoProjectPath, { allowProjectRoot: true })
+    if (!scoped) return false
+    if (scoped === videoProjectPath) return true
+    return await editorVideoTargetAllows(scoped, directory, videoProjectPath)
+  } catch {
+    return false
+  }
+}
+
+export async function editorVideoHyperFramesRenderAllows(command, directory, videoProjectPath) {
+  const options = hyperFramesRenderOptions(command, { videoProjectPath })
+  if (!options || options.invalid || options.project_path !== videoProjectPath || !options.output.endsWith(".mp4")) return false
+  if (options.fps !== undefined && Number(options.fps) > 60) return false
+  if (options.workers !== undefined && Number(options.workers) > 2) return false
+  return await editorVideoTargetAllows(options.output, directory, videoProjectPath)
+}
+
+export async function editorVideoFfprobeAllows(command, directory, videoProjectPath) {
+  const words = shellWords(command?.trim())
+  if (!words || words.length !== 2 || words[0] !== "ffprobe") return false
+  return await editorVideoTargetAllows(words[1], directory, videoProjectPath, { allowMissing: false })
+}
+
+export async function editorVideoAssetCopyAllows(command, directory, videoProjectPath) {
+  const words = shellWords(command?.trim())
+  if (!words || words.length !== 4 || words[0] !== "cp" || words[1] !== "--") return false
+  const [, , source, destination] = words
+  try {
+    const roots = await editorVideoProjectRoot(directory, videoProjectPath)
+    if (!roots || isAbsolute(source) || source.includes("\\") || source.includes("~")
+      || /[\u0000-\u001f\u007f:]/.test(source)
+      || source.split("/").some((part) => !part || part === "." || part === ".." || part === ".git" || part === "node_modules" || part.startsWith(".env"))) return false
+    if (!/\.(?:png|jpe?g|webp|gif|svg|mp4|mov|webm|mp3|wav|m4a|ogg)$/i.test(source)) return false
+    let sourceParent = roots.workspace
+    for (const part of source.split("/").slice(0, -1)) {
+      const candidate = join(sourceParent, part)
+      const parentInfo = await existing(candidate)
+      if (!parentInfo || parentInfo.isSymbolicLink() || !parentInfo.isDirectory()) return false
+      sourceParent = await realpath(candidate)
+      if (!inside(roots.workspace, sourceParent)) return false
+    }
+    const sourcePath = join(sourceParent, source.split("/").at(-1))
+    const sourceInfo = await existing(sourcePath)
+    if (!sourceInfo?.isFile() || sourceInfo.isSymbolicLink() || sourceInfo.nlink !== 1) return false
+    const sourcePhysicalPath = await realpath(sourcePath)
+    if (sourcePhysicalPath !== sourcePath || !inside(roots.workspace, sourcePhysicalPath)) return false
+    const destinationPath = videoTargetPath(destination, videoProjectPath)
+    if (!destinationPath || !destinationPath.startsWith(`${videoProjectPath}/assets/`)) return false
+    if (!await editorVideoTargetAllows(destinationPath, directory, videoProjectPath)) return false
+    const destinationInfo = await existing(join(roots.workspace, destinationPath))
+    if (destinationInfo) {
+      const [from, to] = await Promise.all([stat(sourcePath), stat(join(roots.workspace, destinationPath))])
+      if (to.nlink !== 1 || (from.dev === to.dev && from.ino === to.ino)) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 function visualAsset(asset) {
   return typeof asset?.kind === "string" && ["video", "image"].includes(asset.kind.toLowerCase())
 }
@@ -325,6 +549,16 @@ export async function isCanonicalManifestMutationTarget(target, directory) {
 }
 
 /** Editor's direct filesystem mutation authority is limited to the active composition tree. */
+export async function editorFilmCompositionContextAllows(directory) {
+  try {
+    const { manifest } = await requiredProduction(directory)
+    return manifest.project.status === "composition"
+      && manifest.latest_checkpoint?.phase === "composition"
+  } catch {
+    return false
+  }
+}
+
 export async function editorCompositionMutationAllows(target, directory) {
   if (typeof target !== "string" || !target.trim() || typeof directory !== "string" || !directory.trim()) return false
   try {
@@ -453,7 +687,7 @@ function parsedHyperFramesCommand(command) {
   return { matched: true, invalid: false, subcommand: words[index], words, commandIndex: index }
 }
 
-export function hyperFramesCommandPathTargets(command) {
+export function hyperFramesCommandPathTargets(command, { videoProjectPath } = {}) {
   const parsed = parsedHyperFramesCommand(command)
   if (!parsed) return null
   if (parsed.invalid) return { invalid: true, subcommand: null, paths: [] }
@@ -469,32 +703,46 @@ export function hyperFramesCommandPathTargets(command) {
   }
   const projectCommands = new Set(["check", "lint", "snapshot", "preview", "info", "compositions", "init"])
   if (projectCommands.has(parsed.subcommand)) {
-    try {
-      validateCanonicalProductionPath(args[0], "project_path")
-    } catch {
-      return { ...parsed, invalid: true, paths }
+    if (videoProjectPath) {
+      if (!videoTargetPath(args[0], videoProjectPath, { allowProjectRoot: true })
+        || args[0] !== videoProjectPath) return { ...parsed, invalid: true, paths }
+    } else {
+      try {
+        validateCanonicalProductionPath(args[0], "project_path")
+      } catch {
+        return { ...parsed, invalid: true, paths }
+      }
     }
   }
   if (parsed.subcommand === "add") {
     const directories = args.flatMap((word, index) => word === "--dir" ? [args[index + 1]] : word.startsWith("--dir=") ? [word.slice(6)] : [])
-    if (directories.length !== 1 || typeof directories[0] !== "string" || !directories[0].startsWith("production/")) {
+    const allowedDirectory = (target) => videoProjectPath
+      ? target === videoProjectPath
+      : typeof target === "string" && target.startsWith("production/")
+    if (directories.length !== 1 || typeof directories[0] !== "string" || !allowedDirectory(directories[0])) {
       return { ...parsed, invalid: true, paths }
     }
   }
   return { ...parsed, paths }
 }
 
-function hyperFramesRenderOptions(command) {
+function hyperFramesRenderOptions(command, { videoProjectPath } = {}) {
   const parsed = parsedHyperFramesCommand(command)
   if (!parsed || parsed.subcommand !== "render") return null
   const invalid = { invalid: true }
   if (parsed.invalid) return invalid
   const args = parsed.words.slice(parsed.commandIndex + 1)
   let projectPath
-  try {
-    projectPath = validateCanonicalProductionPath(args.shift(), "project_path")
-  } catch {
-    return invalid
+  const rawProjectPath = args.shift()
+  if (videoProjectPath) {
+    if (rawProjectPath !== videoProjectPath) return invalid
+    projectPath = rawProjectPath
+  } else {
+    try {
+      projectPath = validateCanonicalProductionPath(rawProjectPath, "project_path")
+    } catch {
+      return invalid
+    }
   }
   const aliases = { "-o": "output", "-f": "fps", "-q": "quality", "-w": "workers" }
   const values = {}
@@ -513,6 +761,14 @@ function hyperFramesRenderOptions(command) {
   if (values.workers !== undefined && !/^[1-4]$/.test(values.workers)) return invalid
   if (values.quality !== undefined && !["draft", "looks", "delivery", "standard", "high"].includes(values.quality)) return invalid
   if (values.format !== undefined && values.format !== "mp4") return invalid
+  if (videoProjectPath && !videoTargetPath(values.output, videoProjectPath)) return invalid
+  if (!videoProjectPath) {
+    try {
+      validateCanonicalProductionPath(values.output, "output")
+    } catch {
+      return invalid
+    }
+  }
   return { invalid: false, project_path: projectPath, ...values }
 }
 

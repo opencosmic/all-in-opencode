@@ -12,7 +12,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repository = resolve(here, "../..")
 const execFileAsync = promisify(execFile)
 
-test("Producer is the shared HyperFrames and film-production primary route", async (t) => {
+test("Producer is the shared lightweight-video and film-production primary route", async (t) => {
   const env = await isolatedOpenCodeEnv(t, repository)
   const producer = await readFile(`${repository}/opencode/agents/producer.md`, "utf8")
   const command = await readFile(`${repository}/opencode/commands/video.md`, "utf8")
@@ -22,8 +22,9 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /single primary orchestration owner for AIO video\s+production/i)
   assert.match(producer, /not a general coding agent/i)
   assert.match(producer, /OpenSpec planner or executor/i)
-  assert.match(producer, /official upstream\s+`hyperframes` skill/i)
-  assert.match(producer, /User -> \/video -> Producer -> \/hyperframes/s)
+  assert.match(producer, /delegates composition, HyperFrames validation, preview, and rendering to\s+Editor/s)
+  assert.match(producer, /Producer must\s+not author video compositions or run HyperFrames commands/s)
+  assert.match(producer, /User -> \/video -> Producer -> Editor -> \/hyperframes/s)
   assert.match(producer, /question: allow/)
   assert.match(producer, /websearch: allow/)
   assert.match(producer, /^  delegate_task: allow$/m)
@@ -66,7 +67,7 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /Then delegate `\/film` post-production\s+to Editor/s)
   assert.match(producer, /production_record_output.*production_approve_final_render/s)
   assert.match(producer, /transitions? `composition -> qa`.*transition `qa -> completed`/s)
-  assert.match(producer, /must not delegate `media-generation` directly/)
+  assert.match(producer, /must not delegate\s+`media-generation` directly/)
   assert.doesNotMatch(producer, /GPT Image 2\.5 Sunburst|Seedream 5 Pro|MiniMax H3|Seedance 2\.5/)
   assert.doesNotMatch(producer, /delegate_task\(category="media-generation"\)/)
   assert.match(producer, /edit:\n    "\*": allow/)
@@ -74,22 +75,8 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /external_directory:\n    "\*": ask/)
   assert.doesNotMatch(producer, /~\/\.config\/opencode\/skills\/film-production/)
 
-  for (const skill of [
-    "hyperframes",
-    "hyperframes-*",
-    "media-use",
-    "general-video",
-    "product-launch-video",
-    "faceless-explainer",
-    "motion-graphics",
-    "music-to-video",
-    "pr-to-video",
-    "embedded-captions",
-    "talking-head-recut",
-    "slideshow",
-    "remotion-to-hyperframes",
-    "figma",
-  ]) assert.match(producer, new RegExp(`"${skill.replace("*", "\\*")}": allow`), skill)
+  assert.doesNotMatch(producer, /^    "hyperframes(?:-\*)?": allow$/m)
+  assert.match(producer, /^    "film-production": allow$/m)
 
   for (const tool of ["task", "workspace_prepare", "workspace_release"]) {
     assert.match(producer, new RegExp(`  ${tool}: deny`), tool)
@@ -100,8 +87,10 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.match(producer, /"git \*": deny/)
   assert.doesNotMatch(producer, /"git \*": allow/)
   assert.match(producer, /"npx skills \*": deny/)
-  assert.match(producer, /"npx hyperframes skills update \*": ask/)
-  assert.match(producer, /"npx hyperframes init \*": ask/)
+  assert.match(producer, /"npx hyperframes \*": deny/)
+  assert.match(producer, /"HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes \*": deny/)
+  assert.match(command, /delegate a named Editor task with `load_skills=\["hyperframes"\]`/)
+  assert.match(command, /Producer does not author the\s+composition or execute HyperFrames commands/)
   assert.match(command, /^agent: Producer$/m)
   assert.match(command, /^subtask: false$/m)
   assert.match(command, /\$ARGUMENTS/)
@@ -121,7 +110,7 @@ test("Producer is the shared HyperFrames and film-production primary route", asy
   assert.doesNotMatch(agents.stdout, /\bVideo\b/)
 })
 
-test("Producer's effective shell policy gates global HyperFrames updates", async (t) => {
+test("Producer's effective shell policy denies direct HyperFrames work", async (t) => {
   const env = await isolatedOpenCodeEnv(t, repository)
   env.OPENCODE_ENABLE_EXA = "1"
   const { stdout } = await execFileAsync("opencode", ["debug", "agent", "Producer"], { env, encoding: "utf8" })
@@ -162,13 +151,13 @@ test("Producer's effective shell policy gates global HyperFrames updates", async
   assert.equal(permission("production_transition", "anything"), "allow")
   assert.equal(permission("workspace_prepare", "anything"), "deny")
   assert.equal(permission("workspace_release", "anything"), "deny")
-  assert.equal(permission("bash", "npx hyperframes lint"), "allow")
+  assert.equal(permission("bash", "npx hyperframes lint"), "deny")
   assert.equal(permission("bash", "npx hyperframes skills"), "deny")
-  assert.equal(permission("bash", "npx hyperframes skills update"), "ask")
-  assert.equal(permission("bash", "npx hyperframes skills update product-launch-video"), "ask")
-  assert.equal(permission("bash", "npx hyperframes init"), "ask")
-  assert.equal(permission("bash", "npx hyperframes init demo"), "ask")
-  assert.equal(permission("bash", "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes init demo"), "ask")
+  assert.equal(permission("bash", "npx hyperframes skills update"), "deny")
+  assert.equal(permission("bash", "npx hyperframes skills update product-launch-video"), "deny")
+  assert.equal(permission("bash", "npx hyperframes init"), "deny")
+  assert.equal(permission("bash", "npx hyperframes init demo"), "deny")
+  assert.equal(permission("bash", "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes init demo"), "deny")
   assert.equal(permission("bash", "npx skills add anything"), "deny")
   assert.equal(permission("bash", "git commit -m change"), "deny")
 

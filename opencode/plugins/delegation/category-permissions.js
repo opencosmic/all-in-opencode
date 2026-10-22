@@ -27,6 +27,11 @@ const OPEN_DESIGN_RESOURCE_TOOLS = new Set([
   "read_mcp_resource",
 ])
 const MEDIA_WORKSPACE_TOOL_NAMES = Object.freeze(["read", "glob", "grep", "list", "lsp"])
+const HYPERFRAMES_SKILL_NAMES = new Set([
+  "hyperframes", "media-use", "general-video", "product-launch-video", "faceless-explainer",
+  "motion-graphics", "music-to-video", "pr-to-video", "embedded-captions", "talking-head-recut",
+  "slideshow", "remotion-to-hyperframes", "figma",
+])
 export const PRODUCTION_CONTROL_TOOL_NAMES = Object.freeze([
   "production_preflight", "production_prepare_artifacts", "production_checkpoint", "production_approve_generation",
   "production_set_shots", "production_transition", "production_record_output", "production_approve_final_render",
@@ -241,6 +246,41 @@ export async function resolveFilmProductionSkillAccess(skills) {
   }
 }
 
+export async function resolveHyperFramesSkillAccess(skills) {
+  const entries = skills?.list?.() ?? []
+  const roots = []
+  for (const entry of entries) {
+    if (!HYPERFRAMES_SKILL_NAMES.has(entry.name) && !entry.name.startsWith("hyperframes-")) continue
+    const location = skillLocation(entry)
+    if (!location || !resolve(location).endsWith("/SKILL.md")) continue
+    try {
+      roots.push({
+        lexical: dirname(resolve(location)),
+        physical: dirname(await realpath(location)),
+      })
+    } catch {
+      // An unavailable installed skill root is not granted external access.
+    }
+  }
+  return roots
+}
+
+export async function isHyperFramesSkillPath(path, access) {
+  if (typeof path !== "string" || !Array.isArray(access) || /(?:^|\/)\.env(?:$|[/.])/.test(path)) return false
+  const descendantPattern = path.endsWith("/*")
+  const candidate = descendantPattern ? path.slice(0, -2) : path
+  if (!candidate || /[*?\[\]{}]/.test(candidate) || candidate.split("/").includes("..")) return false
+  for (const root of access) {
+    if (!isWithin(candidate, root.lexical)) continue
+    try {
+      if (isWithin(await realpath(candidate), root.physical)) return true
+    } catch {
+      // A missing or dangling external path is never granted.
+    }
+  }
+  return false
+}
+
 export async function isFilmProductionExternalPath(path, access) {
   if (typeof path !== "string" || !access || /(?:^|\/)\.env(?:$|[/.])/.test(path)) return false
   const descendantPattern = path.endsWith("/*")
@@ -343,7 +383,7 @@ export function applyFilmProductionCreatorPermissions(config, access) {
   return applyFilmProductionReferencePermissions(config, "Creator", access)
 }
 
-export function applyFilmProductionEditorPermissions(config) {
+export function applyFilmProductionEditorPermissions(config, hyperFramesSkillAccess) {
   const editor = config?.agent?.Editor
   if (!editor) return false
 
@@ -358,6 +398,10 @@ export function applyFilmProductionEditorPermissions(config) {
   const bashRules = [
     { pattern: "*", action: "deny" },
     { pattern: "npx hyperframes *", action: "deny" },
+    ...[
+      "npx hyperframes skills check --json",
+      "HYPERFRAMES_SKIP_SKILLS=1 npx hyperframes skills check --json",
+    ].map((pattern) => ({ pattern, action: "allow" })),
     ...["check", "lint", "snapshot", "preview", "info", "compositions", "catalog", "doctor", "add"].flatMap((command) => [
       { pattern: `npx hyperframes ${command}`, action: "allow" },
       { pattern: `npx hyperframes ${command} *`, action: "allow" },
@@ -380,6 +424,16 @@ export function applyFilmProductionEditorPermissions(config) {
     ]),
   ]
   appendPermissionRules(permission, "bash", bashRules)
+  if (Array.isArray(hyperFramesSkillAccess)) {
+    appendPermissionRules(permission, "external_directory", hyperFramesSkillAccess.flatMap((root) => {
+      const references = resolve(root.lexical, "references")
+      const physicalReferences = resolve(root.physical, "references")
+      return [...new Set([references, physicalReferences])].flatMap((path) => [path, `${path}/*`].map((pattern) => ({
+        pattern,
+        action: "allow",
+      })))
+    }))
+  }
   return true
 }
 
