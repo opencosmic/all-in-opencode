@@ -35,6 +35,7 @@ function fakeClient() {
 
 async function fixture(t) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "aio-m6-video-")))
+  const stateDirectory = join(root, ".state")
   const path = "videos/fox-card-0123456789"
   const prepared = await prepareEditorVideoProject(root, path)
   const hyperframesSkillPath = join(root, ".installed-skills", "hyperframes", "SKILL.md")
@@ -44,7 +45,7 @@ async function fixture(t) {
   const runtime = await DelegationRuntime.create({
     client,
     directory: root,
-    stateDirectory: join(root, ".state"),
+    stateDirectory,
     skillEntries: [{ name: "hyperframes", description: "Official HyperFrames router", path: hyperframesSkillPath, content: "Use the official router." }],
     aioConfig: { version: 1 },
   })
@@ -61,13 +62,66 @@ async function fixture(t) {
     runtime.videoCommands.delete(producer.sessionID)
     await rm(root, { recursive: true, force: true })
   })
-  return { root, path, prepared, client, runtime, producer, editorID }
+  return { root, path, prepared, client, runtime, producer, editorID, stateDirectory, hyperframesSkillPath }
 }
 
 async function permission(runtime, sessionID, type, pattern) {
   const output = { status: "ask" }
   await runtime.applyPermission({ sessionID, permission: type, patterns: [pattern] }, output)
   return output.status
+}
+
+async function createVideoTask(f, hooks, brief, description = "Create a lightweight video project") {
+  await hooks["command.execute.before"]({
+    command: "/video",
+    sessionID: f.producer.sessionID,
+    arguments: brief,
+  }, { parts: [] })
+  await f.runtime.delegate({
+    agent: "Editor",
+    description,
+    prompt: brief,
+    load_skills: ["hyperframes"],
+    run_in_background: true,
+  }, f.producer)
+  return f.runtime.registry.list({ parent_session_id: f.producer.sessionID }).at(-1)
+}
+
+async function resumeVideoTask(f, task, description = "Continue the selected video project") {
+  await f.runtime.delegate({
+    agent: "Editor",
+    description,
+    prompt: "Continue the selected project using its runtime-authorized scope.",
+    load_skills: ["hyperframes"],
+    resume_video_task_id: task.task_id,
+    run_in_background: true,
+  }, f.producer)
+  return f.runtime.registry.list({ parent_session_id: f.producer.sessionID }).at(-1)
+}
+
+async function finishVideoTask(runtime, task) {
+  await runtime.registry.terminal(task.task_id, "completed", { result: { text: "Video task complete" } })
+}
+
+async function registerResumeTarget(f, overrides = {}, { complete = true } = {}) {
+  const number = f.runtime.registry.list().length + 1
+  const task = await f.runtime.registry.register({
+    parent_session_id: f.producer.sessionID,
+    parent_message_id: `resume-target-${number}`,
+    parent_agent: "Producer",
+    parent_directory: f.root,
+    execution_directory: f.root,
+    category: null,
+    workspace_id: null,
+    change_id: null,
+    agent: "Editor",
+    description: "Existing /video task",
+    video_project_path: f.path,
+    ...overrides,
+  })
+  await f.runtime.registry.start(task.task_id, { child_session_id: `resume-editor-${number}` })
+  if (complete) await finishVideoTask(f.runtime, task)
+  return f.runtime.registry.get(task.task_id)
 }
 
 test("the authenticated /video command binds the primary Producer handoff to one Editor project", async (t) => {
@@ -143,6 +197,8 @@ test("the authenticated /video command binds the primary Producer handoff to one
   await f.runtime.handleEvent({ type: "session.idle", properties: { sessionID: f.producer.sessionID } })
   assert.equal(f.runtime.videoCommands.has(f.producer.sessionID), true)
 
+  await f.runtime.registry.terminal(task.task_id, "completed", { result: { text: "Preview ready" } })
+
   const otherProducer = { ...f.producer, sessionID: "m6-other-producer", messageID: "other-video-turn" }
   await f.runtime.delegate({
     agent: "Editor",
@@ -165,11 +221,13 @@ test("the authenticated /video command binds the primary Producer handoff to one
     description: "Render the reviewed composition",
     prompt: "Producer confirms that the user approved the preview. Render the local final MP4.",
     load_skills: ["hyperframes"],
+    resume_video_task_id: task.task_id,
     run_in_background: true,
   }, f.producer)
   const resumedTask = f.runtime.registry.list({ parent_session_id: f.producer.sessionID })[1]
   assert.equal(resumedTask.video_project_path, task.video_project_path)
   assert.equal(f.runtime.profiles.get(resumedTask.child_session_id).video_project_path, task.video_project_path)
+  await f.runtime.registry.terminal(resumedTask.task_id, "completed", { result: { text: "Render complete" } })
 
   await hooks["command.execute.before"]({ command: "/video", sessionID: f.producer.sessionID, arguments: brief }, { parts: [] })
   await f.runtime.delegate({
@@ -181,17 +239,31 @@ test("the authenticated /video command binds the primary Producer handoff to one
   }, f.producer)
   const newVideoTask = f.runtime.registry.list({ parent_session_id: f.producer.sessionID })[2]
   assert.notEqual(newVideoTask.video_project_path, task.video_project_path)
+  await f.runtime.registry.terminal(newVideoTask.task_id, "completed", { result: { text: "Second preview ready" } })
 
   f.runtime.videoCommands.get(f.producer.sessionID).expires_at = Date.now() - 1
   await f.runtime.delegate({
     agent: "Editor",
-    description: "Expired video context",
-    prompt: "This must not revive an expired project",
+    description: "Resume after delayed approval",
+    prompt: "The user approved the existing preview. Render the original project locally.",
+    load_skills: ["hyperframes"],
+    resume_video_task_id: task.task_id,
+    run_in_background: true,
+  }, f.producer)
+  const delayedResumeTask = f.runtime.registry.list({ parent_session_id: f.producer.sessionID })[3]
+  assert.equal(delayedResumeTask.video_project_path, task.video_project_path)
+  assert.equal(f.runtime.profiles.get(delayedResumeTask.child_session_id).video_project_path, task.video_project_path)
+
+  f.runtime.videoCommands.get(f.producer.sessionID).expires_at = Date.now() - 1
+  await f.runtime.delegate({
+    agent: "Editor",
+    description: "Unscoped Editor request after expiration",
+    prompt: "This has no video command or explicit resume identity.",
     load_skills: ["hyperframes"],
     run_in_background: true,
   }, f.producer)
-  const expiredTask = f.runtime.registry.list({ parent_session_id: f.producer.sessionID })[3]
-  assert.equal(expiredTask.video_project_path, null)
+  const unscopedTask = f.runtime.registry.list({ parent_session_id: f.producer.sessionID })[4]
+  assert.equal(unscopedTask.video_project_path, null)
 
   const spoofed = { ...f.producer, sessionID: "m6-producer-without-command" }
   await assert.rejects(f.runtime.delegate({
@@ -201,7 +273,125 @@ test("the authenticated /video command binds the primary Producer handoff to one
     prompt: "Do not start",
     load_skills: ["hyperframes"],
     run_in_background: true,
-  }, spoofed), /assigned only by an authenticated \/video command/)
+  }, spoofed), /assigned only by an authenticated \/video command or validated task resume/)
+})
+
+test("multi-project resume always restores the explicitly selected Editor task", async (t) => {
+  const f = await fixture(t)
+  const hooks = delegationPluginHooks(f.runtime)
+  const taskA = await createVideoTask(f, hooks, "Project A: kinetic fox")
+  await finishVideoTask(f.runtime, taskA)
+
+  const firstResumeA = await resumeVideoTask(f, taskA, "Resume Project A")
+  assert.equal(firstResumeA.video_project_path, taskA.video_project_path)
+  assert.equal(f.runtime.profiles.get(firstResumeA.child_session_id).video_project_path, taskA.video_project_path)
+  await finishVideoTask(f.runtime, firstResumeA)
+
+  const taskB = await createVideoTask(f, hooks, "Project B: blue scarf")
+  assert.notEqual(taskB.video_project_path, taskA.video_project_path)
+  await finishVideoTask(f.runtime, taskB)
+
+  const secondResumeA = await resumeVideoTask(f, taskA, "Resume older Project A")
+  assert.equal(secondResumeA.video_project_path, taskA.video_project_path)
+  assert.equal(f.runtime.profiles.get(secondResumeA.child_session_id).video_project_path, taskA.video_project_path)
+  await finishVideoTask(f.runtime, secondResumeA)
+
+  const resumeB = await resumeVideoTask(f, taskB, "Resume Project B")
+  assert.equal(resumeB.video_project_path, taskB.video_project_path)
+  assert.equal(f.runtime.profiles.get(resumeB.child_session_id).video_project_path, taskB.video_project_path)
+})
+
+test("video resume identity is restored from the persisted TaskRegistry after runtime recreation", async (t) => {
+  const f = await fixture(t)
+  const hooks = delegationPluginHooks(f.runtime)
+  const task = await createVideoTask(f, hooks, "Persistent lightweight video")
+  await finishVideoTask(f.runtime, task)
+  f.runtime.videoCommands.delete(f.producer.sessionID)
+
+  const restarted = await DelegationRuntime.create({
+    client: f.client,
+    directory: f.root,
+    stateDirectory: f.stateDirectory,
+    skillEntries: [{
+      name: "hyperframes",
+      description: "Official HyperFrames router",
+      path: f.hyperframesSkillPath,
+      content: "Use the official router.",
+    }],
+    aioConfig: { version: 1 },
+  })
+  await restarted.delegate({
+    agent: "Editor",
+    description: "Resume the persisted video task",
+    prompt: "Continue the existing project.",
+    load_skills: ["hyperframes"],
+    resume_video_task_id: task.task_id,
+    run_in_background: true,
+  }, f.producer)
+
+  const resumed = restarted.registry.list({ parent_session_id: f.producer.sessionID }).at(-1)
+  assert.equal(resumed.video_project_path, task.video_project_path)
+  assert.equal(restarted.profiles.get(resumed.child_session_id).video_project_path, task.video_project_path)
+})
+
+test("video task resume is isolated to its Producer session and rejects invalid identities", async (t) => {
+  const f = await fixture(t)
+  const hooks = delegationPluginHooks(f.runtime)
+  const validTask = await createVideoTask(f, hooks, "Owned video project")
+  await finishVideoTask(f.runtime, validTask)
+
+  const otherProducer = { ...f.producer, sessionID: "m6-video-foreign-producer", messageID: "foreign-resume" }
+  await assert.rejects(f.runtime.delegate({
+    agent: "Editor",
+    description: "Cross-session resume",
+    prompt: "Do not start",
+    load_skills: ["hyperframes"],
+    resume_video_task_id: validTask.task_id,
+    run_in_background: true,
+  }, otherProducer), /not a terminal \/video Editor task owned by this Producer session/)
+  assert.equal(f.client.state.creates.length, 1)
+
+  await assert.rejects(f.runtime.delegate({
+    agent: "Editor",
+    description: "Unknown resume target",
+    prompt: "Do not start",
+    load_skills: ["hyperframes"],
+    resume_video_task_id: "task_unknown-video-project",
+    run_in_background: true,
+  }, f.producer), /unknown task_id/)
+
+  const noVideo = await registerResumeTarget(f, { video_project_path: null })
+  await assert.rejects(resumeVideoTask(f, noVideo), /not a terminal \/video Editor task/)
+
+  const wrongAgent = await registerResumeTarget(f, { agent: "Creator" })
+  await assert.rejects(resumeVideoTask(f, wrongAgent), /not a terminal \/video Editor task/)
+
+  const missingParentAgent = await registerResumeTarget(f, { parent_agent: null })
+  await assert.rejects(resumeVideoTask(f, missingParentAgent), /not a terminal \/video Editor task/)
+
+  const runningTask = await registerResumeTarget(f, {}, { complete: false })
+  await assert.rejects(resumeVideoTask(f, runningTask), /not a terminal \/video Editor task/)
+
+  const wrongWorkspace = await realpath(await mkdtemp(join(tmpdir(), "aio-m6-video-resume-workspace-")))
+  t.after(async () => rm(wrongWorkspace, { recursive: true, force: true }))
+  const otherPath = "videos/other-workspace-0123456789"
+  await prepareEditorVideoProject(wrongWorkspace, otherPath)
+  const otherWorkspaceTask = await registerResumeTarget(f, {
+    parent_directory: wrongWorkspace,
+    execution_directory: wrongWorkspace,
+    video_project_path: otherPath,
+  })
+  await assert.rejects(resumeVideoTask(f, otherWorkspaceTask), /belongs to a different workspace/)
+
+  const invalidPathTask = await registerResumeTarget(f, { video_project_path: "videos/not-runtime-issued" })
+  await assert.rejects(resumeVideoTask(f, invalidPathTask), /runtime-issued videos/)
+
+  const disappearedPath = "videos/disappeared-project-abcdef0123"
+  const disappeared = await prepareEditorVideoProject(f.root, disappearedPath)
+  const disappearedTask = await registerResumeTarget(f, { video_project_path: disappearedPath })
+  await rm(disappeared.project_root, { recursive: true, force: true })
+  await assert.rejects(resumeVideoTask(f, disappearedTask), /project is missing/)
+  assert.equal(f.client.state.creates.length, 1)
 })
 
 test("Editor writes and HyperFrames operations stay inside its runtime-issued lightweight project", async (t) => {

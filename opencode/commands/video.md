@@ -22,6 +22,14 @@ the official upstream `hyperframes` router, which selects the current supported
 creation/editing workflow and its domain skills. Producer does not author the
 composition or execute HyperFrames commands.
 
+For a new video, omit `resume_video_task_id`. To continue an existing video,
+select the exact terminal Editor `task_id` from this Producer session and pass
+it as `resume_video_task_id`. If the user's selected project is ambiguous or
+its task ID cannot be found, ask which project to continue; never substitute
+the most recent project. The runtime validates the task owner, workspace, and
+existing project tree before restoring its scope. This explicit task identity
+also supports delayed approval after the original command context expires.
+
 Editor returns a project-local preview and exact output plan. Producer presents
 it for review and obtains explicit user approval before resuming Editor for a
 local render. Handle blocked work and missing input assets with the user. Do

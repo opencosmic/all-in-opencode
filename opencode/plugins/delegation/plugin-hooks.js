@@ -265,6 +265,7 @@ export function delegationPluginHooks(runtime, { worktree = runtime.directory } 
           change_id: tool.schema.string().min(1).optional(),
           category: tool.schema.string().min(1).optional(),
           agent: tool.schema.string().min(1).optional(),
+          resume_video_task_id: tool.schema.string().min(1).optional(),
           description: tool.schema.string().min(1),
           prompt: tool.schema.string().min(1),
           load_skills: tool.schema.array(tool.schema.string().min(1)).optional(),

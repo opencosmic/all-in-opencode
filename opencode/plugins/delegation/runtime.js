@@ -44,6 +44,7 @@ import {
   isCanonicalManifestMutationTarget,
   isLightweightVideoProjectTarget,
   prepareEditorVideoProject,
+  validateExistingEditorVideoProject,
 } from "./production-control.js"
 import { resolveProjectDataRoot } from "../shared/project-data-root.js"
 import { SessionRunner } from "./session-runner.js"
@@ -527,13 +528,44 @@ export class DelegationRuntime {
     await this.ensureAgentPolicy(context.directory)
     const route = this.dispatcher.resolve({ ...args, parentAgent: context?.agent })
     const skills = this.skills.resolve(requestedSkills)
+    const resumeVideoTaskProvided = Object.hasOwn(args ?? {}, "resume_video_task_id")
+    const resumeVideoTaskID = typeof args?.resume_video_task_id === "string"
+      ? args.resume_video_task_id.trim()
+      : ""
+    if (resumeVideoTaskProvided && !resumeVideoTaskID) {
+      throw new Error("resume_video_task_id must identify an existing /video Editor task")
+    }
+    if (Object.hasOwn(args ?? {}, "video_project_path")) {
+      throw new Error("video_project_path is assigned only by an authenticated /video command or validated task resume")
+    }
     let videoInvocation = this.videoCommands.get(context?.sessionID)
     if (videoInvocation && videoInvocation.expires_at <= Date.now()) {
       this.videoCommands.delete(context.sessionID)
       videoInvocation = null
     }
     let videoProjectPath = null
-    if (videoInvocation) {
+    let resumedVideoTask = null
+    if (resumeVideoTaskProvided) {
+      this.assertProducerProductionTool(context, "video task resume")
+      if (route.agent !== "Editor" || route.category || args.category || args.workspace_id || args.change_id) {
+        throw new Error("a resumed /video task may delegate only its named Editor task in the current workspace")
+      }
+      if (!requestedSkills.includes("hyperframes")) {
+        throw new Error("the /video Editor task must load the official hyperframes router skill")
+      }
+      resumedVideoTask = this.registry.get(resumeVideoTaskID)
+      if (resumedVideoTask.parent_session_id !== context.sessionID
+        || resumedVideoTask.parent_agent !== "Producer"
+        || resumedVideoTask.agent !== "Editor"
+        || resumedVideoTask.category != null
+        || resumedVideoTask.workspace_id != null
+        || resumedVideoTask.change_id != null
+        || typeof resumedVideoTask.video_project_path !== "string"
+        || !TERMINAL_STATUSES.has(resumedVideoTask.status)) {
+        throw new Error("resume target is not a terminal /video Editor task owned by this Producer session")
+      }
+      videoProjectPath = resumedVideoTask.video_project_path
+    } else if (videoInvocation) {
       this.assertProducerProductionTool(context, "the /video Editor route")
       if (route.agent !== "Editor" || route.category || args.workspace_id || args.change_id) {
         throw new Error("an authenticated /video command may delegate only its named Editor task in the current workspace")
@@ -542,8 +574,6 @@ export class DelegationRuntime {
         throw new Error("the /video Editor task must load the official hyperframes router skill")
       }
       videoProjectPath = videoInvocation.project_path
-    } else if (Object.hasOwn(args ?? {}, "video_project_path")) {
-      throw new Error("video_project_path is assigned only by an authenticated /video command")
     }
     const referencedWorkspaces = `${args.description}\n${args.prompt}`.match(/\bws_[0-9a-f-]+\b/g) ?? []
     if (!args.workspace_id && referencedWorkspaces.length) {
@@ -555,7 +585,27 @@ export class DelegationRuntime {
     const workspace = args.workspace_id
       ? await this.workspaces.get(args.workspace_id)
       : { workspace_id: null, directory: await realpath(context.directory) }
-    if (videoProjectPath) {
+    if (resumedVideoTask) {
+      const taskParentDirectory = resumedVideoTask.parent_directory
+        ? await realpath(resumedVideoTask.parent_directory).catch(() => null)
+        : null
+      const taskExecutionDirectory = resumedVideoTask.execution_directory
+        ? await realpath(resumedVideoTask.execution_directory).catch(() => null)
+        : null
+      if (workspace.workspace_id != null
+        || taskParentDirectory !== workspace.directory
+        || taskExecutionDirectory !== workspace.directory) {
+        throw new Error("resume target belongs to a different workspace")
+      }
+      await validateExistingEditorVideoProject(workspace.directory, videoProjectPath)
+      // A validated resume establishes a short-lived context for this
+      // continuation while keeping the selected task's project identity.
+      this.videoCommands.set(context.sessionID, {
+        project_path: videoProjectPath,
+        workspace_directory: workspace.directory,
+        expires_at: Date.now() + VIDEO_COMMAND_TTL_MS,
+      })
+    } else if (videoProjectPath) {
       if (videoInvocation.workspace_directory && videoInvocation.workspace_directory !== workspace.directory) {
         throw new Error("an authenticated /video project is bound to its original workspace")
       }
@@ -570,7 +620,7 @@ export class DelegationRuntime {
       this.assertProducerProductionTool(context, "the /film Editor route")
       filmCompositionContext = true
     }
-    if (videoProjectPath) await prepareEditorVideoProject(workspace.directory, videoProjectPath)
+    if (videoProjectPath && !resumedVideoTask) await prepareEditorVideoProject(workspace.directory, videoProjectPath)
     const repository = args.workspace_id
       ? await this.workspaces.requireRepositoryFacts(context.directory, "delegate_task")
       : null

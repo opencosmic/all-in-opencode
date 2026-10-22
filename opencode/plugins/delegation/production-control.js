@@ -337,6 +337,15 @@ export async function prepareEditorVideoProject(directory, videoProjectPath) {
   return { workspace_root: workspace, project_root: project, project_path: videoProjectPath }
 }
 
+/** Validate an existing runtime-issued video project without creating or repairing it. */
+export async function validateExistingEditorVideoProject(directory, videoProjectPath) {
+  const roots = await editorVideoProjectRoot(directory, videoProjectPath)
+  if (!roots) {
+    throw new Error("resumed lightweight video project is missing, escapes the workspace, or contains unsafe files")
+  }
+  return { workspace_root: roots.workspace, project_root: roots.project, project_path: videoProjectPath }
+}
+
 function videoTargetPath(target, videoProjectPath, { allowProjectRoot = false } = {}) {
   validateEditorVideoProjectPath(videoProjectPath)
   if (typeof target !== "string" || !target.trim() || target.includes("\\") || target.includes("~")

@@ -80,6 +80,7 @@ test("plugin entrypoint is default-only and exposes the project-owned delegation
   assert.match(plugin.tool.delegate_task.description, /exactly one of category or agent/)
   assert.match(plugin.tool.delegate_task.description, /caller-specific AIO delegation context/)
   assert.match(plugin.tool.delegate_task.description, /children created by this parent session/)
+  assert.ok(plugin.tool.delegate_task.args.resume_video_task_id)
   assert.doesNotMatch(plugin.tool.delegate_task.description, /browser-automation/)
   assert.ok(plugin.tool.delegate_task.args.load_skills)
   assert.match(plugin.tool.consult_agents.description, /Explorer or Librarian/)
